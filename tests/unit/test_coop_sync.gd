@@ -2163,3 +2163,232 @@ func test_position_broadcast_gate_typical_per_tick_pattern():
 	# for tick alignment). Pin a tight range so a future refactor
 	# that breaks the rate limit is loud.
 	assert_between(sent, 14, 16, "rate-limit holds across 60Hz ticks")
+
+# --- LocalDamageRouter ------------------------------------------------------
+
+func _make_attacker(attack: int) -> EnemyData:
+	# Minimal enemy attacker for damage routing tests. DamageResolver only
+	# reads `attack: int` off the attacker_stats; defense/hp on the attacker
+	# are irrelevant for incoming-damage-to-player flows.
+	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e.attack = attack
+	return e
+
+func test_local_damage_router_is_coop_route_null_session():
+	# Solo path predicate: no session means solo, period.
+	assert_false(LocalDamageRouter.is_coop_route(null, "u1"))
+
+func test_local_damage_router_is_coop_route_inactive_session():
+	# Constructed but not started => solo branch. The broadcaster /
+	# enemy_sync are null in that window so routing through them
+	# would no-op anyway, but the explicit gate makes the contract
+	# clearer and matches KillRewardRouter's predicate shape.
+	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, null, "u1")
+	assert_false(session.is_active())
+	assert_false(LocalDamageRouter.is_coop_route(session, "u1"))
+
+func test_local_damage_router_is_coop_route_empty_local_id():
+	# Active session but no local id (pre-handshake / fresh-install).
+	# Without an id we can't pick a member, so fall back to the solo
+	# branch — Player.gd's `data` field still holds real_stats, which
+	# is the right target on the solo path anyway.
+	var session := _make_active_session_for_apply("")
+	assert_true(session.is_active())
+	assert_false(LocalDamageRouter.is_coop_route(session, ""))
+
+func test_local_damage_router_is_coop_route_local_id_not_in_party():
+	# Active session, local id set, but the id doesn't match any
+	# member (defensive against a wire-payload race where the local
+	# id was set before the lobby roster propagated). Solo branch.
+	var session := _make_active_session_for_apply("u1")
+	assert_false(LocalDamageRouter.is_coop_route(session, "u2"))
+
+func test_local_damage_router_is_coop_route_active_with_member():
+	# Happy path: active session + local id in party => co-op route.
+	var session := _make_active_session_for_apply("u1")
+	assert_true(LocalDamageRouter.is_coop_route(session, "u1"))
+
+func test_local_damage_router_is_coop_route_after_end():
+	# Post-end() session => solo branch. A late incoming damage event
+	# (an enemy attack tick that fired during the same frame as
+	# session.end) must not try to route through dropped managers.
+	var session := _make_active_session_for_apply("u1")
+	session.end()
+	assert_false(LocalDamageRouter.is_coop_route(session, "u1"))
+
+func test_local_damage_router_target_for_solo_returns_character():
+	# Solo path: target_for returns the input character itself.
+	# Player.gd's `data` field holds real_stats in solo (real ==
+	# effective), so damage lands on the right block via the same
+	# CharacterData reference the HUD reads from.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	assert_eq(LocalDamageRouter.target_for(null, c, "u1"), c)
+
+func test_local_damage_router_target_for_coop_returns_effective_stats():
+	# Co-op happy path: target_for returns the local member's
+	# effective_stats. Floor player (level <= floor) gets a clone
+	# whose stats match real_stats — but it's still the effective
+	# reference, not the input character. A future change that
+	# made target_for return real_stats in the floor case would
+	# silently route damage past the scaled view; this test pins it.
+	var session := _make_active_session_for_apply("u1")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var target := LocalDamageRouter.target_for(session, c, "u1")
+	var member := session.member_for("u1")
+	assert_ne(target, c, "co-op route should not return the input character")
+	assert_eq(target, member.effective_stats, "co-op route returns effective_stats")
+
+func test_local_damage_router_target_for_null_character_returns_null():
+	# Null-safe: a caller with no character (test path / pre-spawn)
+	# gets null back rather than a crash. apply_damage uses this to
+	# short-circuit to 0.
+	assert_eq(LocalDamageRouter.target_for(null, null, "u1"), null)
+
+func test_local_damage_router_target_for_empty_local_id_returns_character():
+	# Active session but empty local id => solo branch => character.
+	# Pinned so a refactor that made the empty-id case return the
+	# first member in the party (a tempting "default to head of
+	# list" shortcut) breaks loud.
+	var session := _make_active_session_for_apply("u1")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	assert_eq(LocalDamageRouter.target_for(session, c, ""), c)
+
+func test_local_damage_router_apply_damage_solo_hits_character():
+	# Solo path end-to-end: damage lands on the character's hp.
+	# DamageResolver mitigates via target.defense; Mage L1 has
+	# defense 0 so a 3-attack lands as 3 damage.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var hp_before := c.hp
+	var attacker := _make_attacker(3)
+	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "")
+	assert_eq(dealt, 3)
+	assert_eq(c.hp, hp_before - 3, "solo damage hits character.hp directly")
+
+func test_local_damage_router_apply_damage_coop_hits_effective_not_real():
+	# The whole point of the helper: in co-op, damage hits effective_stats
+	# and leaves real_stats untouched. PartyMember.from_character makes
+	# real_stats == input character (by reference) and effective_stats =
+	# clone, so a damage call that mutates real_stats would visibly
+	# reduce the input character's hp too. Pin both sides: real_stats
+	# unchanged, effective_stats reduced.
+	var session := _make_active_session_for_apply("u1")
+	var member := session.member_for("u1")
+	var c := member.real_stats
+	var real_hp_before := c.hp
+	var eff_hp_before := member.effective_stats.hp
+	var attacker := _make_attacker(3)
+	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	assert_eq(dealt, 3)
+	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op")
+	assert_eq(member.effective_stats.hp, eff_hp_before - 3, "effective_stats.hp reduced")
+
+func test_local_damage_router_apply_damage_null_attacker_returns_zero():
+	# Null-safe: a future kill source that doesn't pass the attacker
+	# stats (e.g. environmental hazard with no attacker entity)
+	# degrades to no-op rather than crashing on the null deref.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var hp_before := c.hp
+	assert_eq(LocalDamageRouter.apply_damage(null, null, c, ""), 0)
+	assert_eq(c.hp, hp_before, "null attacker leaves character untouched")
+
+func test_local_damage_router_apply_damage_null_character_returns_zero():
+	# Null-safe: pre-spawn / test path with no character data. Must
+	# not crash on the null deref via target_for.
+	var attacker := _make_attacker(3)
+	assert_eq(LocalDamageRouter.apply_damage(null, attacker, null, ""), 0)
+
+func test_local_damage_router_apply_damage_zero_attack_no_op():
+	# DamageResolver returns 0 when attacker.attack <= 0 (it's the
+	# only path that lets damage be 0 — defense floor is 1). Pin
+	# the routing pass-through: the helper must not paper over the
+	# zero with a 1-damage minimum of its own.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var hp_before := c.hp
+	var attacker := _make_attacker(0)
+	assert_eq(LocalDamageRouter.apply_damage(null, attacker, c, ""), 0)
+	assert_eq(c.hp, hp_before)
+
+func test_local_damage_router_apply_damage_defense_mitigates_to_floor_one():
+	# DamageResolver's defense floor is 1 (no zero-damage hits when
+	# attacker has any positive attack). Pin that the routing helper
+	# inherits the contract: an attack of 1 against a defense-3
+	# target still lands for 1 damage in solo.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	c.defense = 3
+	var hp_before := c.hp
+	var attacker := _make_attacker(1)
+	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "")
+	assert_eq(dealt, 1, "defense floor of 1")
+	assert_eq(c.hp, hp_before - 1)
+
+func test_local_damage_router_apply_damage_after_end_routes_to_character():
+	# Post-end() session: end() restores scaling (real == effective)
+	# and drops managers. A late-arriving damage event must route to
+	# the character (the solo target) so it lands on real_stats — the
+	# right block once scaling is gone.
+	var session := _make_active_session_for_apply("u1")
+	var member := session.member_for("u1")
+	var c := member.real_stats
+	session.end()
+	var hp_before := c.hp
+	var attacker := _make_attacker(2)
+	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	assert_eq(dealt, 2, "post-end damage still applies, routed to character")
+	assert_eq(c.hp, hp_before - 2)
+
+func test_local_damage_router_floor_player_routes_to_effective_not_real():
+	# Floor player: scale_stats returns a CLONE of real_stats with
+	# identical numbers. The clone is still a separate Resource —
+	# damage to effective_stats must not leak into real_stats. Pin
+	# this so a future "skip cloning when stats == floor stats"
+	# optimization (returning the input by reference for the floor
+	# case) breaks loud — that would silently mutate real_stats on
+	# every floor-player hit.
+	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
+	# Both at L1 — local is the floor player, no scaling reduction.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	var member := session.member_for("u1")
+	# Sanity: floor player => real stats and effective stats agree on level.
+	assert_eq(member.real_stats.level, member.effective_stats.level)
+	# But they're separate references.
+	assert_ne(member.real_stats, member.effective_stats,
+		"PartyScaler.clone_stats produces a separate reference even at floor")
+	var real_hp_before := c.hp
+	var attacker := _make_attacker(2)
+	LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched")
+	assert_eq(member.effective_stats.hp, member.effective_stats.max_hp - 2,
+		"floor-player effective_stats took the hit")
+
+func test_local_damage_router_scaled_player_uses_lower_max_hp():
+	# Scaled player end-to-end: a L10 player in a party with a L3
+	# floor-mate has effective_stats.max_hp set to the L3 baseline
+	# (8 for Mage). real_stats.max_hp stays at the L10 baseline (26
+	# for Mage). Damage routes to the smaller pool — pin both sides
+	# of the asymmetry so a future scaling refactor that swapped
+	# the two would visibly break.
+	var lobby := _make_lobby_for_apply([
+		["u1", "Big",   "Mage"],
+		["u2", "Small", "Mage"],
+	])
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Big")
+	c1.level = 10
+	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 10)
+	c1.hp = c1.max_hp
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Small")
+	c2.level = 3
+	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
+	c2.hp = c2.max_hp
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, null, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	var member := session.member_for("u1")
+	# Mage L10: max_hp = 8 + 9*2 = 26. L3 (floor): 8 + 2*2 = 12.
+	assert_eq(c1.max_hp, 26, "real_stats max_hp at L10")
+	assert_eq(member.effective_stats.max_hp, 12, "effective_stats max_hp at floor L3")
+	var attacker := _make_attacker(5)
+	LocalDamageRouter.apply_damage(session, attacker, c1, "u1")
+	assert_eq(c1.hp, 26, "real_stats hp untouched")
+	assert_eq(member.effective_stats.hp, 7, "effective_stats took 5 dmg from 12")
