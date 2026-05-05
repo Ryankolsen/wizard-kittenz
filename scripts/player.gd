@@ -18,6 +18,10 @@ func _ready() -> void:
 			_spell_tree = gs.skill_tree
 	if data == null:
 		data = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	# data.speed is now the source of truth (per-class baseline). The @export
+	# stays as an editor-time override for scene-only iteration.
+	if data.speed > 0.0:
+		speed = data.speed
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = ATTACK_COOLDOWN
 	_hitbox = get_node_or_null("Hitbox")
@@ -25,6 +29,10 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	velocity = compute_velocity(input_dir, speed)
+	# Track facing only when actually moving so a stationary kitten keeps its
+	# last-known direction (relevant for backstab targeting).
+	if input_dir != Vector2.ZERO:
+		data.facing = input_dir.normalized()
 	move_and_slide()
 	_tick_spells(delta)
 	if Input.is_action_just_pressed("attack"):

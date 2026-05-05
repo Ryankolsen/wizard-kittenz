@@ -13,6 +13,7 @@ var hp: int = 0
 var max_hp: int = 0
 var attack: int = 0
 var defense: int = 0
+var speed: float = 0.0
 var skill_points: int = 0
 # Stored as plain Array (not PackedStringArray) so JSON.stringify round-trips
 # cleanly via Variant. Snapshot of SkillTree.unlocked_ids() at save time.
@@ -28,6 +29,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null) -> KittenSa
 	s.max_hp = c.max_hp
 	s.attack = c.attack
 	s.defense = c.defense
+	s.speed = c.speed
 	s.skill_points = c.skill_points
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
@@ -42,6 +44,7 @@ func apply_to(c: CharacterData) -> void:
 	c.max_hp = max_hp
 	c.attack = attack
 	c.defense = defense
+	c.speed = speed
 	c.skill_points = skill_points
 
 func to_dict() -> Dictionary:
@@ -54,6 +57,7 @@ func to_dict() -> Dictionary:
 		"max_hp": max_hp,
 		"attack": attack,
 		"defense": defense,
+		"speed": speed,
 		"skill_points": skill_points,
 		"unlocked_skill_ids": unlocked_skill_ids,
 	}
@@ -68,6 +72,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.max_hp = int(d.get("max_hp", 0))
 	s.attack = int(d.get("attack", 0))
 	s.defense = int(d.get("defense", 0))
+	s.speed = float(d.get("speed", 0.0))
 	s.skill_points = int(d.get("skill_points", 0))
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:

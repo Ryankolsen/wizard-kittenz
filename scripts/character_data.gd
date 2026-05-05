@@ -13,7 +13,12 @@ const SAVE_PATH := "user://character.tres"
 @export var max_hp: int = 10
 @export var attack: int = 2
 @export var defense: int = 0
+@export var speed: float = 60.0
 @export var skill_points: int = 0
+# Last move direction. Drives backstab / facing-aware abilities. Not @export'd
+# because it's purely runtime — saves/loads don't need to round-trip the
+# moment-to-moment vector.
+var facing: Vector2 = Vector2.DOWN
 
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10
@@ -37,6 +42,15 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.NINJA: return 0
 	return 0
 
+# Per-class movement speed (px/sec). Thief is fastest, Mage slowest, Ninja
+# balanced — matches the issue's "high speed / balanced / low" archetype.
+static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
+	match klass:
+		CharacterClass.MAGE: return 50.0
+		CharacterClass.THIEF: return 75.0
+		CharacterClass.NINJA: return 60.0
+	return 60.0
+
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
 	var c := CharacterData.new()
 	c.character_name = n
@@ -48,6 +62,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.hp = hp_max
 	c.attack = base_attack_for(klass, 1)
 	c.defense = base_defense_for(klass, 1)
+	c.speed = base_speed_for(klass, 1)
 	return c
 
 func is_alive() -> bool:

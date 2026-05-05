@@ -10,6 +10,9 @@ enum EnemyKind { SLIME, BAT, RAT }
 @export var attack: int = 1
 @export var defense: int = 0
 @export var xp_reward: int = 2
+# Last move direction. Read by ThiefAbilities.backstab to detect attacks from
+# behind (attacker.facing roughly aligned with target.facing).
+var facing: Vector2 = Vector2.DOWN
 
 static func base_max_hp_for(k: EnemyKind) -> int:
 	match k:

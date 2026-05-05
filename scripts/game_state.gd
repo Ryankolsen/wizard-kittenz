@@ -24,11 +24,14 @@ func clear() -> void:
 	current_character = null
 	skill_tree = null
 
-# Per-class tree builder. Mage gets the Fireball/Frost Nova/Arcane Surge tree
-# from #9; Thief and Ninja still fall back to the mage tree until #10 lands
-# class-specific spell sets — better than returning null and forcing every
-# call site to null-check.
+# Per-class tree builder. Each class gets its own factory so unlocks on one
+# class's tree never bleed into another's (independent-trees acceptance
+# criterion from #10). Unknown class falls through to the mage tree as a safe
+# default — better than returning null and forcing every call site to
+# null-check.
 func _build_tree_for(c: CharacterData) -> SkillTree:
 	match c.character_class:
 		CharacterData.CharacterClass.MAGE: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.THIEF: return SkillTree.make_thief_tree()
+		CharacterData.CharacterClass.NINJA: return SkillTree.make_ninja_tree()
 	return SkillTree.make_mage_tree()

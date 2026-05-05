@@ -51,3 +51,34 @@ static func make_mage_tree() -> SkillTree:
 	t.add_node(SkillNode.make("frost_nova", "Frost Nova", frost_nova, ["fireball"], 1))
 	t.add_node(SkillNode.make("arcane_surge", "Arcane Surge", arcane_surge, ["frost_nova"], 1))
 	return t
+
+# Thief tree per #10: Backstab (base, single-target) -> Smoke Bomb (area, req
+# Backstab) -> Shadow Step (self-buff, req Smoke Bomb). Cooldowns trade off
+# power: short on Backstab so the burst feels snappy, long on Shadow Step
+# because it's intended as an escape. Backstab carries a higher base power
+# than Fireball — Thief leans on burst single-target rather than the Mage's
+# spell-mix flexibility.
+static func make_thief_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var backstab := Spell.make("backstab", "Backstab", Spell.EffectKind.DAMAGE, 4, 1.0)
+	var smoke_bomb := Spell.make("smoke_bomb", "Smoke Bomb", Spell.EffectKind.AREA, 2, 3.0)
+	var shadow_step := Spell.make("shadow_step", "Shadow Step", Spell.EffectKind.BUFF, 3, 5.0)
+	t.add_node(SkillNode.make("backstab", "Backstab", backstab, [], 1))
+	t.add_node(SkillNode.make("smoke_bomb", "Smoke Bomb", smoke_bomb, ["backstab"], 1))
+	t.add_node(SkillNode.make("shadow_step", "Shadow Step", shadow_step, ["smoke_bomb"], 1))
+	return t
+
+# Ninja tree per #10: Shuriken Throw (base, single-target) -> Blade Storm
+# (area, req Shuriken) -> Vanish (self-buff, req Blade Storm). Shuriken is the
+# fastest-cooldown opener in the game (0.6s) so Ninja feels relentless;
+# Blade Storm has the highest area power (5) to back up "precise and
+# aggressive" archetype.
+static func make_ninja_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var shuriken := Spell.make("shuriken_throw", "Shuriken Throw", Spell.EffectKind.DAMAGE, 3, 0.6)
+	var blade_storm := Spell.make("blade_storm", "Blade Storm", Spell.EffectKind.AREA, 5, 2.0)
+	var vanish := Spell.make("vanish", "Vanish", Spell.EffectKind.BUFF, 4, 6.0)
+	t.add_node(SkillNode.make("shuriken_throw", "Shuriken Throw", shuriken, [], 1))
+	t.add_node(SkillNode.make("blade_storm", "Blade Storm", blade_storm, ["shuriken_throw"], 1))
+	t.add_node(SkillNode.make("vanish", "Vanish", vanish, ["blade_storm"], 1))
+	return t
