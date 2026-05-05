@@ -60,6 +60,34 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 	data.is_boss = (room.type == Room.TYPE_BOSS)
 	return data
 
+# Returns the power-up type string for a power-up room, or empty string
+# otherwise. Sibling to plan_enemy: the future scene-tree spawn layer
+# reads this to know whether to instantiate a PowerUpPickup and which
+# effect to attach. The String contract (rather than a populated record
+# like plan_enemy's EnemyData) is intentional — power-ups don't go
+# through any registry / network sync the way enemies do, so all the
+# spawner needs is the type id to feed PowerUpEffect.make at pickup
+# time.
+#
+# Returns "" (empty string, not null) for non-power-up rooms and null
+# inputs. Empty string is the "no power-up here" sentinel — same shape
+# as Room.power_up_type's default. The spawner does an `is_empty()` /
+# `== ""` check rather than null-check so the call site stays
+# match-friendly.
+#
+# Does NOT validate that room.power_up_type is in PowerUpEffect's known
+# set ({catnip, ale, mushrooms}). The generator is the source of truth
+# for what gets seeded; PowerUpEffect.make at pickup time is the late
+# gate (returns null on unknown id so a stale-save typo no-ops without
+# crashing). Mirroring the same gate here would couple the planner to
+# the effect catalog without buying any extra safety.
+static func plan_powerup(room: Room) -> String:
+	if room == null:
+		return ""
+	if room.type != Room.TYPE_POWERUP:
+		return ""
+	return room.power_up_type
+
 # Returns the list of enemy_ids that plan_enemy would mint for this
 # room. Useful for the per-room enemy-count watcher to know up-front how
 # many deaths it needs to see before calling mark_room_cleared. Empty

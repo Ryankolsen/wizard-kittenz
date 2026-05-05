@@ -99,6 +99,55 @@ func test_plan_enemy_max_hp_matches_kind():
 	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT))
 	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.RAT))
 
+# --- plan_powerup ----------------------------------------------------------
+
+func test_plan_powerup_powerup_room_returns_type():
+	var r := _make_powerup_room(2, "catnip")
+	assert_eq(RoomSpawnPlanner.plan_powerup(r), "catnip")
+
+func test_plan_powerup_returns_each_seeded_type():
+	# Locks the contract that whatever the generator seeded (via
+	# DungeonGenerator's POWER_UP_TYPES pool) round-trips through the
+	# planner unchanged.
+	for t in ["catnip", "ale", "mushrooms"]:
+		assert_eq(RoomSpawnPlanner.plan_powerup(_make_powerup_room(1, t)), t)
+
+func test_plan_powerup_standard_room_returns_empty():
+	# A standard room never has a power_up_type seeded by the generator,
+	# but defensively reject even if some future code path leaks one in
+	# — the planner's gate is room.type, not the field's truthiness.
+	var r := _make_standard_room(3)
+	r.power_up_type = "catnip"
+	assert_eq(RoomSpawnPlanner.plan_powerup(r), "", "non-powerup rooms return empty regardless of field")
+
+func test_plan_powerup_boss_room_returns_empty():
+	assert_eq(RoomSpawnPlanner.plan_powerup(_make_boss_room(7)), "")
+
+func test_plan_powerup_start_room_returns_empty():
+	assert_eq(RoomSpawnPlanner.plan_powerup(_make_start_room(0)), "")
+
+func test_plan_powerup_null_room_returns_empty():
+	assert_eq(RoomSpawnPlanner.plan_powerup(null), "", "null room is safe no-op")
+
+func test_plan_powerup_unknown_type_passes_through():
+	# The planner does not validate against PowerUpEffect's known set;
+	# the late gate is PowerUpEffect.make at pickup time. A stale-save
+	# typo or a future-power-up id flows through as-is.
+	var r := _make_powerup_room(1, "espresso")
+	assert_eq(RoomSpawnPlanner.plan_powerup(r), "espresso")
+
+func test_plan_powerup_no_overlap_with_plan_enemy():
+	# Pin that the two planner outputs are mutually exclusive per room:
+	# a room either has an enemy or a power-up, never both. The future
+	# spawner branches on which planner returned non-empty.
+	var combat := _make_standard_room(1)
+	assert_not_null(RoomSpawnPlanner.plan_enemy(combat))
+	assert_eq(RoomSpawnPlanner.plan_powerup(combat), "")
+
+	var powerup := _make_powerup_room(2, "ale")
+	assert_null(RoomSpawnPlanner.plan_enemy(powerup))
+	assert_eq(RoomSpawnPlanner.plan_powerup(powerup), "ale")
+
 # --- enemy_ids_for_room ----------------------------------------------------
 
 func test_enemy_ids_for_standard_room_one_id():
