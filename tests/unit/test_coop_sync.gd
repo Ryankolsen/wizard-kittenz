@@ -1933,3 +1933,233 @@ func test_summary_header_passes_through_post_end_session():
 	assert_eq(post["party_size"], 2, "rows still produced from lobby + player_ids")
 	assert_eq(post["grand_total_xp"], 0, "tally is gone post-end")
 	assert_eq(post["mvp_player_id"], "", "no MVP when nobody scored (tally dropped)")
+
+# --- PositionBroadcastGate -------------------------------------------------
+
+func test_position_broadcast_gate_first_call_always_broadcasts():
+	# First call after construction has no prior baseline — must
+	# return true so remote clients see us pop in at spawn rather
+	# than waiting for the first delta / heartbeat to elapse.
+	var gate := PositionBroadcastGate.new()
+	assert_false(gate.has_broadcast(), "gate starts un-broadcast")
+	assert_true(gate.should_broadcast(0.0, Vector2.ZERO))
+	# should_broadcast is a pure predicate — it does NOT update state
+	assert_false(gate.has_broadcast(), "predicate doesn't mutate state")
+
+func test_position_broadcast_gate_first_call_passes_regardless_of_position():
+	# A non-zero position on first call still passes — there's no
+	# baseline to compare against, so the rate-limit / delta gate
+	# branches don't apply.
+	var gate := PositionBroadcastGate.new()
+	assert_true(gate.should_broadcast(5.0, Vector2(100, 200)))
+
+func test_position_broadcast_gate_mark_broadcast_sets_state():
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(1.5, Vector2(10, 20))
+	assert_true(gate.has_broadcast())
+	assert_eq(gate.last_broadcast_time(), 1.5)
+	assert_eq(gate.last_broadcast_position(), Vector2(10, 20))
+
+func test_position_broadcast_gate_rate_limits_within_min_interval():
+	# Inside the rate-limit window, no broadcast regardless of how far
+	# the kitten moved. Defends against a 60Hz physics tick saturating
+	# the wire on a single-frame teleport (e.g. a power-up snap).
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	# Default min_interval = 0.1s; 0.05s elapsed is half that.
+	assert_false(gate.should_broadcast(0.05, Vector2(1000, 1000)),
+		"large delta inside rate-limit window still rejected")
+	assert_false(gate.should_broadcast(0.099, Vector2(500, 500)),
+		"just-before-min-interval rejected")
+
+func test_position_broadcast_gate_passes_after_min_interval_with_delta():
+	# Past the rate-limit AND moved at least min_position_delta:
+	# broadcast.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	# Default min_interval = 0.1s, min_delta = 1.0px.
+	assert_true(gate.should_broadcast(0.2, Vector2(2, 0)),
+		"moved 2px after 200ms > thresholds")
+
+func test_position_broadcast_gate_rejects_subdelta_movement():
+	# Past the rate-limit but didn't move enough AND heartbeat hasn't
+	# elapsed: rejected. A kitten micro-jittering on a sub-pixel grid
+	# doesn't flood the wire.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	# 0.5px movement < 1.0px default min_delta; 0.2s < 1.0s heartbeat.
+	assert_false(gate.should_broadcast(0.2, Vector2(0.5, 0)),
+		"sub-delta movement rejected before heartbeat elapses")
+
+func test_position_broadcast_gate_delta_threshold_is_inclusive():
+	# Distance exactly equal to min_position_delta passes (>=). Pins
+	# the boundary so a refactor that swaps >= for > breaks loud.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	assert_true(gate.should_broadcast(0.2, Vector2(1.0, 0)),
+		"distance == min_delta passes")
+
+func test_position_broadcast_gate_heartbeat_forces_broadcast_when_stationary():
+	# Stationary kitten still broadcasts every heartbeat_interval so
+	# remote clients can distinguish "lost connection" from "standing
+	# still" by timing the gap between packets.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2(50, 50))
+	# Default heartbeat = 1.0s. Same position, 1.5s elapsed.
+	assert_true(gate.should_broadcast(1.5, Vector2(50, 50)))
+
+func test_position_broadcast_gate_heartbeat_threshold_is_inclusive():
+	# Elapsed exactly equal to heartbeat_interval triggers. Pins
+	# the boundary so the heartbeat doesn't silently delay.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	assert_true(gate.should_broadcast(1.0, Vector2.ZERO),
+		"elapsed == heartbeat passes")
+
+func test_position_broadcast_gate_rate_limit_overrides_heartbeat():
+	# The rate-limit gate fires BEFORE the heartbeat check. A custom
+	# heartbeat shorter than the rate limit is effectively clamped to
+	# the rate limit (a misconfiguration, but the gate's behavior is
+	# defined: never broadcast more than once per min_interval).
+	var gate := PositionBroadcastGate.new(0.5, 1.0, 0.1)
+	# heartbeat=0.1s, min_interval=0.5s; conflict resolves in favor
+	# of min_interval.
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	assert_false(gate.should_broadcast(0.2, Vector2.ZERO),
+		"rate-limit beats heartbeat when heartbeat < min_interval")
+	assert_true(gate.should_broadcast(0.5, Vector2.ZERO),
+		"once min_interval elapses, heartbeat fires")
+
+func test_position_broadcast_gate_try_broadcast_returns_true_and_marks():
+	var gate := PositionBroadcastGate.new()
+	# First call always passes; try_broadcast does the should+mark
+	# in one call.
+	assert_true(gate.try_broadcast(2.0, Vector2(10, 10)))
+	assert_true(gate.has_broadcast())
+	assert_eq(gate.last_broadcast_time(), 2.0)
+	assert_eq(gate.last_broadcast_position(), Vector2(10, 10))
+
+func test_position_broadcast_gate_try_broadcast_returns_false_when_rate_limited():
+	# When should_broadcast returns false, try_broadcast leaves state
+	# untouched. Pinned so a future refactor that mistakenly marks-on-
+	# false breaks loud.
+	var gate := PositionBroadcastGate.new()
+	gate.try_broadcast(0.0, Vector2.ZERO)
+	var ok := gate.try_broadcast(0.05, Vector2(1000, 1000))
+	assert_false(ok)
+	assert_eq(gate.last_broadcast_time(), 0.0,
+		"rejected try_broadcast must not advance time")
+	assert_eq(gate.last_broadcast_position(), Vector2.ZERO,
+		"rejected try_broadcast must not advance position")
+
+func test_position_broadcast_gate_should_broadcast_does_not_mutate_state():
+	# Pure predicate. Two-step API so the wire layer can abort the
+	# broadcast (e.g. socket disconnect) without poisoning state.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	var before_time := gate.last_broadcast_time()
+	var before_pos := gate.last_broadcast_position()
+	# Call several times — none should change state.
+	gate.should_broadcast(2.0, Vector2(100, 100))
+	gate.should_broadcast(3.0, Vector2(200, 200))
+	assert_eq(gate.last_broadcast_time(), before_time)
+	assert_eq(gate.last_broadcast_position(), before_pos)
+
+func test_position_broadcast_gate_backwards_time_rate_limited():
+	# Defensive: if `now` goes backwards (clock skew, suspend/resume),
+	# elapsed is negative and the rate-limit branch holds. The gate
+	# freezes until the wire layer's clock catches up — better than
+	# flooding the wire during the catch-up window.
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(10.0, Vector2.ZERO)
+	assert_false(gate.should_broadcast(5.0, Vector2(100, 100)),
+		"backwards time stays rate-limited")
+
+func test_position_broadcast_gate_constructor_overrides_thresholds():
+	# Custom thresholds via constructor for a future "low-bandwidth
+	# mode" toggle (e.g. half-rate cadence + larger delta + slower
+	# heartbeat).
+	var gate := PositionBroadcastGate.new(0.2, 5.0, 2.0)
+	assert_eq(gate.min_interval_seconds, 0.2)
+	assert_eq(gate.min_position_delta, 5.0)
+	assert_eq(gate.heartbeat_interval_seconds, 2.0)
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	# 3px movement after 0.3s — past min_interval but under min_delta=5.
+	assert_false(gate.should_broadcast(0.3, Vector2(3, 0)))
+	# 6px movement after 0.3s — past both gates.
+	assert_true(gate.should_broadcast(0.3, Vector2(6, 0)))
+
+func test_position_broadcast_gate_property_setter_overrides():
+	# Properties are settable post-construction (e.g. a settings menu
+	# that toggles cadence at runtime).
+	var gate := PositionBroadcastGate.new()
+	gate.min_interval_seconds = 0.05
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	# 0.06s elapsed — under default 0.1s but over custom 0.05s.
+	assert_true(gate.should_broadcast(0.06, Vector2(10, 0)))
+
+func test_position_broadcast_gate_reset_clears_state():
+	# Reset for the "play again" flow that keeps the orchestrator
+	# alive. After reset, the next call is treated as the first call
+	# again (always passes).
+	var gate := PositionBroadcastGate.new()
+	gate.mark_broadcast(5.0, Vector2(100, 200))
+	gate.reset()
+	assert_false(gate.has_broadcast())
+	assert_eq(gate.last_broadcast_time(), 0.0)
+	assert_eq(gate.last_broadcast_position(), Vector2.ZERO)
+	# After reset, first call passes (no baseline).
+	assert_true(gate.should_broadcast(0.0, Vector2.ZERO))
+
+func test_position_broadcast_gate_reset_preserves_threshold_overrides():
+	# Reset clears the broadcast STATE but not the threshold config.
+	# A "play again" flow shouldn't lose the player's bandwidth
+	# preference.
+	var gate := PositionBroadcastGate.new(0.5, 10.0, 5.0)
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	gate.reset()
+	assert_eq(gate.min_interval_seconds, 0.5)
+	assert_eq(gate.min_position_delta, 10.0)
+	assert_eq(gate.heartbeat_interval_seconds, 5.0)
+
+func test_position_broadcast_gate_repeated_broadcasts_advance_baseline():
+	# Successive try_broadcast calls each advance the baseline so the
+	# next call's elapsed / delta are computed against the most recent
+	# send (not against match start).
+	var gate := PositionBroadcastGate.new()
+	gate.try_broadcast(0.0, Vector2(0, 0))
+	gate.try_broadcast(0.25, Vector2(10, 0))
+	# Now baseline is (0.25, (10, 0)). 0.5s elapsed since last send is
+	# 0.25s, well past min_interval = 0.1s.
+	# 5px movement from (10, 0) to (15, 0) > 1px min_delta.
+	assert_true(gate.try_broadcast(0.5, Vector2(15, 0)))
+	assert_eq(gate.last_broadcast_position(), Vector2(15, 0))
+
+func test_position_broadcast_gate_zero_min_delta_broadcasts_any_change():
+	# Edge: min_position_delta == 0 means any position counts as
+	# "moved enough" (>=0 is always true). Defines the contract for
+	# a hypothetical "ultra-precise" mode.
+	var gate := PositionBroadcastGate.new(0.1, 0.0, 1.0)
+	gate.mark_broadcast(0.0, Vector2.ZERO)
+	assert_true(gate.should_broadcast(0.2, Vector2.ZERO),
+		"zero min_delta passes even with no movement")
+
+func test_position_broadcast_gate_typical_per_tick_pattern():
+	# End-to-end: simulate a 60Hz physics tick over 1.5 seconds with
+	# the kitten moving steadily. Pins the cadence: at 10Hz default,
+	# we expect ~15 broadcasts in 1.5s (one every 0.1s). Validates
+	# that try_broadcast's rate limit holds across many ticks.
+	var gate := PositionBroadcastGate.new()
+	var dt := 1.0 / 60.0
+	var t := 0.0
+	var pos := Vector2.ZERO
+	var sent := 0
+	for _i in 90:  # 90 ticks at 60Hz = 1.5s
+		t += dt
+		pos += Vector2(2, 0)  # 2px per tick = 120px/s; well over 1px/100ms threshold
+		if gate.try_broadcast(t, pos):
+			sent += 1
+	# At 10Hz max over 1.5s: expect 15 broadcasts (give or take 1
+	# for tick alignment). Pin a tight range so a future refactor
+	# that breaks the rate limit is loud.
+	assert_between(sent, 14, 16, "rate-limit holds across 60Hz ticks")
