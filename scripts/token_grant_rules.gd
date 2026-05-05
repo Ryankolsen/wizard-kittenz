@@ -32,3 +32,14 @@ static func tokens_for_level_up(old_level: int, new_level: int) -> int:
 		if lvl > 0 and lvl % MILESTONE_LEVEL_INTERVAL == 0:
 			milestones += 1
 	return milestones * TOKENS_PER_MILESTONE_LEVEL
+
+# Single entry point the kill flow calls post-add_xp. Combines the
+# milestone-level grant with the boss-kill bonus so the caller doesn't have
+# to remember to add them — boss-kill at L5 should yield both rewards.
+# Null enemy_data is treated as "not a boss" so a future kill path that
+# forgets to pass the data still grants the milestone safely.
+static func tokens_for_kill(enemy_data: EnemyData, old_level: int, new_level: int) -> int:
+	var total := tokens_for_level_up(old_level, new_level)
+	if enemy_data != null and enemy_data.is_boss:
+		total += tokens_for_boss_kill()
+	return total

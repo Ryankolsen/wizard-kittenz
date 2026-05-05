@@ -122,7 +122,7 @@ func _try_attack() -> void:
 		if node is Enemy and node.data != null and node.data.is_alive():
 			DamageResolver.apply(data, node.data)
 			if not node.data.is_alive():
-				_award_kill_xp(node.data.xp_reward)
+				_award_kill_xp(node.data)
 				_record_meta_progress()
 				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _token_inventory())
 				node.queue_free()
@@ -144,7 +144,7 @@ func _try_cast_spell() -> void:
 		var awarded := false
 		for n in enemy_nodes:
 			if n.data != null and not n.data.is_alive():
-				_award_kill_xp(n.data.xp_reward)
+				_award_kill_xp(n.data)
 				n.queue_free()
 				awarded = true
 		if awarded:
@@ -185,17 +185,20 @@ func _token_inventory() -> TokenInventory:
 		return null
 	return gs.token_inventory
 
-# Awards XP and grants any milestone-level revive tokens earned crossing
-# level thresholds during the level-up. Centralized so both the melee and
-# spell-cast kill paths use the same token-grant rules.
-func _award_kill_xp(amount: int) -> void:
-	if data == null:
+# Awards XP from a kill and grants any revive tokens earned along with it
+# (milestone-level crossings + boss-kill bonus). Centralized so both the
+# melee and spell-cast paths share the rule. Null enemy_data is treated as
+# a non-boss kill — defensive for a future kill source that doesn't pass
+# the data, e.g. damage-over-time spells where the killing tick has no
+# direct enemy node.
+func _award_kill_xp(enemy_data: EnemyData) -> void:
+	if data == null or enemy_data == null:
 		return
 	var level_before := data.level
-	ProgressionSystem.add_xp(data, amount)
+	ProgressionSystem.add_xp(data, enemy_data.xp_reward)
 	var inv := _token_inventory()
 	if inv == null:
 		return
-	var earned := TokenGrantRules.tokens_for_level_up(level_before, data.level)
+	var earned := TokenGrantRules.tokens_for_kill(enemy_data, level_before, data.level)
 	if earned > 0:
 		inv.grant(earned)

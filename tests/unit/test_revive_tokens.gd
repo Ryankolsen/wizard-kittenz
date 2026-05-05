@@ -138,6 +138,55 @@ func test_tokens_for_boss_kill_and_dungeon_complete_constants():
 	assert_gt(TokenGrantRules.tokens_for_dungeon_complete(), 0,
 		"dungeon completion grants at least one token")
 
+# --- TokenGrantRules.tokens_for_kill ----------------------------------------
+
+func test_tokens_for_kill_grants_boss_bonus_for_boss_enemy():
+	# Acceptance: boss kill awards the bonus on top of any milestone grant.
+	# Killing a boss with no level-up should still drip the boss-kill token.
+	var boss := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	boss.is_boss = true
+	assert_eq(TokenGrantRules.tokens_for_kill(boss, 3, 3),
+		TokenGrantRules.tokens_for_boss_kill())
+
+func test_tokens_for_kill_no_bonus_for_normal_enemy():
+	# Standard enemies don't grant boss tokens — only the milestone drip.
+	var slime := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	assert_eq(TokenGrantRules.tokens_for_kill(slime, 3, 3), 0,
+		"non-boss kill with no level-up grants nothing")
+
+func test_tokens_for_kill_combines_boss_and_milestone():
+	# The kill that crosses L5 AND is a boss should grant both rewards.
+	# This is the "epic moment" payout that makes boss kills feel meaningful.
+	var boss := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	boss.is_boss = true
+	var expected := TokenGrantRules.tokens_for_boss_kill() \
+		+ TokenGrantRules.tokens_for_level_up(4, 5)
+	assert_eq(TokenGrantRules.tokens_for_kill(boss, 4, 5), expected)
+
+func test_tokens_for_kill_handles_null_enemy_data():
+	# Defensive: a future damage-over-time path may award XP with no enemy
+	# reference. Null routes through as "not a boss" rather than crashing.
+	assert_eq(TokenGrantRules.tokens_for_kill(null, 4, 5),
+		TokenGrantRules.tokens_for_level_up(4, 5))
+	assert_eq(TokenGrantRules.tokens_for_kill(null, 3, 3), 0)
+
+# --- EnemyData.is_boss -------------------------------------------------------
+
+func test_enemy_data_is_boss_defaults_false():
+	# Default false so a generic spawn never accidentally drips boss tokens —
+	# the boss flag is opt-in, set by the dungeon spawner on the boss room's
+	# enemy.
+	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	assert_false(e.is_boss)
+	var rat := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	assert_false(rat.is_boss,
+		"RAT is the boss enemy *kind* but the flag is set per-spawn, not per-kind")
+
+func test_enemy_data_is_boss_settable():
+	var e := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	e.is_boss = true
+	assert_true(e.is_boss)
+
 # --- Persistence -------------------------------------------------------------
 
 func test_token_count_round_trips_via_save_manager():

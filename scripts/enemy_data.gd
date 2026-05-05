@@ -10,6 +10,11 @@ enum EnemyKind { SLIME, BAT, RAT }
 @export var attack: int = 1
 @export var defense: int = 0
 @export var xp_reward: int = 2
+# Marks this enemy as the dungeon's boss. Read by TokenGrantRules.tokens_for_kill
+# to award the boss-kill bonus on top of any milestone-level grant. Defaults
+# false so a generic spawn never accidentally drips boss tokens; the dungeon
+# spawner sets it true on the boss room's enemy.
+@export var is_boss: bool = false
 # Last move direction. Read by ThiefAbilities.backstab to detect attacks from
 # behind (attacker.facing roughly aligned with target.facing).
 var facing: Vector2 = Vector2.DOWN
