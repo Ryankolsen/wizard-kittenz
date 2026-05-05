@@ -10,6 +10,20 @@ var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
 # Revive token balance. Always non-null so call sites (Player on death,
 # future death-screen UI) can read .count freely without a null check.
 var token_inventory: TokenInventory = TokenInventory.new()
+# Active co-op session. Non-null only between the lobby's Start Match
+# handler and session end (player back-out / dungeon failed). Player.gd's
+# kill flow null-checks this to branch between solo (apply XP locally)
+# and co-op (broadcast XP via session.xp_broadcaster). Sourced from the
+# lobby UI once #16 lands; default null preserves the solo behavior on
+# fresh-install / no-multiplayer paths.
+var coop_session: CoopSession = null
+# This client's player_id within an active co-op session. Sourced from
+# AccountManager once Google Play Games auth (#15 follow-up) lands;
+# default empty string keeps the solo branch firing until co-op is
+# wired. Stored on GameState (not just CoopSession) so it survives
+# across sessions (multiple matches in a row, lobby reconstruction)
+# and so a single source of truth reads from AccountManager.
+var local_player_id: String = ""
 
 func _ready() -> void:
 	_try_load_save()
@@ -35,6 +49,13 @@ func clear() -> void:
 	skill_tree = null
 	meta_tracker = MetaProgressionTracker.new()
 	token_inventory = TokenInventory.new()
+	# Tear down any live co-op session before dropping the reference so
+	# the per-run managers unbind cleanly and don't keep handing XP to
+	# a member.real_stats that's about to be replaced.
+	if coop_session != null and coop_session.is_active():
+		coop_session.end()
+	coop_session = null
+	local_player_id = ""
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance

@@ -185,20 +185,31 @@ func _token_inventory() -> TokenInventory:
 		return null
 	return gs.token_inventory
 
-# Awards XP from a kill and grants any revive tokens earned along with it
-# (milestone-level crossings + boss-kill bonus). Centralized so both the
-# melee and spell-cast paths share the rule. Null enemy_data is treated as
-# a non-boss kill — defensive for a future kill source that doesn't pass
-# the data, e.g. damage-over-time spells where the killing tick has no
-# direct enemy node.
+# Routes a local kill to the right reward path: solo applies XP + grants
+# the combined kill rule locally; co-op broadcasts XP via the active
+# session and keeps only the boss-kill bonus on this client. The branch
+# itself lives in KillRewardRouter so it can be tested without booting
+# a Player scene. Null enemy_data degrades to a no-op (defensive for a
+# future kill source that doesn't pass the data, e.g. DoT spells).
 func _award_kill_xp(enemy_data: EnemyData) -> void:
 	if data == null or enemy_data == null:
 		return
-	var level_before := data.level
-	ProgressionSystem.add_xp(data, enemy_data.xp_reward)
-	var inv := _token_inventory()
-	if inv == null:
-		return
-	var earned := TokenGrantRules.tokens_for_kill(enemy_data, level_before, data.level)
-	if earned > 0:
-		inv.grant(earned)
+	KillRewardRouter.route_kill(
+		data,
+		enemy_data,
+		_token_inventory(),
+		_coop_session(),
+		_local_player_id()
+	)
+
+func _coop_session() -> CoopSession:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.coop_session
+
+func _local_player_id() -> String:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return ""
+	return gs.local_player_id
