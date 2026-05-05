@@ -1109,3 +1109,248 @@ func test_seed_sync_end_to_end_host_and_remote_converge_on_same_dungeon():
 		assert_eq(hr.enemy_kind, rr.enemy_kind, "room %d: same enemy kind" % i)
 		assert_eq(hr.power_up_type, rr.power_up_type, "room %d: same power-up type" % i)
 		assert_eq(hr.connections, rr.connections, "room %d: same connections" % i)
+
+# --- RemoteKillApplier ------------------------------------------------------
+
+func _make_lobby_for_apply(player_specs: Array) -> LobbyState:
+	var ls := LobbyState.new("ABCDE")
+	for spec in player_specs:
+		ls.add_player(LobbyPlayer.make(spec[0], spec[1], spec[2], false))
+	return ls
+
+func _make_two_room_dungeon_for_apply() -> Dungeon:
+	var d := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	start.connections = [1]
+	d.add_room(start)
+	d.start_id = 0
+	var boss := Room.make(1, Room.TYPE_BOSS)
+	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	d.add_room(boss)
+	d.boss_id = 1
+	return d
+
+func _make_active_session_for_apply(local_id: String = "u1") -> CoopSession:
+	# An active session bound to local_id with one party member. Pre-
+	# registers a single enemy "e1" so the rising-edge tests have an id
+	# to apply. Tests that need a missing id skip the register and call
+	# apply with their own enemy_id.
+	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	c.level = 1
+	c.xp = 0
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, local_id)
+	session.start(_make_two_room_dungeon_for_apply())
+	session.enemy_sync.register_enemy("e1")
+	return session
+
+func test_remote_kill_apply_null_session_returns_false():
+	# Pre-handshake / test path with no session at all. Must no-op
+	# rather than crash so the wire-layer handler can be a single
+	# unconditional call site.
+	assert_false(RemoteKillApplier.apply(null, "e1", "u2", 5))
+
+func test_remote_kill_apply_inactive_session_returns_false():
+	# Constructed but not started — broadcaster + registry are both
+	# null in that window so a remote packet has nothing to apply
+	# against. Must no-op rather than crash on the null deref.
+	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, null, "u1")
+	assert_false(session.is_active())
+	assert_false(RemoteKillApplier.apply(session, "e1", "u2", 5))
+
+func test_remote_kill_apply_after_end_returns_false():
+	# Post-end() session. Same shape as inactive — managers dropped.
+	# A late-arriving wire packet for a session that already ended
+	# must not crash on the dropped registry.
+	var session := _make_active_session_for_apply("u1")
+	session.end()
+	assert_false(session.is_active())
+	assert_false(RemoteKillApplier.apply(session, "e1", "u2", 5))
+
+func test_remote_kill_apply_empty_enemy_id_returns_false():
+	# Defensive: pre-spawn-layer / corrupted packet with no enemy_id.
+	# Without a stable id we can't gate idempotency, so we skip the
+	# broadcast to avoid double-XP on a re-broadcast. The wire layer
+	# is responsible for never minting empty-id packets — this is
+	# defense-in-depth.
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_false(RemoteKillApplier.apply(session, "", "u2", 5))
+	assert_eq(emissions.size(), 0, "no broadcast on empty enemy_id")
+	assert_true(session.enemy_sync.is_alive("e1"), "registry untouched")
+
+func test_remote_kill_apply_rising_edge_returns_true():
+	# Core wiring: a fresh wire packet for a registered enemy returns
+	# true (rising edge), removes the enemy from the registry, and
+	# fires the local broadcaster so the LocalXPRouter applies the
+	# XP to my member's real_stats.
+	var session := _make_active_session_for_apply("u1")
+	assert_true(session.enemy_sync.is_alive("e1"))
+	var assigned := RemoteKillApplier.apply(session, "e1", "u2", 5)
+	assert_true(assigned, "rising-edge apply returns true")
+	assert_false(session.enemy_sync.is_alive("e1"), "registry erased")
+
+func test_remote_kill_apply_fires_broadcaster():
+	# The remote-side broadcast lands on every registered player's
+	# xp_awarded emission. The local LocalXPRouter picks its own pid
+	# and applies the amount; this test pins that the broadcaster
+	# itself fired with the correct amount and killer.
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	RemoteKillApplier.apply(session, "e1", "u2", 7)
+	assert_eq(emissions.size(), 1, "single-member party fires once")
+	assert_eq(emissions[0][0], "u1", "fan-out targets registered pid, not killer_id")
+	assert_eq(emissions[0][1], 7, "amount carried through unchanged")
+
+func test_remote_kill_apply_fan_out_targets_all_party_members():
+	# Pin the AC#3 loop on the receive side: a remote-killer kill
+	# fires the local broadcaster which fans out to every registered
+	# party member. The killer_id ("u2") is metadata; every registered
+	# pid still gets an emission with the same amount.
+	var lobby := _make_lobby_for_apply([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+		["u3", "C", "Thief"],
+	])
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2, "u3": c3}, null, null, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	session.enemy_sync.register_enemy("e1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	# u3 got the killing blow remotely; my client (u1) receives the packet.
+	RemoteKillApplier.apply(session, "e1", "u3", 10)
+	assert_eq(emissions.size(), 3, "fan-out hits all three party members")
+	for e in emissions:
+		assert_eq(e[1], 10, "every emission carries the same amount")
+
+func test_remote_kill_apply_routes_xp_to_local_member_via_router():
+	# Full receive-side shape: wire packet -> apply -> broadcast ->
+	# LocalXPRouter (constructed by CoopSession.start with local_id="u1")
+	# -> XPSystem.award -> member.real_stats. Pins that a remote-killer
+	# kill ends up on this client's own CharacterData.xp.
+	var session := _make_active_session_for_apply("u1")
+	var local := session.member_for("u1")
+	assert_eq(local.real_stats.xp, 0)
+	RemoteKillApplier.apply(session, "e1", "u2", 4)  # killer is u2, NOT me
+	assert_eq(local.real_stats.xp, 4, "XP applied to my real_stats via router")
+
+func test_remote_kill_apply_idempotent_on_duplicate_packet():
+	# A re-send from a flaky network arrives twice. apply_death's
+	# idempotency means the second call returns false here, and
+	# crucially the broadcast does NOT fire the second time. XP
+	# applies exactly once per enemy.
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_true(RemoteKillApplier.apply(session, "e1", "u2", 5))
+	assert_false(RemoteKillApplier.apply(session, "e1", "u2", 5), "duplicate packet rejected")
+	assert_eq(emissions.size(), 1, "broadcast fires exactly once across both calls")
+
+func test_remote_kill_apply_unknown_enemy_id_returns_false():
+	# Wire packet for an enemy we never registered (out-of-order: death
+	# arrived before spawn, or a wire-layer bug). apply_death returns
+	# false on the unknown erase; we don't broadcast either since we
+	# can't distinguish "unknown" from "duplicate" without extra state,
+	# and treating both the same keeps the contract narrow.
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_false(RemoteKillApplier.apply(session, "ghost_e99", "u2", 5))
+	assert_eq(emissions.size(), 0, "no broadcast for unknown enemy")
+	assert_true(session.enemy_sync.is_alive("e1"), "registered enemy untouched")
+
+func test_remote_kill_apply_does_not_double_fire_with_local_kill():
+	# Convergence test: KillRewardRouter (local-side) and
+	# RemoteKillApplier (receive-side) both gate through apply_death.
+	# A local kill followed by a duplicate remote packet (host
+	# echoing its own broadcast back to itself) does NOT double-apply
+	# XP. Same idempotent registry guards both sides.
+	var session := _make_active_session_for_apply("u1")
+	var local := session.member_for("u1")
+	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	enemy_data.enemy_id = "e1"
+	enemy_data.xp_reward = 3
+	# Local kill first: applies XP via LocalXPRouter (3) and erases e1.
+	KillRewardRouter.route_kill(local.real_stats, enemy_data, null, session, "u1")
+	assert_eq(local.real_stats.xp, 3, "local kill applied XP once")
+	assert_false(session.enemy_sync.is_alive("e1"), "registry erased by local kill")
+	# Now the same kill comes back as a wire echo. apply_death returns
+	# false on the already-erased id; the broadcast does NOT fire again.
+	assert_false(RemoteKillApplier.apply(session, "e1", "u1", 3))
+	assert_eq(local.real_stats.xp, 3, "no double-XP from echoed packet")
+
+func test_remote_kill_apply_zero_xp_still_erases():
+	# A wire packet with xp_value=0 (e.g. a kill with no XP reward)
+	# still counts as a rising-edge erase. The broadcaster's own
+	# non-positive guard makes the broadcast a silent no-op. Returns
+	# true so the caller drives the scene-tree side (queue_free the
+	# enemy node).
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_true(RemoteKillApplier.apply(session, "e1", "u2", 0))
+	assert_false(session.enemy_sync.is_alive("e1"), "registry erased even with zero XP")
+	assert_eq(emissions.size(), 0, "broadcaster's own guard suppresses zero-amount fan-out")
+
+func test_remote_kill_apply_negative_xp_does_not_emit():
+	# Defense-in-depth: a future debuff path / corrupted packet hands
+	# us a negative xp. The broadcaster's non-positive guard suppresses
+	# the fan-out, but the registry still erases (the kill happened —
+	# the XP delta is the corrupted part).
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_true(RemoteKillApplier.apply(session, "e1", "u2", -5))
+	assert_false(session.enemy_sync.is_alive("e1"))
+	assert_eq(emissions.size(), 0, "negative xp suppressed by broadcaster guard")
+
+func test_remote_kill_apply_empty_killer_id_still_broadcasts():
+	# killer_id is metadata only — the broadcaster fans out to every
+	# registered pid regardless of who killed. An empty killer_id (a
+	# wire-layer field that wasn't set, or an environmental death like
+	# a lava hazard) doesn't gate the broadcast.
+	var session := _make_active_session_for_apply("u1")
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	assert_true(RemoteKillApplier.apply(session, "e1", "", 6))
+	assert_eq(emissions.size(), 1, "fan-out fires regardless of empty killer_id")
+	assert_eq(emissions[0][1], 6)
+
+func test_remote_kill_apply_levels_up_local_member_through_router():
+	# End-to-end: a remote-killer kill arrives via wire, RemoteKillApplier
+	# fires the broadcaster, LocalXPRouter applies the XP, and the local
+	# member levels up. Closes the AC#3 loop end-to-end on the receiving
+	# side: a kill by ANY player levels me up if I cross my threshold.
+	# (xp_to_next_level(1) = 5, so 5 XP exactly crosses L1->L2.)
+	var session := _make_active_session_for_apply("u1")
+	var local := session.member_for("u1")
+	assert_eq(local.real_stats.level, 1)
+	RemoteKillApplier.apply(session, "e1", "u2", ProgressionSystem.xp_to_next_level(1))
+	assert_eq(local.real_stats.level, 2, "remote-killer kill leveled local member up")
+
+func test_remote_kill_apply_grants_milestone_token_when_local_crosses_milestone():
+	# Crossing a milestone (L4 -> L5) via a remote-killer kill drips
+	# a revive token to the local TokenInventory through the existing
+	# LocalTokenGrantRouter. Pins that the wire-layer receive path
+	# unlocks the same token-drip that a local kill would, since both
+	# routes share the broadcaster -> LocalXPRouter.level_up edge.
+	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	c.level = 4
+	c.xp = 0
+	var inv := TokenInventory.new()
+	# Inventory injected so CoopSession.start wires LocalTokenGrantRouter.
+	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	session.enemy_sync.register_enemy("e1")
+	# xp_to_next_level(4) = 5 + 3*5 = 20, exactly crosses L4->L5.
+	RemoteKillApplier.apply(session, "e1", "u2", ProgressionSystem.xp_to_next_level(4))
+	assert_eq(c.level, 5, "remote-killer kill leveled me to L5")
+	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
+		"milestone token drips through the same level_up pipe")
