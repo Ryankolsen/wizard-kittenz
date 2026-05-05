@@ -7,6 +7,9 @@ var skill_tree: SkillTree = null
 # zero) is the right default for a brand-new save.
 var meta_tracker: MetaProgressionTracker = MetaProgressionTracker.new()
 var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
+# Revive token balance. Always non-null so call sites (Player on death,
+# future death-screen UI) can read .count freely without a null check.
+var token_inventory: TokenInventory = TokenInventory.new()
 
 func _ready() -> void:
 	_try_load_save()
@@ -21,6 +24,7 @@ func _try_load_save() -> void:
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
 	meta_tracker = save_data.to_tracker()
+	token_inventory = save_data.to_inventory()
 
 func set_character(c: CharacterData) -> void:
 	current_character = c
@@ -30,6 +34,7 @@ func clear() -> void:
 	current_character = null
 	skill_tree = null
 	meta_tracker = MetaProgressionTracker.new()
+	token_inventory = TokenInventory.new()
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance

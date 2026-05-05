@@ -103,9 +103,9 @@ func _try_attack() -> void:
 		if node is Enemy and node.data != null and node.data.is_alive():
 			DamageResolver.apply(data, node.data)
 			if not node.data.is_alive():
-				ProgressionSystem.add_xp(data, node.data.xp_reward)
+				_award_kill_xp(node.data.xp_reward)
 				_record_meta_progress()
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker())
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _token_inventory())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -125,12 +125,12 @@ func _try_cast_spell() -> void:
 		var awarded := false
 		for n in enemy_nodes:
 			if n.data != null and not n.data.is_alive():
-				ProgressionSystem.add_xp(data, n.data.xp_reward)
+				_award_kill_xp(n.data.xp_reward)
 				n.queue_free()
 				awarded = true
 		if awarded:
 			_record_meta_progress()
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker())
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _token_inventory())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -159,3 +159,24 @@ func _meta_tracker() -> MetaProgressionTracker:
 	if gs == null:
 		return null
 	return gs.meta_tracker
+
+func _token_inventory() -> TokenInventory:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.token_inventory
+
+# Awards XP and grants any milestone-level revive tokens earned crossing
+# level thresholds during the level-up. Centralized so both the melee and
+# spell-cast kill paths use the same token-grant rules.
+func _award_kill_xp(amount: int) -> void:
+	if data == null:
+		return
+	var level_before := data.level
+	ProgressionSystem.add_xp(data, amount)
+	var inv := _token_inventory()
+	if inv == null:
+		return
+	var earned := TokenGrantRules.tokens_for_level_up(level_before, data.level)
+	if earned > 0:
+		inv.grant(earned)
