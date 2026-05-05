@@ -513,3 +513,103 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	session.xp_broadcaster.on_enemy_killed(3)
 	assert_eq(session.member_for("u1").real_stats.xp, 3,
 		"second run's broadcasts route through fresh router")
+
+# --- LocalTokenGrantRouter wiring ------------------------------------------
+
+func test_start_builds_token_router_when_local_player_and_inventory():
+	# Both inputs present (local player_id in party AND non-null inventory)
+	# wires up the token router so milestone-from-broadcast XP drips a
+	# revive token to the local inventory.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
+		null, inv, "u1")
+	assert_null(session.token_router, "token router null pre-start")
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.token_router, "token router built on start")
+	assert_true(session.token_router.is_bound())
+
+func test_start_skips_token_router_when_inventory_null():
+	# A session without an inventory injected (test / pre-hydration path)
+	# skips the token router. xp_router still routes XP — just no
+	# milestone token drips on this client.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
+		null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.xp_router, "xp router still built")
+	assert_null(session.token_router, "token router skipped without inventory")
+
+func test_start_skips_token_router_when_local_id_not_in_party():
+	# Symmetric with xp_router: no local member => no router => no
+	# token router (even when an inventory is present).
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
+		null, inv, "ghost")
+	session.start(_make_two_room_dungeon())
+	assert_null(session.xp_router)
+	assert_null(session.token_router)
+
+func test_milestone_xp_broadcast_drips_token_via_session():
+	# End-to-end through the session: a remote-killer broadcast that
+	# crosses the local member's milestone level drips a token to the
+	# session-bound inventory. Closes the AC for #20 ("token earn:
+	# awarded on level-up milestones") in the co-op path.
+	var lobby := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var characters := {
+		"u1": _make_character(CharacterData.CharacterClass.MAGE, 4),
+		"u2": _make_character(CharacterData.CharacterClass.NINJA, 4),
+	}
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(lobby, characters, null, inv, "u1")
+	session.start(_make_two_room_dungeon())
+	# u2 got the killing blow but every party member earns the XP.
+	# xp_to_next_level(4) = 5 + 3*5 = 20 — exactly the L4->L5 step.
+	session.xp_broadcaster.on_enemy_killed(ProgressionSystem.xp_to_next_level(4), "u2")
+	assert_eq(session.member_for("u1").real_stats.level, 5,
+		"local member leveled up from broadcast XP")
+	assert_eq(inv.count, 1, "milestone L5 dripped one token")
+
+func test_non_milestone_broadcast_does_not_drip_token():
+	# A broadcast that crosses a non-milestone level (L2->L3) does not
+	# drip a token — only multiples of 5. Pins the rule end-to-end.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 2)},
+		null, inv, "u1")
+	session.start(_make_two_room_dungeon())
+	# xp_to_next_level(2) = 5 + 1*5 = 10 — exactly the L2->L3 step.
+	session.xp_broadcaster.on_enemy_killed(ProgressionSystem.xp_to_next_level(2))
+	assert_eq(session.member_for("u1").real_stats.level, 3, "leveled to 3")
+	assert_eq(inv.count, 0, "L3 is not a milestone")
+
+func test_end_drops_token_router():
+	# Per-run lifecycle: end() must drop the token router so a stale
+	# subscriber from the previous run can't keep granting tokens after
+	# teardown. Pinned by firing a level_up directly on the (still-held)
+	# old xp_router and asserting the inventory doesn't move.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
+		null, inv, "u1")
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.token_router)
+	var router_before_end := session.xp_router
+	session.end()
+	assert_null(session.token_router, "token router dropped on end")
+	router_before_end.level_up.emit(4, 5)
+	assert_eq(inv.count, 0, "post-end level_up doesn't grant")

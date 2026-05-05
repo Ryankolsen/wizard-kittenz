@@ -71,6 +71,14 @@ var local_player_id: String = ""
 var xp_broadcaster: XPBroadcaster = null
 var xp_summary: RunXPSummary = null
 var xp_router: LocalXPRouter = null
+# Drips revive tokens to the local TokenInventory when the local
+# member's real_stats.level crosses a milestone via xp_router. Built
+# alongside xp_router when both a local member AND a non-null inventory
+# are present; remote-killer XP that levels me up still grants me a
+# milestone token. Solo / no-inventory paths keep the kill-flow grant
+# in player.gd (boss-kill bonus stays there too — the router only
+# handles milestone-from-broadcast).
+var token_router: LocalTokenGrantRouter = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
@@ -139,6 +147,11 @@ func start(dungeon: Dungeon) -> bool:
 	var local_member := member_for(local_player_id)
 	if local_member != null:
 		xp_router = LocalXPRouter.new(xp_broadcaster, local_player_id, local_member)
+		# Token grants ride the level_up signal from xp_router. Skip
+		# when no inventory was injected (test / fresh-install path) —
+		# xp still routes to real_stats, just no milestone token drip.
+		if inventory != null:
+			token_router = LocalTokenGrantRouter.new(xp_router, inventory)
 
 	if not run_controller.start(dungeon):
 		_drop_managers()
@@ -187,11 +200,18 @@ func _on_dungeon_completed() -> void:
 func _drop_managers() -> void:
 	if xp_summary != null and xp_broadcaster != null:
 		xp_summary.unbind(xp_broadcaster)
+	# Order matters: token_router subscribes to xp_router.level_up, so
+	# unbind it first to avoid a (harmless but noisy) "subscriber to
+	# disconnected signal" pattern if Godot's signal disconnect order
+	# ever changes.
+	if token_router != null:
+		token_router.unbind()
 	if xp_router != null:
 		xp_router.unbind()
 	xp_broadcaster = null
 	xp_summary = null
 	xp_router = null
+	token_router = null
 	network_sync = null
 	enemy_sync = null
 	run_controller = null

@@ -598,3 +598,206 @@ func test_local_xp_router_filters_emission_to_other_in_full_broadcast():
 	bc.on_enemy_killed(3)  # broadcast fires xp_awarded for all three
 	# Only the alice emission landed on alice's real_stats — not 3x amount.
 	assert_eq(alice.real_stats.xp, 3, "XP applied exactly once, not per-fanout")
+
+# --- LocalXPRouter.level_up signal ------------------------------------------
+
+func test_local_xp_router_emits_level_up_when_threshold_crossed():
+	# An XP award that crosses a level threshold emits level_up(old, new).
+	# Subscribers (LocalTokenGrantRouter, future "level-up VFX") use this
+	# instead of polling member.real_stats.level.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var events: Array = []
+	router.level_up.connect(func(old_l, new_l): events.append([old_l, new_l]))
+	bc.on_enemy_killed(5)  # exactly L1->L2 threshold
+	assert_eq(events.size(), 1, "single level-up emits once")
+	assert_eq(events[0], [1, 2], "old + new levels reported")
+
+func test_local_xp_router_no_level_up_emit_when_xp_below_threshold():
+	# XP gain that doesn't cross a level boundary must NOT emit level_up.
+	# Subscribers should only react to actual level transitions; emitting
+	# on every XP gain would spam token grants for non-milestone events.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var emitted := [false]
+	router.level_up.connect(func(_o, _n): emitted[0] = true)
+	bc.on_enemy_killed(3)  # under L1->L2 threshold (5)
+	assert_false(emitted[0], "no level transition => no level_up emit")
+
+func test_local_xp_router_emits_single_level_up_for_multi_level_dump():
+	# A massive XP dump that crosses several levels emits ONE level_up
+	# with the full (old, new) range. Single emission keeps the
+	# subscriber rule (TokenGrantRules.tokens_for_level_up) responsible
+	# for counting milestones in the open-closed range — the router
+	# doesn't have to slice the dump per-level.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var events: Array = []
+	router.level_up.connect(func(o, n): events.append([o, n]))
+	bc.on_enemy_killed(10000)  # force several levels in one shot
+	assert_eq(events.size(), 1, "one emission per XP application")
+	assert_eq(events[0][0], 1, "old level captured pre-application")
+	assert_gt(events[0][1], 1, "new level reflects post-application")
+
+func test_local_xp_router_does_not_emit_level_up_for_non_local_pid():
+	# A broadcast for a remote pid is filtered out before the level
+	# transition is checked, so level_up never fires for remote XP.
+	# Pins that the local-pid filter sits before the level read.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	bc.register_player("other")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var emitted := [false]
+	router.level_up.connect(func(_o, _n): emitted[0] = true)
+	bc.xp_awarded.emit("other", 10000)  # would-be level dump for remote
+	assert_false(emitted[0], "remote-pid emission ignored by level_up too")
+
+# --- LocalTokenGrantRouter --------------------------------------------------
+
+func _make_router(member: PartyMember) -> LocalXPRouter:
+	# Bound LocalXPRouter for use as a level_up source. Tests trigger
+	# level_up by either firing through the broadcaster or hand-emitting.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	return LocalXPRouter.new(bc, "me", member)
+
+func test_local_token_router_grants_milestone_token_on_level_up():
+	# Core wiring: a level_up that crosses a milestone (L4->L5) emits
+	# one token to the inventory. Closes the "remote-killer XP that
+	# crosses my milestone level still drips a token" loop on the
+	# receiving end.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new(router, inv)
+	assert_true(token_router.is_bound())
+	router.level_up.emit(4, 5)
+	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
+		"milestone L5 grants exactly one token")
+	assert_eq(token_router.granted_total, inv.count,
+		"granted_total mirrors the count delta")
+
+func test_local_token_router_no_grant_when_no_milestone_crossed():
+	# L2->L3 crosses no multiple-of-5 — no tokens granted. Pins that
+	# the router doesn't drip tokens on every level-up, only milestones.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 2)
+	var router := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new(router, inv)
+	router.level_up.emit(2, 3)
+	assert_eq(inv.count, 0, "non-milestone level-up grants zero tokens")
+	assert_eq(token_router.granted_total, 0)
+
+func test_local_token_router_grants_multiple_for_multi_milestone_dump():
+	# A massive XP dump that spans L4->L11 crosses both L5 and L10 —
+	# two tokens. Pins that the rule's open-closed range handles the
+	# multi-milestone case correctly through the router.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new(router, inv)
+	router.level_up.emit(4, 11)
+	assert_eq(inv.count, 2, "L4->L11 crossed two milestones")
+	assert_eq(token_router.granted_total, 2)
+
+func test_local_token_router_end_to_end_via_broadcast():
+	# Full shape: kill broadcast through XPBroadcaster lands on the local
+	# member, level transitions to L5, milestone token drips. Pins that
+	# the wire actually propagates from broadcast all the way to inventory.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var inv := TokenInventory.new()
+	var _t := LocalTokenGrantRouter.new(router, inv)
+	# xp_to_next_level(4) = 5 + 3*5 = 20
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(4))
+	assert_eq(member.real_stats.level, 5, "member leveled up")
+	assert_eq(inv.count, 1, "milestone token granted via broadcast pipe")
+
+func test_local_token_router_filters_remote_pid_via_xp_router():
+	# A remote-pid broadcast doesn't level the local member, so no token
+	# drips. The filter is enforced upstream in LocalXPRouter — this test
+	# pins that the token router inherits the filter without re-checking.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	bc.register_player("other")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := LocalXPRouter.new(bc, "me", member)
+	var inv := TokenInventory.new()
+	var _t := LocalTokenGrantRouter.new(router, inv)
+	bc.xp_awarded.emit("other", 10000)  # would level "other" if local
+	assert_eq(inv.count, 0, "remote-pid broadcast doesn't grant local tokens")
+
+func test_local_token_router_bind_idempotent_on_same_router():
+	# Re-binding the same router doesn't double-subscribe — without this
+	# guard a re-bind during a session reset would double-grant on every
+	# milestone.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new()
+	assert_true(token_router.bind(router, inv), "first bind connects")
+	assert_false(token_router.bind(router, inv), "second bind to same router rejected")
+	router.level_up.emit(4, 5)
+	assert_eq(inv.count, 1, "single grant despite double-bind attempt")
+
+func test_local_token_router_bind_to_different_router_unbinds_old():
+	# Re-binding to a *different* router transparently drops the old
+	# subscription. Lets the orchestrator reuse the token-router instance
+	# across runs without forcing the caller to remember unbind().
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router1 := _make_router(member)
+	var router2 := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new(router1, inv)
+	assert_true(token_router.bind(router2, inv), "rebind to router2 succeeds")
+	router1.level_up.emit(4, 5)
+	assert_eq(inv.count, 0, "old router no longer routes")
+	router2.level_up.emit(4, 5)
+	assert_eq(inv.count, 1, "new router routes")
+
+func test_local_token_router_bind_rejects_null_router():
+	var token_router := LocalTokenGrantRouter.new()
+	assert_false(token_router.bind(null, TokenInventory.new()))
+	assert_false(token_router.is_bound())
+
+func test_local_token_router_bind_rejects_null_inventory():
+	# Without an inventory there's nothing to grant to. Reject so the
+	# caller doesn't end up with a "bound" router that silently no-ops.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := _make_router(member)
+	var token_router := LocalTokenGrantRouter.new()
+	assert_false(token_router.bind(router, null))
+	assert_false(token_router.is_bound())
+
+func test_local_token_router_unbind_stops_grants():
+	# After unbind, future level-ups don't grant tokens. Lets the
+	# orchestrator hard-stop grants on session end.
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
+	var router := _make_router(member)
+	var inv := TokenInventory.new()
+	var token_router := LocalTokenGrantRouter.new(router, inv)
+	router.level_up.emit(4, 5)
+	assert_eq(inv.count, 1)
+	assert_true(token_router.unbind())
+	assert_false(token_router.is_bound())
+	router.level_up.emit(5, 10)  # would-be second milestone
+	assert_eq(inv.count, 1, "post-unbind level-up ignored")
+
+func test_local_token_router_unbind_idempotent_when_not_bound():
+	var token_router := LocalTokenGrantRouter.new()
+	assert_false(token_router.unbind(), "no-op returns false")
+
+func test_local_token_router_init_without_args_starts_unbound():
+	# Default-constructed router (test / pre-handshake) is inert.
+	var token_router := LocalTokenGrantRouter.new()
+	assert_false(token_router.is_bound())
+	assert_eq(token_router.granted_total, 0)

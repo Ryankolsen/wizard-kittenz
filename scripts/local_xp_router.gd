@@ -28,6 +28,16 @@ extends RefCounted
 # the player's real level"); pinning it here keeps the rule explicit
 # at the routing seam rather than hidden behind an XPSystem default.
 
+# Emitted post-XPSystem.award when the local member's real_stats.level
+# advanced. Lets a sibling subscriber (LocalTokenGrantRouter) react to
+# milestone-level crossings without having to read the member level
+# itself before/after each broadcast — the router already does that.
+# Not emitted on flat XP gain (no level change). The (old, new) shape
+# lets a multi-level dump report multiple milestone crossings in one
+# call (TokenGrantRules.tokens_for_level_up handles the open-closed
+# range).
+signal level_up(old_level: int, new_level: int)
+
 var local_player_id: String = ""
 var local_member: PartyMember = null
 var _broadcaster: XPBroadcaster = null
@@ -84,6 +94,12 @@ func _on_xp_awarded(player_id: String, amount: int) -> void:
 		return
 	if local_member == null:
 		return
+	if local_member.real_stats == null:
+		return
 	# use_real_level=true: scaled effective_stats stay scaled; XP
 	# advances real_stats only. (#18 AC#3)
+	var old_level := local_member.real_stats.level
 	XPSystem.award(local_member, amount, true)
+	var new_level := local_member.real_stats.level
+	if new_level > old_level:
+		level_up.emit(old_level, new_level)
