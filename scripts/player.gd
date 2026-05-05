@@ -1,0 +1,12 @@
+class_name Player
+extends CharacterBody2D
+
+@export var speed: float = 60.0
+
+func _physics_process(_delta: float) -> void:
+	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	velocity = compute_velocity(input_dir, speed)
+	move_and_slide()
+
+static func compute_velocity(input_dir: Vector2, move_speed: float) -> Vector2:
+	return input_dir * move_speed
