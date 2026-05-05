@@ -358,6 +358,74 @@ func test_route_kill_coop_inactive_session_falls_to_solo():
 	assert_eq(c.level, 2, "post-end falls back to solo XP")
 	assert_eq(granted, 0, "non-boss + no milestone = 0 granted")
 
+# --- route_kill: co-op enemy_sync apply_death (#17 wire-layer hook) ---------
+
+func test_route_kill_coop_applies_death_to_enemy_sync():
+	# Co-op path marks the enemy dead in the per-session EnemyStateSyncManager
+	# registry so the wire layer's remote enemy-died packet (when #14 lands)
+	# and this local kill detection converge through the same apply_death
+	# call. Pin the contract: a kill in an active session removes the enemy
+	# from the registry's alive set.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	assert_true(session.enemy_sync.is_alive("r3_e0"))
+	var enemy := _make_enemy(3)
+	enemy.enemy_id = "r3_e0"
+	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	assert_false(session.enemy_sync.is_alive("r3_e0"),
+		"co-op kill removed enemy from sync registry")
+
+func test_route_kill_coop_empty_enemy_id_skips_apply_death():
+	# Pre-spawn-layer / test fixture path: an enemy without an enemy_id
+	# must not poke the registry with an unkeyed entry. The reward path
+	# still runs (XP broadcast, boss bonus); only the apply_death call
+	# is skipped.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(3)
+	# enemy_id left as "" (default).
+	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	assert_eq(session.enemy_sync.alive_count(), 0,
+		"empty enemy_id never registers")
+	assert_eq(c.xp, 3, "XP still broadcast and routed locally")
+
+func test_route_kill_coop_apply_death_idempotent_with_remote_packet():
+	# Race: the remote enemy-died packet arrived first (wire layer called
+	# apply_death). Then the local kill detection fires here. apply_death
+	# returns false the second time but doesn't error — same enemy isn't
+	# double-removed and the kill flow continues to broadcast XP.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	# Remote packet arrived first: registry already shows the enemy as dead.
+	session.enemy_sync.apply_death("r3_e0")
+	assert_false(session.enemy_sync.is_alive("r3_e0"))
+	var enemy := _make_enemy(3)
+	enemy.enemy_id = "r3_e0"
+	# Second apply_death (this one) is a no-op — but the kill flow still
+	# broadcasts XP because the wire layer doesn't drive that path.
+	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	assert_eq(c.xp, 3, "XP still broadcast on second apply_death")
+
+func test_route_kill_solo_does_not_touch_enemy_sync():
+	# Solo path has no session, so no enemy_sync to call. A kill with an
+	# enemy_id set must not crash and must not look for a registry that
+	# doesn't exist.
+	var c := _make_character(1)
+	var enemy := _make_enemy(3)
+	enemy.enemy_id = "r3_e0"
+	var inv := TokenInventory.new()
+	# No session, no co-op route. apply_death is unreachable.
+	KillRewardRouter.route_kill(c, enemy, inv, null, "")
+	assert_eq(c.xp, 3, "solo path still applied XP locally with enemy_id set")
+
 func test_route_kill_coop_empty_local_id_falls_to_solo():
 	# A session active but with no local id resolved (pre-handshake
 	# wire-payload race) takes the solo branch so XP isn't dropped on

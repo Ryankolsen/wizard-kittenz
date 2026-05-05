@@ -21,6 +21,11 @@ extends RefCounted
 #     emission lands on this client's CharacterData via the same
 #     CharacterData reference held by Player.gd (member.real_stats
 #     === Player.data at construction time).
+#   - Marks the enemy dead in the per-session EnemyStateSyncManager
+#     registry so the local kill detection and the wire layer's
+#     remote enemy-died packet converge through the same idempotent
+#     apply_death(enemy_id) path. Empty enemy_id (pre-spawn-layer /
+#     test fixture) skips the registry poke.
 #   - Grants ONLY the boss-kill bonus locally. The milestone-token
 #     drip fires from LocalTokenGrantRouter on the level_up edge —
 #     putting it here too would double-grant the milestone for a
@@ -71,6 +76,15 @@ static func route_kill(
 		return 0
 	if is_coop_route(session, local_player_id):
 		session.xp_broadcaster.on_enemy_killed(enemy_data.xp_reward, local_player_id)
+		# Mark the enemy dead in the per-session network registry so a
+		# remote enemy-died packet (when the wire layer #14 lands) and
+		# the local kill detection converge cleanly. apply_death is
+		# idempotent — if the remote packet beat us, the second call
+		# returns false rather than erroring. Empty enemy_id is a
+		# pre-spawn-layer / test fixture path; skip the registry poke
+		# so we don't pollute it with an unkeyed entry.
+		if session.enemy_sync != null and enemy_data.enemy_id != "":
+			session.enemy_sync.apply_death(enemy_data.enemy_id)
 		# Boss-kill bonus stays on the killer's local inventory.
 		# Milestone tokens flow through LocalTokenGrantRouter on the
 		# level_up edge — adding tokens_for_level_up here would

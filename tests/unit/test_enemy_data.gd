@@ -9,6 +9,8 @@ func test_make_new_slime_has_expected_defaults():
 	assert_eq(e.attack, 1)
 	assert_eq(e.defense, 0)
 	assert_eq(e.xp_reward, 2)
+	assert_eq(e.enemy_id, "", "fresh spawn has no id until the spawn layer mints one")
+	assert_false(e.is_boss, "non-boss by default")
 
 func test_make_new_each_kind_has_distinct_stats():
 	var slime := EnemyData.make_new(EnemyData.EnemyKind.SLIME)

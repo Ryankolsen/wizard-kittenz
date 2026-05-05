@@ -15,6 +15,14 @@ enum EnemyKind { SLIME, BAT, RAT }
 # false so a generic spawn never accidentally drips boss tokens; the dungeon
 # spawner sets it true on the boss room's enemy.
 @export var is_boss: bool = false
+# Stable per-spawn identifier. Empty by default — pre-spawn-layer code paths
+# (test fixtures, the static enemy in main.tscn) leave it unset. The future
+# dungeon spawn layer mints a unique id (e.g. "r3_e0" for room 3 enemy 0)
+# so the wire layer's enemy-died packet and the local kill detection can
+# converge through EnemyStateSyncManager.apply_death(enemy_id) idempotently.
+# KillRewardRouter skips the apply_death call when this is empty so legacy
+# / test enemies don't poke the registry with an unkeyed entry.
+@export var enemy_id: String = ""
 # Last move direction. Read by ThiefAbilities.backstab to detect attacks from
 # behind (attacker.facing roughly aligned with target.facing).
 var facing: Vector2 = Vector2.DOWN
