@@ -1354,3 +1354,275 @@ func test_remote_kill_apply_grants_milestone_token_when_local_crosses_milestone(
 	assert_eq(c.level, 5, "remote-killer kill leveled me to L5")
 	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
 		"milestone token drips through the same level_up pipe")
+
+# --- RunSummaryRowBuilder ---------------------------------------------------
+
+func _make_lobby_for_summary(player_specs: Array) -> LobbyState:
+	# spec: [player_id, kitten_name, class_name, is_host]
+	var ls := LobbyState.new("ABCDE")
+	for spec in player_specs:
+		var host: bool = spec.size() > 3 and bool(spec[3])
+		ls.add_player(LobbyPlayer.make(spec[0], spec[1], spec[2], host))
+	return ls
+
+func test_summary_rows_null_session_returns_empty():
+	# Pre-handshake / test path with no session at all. UI's empty-state
+	# placeholder branch fires when this returns []; must not crash on
+	# the iterator.
+	assert_eq(RunSummaryRowBuilder.build_rows(null), [])
+
+func test_summary_rows_default_constructed_session_returns_empty():
+	# Constructed without a lobby (default args) — no member ids, no
+	# tally, nothing to render. UI's empty-state placeholder again.
+	var session := CoopSession.new()
+	assert_eq(RunSummaryRowBuilder.build_rows(session), [])
+
+func test_summary_rows_from_summary_and_lobby_basic():
+	# Two players, both earned XP. Rows render in the supplied order
+	# with the join-with-lobby fields populated.
+	var lobby := _make_lobby_for_summary([
+		["u1", "Whiskers", "Mage", true],
+		["u2", "Mittens", "Thief", false],
+	])
+	var bc := XPBroadcaster.new()
+	bc.register_player("u1")
+	bc.register_player("u2")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(15, "u1")
+	bc.on_enemy_killed(10, "u2")
+	# u1 + u2 each got 25 XP (15 + 10).
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, lobby, "u1", ["u1", "u2"])
+	assert_eq(rows.size(), 2)
+	assert_eq(rows[0]["player_id"], "u1")
+	assert_eq(rows[0]["kitten_name"], "Whiskers")
+	assert_eq(rows[0]["class_name"], "Mage")
+	assert_eq(rows[0]["xp_earned"], 25)
+	assert_true(rows[0]["is_local"])
+	assert_true(rows[0]["is_host"])
+	assert_eq(rows[1]["player_id"], "u2")
+	assert_eq(rows[1]["kitten_name"], "Mittens")
+	assert_eq(rows[1]["class_name"], "Thief")
+	assert_eq(rows[1]["xp_earned"], 25)
+	assert_false(rows[1]["is_local"])
+	assert_false(rows[1]["is_host"])
+
+func test_summary_rows_preserve_order_from_ordered_ids():
+	# The ordered_player_ids array is the source of truth for row order.
+	# Reverse the order and the rows reverse — pins that the join with
+	# the lobby doesn't re-sort by lobby insertion order.
+	var lobby := _make_lobby_for_summary([
+		["u1", "A", "Mage"],
+		["u2", "B", "Thief"],
+		["u3", "C", "Ninja"],
+	])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "", ["u3", "u1", "u2"])
+	assert_eq(rows.size(), 3)
+	assert_eq(rows[0]["player_id"], "u3")
+	assert_eq(rows[1]["player_id"], "u1")
+	assert_eq(rows[2]["player_id"], "u2")
+
+func test_summary_rows_zero_xp_player_still_renders():
+	# A party member who got no kills (their tally is 0) still renders
+	# a row — they were in the party, the summary screen needs to show
+	# them with a +0 XP line, not silently drop them.
+	var lobby := _make_lobby_for_summary([
+		["u1", "A", "Mage"],
+		["u2", "B", "Thief"],
+	])
+	var bc := XPBroadcaster.new()
+	bc.register_player("u1")
+	bc.register_player("u2")
+	var summary := RunXPSummary.new(bc)
+	# No emissions — u1 and u2 both have tally 0.
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, lobby, "", ["u1", "u2"])
+	assert_eq(rows.size(), 2)
+	assert_eq(rows[0]["xp_earned"], 0)
+	assert_eq(rows[1]["xp_earned"], 0)
+
+func test_summary_rows_player_in_summary_but_not_ordered_dropped():
+	# A stale tally entry (player who left mid-match and was dropped
+	# from the lobby roster + ordered_player_ids but not from the per-
+	# run tally) does NOT render a ghost row. ordered_player_ids is
+	# the source of truth for which rows render.
+	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
+	var bc := XPBroadcaster.new()
+	bc.register_player("u1")
+	bc.register_player("u_left")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(7, "u1")
+	# u_left has a tally entry but isn't in the ordered ids -> dropped.
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, lobby, "", ["u1"])
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["player_id"], "u1")
+
+func test_summary_rows_player_missing_from_lobby_falls_back_to_pid():
+	# Defensive: an ordered id that has a tally but no lobby row (a
+	# wire-payload race rebuilds the lobby roster but leaves the
+	# session's player_ids array stale). Row still renders with
+	# kitten_name == player_id so the UI doesn't drop a row that has
+	# real XP data.
+	var bc := XPBroadcaster.new()
+	bc.register_player("u_ghost")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(8, "u_ghost")
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, null, "", ["u_ghost"])
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["player_id"], "u_ghost")
+	assert_eq(rows[0]["kitten_name"], "u_ghost", "fallback to pid when no lobby row")
+	assert_eq(rows[0]["class_name"], "")
+	assert_false(rows[0]["is_host"])
+	assert_eq(rows[0]["xp_earned"], 8)
+
+func test_summary_rows_empty_kitten_name_falls_back_to_pid():
+	# Half-populated wire payload: lobby row exists but kitten_name is
+	# empty. Same fallback as the no-lobby path — the UI doesn't render
+	# a blank name field.
+	var lobby := _make_lobby_for_summary([["u1", "", "Mage"]])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "", ["u1"])
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["kitten_name"], "u1", "empty kitten_name falls back to pid")
+	assert_eq(rows[0]["class_name"], "Mage", "class still rendered from lobby")
+
+func test_summary_rows_empty_player_id_skipped():
+	# Defensive against a corrupted ordered_player_ids array — an empty
+	# id can't key a row. Same shape as CoopSession._init's empty-id
+	# skip. The non-empty ids around it still render.
+	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "", ["", "u1", ""])
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["player_id"], "u1")
+
+func test_summary_rows_empty_local_id_no_local_flag():
+	# Default-constructed (test / pre-handshake / solo) session has
+	# local_player_id == "". No row gets is_local=true; the UI
+	# doesn't bold any row.
+	var lobby := _make_lobby_for_summary([
+		["u1", "A", "Mage"],
+		["u2", "B", "Thief"],
+	])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "", ["u1", "u2"])
+	for row in rows:
+		assert_false(row["is_local"], "no row should be local when local_player_id is empty")
+
+func test_summary_rows_local_flag_set_on_matching_row():
+	# Exactly the row whose player_id matches local_player_id is
+	# flagged. The other rows stay false even if their kitten_name
+	# matches (kitten_name is not the key).
+	var lobby := _make_lobby_for_summary([
+		["u1", "Whiskers", "Mage"],
+		["u2", "Whiskers", "Thief"],  # same display name, different id
+	])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "u2", ["u1", "u2"])
+	assert_false(rows[0]["is_local"], "matching by kitten_name doesn't flag local")
+	assert_true(rows[1]["is_local"])
+
+func test_summary_rows_null_summary_renders_zero_xp():
+	# Pre-run preview path: the summary tally hasn't been constructed
+	# yet (or has been dropped via end()), but the lobby + ids are
+	# known. Rows render with xp_earned == 0 across the board so the
+	# UI can re-use the same row builder for "lobby preview" + "post-
+	# run summary" without branching.
+	var lobby := _make_lobby_for_summary([
+		["u1", "A", "Mage"],
+		["u2", "B", "Thief"],
+	])
+	var rows := RunSummaryRowBuilder.build_rows_from(null, lobby, "u1", ["u1", "u2"])
+	assert_eq(rows.size(), 2)
+	assert_eq(rows[0]["xp_earned"], 0)
+	assert_eq(rows[1]["xp_earned"], 0)
+
+func test_summary_rows_null_lobby_renders_pid_fallback_rows():
+	# A test path that constructs only a tally + ids list still
+	# produces rows. kitten_name falls back to pid; class_name == "";
+	# is_host == false.
+	var bc := XPBroadcaster.new()
+	bc.register_player("u1")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(12, "u1")
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, null, "u1", ["u1"])
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["kitten_name"], "u1")
+	assert_eq(rows[0]["class_name"], "")
+	assert_false(rows[0]["is_host"])
+	assert_eq(rows[0]["xp_earned"], 12)
+	assert_true(rows[0]["is_local"])
+
+func test_summary_rows_empty_ordered_ids_returns_empty():
+	# Empty (not null — GDScript's static typing rejects null for an
+	# Array parameter at parse time). A caller with no ids gets []
+	# back; same empty-state branch as the null-session path.
+	assert_eq(RunSummaryRowBuilder.build_rows_from(null, null, "", []), [])
+
+func test_summary_rows_returned_array_is_fresh_allocation():
+	# Caller should be able to mutate/sort the returned rows without
+	# back-affecting subsequent build_rows calls. Pins that we don't
+	# memoize and return a shared reference.
+	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
+	var rows1 := RunSummaryRowBuilder.build_rows_from(null, lobby, "u1", ["u1"])
+	rows1.clear()
+	var rows2 := RunSummaryRowBuilder.build_rows_from(null, lobby, "u1", ["u1"])
+	assert_eq(rows2.size(), 1, "second call returns a fresh row even after caller cleared the first")
+
+func test_summary_rows_grand_total_sums_xp_earned():
+	# grand_total_for_rows agrees with RunXPSummary.grand_total when
+	# the row builder consumes the same tally. Pins the contract that
+	# the UI's "+N XP party total" header doesn't have to re-read the
+	# summary — it can sum the rows it just rendered.
+	var lobby := _make_lobby_for_summary([
+		["u1", "A", "Mage"],
+		["u2", "B", "Thief"],
+	])
+	var bc := XPBroadcaster.new()
+	bc.register_player("u1")
+	bc.register_player("u2")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(7, "u1")
+	bc.on_enemy_killed(11, "u2")
+	var rows := RunSummaryRowBuilder.build_rows_from(summary, lobby, "u1", ["u1", "u2"])
+	# Both members each got 7 + 11 = 18; grand total = 36.
+	assert_eq(RunSummaryRowBuilder.grand_total_for_rows(rows), summary.grand_total())
+	assert_eq(RunSummaryRowBuilder.grand_total_for_rows(rows), 36)
+
+func test_summary_rows_grand_total_empty_returns_zero():
+	# Defensive against an empty rows array (UI render before session
+	# is wired; or a session with no party). The Array parameter is
+	# statically typed so null isn't a parse-valid input.
+	assert_eq(RunSummaryRowBuilder.grand_total_for_rows([]), 0)
+
+func test_summary_rows_build_from_active_session_end_to_end():
+	# End-to-end: an active CoopSession's xp_summary tallies real
+	# emissions, and the row builder pulls everything out via the
+	# convenience entry point. Closes AC#5 on the data side: the UI
+	# scene's render loop is `for row in build_rows(session)`.
+	var lobby := _make_lobby_for_summary([
+		["u1", "Whiskers", "Mage", true],
+		["u2", "Mittens", "Thief"],
+		["u3", "Patches", "Ninja"],
+	])
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
+	var characters := {"u1": c1, "u2": c2, "u3": c3}
+	var session := CoopSession.new(lobby, characters, null, null, "u2")
+	session.start(_make_two_room_dungeon_for_apply())
+	# A kill anywhere in the party fans out to all three.
+	session.xp_broadcaster.on_enemy_killed(9, "u1")
+	var rows := RunSummaryRowBuilder.build_rows(session)
+	assert_eq(rows.size(), 3)
+	# Order matches lobby join order.
+	assert_eq(rows[0]["player_id"], "u1")
+	assert_eq(rows[1]["player_id"], "u2")
+	assert_eq(rows[2]["player_id"], "u3")
+	# Local flag is on u2 (this client) only.
+	assert_false(rows[0]["is_local"])
+	assert_true(rows[1]["is_local"])
+	assert_false(rows[2]["is_local"])
+	# Host flag is on u1 only.
+	assert_true(rows[0]["is_host"])
+	assert_false(rows[1]["is_host"])
+	assert_false(rows[2]["is_host"])
+	# Each member earned 9 XP via fan-out.
+	assert_eq(rows[0]["xp_earned"], 9)
+	assert_eq(rows[1]["xp_earned"], 9)
+	assert_eq(rows[2]["xp_earned"], 9)
+	assert_eq(RunSummaryRowBuilder.grand_total_for_rows(rows), 27)
