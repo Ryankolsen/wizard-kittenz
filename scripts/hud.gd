@@ -81,7 +81,7 @@ func _update_xp_bar() -> void:
 	var threshold := ProgressionSystem.xp_to_next_level(d.level)
 	var ratio := xp_bar_ratio(d.level, d.xp)
 	_xp_fill.size.x = XP_BAR_WIDTH * ratio
-	_xp_label.text = "Lv %d — %d/%d" % [d.level, d.xp, threshold]
+	_xp_label.text = xp_bar_label(d.level, d.xp, threshold, _local_effective_level())
 
 # Pure-function fill ratio for the XP bar. Public + static so the test suite
 # can drive it directly without spinning up a Player or HUD scene tree.
@@ -92,6 +92,42 @@ static func xp_bar_ratio(level: int, xp: int) -> float:
 	if threshold <= 0:
 		return 0.0
 	return clampf(float(xp) / float(threshold), 0.0, 1.0)
+
+# Pure-function label string for the XP bar. Renders "Lv.10 — 5/50" when not
+# scaled (effective_level <= 0 sentinel for solo, or effective_level == level
+# for a party member at or above the floor) and "Lv.10 (Lv.3) — 5/50" when
+# scaled (member's effective_stats.level differs from real_stats.level).
+# Closes #18 AC#4 by wiring a single label render that branches on the local
+# member's scaling state. Prefix matches PartyScaler.format_hud_level's "Lv.X
+# (Lv.Y)" shape exactly so a refactor of one drifts both in lockstep.
+static func xp_bar_label(level: int, xp: int, threshold: int, effective_level: int = -1) -> String:
+	if effective_level <= 0 or effective_level == level:
+		return "Lv.%d — %d/%d" % [level, xp, threshold]
+	return "Lv.%d (Lv.%d) — %d/%d" % [level, effective_level, xp, threshold]
+
+# Looks up the local PartyMember's effective_stats.level from the active co-op
+# session. Returns -1 (the "no scaling" sentinel for xp_bar_label) when:
+#   - GameState autoload is missing (headless / test contexts)
+#   - no active co-op session (solo path)
+#   - no local_player_id set (pre-handshake / fresh-install)
+#   - the local player is not in the session's party (defensive against a
+#     wire-payload race where the local id doesn't match any member)
+# Returning -1 short-circuits xp_bar_label to the solo render so the wiring
+# inherits the existing solo behavior on every fall-through path.
+func _local_effective_level() -> int:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return -1
+	var session: CoopSession = gs.coop_session
+	if session == null or not session.is_active():
+		return -1
+	var pid: String = gs.local_player_id
+	if pid == "":
+		return -1
+	var member := session.member_for(pid)
+	if member == null or member.effective_stats == null:
+		return -1
+	return member.effective_stats.level
 
 func _check_room_clear() -> void:
 	if _room_cleared or _initial_enemies <= 0:
