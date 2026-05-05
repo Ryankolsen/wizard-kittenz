@@ -35,8 +35,12 @@ func _try_attack() -> void:
 		return
 	for area in _hitbox.get_overlapping_areas():
 		var node := area.get_parent()
-		if node is Enemy and node.data != null:
+		if node is Enemy and node.data != null and node.data.is_alive():
 			DamageResolver.apply(data, node.data)
+			if not node.data.is_alive():
+				ProgressionSystem.add_xp(data, node.data.xp_reward)
+				SaveManager.save(data)
+				node.queue_free()
 
 static func compute_velocity(input_dir: Vector2, move_speed: float) -> Vector2:
 	return input_dir * move_speed
