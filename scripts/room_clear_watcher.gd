@@ -1,0 +1,106 @@
+class_name RoomClearWatcher
+extends RefCounted
+
+# Per-room enemy-count watcher. Tracks the set of enemy_ids spawned in
+# a single room and fires DungeonRunController.mark_room_cleared(room.id)
+# on the last expected death. Bridges two existing seams:
+#   - RoomSpawnPlanner.enemy_ids_for_room(room) — what to expect
+#   - DungeonRunController.mark_room_cleared(id)  — what to fire
+# so the future scene-tree spawner doesn't have to count deaths inline
+# at every per-room call site.
+#
+# Closes the recurring "per-room enemy-count watcher (the piece that
+# calls run_controller.mark_room_cleared on the last enemy's died
+# signal) is the next adjacent seam" gap mentioned in c0f9a23's
+# RoomSpawnPlanner landing.
+#
+# Lifecycle: one watcher per room. The future spawn layer constructs a
+# watcher on room enter via watch(room, controller), calls
+# notify_death(enemy_id) on every enemy.died signal (whether from local
+# kill detection or remote apply_death), and drops the watcher on room
+# exit. RefCounted lifetime drops it as soon as the parent falls out
+# of scope.
+#
+# Auto-clear rule: rooms with no expected enemies (power-up / start)
+# fire mark_room_cleared immediately on watch() so the player can
+# advance without a kill. Combat rooms wait for the last expected
+# death. Mirrors DungeonRunController.is_room_cleared's auto-clear
+# rule for enemy_kind == -1 rooms — keeping the auto-clear edge in
+# both places means a watcher's mark_room_cleared call returns false
+# (already cleared by the controller's own auto-clear) without
+# error, but the watcher's _cleared flag still flips so a stray
+# notify_death is a safe no-op.
+#
+# Idempotency / defensiveness:
+#   - notify_death(unknown_id) is a safe no-op (returns false). A
+#     remote enemy-died packet for an enemy in a different room
+#     will not falsely clear this room — the per-room expected set
+#     is the gate.
+#   - notify_death after cleared is a safe no-op. The watcher fires
+#     mark_room_cleared at most once across its lifetime.
+#   - notify_death("") is a safe no-op (defensive against the empty-
+#     id sentinel from EnemyData's pre-spawn-layer fixtures).
+#   - re-watch() on the same instance resets state cleanly (clears
+#     prior expected set and _cleared flag).
+
+var room_id: int = -1
+var controller: DungeonRunController = null
+var _expected: Dictionary = {}  # enemy_id -> true
+var _initial_count: int = 0
+var _cleared: bool = false
+
+# Begins watching a room. Returns true on success, false on null
+# inputs. Reads expected enemy_ids from RoomSpawnPlanner so the
+# watcher and the spawner stay locked to the same id format.
+# Auto-fires mark_room_cleared for rooms with no expected enemies
+# (power-up / start) so DungeonRunController.is_room_cleared returns
+# true and the player can advance without a kill.
+func watch(room: Room, c: DungeonRunController) -> bool:
+	if room == null or c == null:
+		return false
+	room_id = room.id
+	controller = c
+	_expected.clear()
+	_cleared = false
+	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
+	_initial_count = ids.size()
+	for enemy_id in ids:
+		_expected[enemy_id] = true
+	if _expected.is_empty():
+		_cleared = true
+		controller.mark_room_cleared(room_id)
+	return true
+
+# Records a death. Returns true exactly once — on the death that
+# clears the last expected enemy (the rising-edge of "room cleared").
+# Returns false on:
+#   - empty enemy_id (defensive against pre-spawn-layer fixtures)
+#   - unknown enemy_id (not from this room — defensive against
+#     remote enemy-died packets for other rooms)
+#   - already cleared (idempotent — a second notify after the room
+#     fired is a safe no-op)
+#   - intermediate death in a multi-spawn room (still expecting
+#     more deaths before the room clears)
+func notify_death(enemy_id: String) -> bool:
+	if _cleared:
+		return false
+	if enemy_id == "":
+		return false
+	if not _expected.has(enemy_id):
+		return false
+	_expected.erase(enemy_id)
+	if _expected.is_empty():
+		_cleared = true
+		if controller != null:
+			controller.mark_room_cleared(room_id)
+		return true
+	return false
+
+func is_cleared() -> bool:
+	return _cleared
+
+func remaining_count() -> int:
+	return _expected.size()
+
+func initial_count() -> int:
+	return _initial_count
