@@ -315,3 +315,227 @@ func test_sign_out_idempotent_when_already_signed_out():
 	am.sign_in("u-1")
 	assert_true(am.sign_out())
 	assert_false(am.sign_out(), "second sign_out is no-op")
+
+# --- SaveSyncOrchestrator ---------------------------------------------------
+
+func test_sync_returns_null_when_both_inputs_null():
+	# No save anywhere. No tracker clear (a transient fetch failure that
+	# hands null for server should not erase pending offline XP — the
+	# next attempt re-merges fresh).
+	var t := OfflineXPTracker.new()
+	t.record(7)
+	assert_null(SaveSyncOrchestrator.sync(null, null, t))
+	assert_eq(t.pending_xp, 7, "tracker untouched when both inputs null")
+
+func test_sync_returns_clone_of_server_when_local_null():
+	# Brand-new device: server is canonical. No local gameplay to fold;
+	# tracker is empty by convention on a fresh install.
+	var server := KittenSaveData.new()
+	server.level = 4
+	server.xp = 12
+	server.character_name = "Cloud"
+	var merged := SaveSyncOrchestrator.sync(null, server)
+	assert_not_null(merged)
+	assert_eq(merged.level, 4)
+	assert_eq(merged.xp, 12)
+	assert_eq(merged.character_name, "Cloud")
+
+func test_sync_with_local_null_returns_clone_not_server_reference():
+	# Mutating the merged result must not stealth-mutate the server input.
+	var server := KittenSaveData.new()
+	server.xp = 10
+	var merged := SaveSyncOrchestrator.sync(null, server)
+	merged.xp = 999
+	assert_eq(server.xp, 10, "server input unchanged after merged result mutation")
+
+func test_sync_with_local_null_does_not_clear_tracker():
+	# Brand-new-device path has nothing to flush. Tracker should be empty
+	# already (this is a fresh install context) but if it's not, leave it
+	# alone — the call site can decide whether to drop it.
+	var server := KittenSaveData.new()
+	server.level = 1
+	var t := OfflineXPTracker.new()
+	t.record(5)
+	SaveSyncOrchestrator.sync(null, server, t)
+	assert_eq(t.pending_xp, 5, "local-null branch leaves tracker alone")
+
+func test_sync_returns_clone_of_local_when_server_null():
+	# Brand-new account / first sync-up: local is the upload payload.
+	var local := KittenSaveData.new()
+	local.level = 6
+	local.xp = 8
+	local.character_name = "Upload"
+	var merged := SaveSyncOrchestrator.sync(local, null)
+	assert_not_null(merged)
+	assert_eq(merged.level, 6)
+	assert_eq(merged.xp, 8)
+	assert_eq(merged.character_name, "Upload")
+
+func test_sync_with_server_null_returns_clone_not_local_reference():
+	var local := KittenSaveData.new()
+	local.xp = 10
+	var merged := SaveSyncOrchestrator.sync(local, null)
+	merged.xp = 999
+	assert_eq(local.xp, 10, "local input unchanged after merged result mutation")
+
+func test_sync_with_server_null_clears_tracker():
+	# First sync-up uploads local; the offline window just settled, so
+	# the tracker resets so the next solo kill starts fresh.
+	var local := KittenSaveData.new()
+	local.level = 3
+	var t := OfflineXPTracker.new()
+	t.record(11)
+	SaveSyncOrchestrator.sync(local, null, t)
+	assert_eq(t.pending_xp, 0, "first-sync-up clears tracker")
+
+func test_sync_equal_level_folds_offline_xp_into_server():
+	# The headline merge case: local earned XP offline at the same level
+	# the server last saw. merge_xp folds it into the server clone so
+	# the upload includes the offline gain.
+	var local := KittenSaveData.new()
+	local.level = 5
+	local.xp = 18
+	local.offline_xp_earned = 8
+	var server := KittenSaveData.new()
+	server.level = 5
+	server.xp = 10
+	var merged := SaveSyncOrchestrator.sync(local, server)
+	assert_eq(merged.level, 5)
+	assert_eq(merged.xp, 18, "server.xp + local.offline_xp_earned (10 + 8 = 18)")
+	assert_eq(local.xp, 18, "local input not mutated")
+	assert_eq(server.xp, 10, "server input not mutated")
+
+func test_sync_equal_level_clears_tracker():
+	# The merge folded pending_xp in; clearing it prevents the next sync
+	# from double-counting the same delta.
+	var local := KittenSaveData.new()
+	local.level = 5
+	local.xp = 18
+	local.offline_xp_earned = 8
+	var server := KittenSaveData.new()
+	server.level = 5
+	server.xp = 10
+	var t := OfflineXPTracker.new()
+	t.record(8)
+	SaveSyncOrchestrator.sync(local, server, t)
+	assert_eq(t.pending_xp, 0, "tracker cleared after merge")
+
+func test_sync_local_higher_level_wins():
+	# Local leveled up offline; resolve picks local. Offline XP delta is
+	# already baked into local.xp / local.level so merge_xp is not called.
+	var local := KittenSaveData.new()
+	local.level = 7
+	local.xp = 4
+	local.offline_xp_earned = 25
+	local.character_name = "Aheadlocal"
+	var server := KittenSaveData.new()
+	server.level = 5
+	server.xp = 10
+	server.character_name = "Behindcloud"
+	var merged := SaveSyncOrchestrator.sync(local, server)
+	assert_eq(merged.level, 7)
+	assert_eq(merged.xp, 4, "local.xp preserved (offline xp already baked in)")
+	assert_eq(merged.character_name, "Aheadlocal")
+
+func test_sync_server_higher_level_wins():
+	# Another device played further; server wins outright. Local's
+	# offline_xp_earned is being abandoned along with the rest of local's
+	# progression below server's level — it's not double-applied.
+	var local := KittenSaveData.new()
+	local.level = 4
+	local.xp = 2
+	local.offline_xp_earned = 12
+	var server := KittenSaveData.new()
+	server.level = 8
+	server.xp = 30
+	server.character_name = "Otherdevice"
+	var merged := SaveSyncOrchestrator.sync(local, server)
+	assert_eq(merged.level, 8)
+	assert_eq(merged.xp, 30, "server.xp preserved; local offline delta NOT folded across level boundary")
+	assert_eq(merged.character_name, "Otherdevice")
+
+func test_sync_clears_tracker_even_when_server_wins():
+	# When server wins, local progression is abandoned. The tracker's
+	# pending_xp is part of that abandoned progression, so clearing
+	# matches the abandonment — the next "since last sync" window starts
+	# at zero.
+	var local := KittenSaveData.new()
+	local.level = 4
+	var server := KittenSaveData.new()
+	server.level = 8
+	var t := OfflineXPTracker.new()
+	t.record(12)
+	SaveSyncOrchestrator.sync(local, server, t)
+	assert_eq(t.pending_xp, 0, "server-wins branch still clears tracker")
+
+func test_sync_returns_clone_decoupled_from_server_at_equal_level():
+	# Mutating the merged result must not stealth-mutate the server input.
+	var local := KittenSaveData.new()
+	local.level = 5
+	local.offline_xp_earned = 3
+	var server := KittenSaveData.new()
+	server.level = 5
+	server.xp = 10
+	var merged := SaveSyncOrchestrator.sync(local, server)
+	merged.xp = 999
+	assert_eq(server.xp, 10, "server input unchanged after merged result mutation")
+
+func test_sync_returns_clone_decoupled_from_local_when_local_wins():
+	var local := KittenSaveData.new()
+	local.level = 7
+	local.xp = 5
+	var server := KittenSaveData.new()
+	server.level = 5
+	var merged := SaveSyncOrchestrator.sync(local, server)
+	merged.xp = 999
+	assert_eq(local.xp, 5, "local input unchanged after merged result mutation")
+
+func test_sync_null_tracker_arg_is_safe():
+	# Tracker is optional — call sites that don't have one (test paths,
+	# pre-#15-merge fallback) should work cleanly.
+	var local := KittenSaveData.new()
+	local.level = 3
+	var server := KittenSaveData.new()
+	server.level = 3
+	var merged := SaveSyncOrchestrator.sync(local, server, null)
+	assert_not_null(merged)
+	assert_eq(merged.level, 3)
+
+func test_sync_zero_offline_xp_is_clean_noop_at_equal_level():
+	# Player signed in without any offline activity since last sync. The
+	# merge is a no-op on the xp side; tracker is already empty so the
+	# clear is also a no-op. Locks the "no-side-effect for a no-op sync"
+	# contract — important because the wire layer may call sync() on
+	# every sign-in even when nothing changed.
+	var local := KittenSaveData.new()
+	local.level = 4
+	local.xp = 5
+	local.offline_xp_earned = 0
+	var server := KittenSaveData.new()
+	server.level = 4
+	server.xp = 5
+	var t := OfflineXPTracker.new()
+	var merged := SaveSyncOrchestrator.sync(local, server, t)
+	assert_eq(merged.xp, 5)
+	assert_eq(merged.level, 4)
+	assert_eq(t.pending_xp, 0, "tracker stays empty")
+
+func test_sync_end_to_end_with_save_manager_round_trip():
+	# Realistic path: write a local save with offline XP via SaveManager,
+	# load it back, build a server save at equal level with less XP, sync,
+	# then write the merged result back. Confirms the orchestrator slots
+	# into the SaveManager round-trip without lossy conversions.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Round")
+	c.level = 5
+	c.xp = 20
+	var t := OfflineXPTracker.new()
+	t.record(6)
+	SaveManager.save(c, TMP_PATH, null, null, null, t)
+	var local := SaveManager.load(TMP_PATH)
+	var server := KittenSaveData.new()
+	server.level = 5
+	server.xp = 14
+	server.character_name = "Round"
+	var merged := SaveSyncOrchestrator.sync(local, server, t)
+	assert_eq(merged.xp, 20, "server.xp(14) + local.offline_xp_earned(6) = 20")
+	assert_eq(t.pending_xp, 0, "tracker cleared after sync")
