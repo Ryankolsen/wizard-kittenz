@@ -73,6 +73,101 @@ func test_push_sample_third_sample_drops_oldest():
 	assert_eq(ri.current_position, Vector2(100, 0))
 	assert_eq(ri.get_display_position(0.5), Vector2(75, 0))
 
+# --- RemotePlayerInterpolator.get_display_position_at ----------------------
+
+func test_get_display_position_at_no_samples_returns_zero():
+	# Wall-clock path mirrors get_display_position's no-sample contract —
+	# returns ZERO so the remote kitten doesn't render at a stale origin
+	# from a recycled interpolator.
+	var ri := RemotePlayerInterpolator.new()
+	assert_eq(ri.get_display_position_at(5.0), Vector2.ZERO)
+
+func test_get_display_position_at_single_sample_returns_current():
+	# After one sample there's no window to lerp across — returns
+	# current_position regardless of `now`.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(10, 20), 1.0)
+	assert_eq(ri.get_display_position_at(0.0), Vector2(10, 20))
+	assert_eq(ri.get_display_position_at(1.0), Vector2(10, 20))
+	assert_eq(ri.get_display_position_at(99.0), Vector2(10, 20))
+
+func test_get_display_position_at_lerps_to_now():
+	# Core path: two samples bracket `now`, the helper computes
+	# t = (now - prev_ts) / (curr_ts - prev_ts) internally and lerps.
+	# Pins that the wire layer / render loop doesn't have to compute t
+	# inline.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 2.0)
+	assert_eq(ri.get_display_position_at(1.5), Vector2(50, 0), "midpoint")
+	assert_eq(ri.get_display_position_at(1.25), Vector2(25, 0), "quarter")
+	assert_eq(ri.get_display_position_at(1.75), Vector2(75, 0), "three-quarter")
+
+func test_get_display_position_at_now_equals_prev_ts_returns_previous():
+	# Edge of the window: now == prev_ts -> t == 0 -> previous_position.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 2.0)
+	assert_eq(ri.get_display_position_at(1.0), Vector2(0, 0))
+
+func test_get_display_position_at_now_equals_curr_ts_returns_current():
+	# Edge of the window: now == curr_ts -> t == 1 -> current_position.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 2.0)
+	assert_eq(ri.get_display_position_at(2.0), Vector2(100, 0))
+
+func test_get_display_position_at_now_before_prev_ts_clamps_to_previous():
+	# Render loop clock skew: render is behind the wire layer's prev_ts.
+	# t < 0 clamps via get_display_position to previous_position. The
+	# kitten doesn't snap backwards past previous; it rests there until
+	# the render clock catches up.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 2.0)
+	assert_eq(ri.get_display_position_at(0.5), Vector2(0, 0))
+	assert_eq(ri.get_display_position_at(-100.0), Vector2(0, 0))
+
+func test_get_display_position_at_now_after_curr_ts_clamps_to_current():
+	# Render loop ahead of the latest packet: t > 1 clamps via
+	# get_display_position to current_position. The kitten freezes at
+	# the latest known position rather than extrapolating off-screen
+	# while waiting for the next packet to arrive.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 2.0)
+	assert_eq(ri.get_display_position_at(2.5), Vector2(100, 0))
+	assert_eq(ri.get_display_position_at(999.0), Vector2(100, 0))
+
+func test_get_display_position_at_zero_window_returns_current():
+	# Defensive against div-by-zero when both samples land in the same
+	# tick (curr_ts == prev_ts). Returns current_position — the freshest
+	# sample is the right answer; computing t would divide by zero.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 1.0)
+	ri.push_sample(Vector2(100, 0), 1.0)  # same timestamp
+	assert_eq(ri.get_display_position_at(1.0), Vector2(100, 0))
+	assert_eq(ri.get_display_position_at(99.0), Vector2(100, 0), "regardless of now")
+
+func test_get_display_position_at_backwards_time_returns_current():
+	# Defensive against out-of-order wire-layer timestamps (curr_ts <
+	# prev_ts — the manager didn't reorder a late-arriving packet).
+	# Same "trust freshest" fallback as the zero-window case rather
+	# than computing a negative-denominator t that would clamp
+	# unpredictably.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(0, 0), 5.0)
+	ri.push_sample(Vector2(100, 0), 2.0)  # timestamp went backwards
+	assert_eq(ri.get_display_position_at(3.5), Vector2(100, 0))
+
+func test_get_display_position_at_lerp_is_componentwise():
+	# Confirms get_display_position_at routes through the same Vector2.lerp
+	# as get_display_position — both axes interpolate, not just x.
+	var ri := RemotePlayerInterpolator.new()
+	ri.push_sample(Vector2(10, 20), 1.0)
+	ri.push_sample(Vector2(30, 60), 2.0)
+	assert_eq(ri.get_display_position_at(1.5), Vector2(20, 40))
+
 # --- NetworkSyncManager.apply_remote_state ---------------------------------
 
 func test_apply_remote_state_auto_registers_player():
@@ -139,6 +234,38 @@ func test_clear_drops_all_players():
 	nsm.clear()
 	assert_eq(nsm.player_count(), 0)
 	assert_false(nsm.has_player("u2"))
+
+# --- NetworkSyncManager.get_display_position_at ----------------------------
+
+func test_nsm_get_display_position_at_unknown_player_returns_zero():
+	# Mirrors get_display_position's unknown-id contract: a wire packet
+	# for a player who already left the lobby returns ZERO rather than
+	# crashing the render path.
+	var nsm := NetworkSyncManager.new()
+	assert_eq(nsm.get_display_position_at("ghost", 1.0), Vector2.ZERO)
+
+func test_nsm_get_display_position_at_forwards_to_interpolator():
+	# Two samples with a known window — manager forwards `now` through
+	# to the interpolator's get_display_position_at, which lerps. Pins
+	# that the manager doesn't accidentally pass `now` through to the
+	# t-based variant.
+	var nsm := NetworkSyncManager.new()
+	nsm.apply_remote_state("u2", Vector2(0, 0), 1.0)
+	nsm.apply_remote_state("u2", Vector2(100, 0), 2.0)
+	assert_eq(nsm.get_display_position_at("u2", 1.5), Vector2(50, 0))
+	assert_eq(nsm.get_display_position_at("u2", 1.25), Vector2(25, 0))
+
+func test_nsm_get_display_position_at_per_player_isolation():
+	# Two remote players bracket different windows — fetching one
+	# doesn't perturb the other. Pins per-player interpolator isolation
+	# through the wall-clock path too.
+	var nsm := NetworkSyncManager.new()
+	nsm.apply_remote_state("u2", Vector2(0, 0), 1.0)
+	nsm.apply_remote_state("u2", Vector2(100, 0), 2.0)
+	nsm.apply_remote_state("u3", Vector2(0, 0), 10.0)
+	nsm.apply_remote_state("u3", Vector2(50, 0), 20.0)
+	assert_eq(nsm.get_display_position_at("u2", 1.5), Vector2(50, 0))
+	assert_eq(nsm.get_display_position_at("u3", 15.0), Vector2(25, 0))
 
 # --- XPBroadcaster.on_enemy_killed -----------------------------------------
 

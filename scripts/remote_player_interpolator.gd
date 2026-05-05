@@ -40,6 +40,43 @@ func get_display_position(t: float) -> Vector2:
 	var clamped_t: float = clampf(t, 0.0, 1.0)
 	return previous_position.lerp(current_position, clamped_t)
 
+# Wall-clock variant of get_display_position. Computes
+#   t = (now - previous_timestamp) / (current_timestamp - previous_timestamp)
+# internally and forwards through get_display_position's clamp + lerp. The
+# wire layer / render loop calls this each frame rather than computing t
+# inline so the brittle math (div-by-zero when prev_ts == curr_ts, NaN/inf
+# on backwards time) stays in one place.
+#
+# Edge cases (all defensive — match get_display_position's "trust freshest"
+# fall-through contract so the rendered kitten never lands on a stale or
+# out-of-bounds extrapolated position):
+#   - 0 samples: Vector2.ZERO (same as get_display_position)
+#   - 1 sample: current_position (same)
+#   - curr_ts == prev_ts (zero-duration window — two packets in same
+#     tick): returns current_position. The freshest sample is the
+#     correct answer; computing t here would divide by zero.
+#   - curr_ts < prev_ts (negative window, possible from out-of-order
+#     wire-layer timestamps that the manager didn't reorder): returns
+#     current_position. Same rule as zero-duration: trust freshest.
+#   - now < prev_ts (render loop hasn't reached the previous sample's
+#     time yet — clock skew between wire layer and render loop):
+#     t < 0, get_display_position clamps to previous_position.
+#   - now > curr_ts (render loop ahead of latest sample — the next
+#     packet hasn't arrived): t > 1, get_display_position clamps to
+#     current_position. The kitten freezes at the latest known
+#     position rather than extrapolating into space until the next
+#     packet lands.
+func get_display_position_at(now: float) -> Vector2:
+	if not _has_current:
+		return Vector2.ZERO
+	if not _has_previous:
+		return current_position
+	var window: float = current_timestamp - previous_timestamp
+	if window <= 0.0:
+		return current_position
+	var t: float = (now - previous_timestamp) / window
+	return get_display_position(t)
+
 func has_sample() -> bool:
 	return _has_current
 

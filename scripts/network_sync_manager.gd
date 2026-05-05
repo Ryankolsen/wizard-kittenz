@@ -35,6 +35,18 @@ func get_display_position(player_id: String, t: float) -> Vector2:
 		return Vector2.ZERO
 	return interp.get_display_position(t)
 
+# Wall-clock variant. Forwards to RemotePlayerInterpolator.get_display_position_at
+# so the render loop / wire layer can call a single one-liner per remote
+# player_id each frame instead of looking up the interpolator and computing
+# t inline. Unknown player_id returns Vector2.ZERO (same shape as
+# get_display_position) so a wire packet for a player who already left the
+# lobby doesn't crash the render path.
+func get_display_position_at(player_id: String, now: float) -> Vector2:
+	var interp: RemotePlayerInterpolator = _interpolators.get(player_id)
+	if interp == null:
+		return Vector2.ZERO
+	return interp.get_display_position_at(now)
+
 func get_interpolator(player_id: String) -> RemotePlayerInterpolator:
 	return _interpolators.get(player_id)
 
