@@ -1,0 +1,18 @@
+# Godot 4
+.godot/
+*.translation
+*.import
+export.cfg
+export_presets.cfg
+
+# Android
+android/
+*.apk
+*.aab
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
