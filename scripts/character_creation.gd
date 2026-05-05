@@ -125,7 +125,7 @@ func _refresh_appearance_label() -> void:
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory, GameState.offline_xp_tracker)
 	get_tree().change_scene_to_file(main_scene_path)
 
 # Kept for backwards compatibility with existing tests / call sites.

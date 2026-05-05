@@ -147,6 +147,124 @@ func test_offline_xp_earned_defaults_to_zero_for_legacy_saves():
 	var restored := KittenSaveData.from_dict(legacy)
 	assert_eq(restored.offline_xp_earned, 0)
 
+# --- OfflineXPTracker -------------------------------------------------------
+
+func test_offline_xp_tracker_starts_empty():
+	# Fresh-install / no-save default: pending counter is zero so
+	# OfflineProgressMerger.merge_xp on first sync is a clean no-op.
+	var t := OfflineXPTracker.new()
+	assert_eq(t.pending_xp, 0)
+	assert_true(t.is_empty())
+
+func test_offline_xp_tracker_record_accumulates():
+	var t := OfflineXPTracker.new()
+	assert_eq(t.record(5), 5, "record returns new total")
+	assert_eq(t.pending_xp, 5)
+	assert_eq(t.record(7), 12, "second record sums in")
+	assert_false(t.is_empty())
+
+func test_offline_xp_tracker_record_rejects_non_positive():
+	# Defense-in-depth: a future debuff path that hands a 0 / negative
+	# award must not decrement the counter. The merge logic assumes
+	# pending_xp is the amount the server is missing — never a refund.
+	var t := OfflineXPTracker.new()
+	t.record(5)
+	assert_eq(t.record(0), 5, "zero amount no-op")
+	assert_eq(t.record(-3), 5, "negative amount no-op")
+	assert_eq(t.pending_xp, 5)
+
+func test_offline_xp_tracker_clear_resets_and_returns_previous():
+	# clear() returns the previous total so the sync orchestrator can
+	# log "+N XP merged" without re-reading pending_xp before the call.
+	var t := OfflineXPTracker.new()
+	t.record(13)
+	assert_eq(t.clear(), 13, "clear returns previous total")
+	assert_eq(t.pending_xp, 0)
+	assert_true(t.is_empty())
+
+func test_offline_xp_tracker_clear_idempotent():
+	var t := OfflineXPTracker.new()
+	assert_eq(t.clear(), 0, "clear on empty returns 0")
+	t.record(4)
+	t.clear()
+	assert_eq(t.clear(), 0, "second clear returns 0")
+	assert_eq(t.pending_xp, 0)
+
+# --- KittenSaveData round-trip with tracker ---------------------------------
+
+func test_kitten_save_data_from_character_captures_tracker_pending_xp():
+	# The save layer captures the tracker's pending_xp into the save's
+	# offline_xp_earned field so OfflineProgressMerger.merge_xp can fold
+	# it into the server record on reconnect.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var t := OfflineXPTracker.new()
+	t.record(17)
+	var s := KittenSaveData.from_character(c, null, null, null, t)
+	assert_eq(s.offline_xp_earned, 17)
+
+func test_kitten_save_data_from_character_null_tracker_keeps_default():
+	# Test paths / call sites that don't pass a tracker keep the field
+	# at its default (0). Locks the back-compat contract that the new
+	# trailing param is opt-in.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var s := KittenSaveData.from_character(c, null, null, null, null)
+	assert_eq(s.offline_xp_earned, 0)
+
+func test_kitten_save_data_to_offline_xp_tracker_hydrates_pending():
+	# Round-trip: a save with offline_xp_earned=N produces a tracker
+	# with pending_xp=N. Lets GameState.offline_xp_tracker pick up where
+	# the previous session left off.
+	var s := KittenSaveData.new()
+	s.offline_xp_earned = 23
+	var t := s.to_offline_xp_tracker()
+	assert_eq(t.pending_xp, 23)
+
+func test_kitten_save_data_to_offline_xp_tracker_zero_default():
+	# Legacy / fresh save: no offline activity hydrates to an empty tracker.
+	var s := KittenSaveData.new()
+	var t := s.to_offline_xp_tracker()
+	assert_eq(t.pending_xp, 0)
+	assert_true(t.is_empty())
+
+# --- GameState wiring -------------------------------------------------------
+
+func test_game_state_offline_xp_tracker_defaults_non_null():
+	# Same always-non-null contract as token_inventory — the kill flow
+	# reads .pending_xp without a null check on autoload init.
+	var gs := get_node("/root/GameState")
+	assert_not_null(gs.offline_xp_tracker, "always non-null on autoload init")
+
+func test_game_state_clear_resets_offline_xp_tracker():
+	# clear() must drop a stale tracker so a logout / character-reset
+	# starts the counter fresh — otherwise a sign-out followed by a
+	# different account's first kill would merge the wrong pending_xp
+	# into the new account's server save.
+	var gs := get_node("/root/GameState")
+	var saved: OfflineXPTracker = gs.offline_xp_tracker
+	gs.offline_xp_tracker = OfflineXPTracker.new()
+	gs.offline_xp_tracker.record(99)
+	gs.clear()
+	assert_not_null(gs.offline_xp_tracker, "still non-null after clear")
+	assert_eq(gs.offline_xp_tracker.pending_xp, 0, "tracker is reset to a fresh instance")
+	# Restore (after_each will also clear, but be explicit).
+	gs.offline_xp_tracker = saved
+
+# --- SaveManager round-trip with tracker ------------------------------------
+
+func test_save_manager_writes_and_loads_offline_xp_earned():
+	# End-to-end: a tracker with N pending XP round-trips through a
+	# SaveManager.save / load cycle and a fresh tracker hydrated from
+	# the loaded save reads N back.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pebbles")
+	var t := OfflineXPTracker.new()
+	t.record(31)
+	var err := SaveManager.save(c, TMP_PATH, null, null, null, t)
+	assert_eq(err, OK)
+	var loaded := SaveManager.load(TMP_PATH)
+	assert_eq(loaded.offline_xp_earned, 31)
+	var restored := loaded.to_offline_xp_tracker()
+	assert_eq(restored.pending_xp, 31)
+
 # --- AccountManager.sign_out safety -----------------------------------------
 
 func test_sign_out_does_not_delete_local_save_file():

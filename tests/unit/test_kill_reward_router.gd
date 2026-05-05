@@ -144,6 +144,83 @@ func test_route_kill_solo_null_inventory_still_applies_xp():
 	assert_eq(granted, 0)
 	assert_eq(c.level, 2, "XP still applies without inventory")
 
+# --- route_kill: offline XP tracker (#15 sync orchestrator hook) ------------
+
+func test_route_kill_solo_records_offline_xp():
+	# Solo path tallies the kill's xp_reward into the offline counter so
+	# OfflineProgressMerger.merge_xp can fold it into the server record
+	# on the next sync. Pinned amount: a 7-XP kill records 7 pending.
+	var c := _make_character(1)
+	var enemy := _make_enemy(7)
+	var inv := TokenInventory.new()
+	var t := OfflineXPTracker.new()
+	KillRewardRouter.route_kill(c, enemy, inv, null, "", t)
+	assert_eq(t.pending_xp, 7, "solo kill recorded into offline tracker")
+
+func test_route_kill_solo_records_offline_xp_even_with_null_inventory():
+	# XP applies in the null-inventory test path; the offline counter
+	# must mirror it or the merge logic will undercount on reconnect.
+	var c := _make_character(1)
+	var enemy := _make_enemy(5)
+	var t := OfflineXPTracker.new()
+	KillRewardRouter.route_kill(c, enemy, null, null, "", t)
+	assert_eq(t.pending_xp, 5, "tracker records before inventory short-circuit")
+
+func test_route_kill_solo_null_tracker_safe():
+	# Pre-#15 wiring path / test paths without GameState pass null —
+	# the helper must not crash and XP must still apply.
+	var c := _make_character(1)
+	var enemy := _make_enemy(5)
+	var inv := TokenInventory.new()
+	KillRewardRouter.route_kill(c, enemy, inv, null, "", null)
+	assert_eq(c.level, 2, "null tracker doesn't block XP application")
+
+func test_route_kill_coop_does_not_record_offline_xp():
+	# Co-op path is intentionally a no-op for offline tracking — co-op
+	# requires the network so any XP earned here is already "synced".
+	# Recording it would double-count when the next solo kill triggers
+	# a merge (the server already saw the broadcast).
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
+	session.start(_make_two_room_dungeon())
+	# 4 XP keeps the kitten at L1 (L1->L2 needs 5) so the post-call xp
+	# read is the raw amount routed by LocalXPRouter, not a level-up
+	# remainder.
+	var enemy := _make_enemy(4)
+	var t := OfflineXPTracker.new()
+	KillRewardRouter.route_kill(c, enemy, inv, session, "u1", t)
+	assert_eq(t.pending_xp, 0, "co-op kill does not touch offline tracker")
+	assert_eq(c.xp, 4, "router still applied XP locally via LocalXPRouter")
+
+func test_route_kill_coop_inactive_session_records_offline_xp():
+	# An end()'d session falls through to the solo branch (broadcaster
+	# is null in that window). The solo branch records into the tracker
+	# so post-end kills still feed the offline counter.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.end()
+	var enemy := _make_enemy(5)
+	var inv := TokenInventory.new()
+	var t := OfflineXPTracker.new()
+	KillRewardRouter.route_kill(c, enemy, inv, session, "u1", t)
+	assert_eq(t.pending_xp, 5, "post-end falls back to solo + records offline")
+
+func test_route_kill_solo_accumulates_across_kills():
+	# Successive solo kills sum into the tracker. Mirrors the real
+	# gameplay loop: multiple offline kills accumulate into one merge
+	# at sign-in. The orchestrator clears after the merge.
+	var c := _make_character(1)
+	var inv := TokenInventory.new()
+	var t := OfflineXPTracker.new()
+	KillRewardRouter.route_kill(c, _make_enemy(3), inv, null, "", t)
+	KillRewardRouter.route_kill(c, _make_enemy(4), inv, null, "", t)
+	KillRewardRouter.route_kill(c, _make_enemy(2), inv, null, "", t)
+	assert_eq(t.pending_xp, 9, "9 = 3+4+2 across three kills")
+
 # --- route_kill: co-op path -------------------------------------------------
 
 func test_route_kill_coop_broadcasts_xp_to_all_party_members():

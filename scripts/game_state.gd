@@ -10,6 +10,12 @@ var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
 # Revive token balance. Always non-null so call sites (Player on death,
 # future death-screen UI) can read .count freely without a null check.
 var token_inventory: TokenInventory = TokenInventory.new()
+# XP earned in the solo path since the last server sync. Always non-null
+# so the kill flow / save layer can read .pending_xp freely without a
+# null check. Hydrated from KittenSaveData.offline_xp_earned on load;
+# the sync orchestrator (post-#14) calls clear() after a successful
+# OfflineProgressMerger.merge_xp.
+var offline_xp_tracker: OfflineXPTracker = OfflineXPTracker.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -39,6 +45,7 @@ func _try_load_save() -> void:
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
 	meta_tracker = save_data.to_tracker()
 	token_inventory = save_data.to_inventory()
+	offline_xp_tracker = save_data.to_offline_xp_tracker()
 
 func set_character(c: CharacterData) -> void:
 	current_character = c
@@ -49,6 +56,7 @@ func clear() -> void:
 	skill_tree = null
 	meta_tracker = MetaProgressionTracker.new()
 	token_inventory = TokenInventory.new()
+	offline_xp_tracker = OfflineXPTracker.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.

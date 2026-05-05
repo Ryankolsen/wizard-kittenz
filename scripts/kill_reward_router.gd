@@ -64,7 +64,8 @@ static func route_kill(
 	enemy_data: EnemyData,
 	inventory: TokenInventory,
 	session: CoopSession,
-	local_player_id: String
+	local_player_id: String,
+	xp_tracker: OfflineXPTracker = null
 ) -> int:
 	if data == null or enemy_data == null:
 		return 0
@@ -74,6 +75,10 @@ static func route_kill(
 		# Milestone tokens flow through LocalTokenGrantRouter on the
 		# level_up edge — adding tokens_for_level_up here would
 		# double-grant for a local-kill that crosses a milestone.
+		# Offline XP counter is intentionally NOT incremented in the
+		# co-op path: co-op requires the network, so the XP earned
+		# here is already "synced" — folding it into pending_xp would
+		# double-count when the next solo-mode merge fires.
 		if inventory != null and enemy_data.is_boss:
 			var boss_bonus := TokenGrantRules.tokens_for_boss_kill()
 			inventory.grant(boss_bonus)
@@ -82,6 +87,13 @@ static func route_kill(
 	# Solo path — apply XP locally + grant the combined kill rule.
 	var level_before := data.level
 	ProgressionSystem.add_xp(data, enemy_data.xp_reward)
+	# Tally the XP into the offline counter BEFORE checking inventory so
+	# a null-inventory test path still records the counter (XP applies in
+	# that path too — the counter must mirror it). The sync orchestrator
+	# folds pending_xp into the server record on reconnect via
+	# OfflineProgressMerger.merge_xp.
+	if xp_tracker != null:
+		xp_tracker.record(enemy_data.xp_reward)
 	if inventory == null:
 		return 0
 	var earned := TokenGrantRules.tokens_for_kill(enemy_data, level_before, data.level)

@@ -37,7 +37,7 @@ var revive_tokens: int = 0
 # round-trip cleanly.
 var offline_xp_earned: int = 0
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, inventory: TokenInventory = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, inventory: TokenInventory = null, xp_tracker: OfflineXPTracker = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -57,6 +57,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 		s.max_level_per_class = tracker.max_level_per_class.duplicate()
 	if inventory != null:
 		s.revive_tokens = inventory.count
+	if xp_tracker != null:
+		s.offline_xp_earned = xp_tracker.pending_xp
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -127,3 +129,8 @@ func to_inventory() -> TokenInventory:
 	var inv := TokenInventory.new()
 	inv.count = revive_tokens
 	return inv
+
+func to_offline_xp_tracker() -> OfflineXPTracker:
+	var t := OfflineXPTracker.new()
+	t.pending_xp = offline_xp_earned
+	return t
