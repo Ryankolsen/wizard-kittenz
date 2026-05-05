@@ -281,3 +281,54 @@ func test_milestone_level_up_grants_token_via_grant_rules():
 	var earned := TokenGrantRules.tokens_for_level_up(level_before, c.level)
 	inv.grant(earned)
 	assert_eq(inv.count, 1, "milestone L5 awarded one token")
+
+# --- DungeonRunCompletion ----------------------------------------------------
+
+func test_dungeon_run_completion_grants_token_and_records_meta():
+	# The boss-cleared hook must fire both side effects in one call: bump
+	# the meta tracker (gates unlock conditions) AND drip the token (gates
+	# revive economy). Single function so the room-transition layer's
+	# terminal branch is one call site.
+	var tracker := MetaProgressionTracker.new()
+	var inv := TokenInventory.new()
+	var granted := DungeonRunCompletion.complete(tracker, inv)
+	assert_eq(tracker.dungeons_completed, 1, "meta tracker advances")
+	assert_eq(inv.count, TokenGrantRules.tokens_for_dungeon_complete(),
+		"inventory grew by the dungeon-complete amount")
+	assert_eq(granted, TokenGrantRules.tokens_for_dungeon_complete(),
+		"return value matches the granted count for toast UI")
+
+func test_dungeon_run_completion_handles_null_inventory():
+	# A fresh-install path where the token inventory hasn't been hydrated
+	# yet must not crash — the meta tracker still advances so unlock
+	# conditions don't stall.
+	var tracker := MetaProgressionTracker.new()
+	var granted := DungeonRunCompletion.complete(tracker, null)
+	assert_eq(tracker.dungeons_completed, 1)
+	assert_eq(granted, 0, "no inventory means no grant reported")
+
+func test_dungeon_run_completion_handles_null_tracker():
+	# Symmetric null-safety: a test or alt path without a meta tracker
+	# still drips the token. Both args independent so the call site
+	# doesn't have to guard each one.
+	var inv := TokenInventory.new()
+	var granted := DungeonRunCompletion.complete(null, inv)
+	assert_eq(granted, TokenGrantRules.tokens_for_dungeon_complete())
+	assert_eq(inv.count, TokenGrantRules.tokens_for_dungeon_complete())
+
+func test_dungeon_run_completion_with_both_null_is_safe_noop():
+	# Defensive: both null returns 0 cleanly. Used by tests and by any
+	# future cutscene path that wants to fire the "completed" event
+	# without persistence.
+	assert_eq(DungeonRunCompletion.complete(null, null), 0)
+
+func test_dungeon_run_completion_accumulates_across_calls():
+	# NOT internally idempotent — a future multi-boss dungeon calls this
+	# per boss without a special-case flag. The single-boss case has
+	# caller-side idempotency (the boss can only die once per run).
+	var tracker := MetaProgressionTracker.new()
+	var inv := TokenInventory.new()
+	DungeonRunCompletion.complete(tracker, inv)
+	DungeonRunCompletion.complete(tracker, inv)
+	assert_eq(tracker.dungeons_completed, 2)
+	assert_eq(inv.count, 2 * TokenGrantRules.tokens_for_dungeon_complete())
