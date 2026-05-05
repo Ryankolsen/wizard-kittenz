@@ -21,7 +21,7 @@ func _ready() -> void:
 func _on_class_pressed(klass: CharacterData.CharacterClass) -> void:
 	var data := select_class(klass)
 	GameState.set_character(data)
-	SaveManager.save(data)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree)
 	get_tree().change_scene_to_file(main_scene_path)
 
 static func select_class(klass: CharacterData.CharacterClass, character_name: String = "Kitten") -> CharacterData:

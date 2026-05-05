@@ -13,6 +13,7 @@ const SAVE_PATH := "user://character.tres"
 @export var max_hp: int = 10
 @export var attack: int = 2
 @export var defense: int = 0
+@export var skill_points: int = 0
 
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10

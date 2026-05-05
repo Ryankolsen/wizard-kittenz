@@ -22,12 +22,16 @@ static func add_xp(c: CharacterData, amount: int) -> int:
 		_apply_level_up(c)
 	return levels_gained
 
-# On level-up: bump max_hp via the per-class curve already on CharacterData
-# and heal up by the same delta — feels rewarding without fully restoring HP.
-# attack/defense don't scale with level yet (the per-class helpers ignore lvl);
-# wire those in once #9/#10 give us per-class growth curves.
+# On level-up: bump max_hp via the per-class curve already on CharacterData,
+# heal up by the same delta, and award one skill point so the player has
+# currency to spend in the skill tree (#9). attack/defense don't scale with
+# level yet (the per-class helpers ignore lvl); wire those in once #9/#10
+# give us per-class growth curves.
+const SKILL_POINTS_PER_LEVEL := 1
+
 static func _apply_level_up(c: CharacterData) -> void:
 	var new_max_hp := CharacterData.base_max_hp_for(c.character_class, c.level)
 	var hp_gain := new_max_hp - c.max_hp
 	c.max_hp = new_max_hp
 	c.hp = mini(c.hp + hp_gain, c.max_hp)
+	c.skill_points += SKILL_POINTS_PER_LEVEL
