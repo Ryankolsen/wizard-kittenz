@@ -17,11 +17,16 @@ func _ready() -> void:
 	_mage_button.pressed.connect(_on_class_pressed.bind(CharacterData.CharacterClass.MAGE))
 	_thief_button.pressed.connect(_on_class_pressed.bind(CharacterData.CharacterClass.THIEF))
 	_ninja_button.pressed.connect(_on_class_pressed.bind(CharacterData.CharacterClass.NINJA))
+	# Gate locked classes so they read as unavailable until the unlock condition
+	# is met. UnlockRegistry treats "mage" and "thief" as starter classes (always
+	# unlocked); "ninja" is gated on dungeons_completed >= 5 by default.
+	_ninja_button.disabled = not GameState.unlock_registry.is_unlocked(
+		"ninja", GameState.meta_tracker)
 
 func _on_class_pressed(klass: CharacterData.CharacterClass) -> void:
 	var data := select_class(klass)
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker)
 	get_tree().change_scene_to_file(main_scene_path)
 
 static func select_class(klass: CharacterData.CharacterClass, character_name: String = "Kitten") -> CharacterData:

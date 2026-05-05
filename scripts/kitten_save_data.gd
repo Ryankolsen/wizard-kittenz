@@ -18,8 +18,14 @@ var skill_points: int = 0
 # Stored as plain Array (not PackedStringArray) so JSON.stringify round-trips
 # cleanly via Variant. Snapshot of SkillTree.unlocked_ids() at save time.
 var unlocked_skill_ids: Array = []
+# Meta-progression snapshot — the tracker's state at save time. Persisted
+# alongside the kitten so unlock progress (dungeons cleared, max-level-per-
+# class) survives across sessions. Stored as plain primitives so JSON
+# round-trips cleanly.
+var dungeons_completed: int = 0
+var max_level_per_class: Dictionary = {}
 
-static func from_character(c: CharacterData, tree: SkillTree = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -33,6 +39,9 @@ static func from_character(c: CharacterData, tree: SkillTree = null) -> KittenSa
 	s.skill_points = c.skill_points
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
+	if tracker != null:
+		s.dungeons_completed = tracker.dungeons_completed
+		s.max_level_per_class = tracker.max_level_per_class.duplicate()
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -60,6 +69,8 @@ func to_dict() -> Dictionary:
 		"speed": speed,
 		"skill_points": skill_points,
 		"unlocked_skill_ids": unlocked_skill_ids,
+		"dungeons_completed": dungeons_completed,
+		"max_level_per_class": max_level_per_class,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -77,4 +88,15 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:
 		s.unlocked_skill_ids = ids.duplicate()
+	s.dungeons_completed = int(d.get("dungeons_completed", 0))
+	var per_class = d.get("max_level_per_class", {})
+	if per_class is Dictionary:
+		for k in per_class.keys():
+			s.max_level_per_class[String(k).to_lower()] = int(per_class[k])
 	return s
+
+func to_tracker() -> MetaProgressionTracker:
+	var t := MetaProgressionTracker.new()
+	t.dungeons_completed = dungeons_completed
+	t.max_level_per_class = max_level_per_class.duplicate()
+	return t

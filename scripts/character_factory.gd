@@ -15,7 +15,19 @@ static func class_from_name(class_name_str: String) -> int:
 		"mage": return CharacterData.CharacterClass.MAGE
 		"thief": return CharacterData.CharacterClass.THIEF
 		"ninja": return CharacterData.CharacterClass.NINJA
+		"archmage": return CharacterData.CharacterClass.ARCHMAGE
 	return CharacterData.CharacterClass.MAGE
+
+# Inverse lookup: enum int -> the lowercase id used by UnlockRegistry /
+# MetaProgressionTracker. Centralising the mapping here keeps the
+# tracker call sites from string-folding their own enum names.
+static func name_from_class(klass: int) -> String:
+	match klass:
+		CharacterData.CharacterClass.MAGE: return "mage"
+		CharacterData.CharacterClass.THIEF: return "thief"
+		CharacterData.CharacterClass.NINJA: return "ninja"
+		CharacterData.CharacterClass.ARCHMAGE: return "archmage"
+	return "mage"
 
 static func create_default(class_name_str: String, character_name: String = "Kitten") -> CharacterData:
 	var klass: int = class_from_name(class_name_str)

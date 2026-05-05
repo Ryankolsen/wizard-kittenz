@@ -104,7 +104,8 @@ func _try_attack() -> void:
 			DamageResolver.apply(data, node.data)
 			if not node.data.is_alive():
 				ProgressionSystem.add_xp(data, node.data.xp_reward)
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree)
+				_record_meta_progress()
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -128,7 +129,8 @@ func _try_cast_spell() -> void:
 				n.queue_free()
 				awarded = true
 		if awarded:
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree)
+			_record_meta_progress()
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -141,3 +143,19 @@ func _overlapping_enemy_nodes() -> Array:
 
 static func compute_velocity(input_dir: Vector2, move_speed: float) -> Vector2:
 	return input_dir * move_speed
+
+# Updates the autoload tracker with the player's current class+level so the
+# UnlockRegistry can react to "reach level N with class X" gates. Safe to
+# call frequently — record_level_reached takes a max, not a sum.
+func _record_meta_progress() -> void:
+	var tracker := _meta_tracker()
+	if tracker == null or data == null:
+		return
+	tracker.record_level_reached(
+		CharacterFactory.name_from_class(data.character_class), data.level)
+
+func _meta_tracker() -> MetaProgressionTracker:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.meta_tracker

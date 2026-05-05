@@ -2,6 +2,11 @@ extends Node
 
 var current_character: CharacterData = null
 var skill_tree: SkillTree = null
+# Lifetime stats used by UnlockRegistry to evaluate gates. Always non-null
+# after _ready so call sites can read freely; a fresh tracker (everything
+# zero) is the right default for a brand-new save.
+var meta_tracker: MetaProgressionTracker = MetaProgressionTracker.new()
+var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
 
 func _ready() -> void:
 	_try_load_save()
@@ -15,6 +20,7 @@ func _try_load_save() -> void:
 	current_character = c
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
+	meta_tracker = save_data.to_tracker()
 
 func set_character(c: CharacterData) -> void:
 	current_character = c
@@ -23,6 +29,7 @@ func set_character(c: CharacterData) -> void:
 func clear() -> void:
 	current_character = null
 	skill_tree = null
+	meta_tracker = MetaProgressionTracker.new()
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance
@@ -34,4 +41,5 @@ func _build_tree_for(c: CharacterData) -> SkillTree:
 		CharacterData.CharacterClass.MAGE: return SkillTree.make_mage_tree()
 		CharacterData.CharacterClass.THIEF: return SkillTree.make_thief_tree()
 		CharacterData.CharacterClass.NINJA: return SkillTree.make_ninja_tree()
+		CharacterData.CharacterClass.ARCHMAGE: return SkillTree.make_mage_tree()
 	return SkillTree.make_mage_tree()

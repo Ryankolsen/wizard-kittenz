@@ -1,7 +1,7 @@
 class_name CharacterData
 extends Resource
 
-enum CharacterClass { MAGE, THIEF, NINJA }
+enum CharacterClass { MAGE, THIEF, NINJA, ARCHMAGE }
 
 const SAVE_PATH := "user://character.tres"
 
@@ -26,6 +26,7 @@ static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.MAGE: base = 8
 		CharacterClass.THIEF: base = 10
 		CharacterClass.NINJA: base = 9
+		CharacterClass.ARCHMAGE: base = 12
 	return base + (lvl - 1) * 2
 
 static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
@@ -33,6 +34,7 @@ static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.MAGE: return 2
 		CharacterClass.THIEF: return 3
 		CharacterClass.NINJA: return 4
+		CharacterClass.ARCHMAGE: return 4
 	return 2
 
 static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
@@ -40,15 +42,18 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.MAGE: return 0
 		CharacterClass.THIEF: return 1
 		CharacterClass.NINJA: return 0
+		CharacterClass.ARCHMAGE: return 1
 	return 0
 
 # Per-class movement speed (px/sec). Thief is fastest, Mage slowest, Ninja
 # balanced — matches the issue's "high speed / balanced / low" archetype.
+# Archmage trades a touch of speed for the heavier baseline stats above.
 static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 	match klass:
 		CharacterClass.MAGE: return 50.0
 		CharacterClass.THIEF: return 75.0
 		CharacterClass.NINJA: return 60.0
+		CharacterClass.ARCHMAGE: return 55.0
 	return 60.0
 
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
