@@ -183,6 +183,39 @@ func test_loading_legacy_save_without_token_field_defaults_to_zero():
 	var sd := KittenSaveData.from_dict(legacy)
 	assert_eq(sd.revive_tokens, 0, "missing field reads as zero")
 
+# --- HUD.death_screen_state --------------------------------------------------
+
+func test_death_screen_state_with_tokens_can_revive():
+	# Acceptance criterion 1: dying with tokens shows the revive prompt.
+	# The HUD branches off `can_revive` to surface the Use Revive button.
+	var s := HUD.death_screen_state(3)
+	assert_true(s["can_revive"], "tokens > 0 enables the revive path")
+	assert_true(s["prompt"].contains("3"),
+		"prompt surfaces the current token count to the player")
+
+func test_death_screen_state_zero_tokens_buy_path():
+	# Acceptance criterion 2: dying with zero tokens shows the buy prompt.
+	# `can_revive=false` is what the HUD checks to swap Use Revive for
+	# Buy More.
+	var s := HUD.death_screen_state(0)
+	assert_false(s["can_revive"], "zero tokens forces the buy path")
+	assert_false(s["prompt"].is_empty(),
+		"prompt is non-empty so the player sees feedback")
+
+func test_death_screen_state_negative_tokens_treated_as_zero():
+	# Defensive: TokenInventory.count can't go negative through normal
+	# spend/grant, but a corrupt save or future debuff must not flip
+	# can_revive true with a negative count.
+	var s := HUD.death_screen_state(-1)
+	assert_false(s["can_revive"])
+
+func test_death_screen_state_single_token_singular_path():
+	# One token still routes to the revive path — the count-of-one is a
+	# common case after a milestone-grant + first death.
+	var s := HUD.death_screen_state(1)
+	assert_true(s["can_revive"])
+	assert_true(s["prompt"].contains("1"))
+
 # --- End-to-end: kill -> level-up milestone -> token granted ----------------
 
 func test_milestone_level_up_grants_token_via_grant_rules():

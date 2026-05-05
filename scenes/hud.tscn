@@ -82,12 +82,23 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="VBox" type="VBoxContainer" parent="YouDied/Panel"]
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="Label" type="Label" parent="YouDied/Panel/VBox"]
 horizontal_alignment = 1
 text = "You Died"
 theme_override_font_sizes/font_size = 36
 
-[node name="Restart" type="Button" parent="YouDied/Panel/VBox"]
-text = "Restart"
+[node name="Prompt" type="Label" parent="YouDied/Panel/VBox"]
+horizontal_alignment = 1
+text = "Use a Revive Token?"
+theme_override_font_sizes/font_size = 16
+
+[node name="UseRevive" type="Button" parent="YouDied/Panel/VBox"]
+text = "Use Revive Token"
+
+[node name="BuyMore" type="Button" parent="YouDied/Panel/VBox"]
+text = "Buy More"
+
+[node name="GiveUp" type="Button" parent="YouDied/Panel/VBox"]
+text = "Give Up"
