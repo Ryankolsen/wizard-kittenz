@@ -282,3 +282,159 @@ func test_clear_drops_all_enemies():
 	esm.clear()
 	assert_eq(esm.alive_count(), 0)
 	assert_false(esm.is_alive("e1"))
+
+# --- RunXPSummary -----------------------------------------------------------
+
+func test_run_xp_summary_accumulates_per_player():
+	# AC #5: end-of-run screen shows XP earned by each player. The tally
+	# subscribes to xp_awarded and accumulates per recipient — this is the
+	# data the summary screen renders one row per player_id.
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	bc.register_player("p2")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(10)
+	bc.on_enemy_killed(25)
+	assert_eq(summary.total_for("p1"), 35)
+	assert_eq(summary.total_for("p2"), 35)
+
+func test_run_xp_summary_grand_total_sums_all_players():
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	bc.register_player("p2")
+	bc.register_player("p3")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(50)
+	# Three players each got 50 XP from the broadcast → 150 total.
+	assert_eq(summary.grand_total(), 150)
+	assert_eq(summary.player_count(), 3)
+
+func test_run_xp_summary_independent_per_player():
+	# Manually-fired emits routed to different ids accumulate separately.
+	# (XPBroadcaster.on_enemy_killed fans out uniformly; this test pins
+	# the tally's per-id isolation when a future caller hand-emits
+	# non-uniform amounts, e.g. a host-only "killing blow bonus".)
+	var bc := XPBroadcaster.new()
+	var summary := RunXPSummary.new(bc)
+	bc.xp_awarded.emit("p1", 10)
+	bc.xp_awarded.emit("p2", 20)
+	bc.xp_awarded.emit("p1", 5)
+	assert_eq(summary.total_for("p1"), 15)
+	assert_eq(summary.total_for("p2"), 20)
+	assert_eq(summary.grand_total(), 35)
+
+func test_run_xp_summary_total_for_unknown_id_returns_zero():
+	# A row for a player who hasn't earned any XP yet shows 0, not a
+	# crash. Lets the UI render every roster id even if a player AFK'd
+	# the whole run.
+	var summary := RunXPSummary.new()
+	assert_eq(summary.total_for("ghost"), 0)
+	assert_eq(summary.grand_total(), 0)
+	assert_eq(summary.player_count(), 0)
+
+func test_run_xp_summary_bind_is_idempotent():
+	# Re-binding the same broadcaster doesn't double-subscribe (which
+	# would double-count every event).
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	var summary := RunXPSummary.new()
+	assert_true(summary.bind(bc), "first bind connects")
+	assert_false(summary.bind(bc), "second bind rejected")
+	bc.on_enemy_killed(10)
+	assert_eq(summary.total_for("p1"), 10, "still only counts once")
+
+func test_run_xp_summary_bind_null_returns_false():
+	var summary := RunXPSummary.new()
+	assert_false(summary.bind(null))
+
+func test_run_xp_summary_unbind_stops_accumulation():
+	# After unbind, future broadcasts do not accumulate. Lets the caller
+	# freeze the tally before the next run starts (or before re-binding
+	# to a fresh broadcaster).
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(10)
+	assert_eq(summary.total_for("p1"), 10)
+	assert_true(summary.unbind(bc))
+	bc.on_enemy_killed(99)
+	assert_eq(summary.total_for("p1"), 10, "post-unbind broadcast ignored")
+
+func test_run_xp_summary_unbind_idempotent_when_not_bound():
+	var bc := XPBroadcaster.new()
+	var summary := RunXPSummary.new()
+	assert_false(summary.unbind(bc), "not bound -> false")
+	assert_false(summary.unbind(null), "null -> false")
+
+func test_run_xp_summary_zero_or_negative_amount_no_op():
+	# Defense-in-depth: broadcaster filters non-positive, but a hand-
+	# fired emit (test harness, future debuff path) could route a 0 or
+	# negative through. Don't pollute player_ids() with zero-tally rows.
+	var bc := XPBroadcaster.new()
+	var summary := RunXPSummary.new(bc)
+	bc.xp_awarded.emit("p1", 0)
+	bc.xp_awarded.emit("p1", -5)
+	assert_eq(summary.total_for("p1"), 0)
+	assert_eq(summary.player_count(), 0, "no row created for zero/negative")
+
+func test_run_xp_summary_empty_player_id_no_op():
+	# An empty player_id can't be a real party member. Reject so a
+	# malformed wire payload doesn't pollute the tally with a "" row.
+	var bc := XPBroadcaster.new()
+	var summary := RunXPSummary.new(bc)
+	bc.xp_awarded.emit("", 50)
+	assert_eq(summary.player_count(), 0)
+	assert_eq(summary.grand_total(), 0)
+
+func test_run_xp_summary_to_dict_returns_copy():
+	# Mutating the dict the caller got back must not corrupt the
+	# internal tally. Same defensive shape as LobbyState.to_dict.
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(10)
+	var snapshot := summary.to_dict()
+	snapshot["p1"] = 9999
+	snapshot["injected"] = 42
+	assert_eq(summary.total_for("p1"), 10, "snapshot mutation didn't bleed in")
+	assert_false(summary.to_dict().has("injected"))
+
+func test_run_xp_summary_clear_resets_totals_but_keeps_binding():
+	# Between runs, the orchestrator clears the per-run tally. The
+	# binding stays (no need to re-subscribe), so the next run's
+	# broadcasts accumulate fresh from zero.
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(10)
+	summary.clear()
+	assert_eq(summary.total_for("p1"), 0)
+	assert_eq(summary.player_count(), 0)
+	bc.on_enemy_killed(7)
+	assert_eq(summary.total_for("p1"), 7, "binding survived clear")
+
+func test_run_xp_summary_init_without_broadcaster_starts_empty():
+	# A summary can be constructed without a broadcaster (e.g. when
+	# the orchestrator wants to bind later, after the lobby fans out
+	# the broadcaster instance). It just starts empty.
+	var summary := RunXPSummary.new()
+	assert_eq(summary.grand_total(), 0)
+	assert_eq(summary.player_count(), 0)
+	assert_eq(summary.player_ids(), [])
+
+func test_run_xp_summary_end_to_end_three_player_run():
+	# Full-run shape: register party, take three kills of varying
+	# xp_reward, end-of-run screen reads per-player totals.
+	var bc := XPBroadcaster.new()
+	bc.register_player("alice")
+	bc.register_player("bob")
+	bc.register_player("carol")
+	var summary := RunXPSummary.new(bc)
+	bc.on_enemy_killed(5)   # rat
+	bc.on_enemy_killed(8)   # wraith
+	bc.on_enemy_killed(20)  # boss
+	assert_eq(summary.total_for("alice"), 33)
+	assert_eq(summary.total_for("bob"), 33)
+	assert_eq(summary.total_for("carol"), 33)
+	assert_eq(summary.grand_total(), 99)
+	assert_eq(summary.player_count(), 3)
