@@ -6,6 +6,10 @@ extends CharacterBody2D
 
 func _ready() -> void:
 	if data == null:
+		var gs := get_node_or_null("/root/GameState")
+		if gs != null and gs.current_character != null:
+			data = gs.current_character
+	if data == null:
 		data = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
 
 func _physics_process(_delta: float) -> void:

@@ -1,0 +1,49 @@
+[gd_scene load_steps=2 format=3 uid="uid://b3xyk7m5q9zwb"]
+
+[ext_resource type="Script" path="res://scripts/character_creation.gd" id="1_creation"]
+
+[node name="CharacterCreation" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_creation")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.08, 0.08, 0.14, 1)
+
+[node name="Panel" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "Choose Your Class"
+horizontal_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="MageButton" type="Button" parent="Panel/VBox/Buttons"]
+layout_mode = 2
+text = "Mage"
+
+[node name="ThiefButton" type="Button" parent="Panel/VBox/Buttons"]
+layout_mode = 2
+text = "Thief"
+
+[node name="NinjaButton" type="Button" parent="Panel/VBox/Buttons"]
+layout_mode = 2
+text = "Ninja"
