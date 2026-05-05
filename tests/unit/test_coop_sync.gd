@@ -928,3 +928,184 @@ func test_local_token_router_init_without_args_starts_unbound():
 	var token_router := LocalTokenGrantRouter.new()
 	assert_false(token_router.is_bound())
 	assert_eq(token_router.granted_total, 0)
+
+# --- DungeonSeedSync --------------------------------------------------------
+
+func test_seed_sync_starts_unagreed():
+	# A fresh sync has no agreed seed. is_agreed gates the wire layer's
+	# "ready to broadcast generate(seed)" check — without it, the host's
+	# scene-tree dungeon would try to generate before host_mint ran.
+	var sync := DungeonSeedSync.new()
+	assert_false(sync.is_agreed())
+	assert_eq(sync.current_seed(), DungeonSeedSync.NOT_AGREED)
+	assert_eq(DungeonSeedSync.NOT_AGREED, -1, "sentinel matches DungeonGenerator's randomize sentinel")
+
+func test_host_mint_produces_non_negative_seed():
+	# The randomize path must never mint NOT_AGREED (-1). A negative
+	# seed would route through DungeonGenerator's `seed < 0 → randomize`
+	# branch, defeating the point of agreeing on a seed.
+	var sync := DungeonSeedSync.new()
+	var s := sync.host_mint()
+	assert_true(s >= 0, "minted seed must be non-negative")
+	assert_true(sync.is_agreed())
+	assert_eq(sync.current_seed(), s)
+
+func test_host_mint_emits_seed_agreed():
+	# The signal lets the wire layer / orchestrator react to the
+	# agreement without polling is_agreed each frame.
+	var sync := DungeonSeedSync.new()
+	watch_signals(sync)
+	var s := sync.host_mint(42)
+	assert_signal_emitted_with_parameters(sync, "seed_agreed", [s])
+	assert_signal_emit_count(sync, "seed_agreed", 1)
+
+func test_host_mint_idempotent_returns_existing_seed():
+	# Re-mint after the broadcast has gone out would desync remote
+	# clients (they already received the first seed). Idempotent return
+	# keeps a host UI's double-fired "start match" safe.
+	var sync := DungeonSeedSync.new()
+	var first := sync.host_mint(1234)
+	var second := sync.host_mint(9999)
+	assert_eq(second, first, "second host_mint returns the original seed")
+	assert_eq(sync.current_seed(), 1234, "override on second call is ignored")
+
+func test_host_mint_idempotent_does_not_re_emit_signal():
+	# A second seed_agreed emission would lie — the seed didn't change.
+	var sync := DungeonSeedSync.new()
+	watch_signals(sync)
+	sync.host_mint(7)
+	sync.host_mint(7)
+	assert_signal_emit_count(sync, "seed_agreed", 1, "second host_mint is silent")
+
+func test_host_mint_with_override_uses_override():
+	# Deterministic seed for tests / "replay this dungeon" QA path.
+	var sync := DungeonSeedSync.new()
+	assert_eq(sync.host_mint(12345), 12345)
+	assert_eq(sync.current_seed(), 12345)
+
+func test_host_mint_random_path_produces_different_seeds_across_instances():
+	# Two un-overridden mints across separate instances should diverge
+	# (otherwise every match would generate the same dungeon). Not a
+	# strict guarantee — randomize() COULD coincidentally collide — so
+	# we draw a few and assert at-least-one-differs to keep the test
+	# stable. Accepts a tiny flake probability (~1 in 2^31 per pair) as
+	# the cost of pinning the contract.
+	var seeds: Array[int] = []
+	for _i in range(5):
+		var s := DungeonSeedSync.new()
+		seeds.append(s.host_mint())
+	var any_differ := false
+	for i in range(seeds.size() - 1):
+		if seeds[i] != seeds[i + 1]:
+			any_differ = true
+			break
+	assert_true(any_differ, "random mints should produce at least one differing pair across 5 instances")
+
+func test_apply_remote_seed_stores_seed():
+	var sync := DungeonSeedSync.new()
+	assert_true(sync.apply_remote_seed(98765))
+	assert_true(sync.is_agreed())
+	assert_eq(sync.current_seed(), 98765)
+
+func test_apply_remote_seed_zero_accepted():
+	# Zero is a valid deterministic seed (DungeonGenerator treats it as
+	# such; only seed < 0 means randomize). The NOT_AGREED sentinel is
+	# -1, not 0, so apply_remote_seed(0) must succeed.
+	var sync := DungeonSeedSync.new()
+	assert_true(sync.apply_remote_seed(0))
+	assert_eq(sync.current_seed(), 0)
+	assert_true(sync.is_agreed())
+
+func test_apply_remote_seed_emits_seed_agreed():
+	var sync := DungeonSeedSync.new()
+	watch_signals(sync)
+	sync.apply_remote_seed(555)
+	assert_signal_emitted_with_parameters(sync, "seed_agreed", [555])
+	assert_signal_emit_count(sync, "seed_agreed", 1)
+
+func test_apply_remote_seed_negative_rejected():
+	# Defensive against wire-payload corruption that flips a sign bit.
+	# A negative seed would otherwise route through DungeonGenerator's
+	# randomize branch, silently desyncing this client from the host.
+	var sync := DungeonSeedSync.new()
+	assert_false(sync.apply_remote_seed(-1))
+	assert_false(sync.apply_remote_seed(-42))
+	assert_false(sync.is_agreed())
+	assert_eq(sync.current_seed(), DungeonSeedSync.NOT_AGREED)
+
+func test_apply_remote_seed_already_agreed_rejected():
+	# Re-broadcast from a flaky network is a no-op rather than an
+	# overwrite. An overwrite would mid-match swap the dungeon layout
+	# under the player's feet.
+	var sync := DungeonSeedSync.new()
+	sync.apply_remote_seed(100)
+	assert_false(sync.apply_remote_seed(200))
+	assert_eq(sync.current_seed(), 100, "second apply did not overwrite first")
+
+func test_apply_remote_seed_after_host_mint_rejected():
+	# Same idempotency rule across host/remote: if this instance is
+	# already the host (it minted), a stray remote-seed packet doesn't
+	# overwrite the host's authoritative pick.
+	var sync := DungeonSeedSync.new()
+	sync.host_mint(77)
+	assert_false(sync.apply_remote_seed(88))
+	assert_eq(sync.current_seed(), 77)
+
+func test_host_mint_after_apply_remote_seed_rejected():
+	# Symmetric: if this instance already received a remote seed (it's
+	# the remote), a host_mint call returns the existing seed without
+	# overwriting. Defends against a misclassified-role caller.
+	var sync := DungeonSeedSync.new()
+	sync.apply_remote_seed(42)
+	assert_eq(sync.host_mint(), 42)
+	assert_eq(sync.current_seed(), 42)
+
+func test_seed_sync_reset_clears_state():
+	# After reset, the sync is reusable for the next match. The future
+	# match orchestrator calls reset() between runs ("play again" from
+	# the summary screen) so it doesn't allocate a fresh sync per
+	# match.
+	var sync := DungeonSeedSync.new()
+	sync.host_mint(123)
+	assert_true(sync.is_agreed())
+	sync.reset()
+	assert_false(sync.is_agreed())
+	assert_eq(sync.current_seed(), DungeonSeedSync.NOT_AGREED)
+	# Fresh apply works after reset.
+	assert_true(sync.apply_remote_seed(456))
+	assert_eq(sync.current_seed(), 456)
+
+func test_seed_sync_reset_allows_re_emit_of_seed_agreed():
+	# After reset, the next agreement (mint or apply) emits seed_agreed
+	# again — so a UI subscriber sees a fresh "match started" edge per
+	# match.
+	var sync := DungeonSeedSync.new()
+	watch_signals(sync)
+	sync.host_mint(1)
+	sync.reset()
+	sync.host_mint(2)
+	assert_signal_emit_count(sync, "seed_agreed", 2)
+
+func test_seed_sync_end_to_end_host_and_remote_converge_on_same_dungeon():
+	# Issue #17 AC#1 ("2-4 players can crawl the same dungeon
+	# simultaneously"). Pin that the host's mint and the remote's
+	# apply, routed through DungeonGenerator.generate(seed), produce
+	# identical room graphs. Without this contract, every client
+	# would draw its own seed and the layouts would diverge.
+	var host_sync := DungeonSeedSync.new()
+	var remote_sync := DungeonSeedSync.new()
+	var seed := host_sync.host_mint()
+	assert_true(remote_sync.apply_remote_seed(seed))
+	var host_dungeon := DungeonGenerator.generate(host_sync.current_seed())
+	var remote_dungeon := DungeonGenerator.generate(remote_sync.current_seed())
+	assert_eq(host_dungeon.rooms.size(), remote_dungeon.rooms.size(), "same room count")
+	assert_eq(host_dungeon.boss_id, remote_dungeon.boss_id, "same boss id")
+	assert_eq(host_dungeon.start_id, remote_dungeon.start_id, "same start id")
+	for i in range(host_dungeon.rooms.size()):
+		var hr: Room = host_dungeon.rooms[i]
+		var rr: Room = remote_dungeon.rooms[i]
+		assert_eq(hr.id, rr.id, "room %d: same id" % i)
+		assert_eq(hr.type, rr.type, "room %d: same type" % i)
+		assert_eq(hr.enemy_kind, rr.enemy_kind, "room %d: same enemy kind" % i)
+		assert_eq(hr.power_up_type, rr.power_up_type, "room %d: same power-up type" % i)
+		assert_eq(hr.connections, rr.connections, "room %d: same connections" % i)
