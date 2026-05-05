@@ -9,6 +9,9 @@ const ATTACK_COOLDOWN: float = 0.4
 var _attack_controller: AttackController
 var _hitbox: Area2D
 var _spell_tree: SkillTree
+var _power_ups: PowerUpManager
+var _visual: Node2D
+var _wobble_time: float = 0.0
 
 func _ready() -> void:
 	if data == null:
@@ -25,9 +28,15 @@ func _ready() -> void:
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = ATTACK_COOLDOWN
 	_hitbox = get_node_or_null("Hitbox")
+	_power_ups = PowerUpManager.new()
+	_visual = get_node_or_null("Placeholder")
 
 func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# Re-read data.speed each frame so PowerUpManager mutations (Catnip)
+	# propagate without needing a Player.gd hook.
+	if data != null and data.speed > 0.0:
+		speed = data.speed
 	velocity = compute_velocity(input_dir, speed)
 	# Track facing only when actually moving so a stationary kitten keeps its
 	# last-known direction (relevant for backstab targeting).
@@ -35,10 +44,47 @@ func _physics_process(delta: float) -> void:
 		data.facing = input_dir.normalized()
 	move_and_slide()
 	_tick_spells(delta)
+	_power_ups.tick(delta)
+	_apply_ale_wobble(delta)
 	if Input.is_action_just_pressed("attack"):
 		_try_attack()
 	if Input.is_action_just_pressed("cast_spell"):
 		_try_cast_spell()
+
+func collect_power_up(type_id: String) -> void:
+	var effect := _power_ups.apply(type_id, data)
+	if effect != null and effect is MushroomEffect:
+		var mushroom: MushroomEffect = effect
+		if not mushroom.random_spell_fired.is_connected(_on_mushroom_spell_fired):
+			mushroom.random_spell_fired.connect(_on_mushroom_spell_fired)
+
+# Mushroom power-up integration: every 2 seconds while active, cast the first
+# ready unlocked spell against any enemies overlapping the swing-radius
+# hitbox. No-op if no spells are unlocked yet — the buff is still "active",
+# it just has nothing to fire.
+func _on_mushroom_spell_fired() -> void:
+	if _spell_tree == null or _hitbox == null:
+		return
+	var enemy_nodes := _overlapping_enemy_nodes()
+	var enemy_data: Array = []
+	for n in enemy_nodes:
+		enemy_data.append(n.data)
+	for spell in _spell_tree.get_unlocked_spells():
+		if spell.cast():
+			SpellEffectResolver.apply(spell, data, enemy_data)
+			break
+
+# Render-time sway while Ale is active. Visual-only; doesn't affect physics
+# velocity or hitbox position. Resets to (0,0) when ale drops off.
+func _apply_ale_wobble(delta: float) -> void:
+	if _visual == null:
+		return
+	if _power_ups.is_active(PowerUpEffect.TYPE_ALE):
+		_wobble_time += delta
+		_visual.position = AleEffect.get_movement_offset(_wobble_time)
+	elif _visual.position != Vector2.ZERO:
+		_wobble_time = 0.0
+		_visual.position = Vector2.ZERO
 
 func _tick_spells(dt: float) -> void:
 	if _spell_tree == null:

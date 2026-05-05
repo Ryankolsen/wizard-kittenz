@@ -1,7 +1,8 @@
-[gd_scene load_steps=7 format=3 uid="uid://c9rq8m2zw5xab"]
+[gd_scene load_steps=8 format=3 uid="uid://c9rq8m2zw5xab"]
 
 [ext_resource type="PackedScene" uid="uid://b8wk1tn3p2yqa" path="res://scenes/player.tscn" id="1_player_scene"]
 [ext_resource type="PackedScene" uid="uid://b1emy7k8tn3pq" path="res://scenes/enemy.tscn" id="2_enemy_scene"]
+[ext_resource type="PackedScene" uid="uid://b5wkp7mzn9xqa" path="res://scenes/power_up.tscn" id="3_powerup_scene"]
 
 [sub_resource type="RectangleShape2D" id="WallShape_h"]
 size = Vector2(480, 4)
@@ -61,3 +62,15 @@ position = Vector2(160, 135)
 
 [node name="Enemy" parent="." instance=ExtResource("2_enemy_scene")]
 position = Vector2(340, 135)
+
+[node name="CatnipPickup" parent="." instance=ExtResource("3_powerup_scene")]
+position = Vector2(240, 80)
+power_up_type = "catnip"
+
+[node name="AlePickup" parent="." instance=ExtResource("3_powerup_scene")]
+position = Vector2(240, 200)
+power_up_type = "ale"
+
+[node name="MushroomPickup" parent="." instance=ExtResource("3_powerup_scene")]
+position = Vector2(420, 60)
+power_up_type = "mushrooms"
