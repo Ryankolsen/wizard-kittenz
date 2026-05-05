@@ -1,0 +1,71 @@
+[gd_scene load_steps=2 format=3 uid="uid://b9hud2k7r3xqz"]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="HPBar" type="Control" parent="."]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 104.0
+offset_bottom = 24.0
+
+[node name="Bg" type="ColorRect" parent="HPBar"]
+offset_right = 96.0
+offset_bottom = 12.0
+color = Color(0.1, 0.05, 0.07, 0.85)
+
+[node name="Fill" type="ColorRect" parent="HPBar"]
+offset_right = 96.0
+offset_bottom = 12.0
+color = Color(0.85, 0.25, 0.25, 1)
+
+[node name="Label" type="Label" parent="HPBar"]
+offset_right = 96.0
+offset_bottom = 12.0
+horizontal_alignment = 1
+text = "HP 10/10"
+
+[node name="RoomClear" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="ColorRect" type="ColorRect" parent="RoomClear"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.15, 0.05, 0.55)
+
+[node name="Label" type="Label" parent="RoomClear"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "Room Clear!"
+theme_override_font_sizes/font_size = 32
+
+[node name="YouDied" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="ColorRect" type="ColorRect" parent="YouDied"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.0, 0.0, 0.0, 0.7)
+
+[node name="Panel" type="CenterContainer" parent="YouDied"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="YouDied/Panel"]
+theme_override_constants/separation = 16
+
+[node name="Label" type="Label" parent="YouDied/Panel/VBox"]
+horizontal_alignment = 1
+text = "You Died"
+theme_override_font_sizes/font_size = 36
+
+[node name="Restart" type="Button" parent="YouDied/Panel/VBox"]
+text = "Restart"

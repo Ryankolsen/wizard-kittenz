@@ -1,6 +1,8 @@
 class_name Player
 extends CharacterBody2D
 
+signal died
+
 const ATTACK_COOLDOWN: float = 0.4
 
 @export var speed: float = 60.0
@@ -12,8 +14,10 @@ var _spell_tree: SkillTree
 var _power_ups: PowerUpManager
 var _visual: Node2D
 var _wobble_time: float = 0.0
+var _died_emitted: bool = false
 
 func _ready() -> void:
+	add_to_group("player")
 	if data == null:
 		var gs := get_node_or_null("/root/GameState")
 		if gs != null and gs.current_character != null:
@@ -32,6 +36,11 @@ func _ready() -> void:
 	_visual = get_node_or_null("Placeholder")
 
 func _physics_process(delta: float) -> void:
+	if data != null and not data.is_alive():
+		_check_died()
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# Re-read data.speed each frame so PowerUpManager mutations (Catnip)
 	# propagate without needing a Player.gd hook.
@@ -50,6 +59,16 @@ func _physics_process(delta: float) -> void:
 		_try_attack()
 	if Input.is_action_just_pressed("cast_spell"):
 		_try_cast_spell()
+
+# Emit `died` exactly once when hp first reaches zero. Future revive-screen
+# wiring (#20) calls ReviveSystem.try_consume_revive, which sets hp back
+# above zero — _died_emitted resets nowhere, but a successful revive simply
+# means data.is_alive() goes true again so this branch is skipped.
+func _check_died() -> void:
+	if _died_emitted:
+		return
+	_died_emitted = true
+	died.emit()
 
 func collect_power_up(type_id: String) -> void:
 	var effect := _power_ups.apply(type_id, data)
