@@ -64,11 +64,11 @@ func _update_hp_bar() -> void:
 		if _player == null or _player.data == null:
 			return
 	var d := _player.data
-	var ratio := 0.0
-	if d.max_hp > 0:
-		ratio = clampf(float(d.hp) / float(d.max_hp), 0.0, 1.0)
-	_hp_fill.size.x = HP_BAR_WIDTH * ratio
-	_hp_label.text = "HP %d/%d" % [d.hp, d.max_hp]
+	var eff := _local_effective_hp_data()
+	var eff_hp: int = eff.get("hp", -1)
+	var eff_max: int = eff.get("max_hp", -1)
+	_hp_fill.size.x = HP_BAR_WIDTH * hp_bar_ratio(d.hp, d.max_hp, eff_hp, eff_max)
+	_hp_label.text = hp_bar_label(d.hp, d.max_hp, eff_hp, eff_max)
 
 # Polls the player's xp / level each frame and refills the XP bar.
 # After a level-up ProgressionSystem.add_xp resets `c.xp` to the carry-over
@@ -82,6 +82,66 @@ func _update_xp_bar() -> void:
 	var ratio := xp_bar_ratio(d.level, d.xp)
 	_xp_fill.size.x = XP_BAR_WIDTH * ratio
 	_xp_label.text = xp_bar_label(d.level, d.xp, threshold, _local_effective_level())
+
+# Pure-function fill ratio for the HP bar. Mirrors xp_bar_ratio: solo /
+# no-session path passes the default sentinels and the math runs against
+# the player's real_stats hp/max_hp; co-op scaled path passes the local
+# member's effective_stats hp/max_hp so the bar fills against the scaled
+# view (the actual fighting HP). The sentinel branch falls through to
+# real values whenever effective_max <= 0 (uninitialized, default arg, or
+# defensive against a zero from a half-built PartyMember).
+static func hp_bar_ratio(hp: int, max_hp: int, effective_hp: int = -1, effective_max: int = -1) -> float:
+	var actual_hp := hp
+	var actual_max := max_hp
+	if effective_max > 0 and effective_hp >= 0:
+		actual_hp = effective_hp
+		actual_max = effective_max
+	if actual_max <= 0:
+		return 0.0
+	return clampf(float(actual_hp) / float(actual_max), 0.0, 1.0)
+
+# Pure-function label string for the HP bar. Renders "HP 8/10" on the solo
+# / no-session path (effective_max <= 0 sentinel) and "HP 5/10" with the
+# scaled values on the co-op scaled path. Sibling to xp_bar_label: the XP
+# bar already signals scaling via "Lv.X (Lv.Y)" so the HP bar doesn't
+# repeat that — it just renders the active fighting HP. Closes the HP-
+# routing display gap noted in a591f9e: damage routes to effective_stats
+# when LocalDamageRouter wires up at the call site, and this label reads
+# the same effective_stats so the bar tracks the actual damage flow.
+static func hp_bar_label(hp: int, max_hp: int, effective_hp: int = -1, effective_max: int = -1) -> String:
+	if effective_max <= 0 or effective_hp < 0:
+		return "HP %d/%d" % [hp, max_hp]
+	return "HP %d/%d" % [effective_hp, effective_max]
+
+# Looks up the local PartyMember's effective_stats hp / max_hp from the
+# active co-op session. Returns {"hp": -1, "max_hp": -1} (the "no scaling"
+# sentinels for hp_bar_label / hp_bar_ratio) when:
+#   - GameState autoload is missing (headless / test contexts)
+#   - no active co-op session (solo path)
+#   - no local_player_id set (pre-handshake / fresh-install)
+#   - the local player is not in the session's party (defensive against a
+#     wire-payload race where the local id doesn't match any member)
+#   - the member's effective_stats is null (uninitialized; from_character
+#     always sets it so this is a defense-in-depth)
+# Returning -1 sentinels short-circuits the label/ratio helpers to the
+# solo render so the wiring inherits existing solo behavior on every
+# fall-through path. Same shape as _local_effective_level but returns a
+# Dictionary because the HP view needs both hp and max_hp.
+func _local_effective_hp_data() -> Dictionary:
+	var fallback := {"hp": -1, "max_hp": -1}
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return fallback
+	var session: CoopSession = gs.coop_session
+	if session == null or not session.is_active():
+		return fallback
+	var pid: String = gs.local_player_id
+	if pid == "":
+		return fallback
+	var member := session.member_for(pid)
+	if member == null or member.effective_stats == null:
+		return fallback
+	return {"hp": member.effective_stats.hp, "max_hp": member.effective_stats.max_hp}
 
 # Pure-function fill ratio for the XP bar. Public + static so the test suite
 # can drive it directly without spinning up a Player or HUD scene tree.
