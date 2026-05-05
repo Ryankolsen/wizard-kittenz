@@ -21,6 +21,17 @@ func test_make_new_thief_and_ninja_have_class_specific_hp():
 	assert_eq(thief.max_hp, 10)
 	assert_eq(ninja.max_hp, 9)
 
+func test_make_new_sets_class_specific_attack_and_defense():
+	var mage := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var ninja := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	assert_eq(mage.attack, 2)
+	assert_eq(mage.defense, 0)
+	assert_eq(thief.attack, 3)
+	assert_eq(thief.defense, 1, "thief carries a defense baseline")
+	assert_eq(ninja.attack, 4, "ninja has the highest base attack")
+	assert_eq(ninja.defense, 0)
+
 func test_max_hp_scales_with_level():
 	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 1), 8)
 	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 2), 10)

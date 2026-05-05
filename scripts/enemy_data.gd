@@ -7,7 +7,8 @@ enum EnemyKind { SLIME, BAT, RAT }
 @export var kind: EnemyKind = EnemyKind.SLIME
 @export var hp: int = 4
 @export var max_hp: int = 4
-@export var damage: int = 1
+@export var attack: int = 1
+@export var defense: int = 0
 @export var xp_reward: int = 2
 
 static func base_max_hp_for(k: EnemyKind) -> int:
@@ -17,12 +18,19 @@ static func base_max_hp_for(k: EnemyKind) -> int:
 		EnemyKind.RAT: return 5
 	return 4
 
-static func base_damage_for(k: EnemyKind) -> int:
+static func base_attack_for(k: EnemyKind) -> int:
 	match k:
 		EnemyKind.SLIME: return 1
 		EnemyKind.BAT: return 1
 		EnemyKind.RAT: return 2
 	return 1
+
+static func base_defense_for(k: EnemyKind) -> int:
+	match k:
+		EnemyKind.SLIME: return 0
+		EnemyKind.BAT: return 0
+		EnemyKind.RAT: return 1
+	return 0
 
 static func base_xp_for(k: EnemyKind) -> int:
 	match k:
@@ -44,7 +52,8 @@ static func make_new(k: EnemyKind) -> EnemyData:
 	e.enemy_name = display_name_for(k)
 	e.max_hp = base_max_hp_for(k)
 	e.hp = e.max_hp
-	e.damage = base_damage_for(k)
+	e.attack = base_attack_for(k)
+	e.defense = base_defense_for(k)
 	e.xp_reward = base_xp_for(k)
 	return e
 

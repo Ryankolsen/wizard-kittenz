@@ -11,6 +11,8 @@ const SAVE_PATH := "user://character.tres"
 @export var xp: int = 0
 @export var hp: int = 10
 @export var max_hp: int = 10
+@export var attack: int = 2
+@export var defense: int = 0
 
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10
@@ -19,6 +21,20 @@ static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.THIEF: base = 10
 		CharacterClass.NINJA: base = 9
 	return base + (lvl - 1) * 2
+
+static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
+	match klass:
+		CharacterClass.MAGE: return 2
+		CharacterClass.THIEF: return 3
+		CharacterClass.NINJA: return 4
+	return 2
+
+static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
+	match klass:
+		CharacterClass.MAGE: return 0
+		CharacterClass.THIEF: return 1
+		CharacterClass.NINJA: return 0
+	return 0
 
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
 	var c := CharacterData.new()
@@ -29,6 +45,8 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	var hp_max := base_max_hp_for(klass, 1)
 	c.max_hp = hp_max
 	c.hp = hp_max
+	c.attack = base_attack_for(klass, 1)
+	c.defense = base_defense_for(klass, 1)
 	return c
 
 func is_alive() -> bool:
