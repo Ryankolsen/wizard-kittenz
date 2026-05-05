@@ -15,6 +15,10 @@ const SAVE_PATH := "user://character.tres"
 @export var defense: int = 0
 @export var speed: float = 60.0
 @export var skill_points: int = 0
+# Index into the (future) kitten sprite sheet. Pure data today — no
+# sprite swap is wired yet — but the persistence layer carries it so
+# Customize-flow choices survive save/load.
+@export var appearance_index: int = 0
 # Last move direction. Drives backstab / facing-aware abilities. Not @export'd
 # because it's purely runtime — saves/loads don't need to round-trip the
 # moment-to-moment vector.

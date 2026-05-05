@@ -16,34 +16,140 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.08, 0.08, 0.14, 1)
 
-[node name="Panel" type="CenterContainer" parent="."]
+[node name="MainMenu" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="Panel"]
+[node name="VBox" type="VBoxContainer" parent="MainMenu"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="Panel/VBox"]
+[node name="Title" type="Label" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Wizard Kittenz"
+horizontal_alignment = 1
+
+[node name="QuickStartButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Quick Start"
+
+[node name="CustomizeButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Customize Your Kitten"
+
+[node name="QuickStart" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="QuickStart"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="QuickStart/VBox"]
 layout_mode = 2
 text = "Choose Your Class"
 horizontal_alignment = 1
 
-[node name="Buttons" type="HBoxContainer" parent="Panel/VBox"]
+[node name="Buttons" type="HBoxContainer" parent="QuickStart/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="MageButton" type="Button" parent="Panel/VBox/Buttons"]
+[node name="MageButton" type="Button" parent="QuickStart/VBox/Buttons"]
 layout_mode = 2
 text = "Mage"
 
-[node name="ThiefButton" type="Button" parent="Panel/VBox/Buttons"]
+[node name="ThiefButton" type="Button" parent="QuickStart/VBox/Buttons"]
 layout_mode = 2
 text = "Thief"
 
-[node name="NinjaButton" type="Button" parent="Panel/VBox/Buttons"]
+[node name="NinjaButton" type="Button" parent="QuickStart/VBox/Buttons"]
 layout_mode = 2
 text = "Ninja"
+
+[node name="BackButton" type="Button" parent="QuickStart/VBox"]
+layout_mode = 2
+text = "Back"
+
+[node name="Customize" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Customize"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Customize/VBox"]
+layout_mode = 2
+text = "Customize Your Kitten"
+horizontal_alignment = 1
+
+[node name="NameRow" type="HBoxContainer" parent="Customize/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="NameLabel" type="Label" parent="Customize/VBox/NameRow"]
+layout_mode = 2
+text = "Name:"
+
+[node name="NameEdit" type="LineEdit" parent="Customize/VBox/NameRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+placeholder_text = "Kitten"
+
+[node name="RandomNameButton" type="Button" parent="Customize/VBox/NameRow"]
+layout_mode = 2
+text = "Random"
+
+[node name="AppearanceRow" type="HBoxContainer" parent="Customize/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="PrevButton" type="Button" parent="Customize/VBox/AppearanceRow"]
+layout_mode = 2
+text = "<"
+
+[node name="AppearanceLabel" type="Label" parent="Customize/VBox/AppearanceRow"]
+layout_mode = 2
+text = "Appearance 1/7"
+horizontal_alignment = 1
+
+[node name="NextButton" type="Button" parent="Customize/VBox/AppearanceRow"]
+layout_mode = 2
+text = ">"
+
+[node name="ClassLabel" type="Label" parent="Customize/VBox"]
+layout_mode = 2
+text = "Class:"
+horizontal_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="Customize/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="MageButton" type="Button" parent="Customize/VBox/Buttons"]
+layout_mode = 2
+text = "Mage"
+
+[node name="ThiefButton" type="Button" parent="Customize/VBox/Buttons"]
+layout_mode = 2
+text = "Thief"
+
+[node name="NinjaButton" type="Button" parent="Customize/VBox/Buttons"]
+layout_mode = 2
+text = "Ninja"
+
+[node name="BackButton" type="Button" parent="Customize/VBox"]
+layout_mode = 2
+text = "Back"

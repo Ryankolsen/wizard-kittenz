@@ -7,6 +7,9 @@ extends RefCounted
 
 var character_name: String = "Kitten"
 var character_class: int = 0
+# Sprite-sheet index chosen during character creation. Defaults to 0 so
+# legacy saves predating this field round-trip as "first appearance."
+var appearance_index: int = 0
 var level: int = 1
 var xp: int = 0
 var hp: int = 0
@@ -32,6 +35,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
+	s.appearance_index = c.appearance_index
 	s.level = c.level
 	s.xp = c.xp
 	s.hp = c.hp
@@ -52,6 +56,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 func apply_to(c: CharacterData) -> void:
 	c.character_name = character_name
 	c.character_class = character_class
+	c.appearance_index = appearance_index
 	c.level = level
 	c.xp = xp
 	c.hp = hp
@@ -65,6 +70,7 @@ func to_dict() -> Dictionary:
 	return {
 		"character_name": character_name,
 		"character_class": character_class,
+		"appearance_index": appearance_index,
 		"level": level,
 		"xp": xp,
 		"hp": hp,
@@ -83,6 +89,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = String(d.get("character_name", "Kitten"))
 	s.character_class = int(d.get("character_class", 0))
+	s.appearance_index = int(d.get("appearance_index", 0))
 	s.level = int(d.get("level", 1))
 	s.xp = int(d.get("xp", 0))
 	s.hp = int(d.get("hp", 0))
