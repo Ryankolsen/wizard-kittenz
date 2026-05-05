@@ -1626,3 +1626,310 @@ func test_summary_rows_build_from_active_session_end_to_end():
 	assert_eq(rows[1]["xp_earned"], 9)
 	assert_eq(rows[2]["xp_earned"], 9)
 	assert_eq(RunSummaryRowBuilder.grand_total_for_rows(rows), 27)
+
+# --- RunSummaryHeaderBuilder ----------------------------------------------
+
+func _row(pid: String, name: String, xp: int, is_local: bool = false, is_host: bool = false) -> Dictionary:
+	# Matches the row shape RunSummaryRowBuilder produces. Lets the
+	# header tests pin behavior against a hand-crafted rows array
+	# without re-exercising the row builder's lobby-join logic.
+	return {
+		"player_id": pid,
+		"kitten_name": name,
+		"class_name": "Mage",
+		"xp_earned": xp,
+		"is_local": is_local,
+		"is_host": is_host,
+	}
+
+func test_summary_header_null_session_returns_empty_header():
+	# Pre-handshake / test path with no session at all. UI's empty-state
+	# placeholder branch reads the header without a null-check; the
+	# keys must still be present with zero / empty / false values.
+	var header := RunSummaryHeaderBuilder.build_header(null)
+	assert_eq(header["party_size"], 0)
+	assert_eq(header["grand_total_xp"], 0)
+	assert_eq(header["mvp_player_id"], "")
+	assert_eq(header["mvp_kitten_name"], "")
+	assert_eq(header["mvp_xp_earned"], 0)
+	assert_eq(header["floor_level"], 1)
+	assert_eq(header["local_player_id"], "")
+	assert_eq(header["local_kitten_name"], "")
+	assert_eq(header["local_xp_earned"], 0)
+	assert_false(header["has_local_player"])
+	assert_false(header["dungeon_completed"])
+	assert_eq(header["completion_grant"], 0)
+
+func test_summary_header_empty_rows_returns_empty_header_shape():
+	# Empty rows array still produces every header key; the UI doesn't
+	# branch on a missing key. Floor level + completion grant are the
+	# caller's choice; pin that they pass through (vs. always-1 floor).
+	var header := RunSummaryHeaderBuilder.build_header_from([], 3, 0)
+	assert_eq(header["party_size"], 0)
+	assert_eq(header["grand_total_xp"], 0)
+	assert_eq(header["mvp_player_id"], "")
+	assert_eq(header["mvp_xp_earned"], 0)
+	assert_eq(header["floor_level"], 3)
+	assert_false(header["has_local_player"])
+	assert_false(header["dungeon_completed"])
+
+func test_summary_header_party_size_matches_rows_count():
+	# party_size mirrors rows.size() — UI's "+N kittens crawled" line
+	# reads it directly.
+	var rows := [
+		_row("u1", "A", 5),
+		_row("u2", "B", 3),
+		_row("u3", "C", 8),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["party_size"], 3)
+
+func test_summary_header_grand_total_xp_sums_rows():
+	# grand_total_xp agrees with RunSummaryRowBuilder.grand_total_for_rows.
+	# UI's "+N XP party total" reads from the header, no re-iteration.
+	var rows := [
+		_row("u1", "A", 5),
+		_row("u2", "B", 3),
+		_row("u3", "C", 8),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["grand_total_xp"], 16)
+	assert_eq(header["grand_total_xp"], RunSummaryRowBuilder.grand_total_for_rows(rows))
+
+func test_summary_header_mvp_picks_highest_xp():
+	# Highest xp_earned wins MVP. Pinned end-to-end: pid + name + xp
+	# all come from the same row. UI renders "MVP: <name> +<xp> XP".
+	var rows := [
+		_row("u1", "Whiskers", 5),
+		_row("u2", "Mittens", 30),
+		_row("u3", "Patches", 12),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["mvp_player_id"], "u2")
+	assert_eq(header["mvp_kitten_name"], "Mittens")
+	assert_eq(header["mvp_xp_earned"], 30)
+
+func test_summary_header_mvp_tie_goes_to_first_in_array_order():
+	# Ties go to the first row in array order (lobby join order from
+	# RunSummaryRowBuilder). Deterministic across renders — a re-render
+	# produces the same MVP. Reverse the array and the MVP changes.
+	var rows := [
+		_row("u_first", "A", 7),
+		_row("u_second", "B", 7),
+		_row("u_third", "C", 7),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["mvp_player_id"], "u_first", "first-in-array wins on tie")
+	# Reversed order -> reversed MVP. Confirms tie-break is purely positional.
+	var rows_rev := [
+		_row("u_third", "C", 7),
+		_row("u_second", "B", 7),
+		_row("u_first", "A", 7),
+	]
+	var header_rev := RunSummaryHeaderBuilder.build_header_from(rows_rev, 1, 0)
+	assert_eq(header_rev["mvp_player_id"], "u_third")
+
+func test_summary_header_no_mvp_when_all_rows_zero_xp():
+	# A run where nobody earned XP shouldn't crown anyone — UI hides
+	# the MVP line. Pinned by "" / 0 fields rather than first-row
+	# fallback (which would lie about achievement).
+	var rows := [
+		_row("u1", "A", 0),
+		_row("u2", "B", 0),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["mvp_player_id"], "", "no MVP when nobody scored")
+	assert_eq(header["mvp_kitten_name"], "")
+	assert_eq(header["mvp_xp_earned"], 0)
+
+func test_summary_header_no_mvp_when_rows_empty():
+	# Same as the all-zero case but for the size-0 rows array. UI's
+	# MVP-line gate `mvp_player_id != ""` works for both.
+	var header := RunSummaryHeaderBuilder.build_header_from([], 1, 0)
+	assert_eq(header["mvp_player_id"], "")
+	assert_eq(header["mvp_xp_earned"], 0)
+
+func test_summary_header_floor_level_passes_through():
+	# floor_level is the caller's choice (PartyScaler.compute_floor
+	# result on session). Pin that it passes through unchanged — the
+	# header doesn't re-compute / clamp it.
+	var rows := [_row("u1", "A", 5)]
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)["floor_level"], 1)
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 5, 0)["floor_level"], 5)
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 17, 0)["floor_level"], 17)
+
+func test_summary_header_local_fields_set_on_local_row():
+	# When a row has is_local=true, its pid + name + xp populate the
+	# header's local_* fields. UI's "Your contribution: <name> +<xp>"
+	# line reads from the header.
+	var rows := [
+		_row("u1", "A", 5),
+		_row("u2", "Mittens", 12, true),
+		_row("u3", "C", 9),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_true(header["has_local_player"])
+	assert_eq(header["local_player_id"], "u2")
+	assert_eq(header["local_kitten_name"], "Mittens")
+	assert_eq(header["local_xp_earned"], 12)
+
+func test_summary_header_no_local_player_when_no_local_row():
+	# Default-constructed / pre-handshake / solo-mode session: no row
+	# has is_local=true. has_local_player is false; local_* fields are
+	# empty / 0. UI's "Your contribution" line is hidden.
+	var rows := [
+		_row("u1", "A", 5),
+		_row("u2", "B", 12),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_false(header["has_local_player"])
+	assert_eq(header["local_player_id"], "")
+	assert_eq(header["local_kitten_name"], "")
+	assert_eq(header["local_xp_earned"], 0)
+
+func test_summary_header_local_player_can_be_mvp():
+	# The local player can also be the MVP. The two computations are
+	# independent — local_* tracks "you," mvp_* tracks "highest scorer."
+	# Pinned because the UI might render both lines and they'd both
+	# point at the same row.
+	var rows := [
+		_row("u1", "A", 5),
+		_row("u2", "Mittens", 99, true),
+		_row("u3", "C", 12),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["mvp_player_id"], "u2")
+	assert_eq(header["local_player_id"], "u2")
+	assert_eq(header["mvp_xp_earned"], 99)
+	assert_eq(header["local_xp_earned"], 99)
+
+func test_summary_header_completion_grant_drives_dungeon_completed():
+	# completion_grant > 0 => dungeon_completed=true. UI's "Victory!"
+	# vs "Defeat" header gate reads from dungeon_completed; pin that
+	# the two fields agree (no contract drift).
+	var rows := [_row("u1", "A", 5)]
+	var won := RunSummaryHeaderBuilder.build_header_from(rows, 1, 1)
+	assert_true(won["dungeon_completed"])
+	assert_eq(won["completion_grant"], 1)
+	var lost := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_false(lost["dungeon_completed"])
+	assert_eq(lost["completion_grant"], 0)
+
+func test_summary_header_negative_completion_grant_clamps_to_zero():
+	# Defensive against an upstream contract violation. The header is
+	# the canonical source for the UI's "Victory" branch; a negative
+	# grant must not flip dungeon_completed=true. Treated as "no
+	# completion."
+	var rows := [_row("u1", "A", 5)]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, -3)
+	assert_false(header["dungeon_completed"])
+	assert_eq(header["completion_grant"], 0)
+
+func test_summary_header_skips_non_dictionary_rows():
+	# Defensive against a malformed rows array (caller mutated it
+	# between build_rows and build_header). Non-dict entries are
+	# silently skipped — the well-formed rows still drive the header.
+	var rows: Array = [
+		_row("u1", "A", 5),
+		"garbage",  # skipped
+		null,  # skipped
+		_row("u2", "B", 12),
+	]
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(header["party_size"], 4, "party_size mirrors rows.size() raw — UI's count line")
+	assert_eq(header["mvp_player_id"], "u2")
+	assert_eq(header["grand_total_xp"], 17)
+
+func test_summary_header_returned_dict_is_fresh_allocation():
+	# Caller can mutate the returned header without back-affecting a
+	# subsequent build. Pins that we don't memoize.
+	var rows := [_row("u1", "A", 5)]
+	var h1 := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	h1["grand_total_xp"] = 99999
+	var h2 := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	assert_eq(h2["grand_total_xp"], 5, "second call returns fresh dict; first call's mutation didn't leak")
+
+func test_summary_header_build_from_active_session_end_to_end():
+	# End-to-end: an active CoopSession's xp_summary tallies real
+	# emissions, and the header builder pulls everything out via the
+	# convenience entry point. Closes the AC#5 data side: the UI's
+	# header binding is `var header = build_header(session)`.
+	var lobby := _make_lobby_for_summary([
+		["u1", "Whiskers", "Mage", true],
+		["u2", "Mittens", "Thief"],
+		["u3", "Patches", "Ninja"],
+	])
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
+	var characters := {"u1": c1, "u2": c2, "u3": c3}
+	var session := CoopSession.new(lobby, characters, null, null, "u2")
+	session.start(_make_two_room_dungeon_for_apply())
+	# All three are L1, so floor scales to L1 (no scaling).
+	# A kill anywhere fans out 9 XP to all three; everybody ties.
+	session.xp_broadcaster.on_enemy_killed(9, "u1")
+	var header := RunSummaryHeaderBuilder.build_header(session)
+	assert_eq(header["party_size"], 3)
+	assert_eq(header["grand_total_xp"], 27)
+	# Ties go to the first in lobby join order (u1).
+	assert_eq(header["mvp_player_id"], "u1")
+	assert_eq(header["mvp_kitten_name"], "Whiskers")
+	assert_eq(header["mvp_xp_earned"], 9)
+	# Local row is u2 / Mittens.
+	assert_true(header["has_local_player"])
+	assert_eq(header["local_player_id"], "u2")
+	assert_eq(header["local_kitten_name"], "Mittens")
+	assert_eq(header["local_xp_earned"], 9)
+	# Floor scales to 1 (everyone L1).
+	assert_eq(header["floor_level"], 1)
+	# No completion fired yet (boss room not cleared via this test).
+	assert_false(header["dungeon_completed"])
+	assert_eq(header["completion_grant"], 0)
+
+func test_summary_header_post_completion_grant_visible():
+	# After the boss-cleared edge fires DungeonRunCompletion.complete,
+	# session.last_completion_grant() is non-zero and the header
+	# surfaces it. Drives the "+N tokens" toast on the summary screen.
+	# Doesn't actually clear a boss room here — _on_dungeon_completed
+	# is the call DungeonRunController would route to; we hand-fire it
+	# via session.run_controller.dungeon_completed.emit() to pin the
+	# wire from completion-edge -> session._last_completion_grant ->
+	# header.
+	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var characters := {"u1": c}
+	var inv := TokenInventory.new()
+	var session := CoopSession.new(lobby, characters, null, inv, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	# Trigger the completion path (registers a dungeon_complete in the
+	# meta tracker if non-null + drips a token to the inventory).
+	session.run_controller.dungeon_completed.emit()
+	var header := RunSummaryHeaderBuilder.build_header(session)
+	assert_true(header["dungeon_completed"])
+	assert_eq(header["completion_grant"], 1)
+
+func test_summary_header_passes_through_post_end_session():
+	# Same dead-after-end caveat as RunSummaryRowBuilder. After end()
+	# drops xp_summary, the row builder still produces rows from
+	# lobby + player_ids (with xp_earned == 0 across the board), and
+	# the header still produces a valid shape — floor_level + last
+	# completion grant survive end().
+	var lobby := _make_lobby_for_summary([
+		["u1", "Whiskers", "Mage"],
+		["u2", "Mittens", "Thief"],
+	])
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, null, "u1")
+	session.start(_make_two_room_dungeon_for_apply())
+	session.xp_broadcaster.on_enemy_killed(9, "u1")
+	# Read the header BEFORE end() drops the tally — captures the
+	# canonical "what the UI would render" snapshot.
+	var live := RunSummaryHeaderBuilder.build_header(session)
+	assert_eq(live["grand_total_xp"], 18)
+	# After end() the tally is gone but rows still render with 0 XP.
+	session.end()
+	var post := RunSummaryHeaderBuilder.build_header(session)
+	assert_eq(post["party_size"], 2, "rows still produced from lobby + player_ids")
+	assert_eq(post["grand_total_xp"], 0, "tally is gone post-end")
+	assert_eq(post["mvp_player_id"], "", "no MVP when nobody scored (tally dropped)")
