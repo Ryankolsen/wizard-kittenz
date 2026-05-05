@@ -58,11 +58,19 @@ var player_ids: Array[String] = []
 var floor_level: int = 1
 var meta_tracker: MetaProgressionTracker = null
 var inventory: TokenInventory = null
+# This client's player_id within the lobby. Drives the LocalXPRouter
+# subscription so an xp_awarded(local_player_id, amount) emission lands
+# on this client's PartyMember.real_stats. Empty on a default-
+# constructed (test / pre-handshake) session — start() simply skips
+# building the router in that case (no local id => nothing to filter
+# on => no-op subscription).
+var local_player_id: String = ""
 
 # Per-run managers — non-null between start() and end(), null otherwise
 # so a caller can null-check `xp_broadcaster` to ask "is the run live?".
 var xp_broadcaster: XPBroadcaster = null
 var xp_summary: RunXPSummary = null
+var xp_router: LocalXPRouter = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
@@ -73,10 +81,11 @@ var _active: bool = false
 # re-running the completion logic.
 var _last_completion_grant: int = 0
 
-func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, inv: TokenInventory = null) -> void:
+func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, inv: TokenInventory = null, local_id: String = "") -> void:
 	lobby = lobby_state
 	meta_tracker = tracker
 	inventory = inv
+	local_player_id = local_id
 	if lobby == null:
 		return
 	var levels: Array = []
@@ -119,6 +128,17 @@ func start(dungeon: Dungeon) -> bool:
 
 	for pid in player_ids:
 		xp_broadcaster.register_player(pid)
+
+	# Wire the local-routing subscriber only when this session knows
+	# which player_id is local AND that player is in the party. A
+	# default-constructed session (test / pre-handshake) skips the
+	# router; xp_summary still tallies, but no XP lands on any
+	# member.real_stats until the session is reconstructed with a
+	# local id. Same shape as the network/enemy sync managers — the
+	# wire is built but only fires when the inputs are present.
+	var local_member := member_for(local_player_id)
+	if local_member != null:
+		xp_router = LocalXPRouter.new(xp_broadcaster, local_player_id, local_member)
 
 	if not run_controller.start(dungeon):
 		_drop_managers()
@@ -167,8 +187,11 @@ func _on_dungeon_completed() -> void:
 func _drop_managers() -> void:
 	if xp_summary != null and xp_broadcaster != null:
 		xp_summary.unbind(xp_broadcaster)
+	if xp_router != null:
+		xp_router.unbind()
 	xp_broadcaster = null
 	xp_summary = null
+	xp_router = null
 	network_sync = null
 	enemy_sync = null
 	run_controller = null

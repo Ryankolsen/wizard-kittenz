@@ -378,3 +378,138 @@ func test_end_to_end_three_player_run_summary():
 	assert_eq(session.member_for("alice").effective_stats.level, 8, "unscaled")
 	assert_eq(session.member_for("bob").effective_stats.level, 3)
 	assert_eq(session.member_for("carol").effective_stats.level, 5, "unscaled")
+
+# --- LocalXPRouter wiring --------------------------------------------------
+
+func test_start_builds_xp_router_when_local_player_in_party():
+	# A session constructed with a local_player_id matching one of the
+	# party builds a LocalXPRouter on start so the kill-by-anyone
+	# broadcast lands on this client's PartyMember.real_stats.
+	var lobby := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var characters := {
+		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
+		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
+	}
+	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	assert_null(session.xp_router, "router is null pre-start")
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.xp_router, "router built on start")
+	assert_true(session.xp_router.is_bound())
+	assert_eq(session.xp_router.local_player_id, "u1")
+	# The router is bound to *this client's* member, not a remote one.
+	assert_eq(session.xp_router.local_member, session.member_for("u1"))
+
+func test_start_skips_xp_router_when_local_player_id_empty():
+	# Default-constructed (test / pre-handshake) session has no local
+	# player_id. The router would have nothing to filter on, so start()
+	# skips building it. xp_summary still tallies broadcasts; just no
+	# stats land anywhere.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	session.start(_make_two_room_dungeon())
+	assert_null(session.xp_router, "router skipped without local id")
+
+func test_start_skips_xp_router_when_local_id_not_in_party():
+	# Defensive: a session constructed with a local_player_id not present
+	# in the lobby (e.g. wire-payload race, save-restore mismatch) should
+	# not crash. Skip the router rather than building one with a null
+	# member that would silently drop every event.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var characters := {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}
+	var session := CoopSession.new(lobby, characters, null, null, "ghost")
+	session.start(_make_two_room_dungeon())
+	assert_null(session.xp_router, "unknown local id => no router")
+
+func test_xp_broadcast_routes_to_local_member_real_stats_via_session():
+	# End-to-end through the session: a kill broadcast routes XP to the
+	# local PartyMember.real_stats via the wired-up LocalXPRouter. Pins
+	# that the orchestrator wiring (broadcaster + router) actually
+	# lands XP on the local character without any extra plumbing.
+	var lobby := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var characters := {
+		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
+		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
+	}
+	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var u1_pre_xp := session.member_for("u1").real_stats.xp
+	var u2_pre_xp := session.member_for("u2").real_stats.xp
+	session.xp_broadcaster.on_enemy_killed(3, "u2")  # u2 got the killing blow
+	# Local client (u1) routes its emission to its own real_stats.
+	assert_eq(session.member_for("u1").real_stats.xp, u1_pre_xp + 3,
+		"local member real_stats received XP")
+	# Remote member (u2) is *not* mutated on this client — that's
+	# handled by u2's own client. The local router filters by pid so
+	# u2's emission doesn't bleed onto u2's stats from this client.
+	assert_eq(session.member_for("u2").real_stats.xp, u2_pre_xp,
+		"remote member real_stats untouched on local client")
+
+func test_xp_broadcast_routes_to_real_stats_not_effective_when_scaled():
+	# AC #18#3: a level-10 player scaled down to floor 3 still earns
+	# XP toward their actual level 10 (not the scaled level 3). Pins
+	# the use_real_level=true rule at the session+router seam.
+	var lobby := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var characters := {
+		"u1": _make_character(CharacterData.CharacterClass.MAGE, 10),
+		"u2": _make_character(CharacterData.CharacterClass.NINJA, 3),
+	}
+	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	# Pre-kill: u1 is scaled to floor 3, but real_stats stays at 10.
+	assert_eq(session.member_for("u1").effective_stats.level, 3)
+	assert_eq(session.member_for("u1").real_stats.level, 10)
+	var pre_real_xp := session.member_for("u1").real_stats.xp
+	var pre_effective_xp := session.member_for("u1").effective_stats.xp
+	session.xp_broadcaster.on_enemy_killed(3)
+	assert_eq(session.member_for("u1").real_stats.xp, pre_real_xp + 3,
+		"XP advanced real_stats")
+	assert_eq(session.member_for("u1").effective_stats.xp, pre_effective_xp,
+		"effective_stats untouched (scaled view doesn't progress)")
+
+func test_end_drops_xp_router():
+	# Per-run lifecycle: end() must drop the router so a stale subscriber
+	# from the previous run can't keep mutating the local member's stats
+	# after the session is torn down.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var bc_before_end := session.xp_broadcaster
+	var member := session.member_for("u1")
+	assert_not_null(session.xp_router)
+	session.end()
+	assert_null(session.xp_router, "router dropped on end")
+	# A late broadcast on the (still-held) old broadcaster should not
+	# mutate the member's stats — router unbound means the subscriber
+	# is gone.
+	var pre_xp := member.real_stats.xp
+	bc_before_end.on_enemy_killed(99)
+	assert_eq(member.real_stats.xp, pre_xp, "post-end broadcast ignored")
+
+func test_xp_router_rebuilds_on_next_run_after_end():
+	# Multi-run match: end() drops the router, the next start() rebuilds
+	# it bound to the new run's broadcaster + (preserved) member.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		null, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.end()
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.xp_router)
+	# New router bound to the new broadcaster.
+	session.xp_broadcaster.on_enemy_killed(3)
+	assert_eq(session.member_for("u1").real_stats.xp, 3,
+		"second run's broadcasts route through fresh router")

@@ -438,3 +438,163 @@ func test_run_xp_summary_end_to_end_three_player_run():
 	assert_eq(summary.total_for("carol"), 33)
 	assert_eq(summary.grand_total(), 99)
 	assert_eq(summary.player_count(), 3)
+
+# --- LocalXPRouter ----------------------------------------------------------
+
+func _make_member(klass: int = CharacterData.CharacterClass.MAGE, lvl: int = 1) -> PartyMember:
+	var c := CharacterData.make_new(klass, "k")
+	c.level = lvl
+	c.xp = 0
+	c.max_hp = CharacterData.base_max_hp_for(klass, lvl)
+	c.hp = c.max_hp
+	return PartyMember.from_character(c)
+
+func test_local_xp_router_routes_local_pid_to_member_real_stats():
+	# Core wiring: an xp_awarded(local_pid, amount) emission lands on
+	# the bound member's real_stats via XPSystem.award. Pins the
+	# "kill-by-anyone awards XP to me" loop on the receiving end.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var router := LocalXPRouter.new(bc, "me", member)
+	assert_true(router.is_bound())
+	bc.on_enemy_killed(3)  # under L1 threshold (5) — no level-up yet
+	assert_eq(member.real_stats.xp, 3, "XP applied to real_stats")
+	assert_eq(member.real_stats.level, 1)
+
+func test_local_xp_router_filters_non_local_pid():
+	# A broadcast for a different player's pid (the network bridge
+	# fanning out a remote member's emission) does NOT mutate this
+	# client's local member. Each client has its own router.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	bc.register_player("other")
+	var member := _make_member()
+	var _r := LocalXPRouter.new(bc, "me", member)
+	# Hand-fire to the "other" id only; broadcaster.on_enemy_killed
+	# would also fire to "me", which we don't want for this test.
+	bc.xp_awarded.emit("other", 100)
+	assert_eq(member.real_stats.xp, 0, "non-local-pid emission ignored")
+
+func test_local_xp_router_levels_up_local_member_when_threshold_crossed():
+	# Round-trip through XPSystem + ProgressionSystem: a kill awarding
+	# enough XP to cross the L1->L2 boundary advances real_stats.level.
+	# Pins that the router uses XPSystem.award (which calls add_xp) and
+	# not a raw xp += amount that would skip level-up.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var _r := LocalXPRouter.new(bc, "me", member)
+	bc.on_enemy_killed(5)  # exactly L1->L2 threshold
+	assert_eq(member.real_stats.level, 2, "level up applied")
+
+func test_local_xp_router_applies_to_real_stats_not_effective_in_scaled_party():
+	# AC #18#3: XP earned during a scaled session applies to real_stats
+	# (the persistent character), not effective_stats (the in-game scaled
+	# view). Pins use_real_level=true at the routing seam — without this,
+	# a level-10 player scaled to floor 3 would keep their effective_stats
+	# stuck at 3 forever without progress.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.MAGE, 10)
+	member.apply_scaling(3)
+	var pre_real_xp := member.real_stats.xp
+	var pre_effective_xp := member.effective_stats.xp
+	var _r := LocalXPRouter.new(bc, "me", member)
+	bc.on_enemy_killed(3)
+	assert_eq(member.real_stats.xp, pre_real_xp + 3, "real_stats.xp advanced")
+	assert_eq(member.effective_stats.xp, pre_effective_xp, "effective_stats untouched")
+
+func test_local_xp_router_bind_is_idempotent_on_same_broadcaster():
+	# Re-binding the same broadcaster doesn't double-subscribe — without
+	# this guard a re-bind during a session reset would double-apply XP
+	# on every emission.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member()
+	var router := LocalXPRouter.new()
+	assert_true(router.bind(bc, "me", member), "first bind connects")
+	assert_false(router.bind(bc, "me", member), "second bind to same bc rejected")
+	bc.on_enemy_killed(3)
+	assert_eq(member.real_stats.xp, 3, "still only routed once")
+
+func test_local_xp_router_bind_to_different_broadcaster_unbinds_old():
+	# Re-binding to a *different* broadcaster transparently drops the
+	# old subscription. Lets the orchestrator reuse a router instance
+	# across runs without forcing the caller to remember unbind().
+	var bc1 := XPBroadcaster.new()
+	bc1.register_player("me")
+	var bc2 := XPBroadcaster.new()
+	bc2.register_player("me")
+	var member := _make_member()
+	var router := LocalXPRouter.new(bc1, "me", member)
+	assert_true(router.bind(bc2, "me", member), "rebind to bc2 succeeds")
+	bc1.on_enemy_killed(50)
+	assert_eq(member.real_stats.xp, 0, "old broadcaster no longer routes")
+	bc2.on_enemy_killed(3)
+	assert_eq(member.real_stats.xp, 3, "new broadcaster routes")
+
+func test_local_xp_router_bind_rejects_null_broadcaster():
+	var router := LocalXPRouter.new()
+	assert_false(router.bind(null, "me", _make_member()))
+	assert_false(router.is_bound())
+
+func test_local_xp_router_bind_rejects_empty_player_id():
+	# An empty local_player_id can't filter — every emission would either
+	# match (empty pid is the default) or never match. Either is wrong.
+	# Reject at bind so the caller surfaces the bad wire-up.
+	var bc := XPBroadcaster.new()
+	var router := LocalXPRouter.new()
+	assert_false(router.bind(bc, "", _make_member()))
+	assert_false(router.is_bound())
+
+func test_local_xp_router_bind_rejects_null_member():
+	# Without a member there's no real_stats to route to. Reject so the
+	# caller doesn't end up with an "active" router that silently drops
+	# every event.
+	var bc := XPBroadcaster.new()
+	var router := LocalXPRouter.new()
+	assert_false(router.bind(bc, "me", null))
+	assert_false(router.is_bound())
+
+func test_local_xp_router_unbind_stops_routing():
+	# After unbind, future broadcasts do not mutate the previously-bound
+	# member. Lets the orchestrator hard-stop routing on session end.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member()
+	var router := LocalXPRouter.new(bc, "me", member)
+	bc.on_enemy_killed(3)
+	assert_eq(member.real_stats.xp, 3)
+	assert_true(router.unbind())
+	assert_false(router.is_bound())
+	bc.on_enemy_killed(99)
+	assert_eq(member.real_stats.xp, 3, "post-unbind broadcast ignored")
+
+func test_local_xp_router_unbind_idempotent_when_not_bound():
+	var router := LocalXPRouter.new()
+	assert_false(router.unbind(), "no-op returns false")
+
+func test_local_xp_router_init_without_args_starts_unbound():
+	# Default-constructed router (test / pre-handshake) is inert. Apps
+	# that don't yet have a broadcaster + local id can hold a reference
+	# without it firing.
+	var router := LocalXPRouter.new()
+	assert_false(router.is_bound())
+	assert_eq(router.local_player_id, "")
+	assert_null(router.local_member)
+
+func test_local_xp_router_filters_emission_to_other_in_full_broadcast():
+	# Full broadcast shape: bc has 3 registered players, on_enemy_killed
+	# fires once per player, but only the local-pid emission lands on
+	# the local member's stats. The other two emissions are intended
+	# for the other clients' routers and must not bleed in here.
+	var bc := XPBroadcaster.new()
+	bc.register_player("alice")
+	bc.register_player("bob")
+	bc.register_player("carol")
+	var alice := _make_member()
+	var _r := LocalXPRouter.new(bc, "alice", alice)
+	bc.on_enemy_killed(3)  # broadcast fires xp_awarded for all three
+	# Only the alice emission landed on alice's real_stats — not 3x amount.
+	assert_eq(alice.real_stats.xp, 3, "XP applied exactly once, not per-fanout")
