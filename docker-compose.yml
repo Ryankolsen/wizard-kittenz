@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nakama
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - nakama-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "nakama"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  nakama:
+    image: heroiclabs/nakama:3.22.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:localdev@postgres/nakama &&
+        exec /nakama/nakama
+        --name wizard-kittenz
+        --database.address postgres:localdev@postgres/nakama
+        --socket.server_key localdev_server_key
+        --runtime.http_key localdev_http_key
+        --console.username admin
+        --console.password password
+    ports:
+      - "7349:7349"   # console
+      - "7350:7350"   # client API (HTTP + WS)
+      - "7351:7351"   # gRPC
+    restart: unless-stopped
+
+volumes:
+  nakama-pg-data:
