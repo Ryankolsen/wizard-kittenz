@@ -39,6 +39,10 @@ text = "Quick Start"
 layout_mode = 2
 text = "Customize Your Kitten"
 
+[node name="MultiplayerButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Multiplayer"
+
 [node name="QuickStart" type="CenterContainer" parent="."]
 visible = false
 layout_mode = 1
@@ -151,5 +155,48 @@ layout_mode = 2
 text = "Ninja"
 
 [node name="BackButton" type="Button" parent="Customize/VBox"]
+layout_mode = 2
+text = "Back"
+
+[node name="MultiMenu" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="MultiMenu"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="MultiMenu/VBox"]
+layout_mode = 2
+text = "Multiplayer"
+horizontal_alignment = 1
+
+[node name="CreateRoomButton" type="Button" parent="MultiMenu/VBox"]
+layout_mode = 2
+text = "Create Room"
+
+[node name="Separator" type="HSeparator" parent="MultiMenu/VBox"]
+layout_mode = 2
+
+[node name="CodeEdit" type="LineEdit" parent="MultiMenu/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+placeholder_text = "Room Code (e.g. AB1C2)"
+max_length = 5
+
+[node name="JoinRoomButton" type="Button" parent="MultiMenu/VBox"]
+layout_mode = 2
+text = "Join Room"
+
+[node name="StatusLabel" type="Label" parent="MultiMenu/VBox"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+modulate = Color(1, 0.4, 0.4, 1)
+
+[node name="BackButton" type="Button" parent="MultiMenu/VBox"]
 layout_mode = 2
 text = "Back"

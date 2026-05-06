@@ -207,3 +207,85 @@ func test_lobby_state_dict_round_trip():
 	assert_eq(rt.find_player("u1").kitten_name, "Host")
 	assert_true(rt.find_player("u1").ready)
 	assert_false(rt.find_player("u2").ready)
+
+# --- NakamaLobby.apply_joins --------------------------------------------------
+
+func test_apply_joins_adds_player_to_lobby_state():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	assert_eq(lobby.lobby_state.player_count(), 1)
+
+func test_apply_joins_emits_lobby_updated():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	watch_signals(lobby)
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	assert_signal_emitted(lobby, "lobby_updated")
+
+func test_apply_joins_skips_duplicate_user_id():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty2"}])
+	assert_eq(lobby.lobby_state.player_count(), 1)
+
+func test_apply_joins_skips_local_player_id():
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "me"
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "me", "username": "myself"}])
+	assert_eq(lobby.lobby_state.player_count(), 0)
+
+func test_apply_joins_null_lobby_state_safe():
+	var lobby := NakamaLobby.new()
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	assert_null(lobby.lobby_state, "lobby_state stays null — apply_joins does not create it")
+
+# --- NakamaLobby.apply_leaves -------------------------------------------------
+
+func test_apply_leaves_removes_player():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_leaves([{"user_id": "u1"}])
+	assert_eq(lobby.lobby_state.player_count(), 0)
+
+func test_apply_leaves_emits_lobby_updated():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	watch_signals(lobby)
+	lobby.apply_leaves([{"user_id": "u1"}])
+	assert_signal_emitted(lobby, "lobby_updated")
+
+# --- NakamaLobby.apply_state --------------------------------------------------
+
+func test_apply_state_player_info_updates_kitten_name_and_class():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "u1", {"kitten_name": "Biscuits", "class_name": "Mage"})
+	assert_eq(lobby.lobby_state.find_player("u1").kitten_name, "Biscuits")
+	assert_eq(lobby.lobby_state.find_player("u1").class_name_str, "Mage")
+
+func test_apply_state_ready_toggle_sets_ready_flag():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_state(NakamaLobby.OP_READY_TOGGLE, "u1", {"ready": true})
+	assert_true(lobby.lobby_state.find_player("u1").ready)
+
+func test_apply_state_start_match_emits_match_started():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_START_MATCH, "u1", {})
+	assert_signal_emitted(lobby, "match_started")
+
+func test_apply_state_unknown_opcode_noop():
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("AB1C2")
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_state(99, "u1", {})  # should not crash
+	assert_eq(lobby.lobby_state.player_count(), 1)

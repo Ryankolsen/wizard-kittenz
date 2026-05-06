@@ -12,6 +12,7 @@ extends Control
 # progression carries across sessions.
 
 @export var main_scene_path: String = "res://scenes/main.tscn"
+@export var lobby_scene_path: String = "res://scenes/lobby.tscn"
 # Range of valid sprite-sheet indices for the appearance picker. There's
 # no real sprite sheet yet, so the picker just round-trips the integer
 # through CharacterData.appearance_index. When art lands, swap APPEARANCE_MAX
@@ -21,9 +22,17 @@ const APPEARANCE_MAX: int = 7
 @onready var _main_menu: Control = $MainMenu
 @onready var _quick_start_panel: Control = $QuickStart
 @onready var _customize_panel: Control = $Customize
+@onready var _multi_menu: Control = $MultiMenu
 
 @onready var _quick_start_button: Button = $MainMenu/VBox/QuickStartButton
 @onready var _customize_button: Button = $MainMenu/VBox/CustomizeButton
+@onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
+
+@onready var _multi_create_button: Button = $MultiMenu/VBox/CreateRoomButton
+@onready var _multi_code_edit: LineEdit = $MultiMenu/VBox/CodeEdit
+@onready var _multi_join_button: Button = $MultiMenu/VBox/JoinRoomButton
+@onready var _multi_status_label: Label = $MultiMenu/VBox/StatusLabel
+@onready var _multi_back_button: Button = $MultiMenu/VBox/BackButton
 
 @onready var _qs_mage_button: Button = $QuickStart/VBox/Buttons/MageButton
 @onready var _qs_thief_button: Button = $QuickStart/VBox/Buttons/ThiefButton
@@ -53,6 +62,11 @@ func _ready() -> void:
 
 	_quick_start_button.pressed.connect(_show_quick_start)
 	_customize_button.pressed.connect(_show_customize)
+	_multiplayer_button.pressed.connect(_show_multi_menu)
+
+	_multi_create_button.pressed.connect(_on_create_room_pressed)
+	_multi_join_button.pressed.connect(_on_join_room_pressed)
+	_multi_back_button.pressed.connect(_show_main_menu)
 
 	_qs_mage_button.pressed.connect(_on_quick_start_class.bind("mage"))
 	_qs_thief_button.pressed.connect(_on_quick_start_class.bind("thief"))
@@ -82,6 +96,14 @@ func _show_main_menu() -> void:
 	_main_menu.visible = true
 	_quick_start_panel.visible = false
 	_customize_panel.visible = false
+	_multi_menu.visible = false
+
+func _show_multi_menu() -> void:
+	_main_menu.visible = false
+	_quick_start_panel.visible = false
+	_customize_panel.visible = false
+	_multi_menu.visible = true
+	_multi_status_label.text = ""
 
 func _show_quick_start() -> void:
 	_main_menu.visible = false
@@ -127,6 +149,81 @@ func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
 	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory, GameState.offline_xp_tracker)
 	get_tree().change_scene_to_file(main_scene_path)
+
+func _ensure_character_for_multiplayer() -> CharacterData:
+	if GameState.current_character != null:
+		return GameState.current_character
+	# Quick-start as Mage for multiplayer if no character exists
+	var data := QuickStartController.create_for_class("mage")
+	GameState.set_character(data)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory, GameState.offline_xp_tracker)
+	return data
+
+func _ensure_session_async() -> NakamaSession:
+	if NakamaService.session != null:
+		return NakamaService.session
+	return await NakamaService.authenticate_device_async(OS.get_unique_id())
+
+func _on_create_room_pressed() -> void:
+	_multi_create_button.disabled = true
+	_multi_status_label.text = "Connecting…"
+	var c := _ensure_character_for_multiplayer()
+	var session := await _ensure_session_async()
+	if session == null:
+		_multi_status_label.text = "Auth failed — check your connection"
+		_multi_create_button.disabled = false
+		return
+	var socket := await NakamaService.create_socket_async(session)
+	if socket == null:
+		_multi_status_label.text = "Socket failed — check your connection"
+		_multi_create_button.disabled = false
+		return
+	var room_code := RoomCodeGenerator.new().generate()
+	var local_player := LobbyPlayer.make(
+		session.user_id, c.character_name,
+		CharacterData.CharacterClass.keys()[c.character_class], true
+	)
+	var lobby := NakamaLobby.new(socket, session)
+	var ok := await lobby.create_async(room_code, local_player)
+	if not ok:
+		_multi_status_label.text = "Failed to create room"
+		_multi_create_button.disabled = false
+		return
+	GameState.lobby = lobby
+	GameState.local_player_id = session.user_id
+	get_tree().change_scene_to_file(lobby_scene_path)
+
+func _on_join_room_pressed() -> void:
+	var raw_code := _multi_code_edit.text.strip_edges().to_upper()
+	if not RoomCodeValidator.is_valid(raw_code):
+		_multi_status_label.text = "Invalid code — must be 5 uppercase letters/digits"
+		return
+	_multi_join_button.disabled = true
+	_multi_status_label.text = "Joining…"
+	var c := _ensure_character_for_multiplayer()
+	var session := await _ensure_session_async()
+	if session == null:
+		_multi_status_label.text = "Auth failed — check your connection"
+		_multi_join_button.disabled = false
+		return
+	var socket := await NakamaService.create_socket_async(session)
+	if socket == null:
+		_multi_status_label.text = "Socket failed — check your connection"
+		_multi_join_button.disabled = false
+		return
+	var local_player := LobbyPlayer.make(
+		session.user_id, c.character_name,
+		CharacterData.CharacterClass.keys()[c.character_class]
+	)
+	var lobby := NakamaLobby.new(socket, session)
+	var ok := await lobby.join_async(raw_code, local_player)
+	if not ok:
+		_multi_status_label.text = "Room not found or full"
+		_multi_join_button.disabled = false
+		return
+	GameState.lobby = lobby
+	GameState.local_player_id = session.user_id
+	get_tree().change_scene_to_file(lobby_scene_path)
 
 # Kept for backwards compatibility with existing tests / call sites.
 # New flow uses CharacterFactory.create_default and QuickStartController

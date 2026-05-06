@@ -25,6 +25,10 @@ var offline_xp_tracker: OfflineXPTracker = OfflineXPTracker.new()
 # lobby UI once #16 lands; default null preserves the solo behavior on
 # fresh-install / no-multiplayer paths.
 var coop_session: CoopSession = null
+# Active pre-game lobby. Non-null between "Create/Join Room" and match start
+# (or leave). The lobby scene reads this to bind signals; the character
+# creation scene writes it after a successful create_async / join_async.
+var lobby: NakamaLobby = null
 # This client's player_id within an active co-op session. Sourced from
 # AccountManager once Google Play Games auth (#15 follow-up) lands;
 # default empty string keeps the solo branch firing until co-op is
@@ -93,6 +97,7 @@ func clear() -> void:
 		coop_session.end()
 	coop_session = null
 	local_player_id = ""
+	lobby = null
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance

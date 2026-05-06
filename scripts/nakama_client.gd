@@ -38,6 +38,20 @@ func upload_save_async(p_session: NakamaSession, dict: Dictionary) -> Error:
 		return FAILED
 	return OK
 
+func create_socket_async(p_session: NakamaSession) -> NakamaSocket:
+	var socket: NakamaSocket = Nakama.create_socket_from(_client)
+	var result = await socket.connect_async(p_session)
+	if result.is_exception():
+		push_error("NakamaClient socket connect failed: " + result.get_exception().message)
+		return null
+	return socket
+
+func find_match_async(p_session: NakamaSession, room_code: String) -> String:
+	var result = await _client.list_matches_async(p_session, 1, 4, 10, false, room_code, "")
+	if result.is_exception() or result.matches.is_empty():
+		return ""
+	return result.matches[0].match_id
+
 func authenticate_device_async(device_id: String) -> NakamaSession:
 	var result: NakamaSession = await _client.authenticate_device_async(device_id)
 	if result.is_exception():
