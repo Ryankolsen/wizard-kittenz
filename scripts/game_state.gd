@@ -1,5 +1,7 @@
 extends Node
 
+signal save_synced(merged: KittenSaveData)
+
 var current_character: CharacterData = null
 var skill_tree: SkillTree = null
 # Lifetime stats used by UnlockRegistry to evaluate gates. Always non-null
@@ -30,14 +32,18 @@ var coop_session: CoopSession = null
 # across sessions (multiple matches in a row, lobby reconstruction)
 # and so a single source of truth reads from AccountManager.
 var local_player_id: String = ""
+var account_manager: AccountManager = AccountManager.new()
 
 func _ready() -> void:
 	_try_load_save()
+	NakamaService.authenticated.connect(_on_nakama_authenticated)
 
 func _try_load_save() -> void:
 	var save_data := SaveManager.load()
-	if save_data == null:
-		return
+	if save_data != null:
+		apply_merged_save(save_data)
+
+func apply_merged_save(save_data: KittenSaveData) -> void:
 	var c := CharacterData.new()
 	save_data.apply_to(c)
 	current_character = c
@@ -46,6 +52,29 @@ func _try_load_save() -> void:
 	meta_tracker = save_data.to_tracker()
 	token_inventory = save_data.to_inventory()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
+
+func _on_nakama_authenticated(p_session: NakamaSession) -> void:
+	account_manager.sign_in(p_session.user_id)
+	local_player_id = p_session.user_id
+	var local := SaveManager.load()
+	var server_dict: Dictionary = await NakamaService.fetch_save_async(p_session)
+	var server: KittenSaveData = null
+	if not server_dict.is_empty():
+		server = KittenSaveData.from_dict(server_dict)
+	var merged := SaveSyncOrchestrator.sync(local, server, offline_xp_tracker)
+	if merged == null:
+		return
+	# Zero the pending-XP field before hydrating and uploading — the delta is
+	# already baked into merged.xp (via merge_xp or the local-wins clone), so
+	# the "since last sync" window resets to zero on both stores.
+	merged.offline_xp_earned = 0
+	apply_merged_save(merged)
+	SaveManager.save(
+		current_character, SaveManager.DEFAULT_PATH,
+		skill_tree, meta_tracker, token_inventory, offline_xp_tracker
+	)
+	await NakamaService.upload_save_async(p_session, merged.to_dict())
+	save_synced.emit(merged)
 
 func set_character(c: CharacterData) -> void:
 	current_character = c

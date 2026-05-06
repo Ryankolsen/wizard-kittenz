@@ -25,3 +25,39 @@ func test_clear_resets_to_null():
 	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
 	gs.clear()
 	assert_null(gs.current_character)
+
+# --- apply_merged_save --------------------------------------------------------
+
+func test_apply_merged_save_hydrates_character():
+	var gs := get_node("/root/GameState")
+	var save := KittenSaveData.new()
+	save.character_name = "Mittens"
+	save.character_class = CharacterData.CharacterClass.THIEF
+	save.level = 5
+	save.xp = 42
+	gs.apply_merged_save(save)
+	assert_not_null(gs.current_character, "current_character set")
+	assert_eq(gs.current_character.character_name, "Mittens", "name")
+	assert_eq(gs.current_character.level, 5, "level")
+	assert_eq(gs.current_character.xp, 42, "xp")
+
+func test_apply_merged_save_updates_meta_tracker():
+	var gs := get_node("/root/GameState")
+	var save := KittenSaveData.new()
+	save.dungeons_completed = 9
+	gs.apply_merged_save(save)
+	assert_eq(gs.meta_tracker.dungeons_completed, 9)
+
+func test_apply_merged_save_updates_token_inventory():
+	var gs := get_node("/root/GameState")
+	var save := KittenSaveData.new()
+	save.revive_tokens = 4
+	gs.apply_merged_save(save)
+	assert_eq(gs.token_inventory.count, 4)
+
+func test_apply_merged_save_updates_offline_xp_tracker():
+	var gs := get_node("/root/GameState")
+	var save := KittenSaveData.new()
+	save.offline_xp_earned = 200
+	gs.apply_merged_save(save)
+	assert_eq(gs.offline_xp_tracker.pending_xp, 200)

@@ -13,6 +13,31 @@ func _ready() -> void:
 	var server_key := _env("NAKAMA_SERVER_KEY", "localdev_server_key")
 	_client = Nakama.create_client(server_key, host, port)
 
+const _SAVE_COLLECTION := "saves"
+const _SAVE_KEY := "kitten"
+
+func fetch_save_async(p_session: NakamaSession) -> Dictionary:
+	var result = await _client.read_storage_objects_async(
+		p_session,
+		[NakamaStorageObjectId.new(_SAVE_COLLECTION, _SAVE_KEY, p_session.user_id)]
+	)
+	if result.is_exception() or result.objects.is_empty():
+		return {}
+	var parsed = JSON.parse_string(result.objects[0].value)
+	if parsed is Dictionary:
+		return parsed
+	return {}
+
+func upload_save_async(p_session: NakamaSession, dict: Dictionary) -> Error:
+	var result = await _client.write_storage_objects_async(
+		p_session,
+		[NakamaWriteStorageObject.new(_SAVE_COLLECTION, _SAVE_KEY, 1, 1, JSON.stringify(dict), "")]
+	)
+	if result.is_exception():
+		push_error("NakamaClient upload_save failed: " + result.get_exception().message)
+		return FAILED
+	return OK
+
 func authenticate_device_async(device_id: String) -> NakamaSession:
 	var result: NakamaSession = await _client.authenticate_device_async(device_id)
 	if result.is_exception():
