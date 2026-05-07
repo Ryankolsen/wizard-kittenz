@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 Nakama="*res://addons/com.heroiclabs.nakama/Nakama.gd"
 NakamaService="*res://scripts/nakama_client.gd"
 GameState="*res://scripts/game_state.gd"
+BillingManager="*res://scripts/billing_manager.gd"
 
 [display]
 
