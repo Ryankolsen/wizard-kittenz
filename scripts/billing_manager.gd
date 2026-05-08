@@ -1,4 +1,3 @@
-class_name BillingManager
 extends Node
 
 # Wraps the GodotGooglePlayBilling Android plugin. On desktop/test builds the
