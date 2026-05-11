@@ -9,9 +9,6 @@ var skill_tree: SkillTree = null
 # zero) is the right default for a brand-new save.
 var meta_tracker: MetaProgressionTracker = MetaProgressionTracker.new()
 var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
-# Revive token balance. Always non-null so call sites (Player on death,
-# future death-screen UI) can read .count freely without a null check.
-var token_inventory: TokenInventory = TokenInventory.new()
 # XP earned in the solo path since the last server sync. Always non-null
 # so the kill flow / save layer can read .pending_xp freely without a
 # null check. Hydrated from KittenSaveData.offline_xp_earned on load;
@@ -59,7 +56,6 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
 	meta_tracker = save_data.to_tracker()
-	token_inventory = save_data.to_inventory()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
@@ -80,7 +76,7 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	apply_merged_save(merged)
 	SaveManager.save(
 		current_character, SaveManager.DEFAULT_PATH,
-		skill_tree, meta_tracker, token_inventory, offline_xp_tracker
+		skill_tree, meta_tracker, offline_xp_tracker
 	)
 	await NakamaService.upload_save_async(p_session, merged.to_dict())
 	save_synced.emit(merged)
@@ -93,7 +89,6 @@ func clear() -> void:
 	current_character = null
 	skill_tree = null
 	meta_tracker = MetaProgressionTracker.new()
-	token_inventory = TokenInventory.new()
 	offline_xp_tracker = OfflineXPTracker.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to

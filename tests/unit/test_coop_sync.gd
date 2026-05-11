@@ -730,8 +730,8 @@ func test_local_xp_router_filters_emission_to_other_in_full_broadcast():
 
 func test_local_xp_router_emits_level_up_when_threshold_crossed():
 	# An XP award that crosses a level threshold emits level_up(old, new).
-	# Subscribers (LocalTokenGrantRouter, future "level-up VFX") use this
-	# instead of polling member.real_stats.level.
+	# Subscribers (future "level-up VFX") use this instead of polling
+	# member.real_stats.level.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
@@ -757,9 +757,8 @@ func test_local_xp_router_no_level_up_emit_when_xp_below_threshold():
 
 func test_local_xp_router_emits_single_level_up_for_multi_level_dump():
 	# A massive XP dump that crosses several levels emits ONE level_up
-	# with the full (old, new) range. Single emission keeps the
-	# subscriber rule (TokenGrantRules.tokens_for_level_up) responsible
-	# for counting milestones in the open-closed range — the router
+	# with the full (old, new) range. Single emission keeps subscribers
+	# responsible for iterating the open-closed range — the router
 	# doesn't have to slice the dump per-level.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
@@ -785,149 +784,6 @@ func test_local_xp_router_does_not_emit_level_up_for_non_local_pid():
 	router.level_up.connect(func(_o, _n): emitted[0] = true)
 	bc.xp_awarded.emit("other", 10000)  # would-be level dump for remote
 	assert_false(emitted[0], "remote-pid emission ignored by level_up too")
-
-# --- LocalTokenGrantRouter --------------------------------------------------
-
-func _make_router(member: PartyMember) -> LocalXPRouter:
-	# Bound LocalXPRouter for use as a level_up source. Tests trigger
-	# level_up by either firing through the broadcaster or hand-emitting.
-	var bc := XPBroadcaster.new()
-	bc.register_player("me")
-	return LocalXPRouter.new(bc, "me", member)
-
-func test_local_token_router_grants_milestone_token_on_level_up():
-	# Core wiring: a level_up that crosses a milestone (L4->L5) emits
-	# one token to the inventory. Closes the "remote-killer XP that
-	# crosses my milestone level still drips a token" loop on the
-	# receiving end.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new(router, inv)
-	assert_true(token_router.is_bound())
-	router.level_up.emit(4, 5)
-	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
-		"milestone L5 grants exactly one token")
-	assert_eq(token_router.granted_total, inv.count,
-		"granted_total mirrors the count delta")
-
-func test_local_token_router_no_grant_when_no_milestone_crossed():
-	# L2->L3 crosses no multiple-of-5 — no tokens granted. Pins that
-	# the router doesn't drip tokens on every level-up, only milestones.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 2)
-	var router := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new(router, inv)
-	router.level_up.emit(2, 3)
-	assert_eq(inv.count, 0, "non-milestone level-up grants zero tokens")
-	assert_eq(token_router.granted_total, 0)
-
-func test_local_token_router_grants_multiple_for_multi_milestone_dump():
-	# A massive XP dump that spans L4->L11 crosses both L5 and L10 —
-	# two tokens. Pins that the rule's open-closed range handles the
-	# multi-milestone case correctly through the router.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new(router, inv)
-	router.level_up.emit(4, 11)
-	assert_eq(inv.count, 2, "L4->L11 crossed two milestones")
-	assert_eq(token_router.granted_total, 2)
-
-func test_local_token_router_end_to_end_via_broadcast():
-	# Full shape: kill broadcast through XPBroadcaster lands on the local
-	# member, level transitions to L5, milestone token drips. Pins that
-	# the wire actually propagates from broadcast all the way to inventory.
-	var bc := XPBroadcaster.new()
-	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := LocalXPRouter.new(bc, "me", member)
-	var inv := TokenInventory.new()
-	var _t := LocalTokenGrantRouter.new(router, inv)
-	# xp_to_next_level(4) = 5 + 3*5 = 20
-	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(4))
-	assert_eq(member.real_stats.level, 5, "member leveled up")
-	assert_eq(inv.count, 1, "milestone token granted via broadcast pipe")
-
-func test_local_token_router_filters_remote_pid_via_xp_router():
-	# A remote-pid broadcast doesn't level the local member, so no token
-	# drips. The filter is enforced upstream in LocalXPRouter — this test
-	# pins that the token router inherits the filter without re-checking.
-	var bc := XPBroadcaster.new()
-	bc.register_player("me")
-	bc.register_player("other")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := LocalXPRouter.new(bc, "me", member)
-	var inv := TokenInventory.new()
-	var _t := LocalTokenGrantRouter.new(router, inv)
-	bc.xp_awarded.emit("other", 10000)  # would level "other" if local
-	assert_eq(inv.count, 0, "remote-pid broadcast doesn't grant local tokens")
-
-func test_local_token_router_bind_idempotent_on_same_router():
-	# Re-binding the same router doesn't double-subscribe — without this
-	# guard a re-bind during a session reset would double-grant on every
-	# milestone.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new()
-	assert_true(token_router.bind(router, inv), "first bind connects")
-	assert_false(token_router.bind(router, inv), "second bind to same router rejected")
-	router.level_up.emit(4, 5)
-	assert_eq(inv.count, 1, "single grant despite double-bind attempt")
-
-func test_local_token_router_bind_to_different_router_unbinds_old():
-	# Re-binding to a *different* router transparently drops the old
-	# subscription. Lets the orchestrator reuse the token-router instance
-	# across runs without forcing the caller to remember unbind().
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router1 := _make_router(member)
-	var router2 := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new(router1, inv)
-	assert_true(token_router.bind(router2, inv), "rebind to router2 succeeds")
-	router1.level_up.emit(4, 5)
-	assert_eq(inv.count, 0, "old router no longer routes")
-	router2.level_up.emit(4, 5)
-	assert_eq(inv.count, 1, "new router routes")
-
-func test_local_token_router_bind_rejects_null_router():
-	var token_router := LocalTokenGrantRouter.new()
-	assert_false(token_router.bind(null, TokenInventory.new()))
-	assert_false(token_router.is_bound())
-
-func test_local_token_router_bind_rejects_null_inventory():
-	# Without an inventory there's nothing to grant to. Reject so the
-	# caller doesn't end up with a "bound" router that silently no-ops.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := _make_router(member)
-	var token_router := LocalTokenGrantRouter.new()
-	assert_false(token_router.bind(router, null))
-	assert_false(token_router.is_bound())
-
-func test_local_token_router_unbind_stops_grants():
-	# After unbind, future level-ups don't grant tokens. Lets the
-	# orchestrator hard-stop grants on session end.
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 4)
-	var router := _make_router(member)
-	var inv := TokenInventory.new()
-	var token_router := LocalTokenGrantRouter.new(router, inv)
-	router.level_up.emit(4, 5)
-	assert_eq(inv.count, 1)
-	assert_true(token_router.unbind())
-	assert_false(token_router.is_bound())
-	router.level_up.emit(5, 10)  # would-be second milestone
-	assert_eq(inv.count, 1, "post-unbind level-up ignored")
-
-func test_local_token_router_unbind_idempotent_when_not_bound():
-	var token_router := LocalTokenGrantRouter.new()
-	assert_false(token_router.unbind(), "no-op returns false")
-
-func test_local_token_router_init_without_args_starts_unbound():
-	# Default-constructed router (test / pre-handshake) is inert.
-	var token_router := LocalTokenGrantRouter.new()
-	assert_false(token_router.is_bound())
-	assert_eq(token_router.granted_total, 0)
 
 # --- DungeonSeedSync --------------------------------------------------------
 
@@ -1139,7 +995,7 @@ func _make_active_session_for_apply(local_id: String = "u1") -> CoopSession:
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.level = 1
 	c.xp = 0
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, local_id)
+	var session := CoopSession.new(lobby, {"u1": c}, null, local_id)
 	session.start(_make_two_room_dungeon_for_apply())
 	session.enemy_sync.register_enemy("e1")
 	return session
@@ -1155,7 +1011,7 @@ func test_remote_kill_apply_inactive_session_returns_false():
 	# null in that window so a remote packet has nothing to apply
 	# against. Must no-op rather than crash on the null deref.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(RemoteKillApplier.apply(session, "e1", "u2", 5))
 
@@ -1218,7 +1074,7 @@ func test_remote_kill_apply_fan_out_targets_all_party_members():
 	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	var c2 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k")
 	var c3 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k")
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2, "u3": c3}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2, "u3": c3}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	session.enemy_sync.register_enemy("e1")
 	var emissions: Array = []
@@ -1277,7 +1133,7 @@ func test_remote_kill_apply_does_not_double_fire_with_local_kill():
 	enemy_data.enemy_id = "e1"
 	enemy_data.xp_reward = 3
 	# Local kill first: applies XP via LocalXPRouter (3) and erases e1.
-	KillRewardRouter.route_kill(local.real_stats, enemy_data, null, session, "u1")
+	KillRewardRouter.route_kill(local.real_stats, enemy_data, session, "u1")
 	assert_eq(local.real_stats.xp, 3, "local kill applied XP once")
 	assert_false(session.enemy_sync.is_alive("e1"), "registry erased by local kill")
 	# Now the same kill comes back as a wire echo. apply_death returns
@@ -1334,26 +1190,22 @@ func test_remote_kill_apply_levels_up_local_member_through_router():
 	RemoteKillApplier.apply(session, "e1", "u2", ProgressionSystem.xp_to_next_level(1))
 	assert_eq(local.real_stats.level, 2, "remote-killer kill leveled local member up")
 
-func test_remote_kill_apply_grants_milestone_token_when_local_crosses_milestone():
-	# Crossing a milestone (L4 -> L5) via a remote-killer kill drips
-	# a revive token to the local TokenInventory through the existing
-	# LocalTokenGrantRouter. Pins that the wire-layer receive path
-	# unlocks the same token-drip that a local kill would, since both
-	# routes share the broadcaster -> LocalXPRouter.level_up edge.
+func test_remote_kill_apply_levels_local_via_local_xp_router_pipeline():
+	# A remote-killer kill that crosses the local member's level threshold
+	# advances the level via the LocalXPRouter pipeline. Pins that the
+	# wire-layer receive path shares the same XP+level pipe as a local
+	# kill, since both routes share the broadcaster -> LocalXPRouter.level_up
+	# edge. Token grants used to drip off this edge; #30 stripped them.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.level = 4
 	c.xp = 0
-	var inv := TokenInventory.new()
-	# Inventory injected so CoopSession.start wires LocalTokenGrantRouter.
-	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	session.enemy_sync.register_enemy("e1")
 	# xp_to_next_level(4) = 5 + 3*5 = 20, exactly crosses L4->L5.
 	RemoteKillApplier.apply(session, "e1", "u2", ProgressionSystem.xp_to_next_level(4))
 	assert_eq(c.level, 5, "remote-killer kill leveled me to L5")
-	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
-		"milestone token drips through the same level_up pipe")
 
 # --- RunSummaryRowBuilder ---------------------------------------------------
 
@@ -1603,7 +1455,7 @@ func test_summary_rows_build_from_active_session_end_to_end():
 	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
 	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
 	var characters := {"u1": c1, "u2": c2, "u3": c3}
-	var session := CoopSession.new(lobby, characters, null, null, "u2")
+	var session := CoopSession.new(lobby, characters, null, "u2")
 	session.start(_make_two_room_dungeon_for_apply())
 	# A kill anywhere in the party fans out to all three.
 	session.xp_broadcaster.on_enemy_killed(9, "u1")
@@ -1658,13 +1510,12 @@ func test_summary_header_null_session_returns_empty_header():
 	assert_eq(header["local_xp_earned"], 0)
 	assert_false(header["has_local_player"])
 	assert_false(header["dungeon_completed"])
-	assert_eq(header["completion_grant"], 0)
 
 func test_summary_header_empty_rows_returns_empty_header_shape():
 	# Empty rows array still produces every header key; the UI doesn't
-	# branch on a missing key. Floor level + completion grant are the
+	# branch on a missing key. Floor level + completion flag are the
 	# caller's choice; pin that they pass through (vs. always-1 floor).
-	var header := RunSummaryHeaderBuilder.build_header_from([], 3, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from([], 3, false)
 	assert_eq(header["party_size"], 0)
 	assert_eq(header["grand_total_xp"], 0)
 	assert_eq(header["mvp_player_id"], "")
@@ -1681,7 +1532,7 @@ func test_summary_header_party_size_matches_rows_count():
 		_row("u2", "B", 3),
 		_row("u3", "C", 8),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["party_size"], 3)
 
 func test_summary_header_grand_total_xp_sums_rows():
@@ -1692,7 +1543,7 @@ func test_summary_header_grand_total_xp_sums_rows():
 		_row("u2", "B", 3),
 		_row("u3", "C", 8),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["grand_total_xp"], 16)
 	assert_eq(header["grand_total_xp"], RunSummaryRowBuilder.grand_total_for_rows(rows))
 
@@ -1704,7 +1555,7 @@ func test_summary_header_mvp_picks_highest_xp():
 		_row("u2", "Mittens", 30),
 		_row("u3", "Patches", 12),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["mvp_player_id"], "u2")
 	assert_eq(header["mvp_kitten_name"], "Mittens")
 	assert_eq(header["mvp_xp_earned"], 30)
@@ -1718,7 +1569,7 @@ func test_summary_header_mvp_tie_goes_to_first_in_array_order():
 		_row("u_second", "B", 7),
 		_row("u_third", "C", 7),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["mvp_player_id"], "u_first", "first-in-array wins on tie")
 	# Reversed order -> reversed MVP. Confirms tie-break is purely positional.
 	var rows_rev := [
@@ -1726,7 +1577,7 @@ func test_summary_header_mvp_tie_goes_to_first_in_array_order():
 		_row("u_second", "B", 7),
 		_row("u_first", "A", 7),
 	]
-	var header_rev := RunSummaryHeaderBuilder.build_header_from(rows_rev, 1, 0)
+	var header_rev := RunSummaryHeaderBuilder.build_header_from(rows_rev, 1, false)
 	assert_eq(header_rev["mvp_player_id"], "u_third")
 
 func test_summary_header_no_mvp_when_all_rows_zero_xp():
@@ -1737,7 +1588,7 @@ func test_summary_header_no_mvp_when_all_rows_zero_xp():
 		_row("u1", "A", 0),
 		_row("u2", "B", 0),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["mvp_player_id"], "", "no MVP when nobody scored")
 	assert_eq(header["mvp_kitten_name"], "")
 	assert_eq(header["mvp_xp_earned"], 0)
@@ -1745,7 +1596,7 @@ func test_summary_header_no_mvp_when_all_rows_zero_xp():
 func test_summary_header_no_mvp_when_rows_empty():
 	# Same as the all-zero case but for the size-0 rows array. UI's
 	# MVP-line gate `mvp_player_id != ""` works for both.
-	var header := RunSummaryHeaderBuilder.build_header_from([], 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from([], 1, false)
 	assert_eq(header["mvp_player_id"], "")
 	assert_eq(header["mvp_xp_earned"], 0)
 
@@ -1754,9 +1605,9 @@ func test_summary_header_floor_level_passes_through():
 	# result on session). Pin that it passes through unchanged — the
 	# header doesn't re-compute / clamp it.
 	var rows := [_row("u1", "A", 5)]
-	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)["floor_level"], 1)
-	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 5, 0)["floor_level"], 5)
-	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 17, 0)["floor_level"], 17)
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 1, false)["floor_level"], 1)
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 5, false)["floor_level"], 5)
+	assert_eq(RunSummaryHeaderBuilder.build_header_from(rows, 17, false)["floor_level"], 17)
 
 func test_summary_header_local_fields_set_on_local_row():
 	# When a row has is_local=true, its pid + name + xp populate the
@@ -1767,7 +1618,7 @@ func test_summary_header_local_fields_set_on_local_row():
 		_row("u2", "Mittens", 12, true),
 		_row("u3", "C", 9),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_true(header["has_local_player"])
 	assert_eq(header["local_player_id"], "u2")
 	assert_eq(header["local_kitten_name"], "Mittens")
@@ -1781,7 +1632,7 @@ func test_summary_header_no_local_player_when_no_local_row():
 		_row("u1", "A", 5),
 		_row("u2", "B", 12),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_false(header["has_local_player"])
 	assert_eq(header["local_player_id"], "")
 	assert_eq(header["local_kitten_name"], "")
@@ -1797,33 +1648,21 @@ func test_summary_header_local_player_can_be_mvp():
 		_row("u2", "Mittens", 99, true),
 		_row("u3", "C", 12),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["mvp_player_id"], "u2")
 	assert_eq(header["local_player_id"], "u2")
 	assert_eq(header["mvp_xp_earned"], 99)
 	assert_eq(header["local_xp_earned"], 99)
 
-func test_summary_header_completion_grant_drives_dungeon_completed():
-	# completion_grant > 0 => dungeon_completed=true. UI's "Victory!"
-	# vs "Defeat" header gate reads from dungeon_completed; pin that
-	# the two fields agree (no contract drift).
+func test_summary_header_dungeon_completed_passes_through():
+	# The dungeon_completed flag is the caller's choice — pulled from
+	# CoopSession.was_dungeon_completed(). UI's "Victory!" vs "Defeat"
+	# header gate reads from it directly.
 	var rows := [_row("u1", "A", 5)]
-	var won := RunSummaryHeaderBuilder.build_header_from(rows, 1, 1)
+	var won := RunSummaryHeaderBuilder.build_header_from(rows, 1, true)
 	assert_true(won["dungeon_completed"])
-	assert_eq(won["completion_grant"], 1)
-	var lost := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var lost := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_false(lost["dungeon_completed"])
-	assert_eq(lost["completion_grant"], 0)
-
-func test_summary_header_negative_completion_grant_clamps_to_zero():
-	# Defensive against an upstream contract violation. The header is
-	# the canonical source for the UI's "Victory" branch; a negative
-	# grant must not flip dungeon_completed=true. Treated as "no
-	# completion."
-	var rows := [_row("u1", "A", 5)]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, -3)
-	assert_false(header["dungeon_completed"])
-	assert_eq(header["completion_grant"], 0)
 
 func test_summary_header_skips_non_dictionary_rows():
 	# Defensive against a malformed rows array (caller mutated it
@@ -1835,7 +1674,7 @@ func test_summary_header_skips_non_dictionary_rows():
 		null,  # skipped
 		_row("u2", "B", 12),
 	]
-	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var header := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(header["party_size"], 4, "party_size mirrors rows.size() raw — UI's count line")
 	assert_eq(header["mvp_player_id"], "u2")
 	assert_eq(header["grand_total_xp"], 17)
@@ -1844,9 +1683,9 @@ func test_summary_header_returned_dict_is_fresh_allocation():
 	# Caller can mutate the returned header without back-affecting a
 	# subsequent build. Pins that we don't memoize.
 	var rows := [_row("u1", "A", 5)]
-	var h1 := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var h1 := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	h1["grand_total_xp"] = 99999
-	var h2 := RunSummaryHeaderBuilder.build_header_from(rows, 1, 0)
+	var h2 := RunSummaryHeaderBuilder.build_header_from(rows, 1, false)
 	assert_eq(h2["grand_total_xp"], 5, "second call returns fresh dict; first call's mutation didn't leak")
 
 func test_summary_header_build_from_active_session_end_to_end():
@@ -1863,7 +1702,7 @@ func test_summary_header_build_from_active_session_end_to_end():
 	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
 	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
 	var characters := {"u1": c1, "u2": c2, "u3": c3}
-	var session := CoopSession.new(lobby, characters, null, null, "u2")
+	var session := CoopSession.new(lobby, characters, null, "u2")
 	session.start(_make_two_room_dungeon_for_apply())
 	# All three are L1, so floor scales to L1 (no scaling).
 	# A kill anywhere fans out 9 XP to all three; everybody ties.
@@ -1884,43 +1723,36 @@ func test_summary_header_build_from_active_session_end_to_end():
 	assert_eq(header["floor_level"], 1)
 	# No completion fired yet (boss room not cleared via this test).
 	assert_false(header["dungeon_completed"])
-	assert_eq(header["completion_grant"], 0)
 
-func test_summary_header_post_completion_grant_visible():
+func test_summary_header_post_completion_visible():
 	# After the boss-cleared edge fires DungeonRunCompletion.complete,
-	# session.last_completion_grant() is non-zero and the header
-	# surfaces it. Drives the "+N tokens" toast on the summary screen.
-	# Doesn't actually clear a boss room here — _on_dungeon_completed
-	# is the call DungeonRunController would route to; we hand-fire it
-	# via session.run_controller.dungeon_completed.emit() to pin the
-	# wire from completion-edge -> session._last_completion_grant ->
-	# header.
+	# session.was_dungeon_completed() is true and the header surfaces
+	# the "Victory!" flag.
 	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	var characters := {"u1": c}
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(lobby, characters, null, inv, "u1")
+	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
-	# Trigger the completion path (registers a dungeon_complete in the
-	# meta tracker if non-null + drips a token to the inventory).
+	# Hand-fire the completion edge that DungeonRunController would
+	# route to; pins the wire from completion-edge -> session flag ->
+	# header.
 	session.run_controller.dungeon_completed.emit()
 	var header := RunSummaryHeaderBuilder.build_header(session)
 	assert_true(header["dungeon_completed"])
-	assert_eq(header["completion_grant"], 1)
 
 func test_summary_header_passes_through_post_end_session():
 	# Same dead-after-end caveat as RunSummaryRowBuilder. After end()
 	# drops xp_summary, the row builder still produces rows from
 	# lobby + player_ids (with xp_earned == 0 across the board), and
-	# the header still produces a valid shape — floor_level + last
-	# completion grant survive end().
+	# the header still produces a valid shape — floor_level + completion
+	# flag survive end().
 	var lobby := _make_lobby_for_summary([
 		["u1", "Whiskers", "Mage"],
 		["u2", "Mittens", "Thief"],
 	])
 	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
 	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	session.xp_broadcaster.on_enemy_killed(9, "u1")
 	# Read the header BEFORE end() drops the tally — captures the
@@ -2184,7 +2016,7 @@ func test_local_damage_router_is_coop_route_inactive_session():
 	# would no-op anyway, but the explicit gate makes the contract
 	# clearer and matches KillRewardRouter's predicate shape.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(LocalDamageRouter.is_coop_route(session, "u1"))
 
@@ -2348,7 +2180,7 @@ func test_local_damage_router_floor_player_routes_to_effective_not_real():
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
 	# Both at L1 — local is the floor player, no scaling reduction.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	var member := session.member_for("u1")
 	# Sanity: floor player => real stats and effective stats agree on level.
@@ -2382,7 +2214,7 @@ func test_local_damage_router_scaled_player_uses_lower_max_hp():
 	c2.level = 3
 	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
 	c2.hp = c2.max_hp
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	var member := session.member_for("u1")
 	# Mage L10: max_hp = 8 + 9*2 = 26. L3 (floor): 8 + 2*2 = 12.
@@ -2405,7 +2237,7 @@ func test_local_revive_router_is_coop_route_inactive_session():
 	# matches LocalDamageRouter.is_coop_route exactly so a refactor of
 	# one stays in lockstep with the other.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(LocalReviveRouter.is_coop_route(session, "u1"))
 
@@ -2540,7 +2372,7 @@ func test_local_revive_router_floor_player_revives_effective_not_real():
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
 	# Both at L1 — local is the floor player, no scaling reduction.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	var member := session.member_for("u1")
 	# Sanity: floor player => real and effective agree on max_hp.
@@ -2577,7 +2409,7 @@ func test_local_revive_router_scaled_player_uses_lower_max_hp_for_revive():
 	c2.level = 3
 	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
 	c2.hp = c2.max_hp
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	var member := session.member_for("u1")
 	# Mage L10: max_hp = 26. Floor L3: max_hp = 12.

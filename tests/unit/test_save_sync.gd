@@ -199,7 +199,7 @@ func test_kitten_save_data_from_character_captures_tracker_pending_xp():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
 	var t := OfflineXPTracker.new()
 	t.record(17)
-	var s := KittenSaveData.from_character(c, null, null, null, t)
+	var s := KittenSaveData.from_character(c, null, null, t)
 	assert_eq(s.offline_xp_earned, 17)
 
 func test_kitten_save_data_from_character_null_tracker_keeps_default():
@@ -207,7 +207,7 @@ func test_kitten_save_data_from_character_null_tracker_keeps_default():
 	# at its default (0). Locks the back-compat contract that the new
 	# trailing param is opt-in.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	var s := KittenSaveData.from_character(c, null, null, null, null)
+	var s := KittenSaveData.from_character(c, null, null, null)
 	assert_eq(s.offline_xp_earned, 0)
 
 func test_kitten_save_data_to_offline_xp_tracker_hydrates_pending():
@@ -226,11 +226,39 @@ func test_kitten_save_data_to_offline_xp_tracker_zero_default():
 	assert_eq(t.pending_xp, 0)
 	assert_true(t.is_empty())
 
+# --- Token economy removal (#30) — legacy save compatibility ----------------
+
+func test_legacy_save_with_revive_tokens_key_loads_cleanly():
+	# Saves predating the token-economy removal carry a `revive_tokens` int.
+	# from_dict must silently drop the key — loading must not crash, and
+	# no token state should leak onto the loaded save.
+	var legacy := {
+		"character_name": "Old",
+		"character_class": int(CharacterData.CharacterClass.MAGE),
+		"level": 1, "xp": 0,
+		"hp": 8, "max_hp": 8,
+		"attack": 2, "defense": 0, "speed": 50.0,
+		"skill_points": 0,
+		"revive_tokens": 7,
+	}
+	var sd := KittenSaveData.from_dict(legacy)
+	assert_not_null(sd, "legacy save with revive_tokens key loaded without error")
+	assert_eq(sd.character_name, "Old", "other fields still hydrated")
+
+func test_to_dict_does_not_emit_revive_tokens_key():
+	# Pin the emit side of the contract: even when serializing a kitten,
+	# the dict must not carry `revive_tokens` — otherwise a fresh save
+	# would re-introduce the dead field for a future loader to handle.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var sd := KittenSaveData.from_character(c)
+	assert_false(sd.to_dict().has("revive_tokens"),
+		"to_dict must not emit the removed revive_tokens field")
+
 # --- GameState wiring -------------------------------------------------------
 
 func test_game_state_offline_xp_tracker_defaults_non_null():
-	# Same always-non-null contract as token_inventory — the kill flow
-	# reads .pending_xp without a null check on autoload init.
+	# Always-non-null contract — the kill flow reads .pending_xp without a
+	# null check on autoload init.
 	var gs := get_node("/root/GameState")
 	assert_not_null(gs.offline_xp_tracker, "always non-null on autoload init")
 
@@ -258,7 +286,7 @@ func test_save_manager_writes_and_loads_offline_xp_earned():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pebbles")
 	var t := OfflineXPTracker.new()
 	t.record(31)
-	var err := SaveManager.save(c, TMP_PATH, null, null, null, t)
+	var err := SaveManager.save(c, TMP_PATH, null, null, t)
 	assert_eq(err, OK)
 	var loaded := SaveManager.load(TMP_PATH)
 	assert_eq(loaded.offline_xp_earned, 31)
@@ -530,7 +558,7 @@ func test_sync_end_to_end_with_save_manager_round_trip():
 	c.xp = 20
 	var t := OfflineXPTracker.new()
 	t.record(6)
-	SaveManager.save(c, TMP_PATH, null, null, null, t)
+	SaveManager.save(c, TMP_PATH, null, null, t)
 	var local := SaveManager.load(TMP_PATH)
 	var server := KittenSaveData.new()
 	server.level = 5

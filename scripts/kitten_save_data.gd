@@ -27,9 +27,6 @@ var unlocked_skill_ids: Array = []
 # round-trips cleanly.
 var dungeons_completed: int = 0
 var max_level_per_class: Dictionary = {}
-# Revive token balance carried across sessions. Stored as a plain int — the
-# inventory wrapper is reconstructed via to_inventory() on load.
-var revive_tokens: int = 0
 # XP earned while offline since the last server sync. The sync orchestrator
 # (post-#14) hands this to OfflineProgressMerger.merge_xp so the server
 # record catches up to the offline gameplay without losing in-flight XP.
@@ -37,7 +34,7 @@ var revive_tokens: int = 0
 # round-trip cleanly.
 var offline_xp_earned: int = 0
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, inventory: TokenInventory = null, xp_tracker: OfflineXPTracker = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -55,8 +52,6 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if tracker != null:
 		s.dungeons_completed = tracker.dungeons_completed
 		s.max_level_per_class = tracker.max_level_per_class.duplicate()
-	if inventory != null:
-		s.revive_tokens = inventory.count
 	if xp_tracker != null:
 		s.offline_xp_earned = xp_tracker.pending_xp
 	return s
@@ -90,7 +85,6 @@ func to_dict() -> Dictionary:
 		"unlocked_skill_ids": unlocked_skill_ids,
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
-		"revive_tokens": revive_tokens,
 		"offline_xp_earned": offline_xp_earned,
 	}
 
@@ -115,7 +109,6 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	if per_class is Dictionary:
 		for k in per_class.keys():
 			s.max_level_per_class[String(k).to_lower()] = int(per_class[k])
-	s.revive_tokens = int(d.get("revive_tokens", 0))
 	s.offline_xp_earned = int(d.get("offline_xp_earned", 0))
 	return s
 
@@ -124,11 +117,6 @@ func to_tracker() -> MetaProgressionTracker:
 	t.dungeons_completed = dungeons_completed
 	t.max_level_per_class = max_level_per_class.duplicate()
 	return t
-
-func to_inventory() -> TokenInventory:
-	var inv := TokenInventory.new()
-	inv.count = revive_tokens
-	return inv
 
 func to_offline_xp_tracker() -> OfflineXPTracker:
 	var t := OfflineXPTracker.new()

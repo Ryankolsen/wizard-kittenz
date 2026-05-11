@@ -121,6 +121,6 @@ func _can_reach(from_id: int, target_id: int) -> bool:
 func _on_dungeon_completed() -> void:
 	var gs := get_node_or_null("/root/GameState")
 	if gs != null:
-		DungeonRunCompletion.complete(gs.meta_tracker, gs.token_inventory)
+		DungeonRunCompletion.complete(gs.meta_tracker)
 		gs.dungeon_run_controller = null
 	get_tree().reload_current_scene()

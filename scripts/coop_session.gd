@@ -9,19 +9,16 @@ extends RefCounted
 #
 # Lifecycle:
 #   1. Construct with a LobbyState + per-player_id character map + meta
-#      tracker + token inventory. The lobby is the source of truth for
-#      who's in the party; the character map provides each member's
-#      real_stats so floor + scaling can be computed at construction
-#      time. A lobby player whose player_id has no entry in the map is
-#      skipped (defensive against a wire-payload race where a player
-#      joined the lobby but their CharacterData hasn't propagated yet).
+#      tracker. The lobby is the source of truth for who's in the party;
+#      the character map provides each member's real_stats so floor +
+#      scaling can be computed at construction time. A lobby player
+#      whose player_id has no entry in the map is skipped (defensive
+#      against a wire-payload race where a player joined the lobby but
+#      their CharacterData hasn't propagated yet).
 #   2. Call start(dungeon) to begin a run. Builds the four sync managers
 #      + DungeonRunController, registers every party_id with the XP
 #      broadcaster, and wires DungeonRunController.dungeon_completed →
-#      DungeonRunCompletion.complete on the boss-cleared edge. The
-#      grant count is re-emitted via dungeon_completed_grant so the
-#      future "+N tokens" toast UI just listens to the session, not
-#      the run-completion helper.
+#      DungeonRunCompletion.complete on the boss-cleared edge.
 #   3. Call end() on session teardown (player back-out, dungeon failed,
 #      next-run reset). Removes scaling from every member (real ==
 #      effective again), unbinds the summary from the broadcaster, drops
@@ -46,7 +43,10 @@ extends RefCounted
 
 signal session_started()
 signal session_ended()
-signal dungeon_completed_grant(tokens_granted: int)
+# Re-emitted from run_controller.dungeon_completed after the meta tracker
+# is bumped. The summary screen listens here so it doesn't have to reach
+# through to run_controller. Pure pass-through — no payload.
+signal run_completed()
 
 var lobby: LobbyState = null
 var members: Array[PartyMember] = []
@@ -57,7 +57,6 @@ var members: Array[PartyMember] = []
 var player_ids: Array[String] = []
 var floor_level: int = 1
 var meta_tracker: MetaProgressionTracker = null
-var inventory: TokenInventory = null
 # This client's player_id within the lobby. Drives the LocalXPRouter
 # subscription so an xp_awarded(local_player_id, amount) emission lands
 # on this client's PartyMember.real_stats. Empty on a default-
@@ -71,28 +70,19 @@ var local_player_id: String = ""
 var xp_broadcaster: XPBroadcaster = null
 var xp_summary: RunXPSummary = null
 var xp_router: LocalXPRouter = null
-# Drips revive tokens to the local TokenInventory when the local
-# member's real_stats.level crosses a milestone via xp_router. Built
-# alongside xp_router when both a local member AND a non-null inventory
-# are present; remote-killer XP that levels me up still grants me a
-# milestone token. Solo / no-inventory paths keep the kill-flow grant
-# in player.gd (boss-kill bonus stays there too — the router only
-# handles milestone-from-broadcast).
-var token_router: LocalTokenGrantRouter = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
 
 var _active: bool = false
-# Tokens granted on the most recent dungeon completion. Kept around after
-# end() so a "+N tokens" toast on the summary screen can read it without
-# re-running the completion logic.
-var _last_completion_grant: int = 0
+# Sticky bool flipped true when run_controller.dungeon_completed fires.
+# Kept around after end() so a summary screen / "Victory!" header that
+# reads the session post-end still sees the completion.
+var _dungeon_completed: bool = false
 
-func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, inv: TokenInventory = null, local_id: String = "") -> void:
+func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, local_id: String = "") -> void:
 	lobby = lobby_state
 	meta_tracker = tracker
-	inventory = inv
 	local_player_id = local_id
 	if lobby == null:
 		return
@@ -147,11 +137,6 @@ func start(dungeon: Dungeon) -> bool:
 	var local_member := member_for(local_player_id)
 	if local_member != null:
 		xp_router = LocalXPRouter.new(xp_broadcaster, local_player_id, local_member)
-		# Token grants ride the level_up signal from xp_router. Skip
-		# when no inventory was injected (test / fresh-install path) —
-		# xp still routes to real_stats, just no milestone token drip.
-		if inventory != null:
-			token_router = LocalTokenGrantRouter.new(xp_router, inventory)
 
 	if not run_controller.start(dungeon):
 		_drop_managers()
@@ -190,28 +175,22 @@ func member_for(player_id: String) -> PartyMember:
 func member_count() -> int:
 	return members.size()
 
-func last_completion_grant() -> int:
-	return _last_completion_grant
+func was_dungeon_completed() -> bool:
+	return _dungeon_completed
 
 func _on_dungeon_completed() -> void:
-	_last_completion_grant = DungeonRunCompletion.complete(meta_tracker, inventory)
-	dungeon_completed_grant.emit(_last_completion_grant)
+	DungeonRunCompletion.complete(meta_tracker)
+	_dungeon_completed = true
+	run_completed.emit()
 
 func _drop_managers() -> void:
 	if xp_summary != null and xp_broadcaster != null:
 		xp_summary.unbind(xp_broadcaster)
-	# Order matters: token_router subscribes to xp_router.level_up, so
-	# unbind it first to avoid a (harmless but noisy) "subscriber to
-	# disconnected signal" pattern if Godot's signal disconnect order
-	# ever changes.
-	if token_router != null:
-		token_router.unbind()
 	if xp_router != null:
 		xp_router.unbind()
 	xp_broadcaster = null
 	xp_summary = null
 	xp_router = null
-	token_router = null
 	network_sync = null
 	enemy_sync = null
 	run_controller = null

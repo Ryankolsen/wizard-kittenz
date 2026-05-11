@@ -46,11 +46,9 @@ extends RefCounted
 #                                0 when no local row
 #   - has_local_player: bool     any row.is_local; UI's gate for
 #                                "show your contribution line"
-#   - dungeon_completed: bool    completion_grant > 0; UI's gate for
-#                                "Victory!" vs "Defeat" header
-#   - completion_grant: int      tokens granted on completion (0 on
-#                                a non-completion / pre-completion
-#                                read); UI surfaces "+N tokens" toast
+#   - dungeon_completed: bool    UI's gate for "Victory!" vs "Defeat"
+#                                header; mirrors
+#                                CoopSession.was_dungeon_completed()
 #
 # Why MVP ties go to first-by-array-order (vs. local-player-first or
 # random):
@@ -97,7 +95,7 @@ extends RefCounted
 #
 # Note: works on an active OR ended session. After CoopSession.end(),
 # `xp_summary` is null but `lobby` + `player_ids` + `local_player_id`
-# + `floor_level` + `_last_completion_grant` survive — so a
+# + `floor_level` + `_dungeon_completed` survive — so a
 # "play again" / "view summary" UI flow that lands AFTER end() still
 # gets a populated header (with grand_total_xp == 0 because the tally
 # is gone). Same dead-after-end caveat as RunSummaryRowBuilder.
@@ -105,14 +103,14 @@ static func build_header(session: CoopSession) -> Dictionary:
 	if session == null:
 		return _empty_header()
 	var rows := RunSummaryRowBuilder.build_rows(session)
-	return build_header_from(rows, session.floor_level, session.last_completion_grant())
+	return build_header_from(rows, session.floor_level, session.was_dungeon_completed())
 
 # Primitive: takes the three ingredients directly. Lets a test drive
 # the header shape without constructing a full CoopSession + Dungeon.
 static func build_header_from(
 	rows: Array,
 	floor_level: int,
-	completion_grant: int,
+	dungeon_completed: bool,
 ) -> Dictionary:
 	var party_size: int = rows.size()
 	var grand_total_xp: int = RunSummaryRowBuilder.grand_total_for_rows(rows)
@@ -140,13 +138,6 @@ static func build_header_from(
 			local_player_id = String(row.get("player_id", ""))
 			local_kitten_name = String(row.get("kitten_name", ""))
 			local_xp_earned = xp
-	# completion_grant is the count granted on dungeon completion
-	# (DungeonRunCompletion.complete returns this; CoopSession holds it
-	# as last_completion_grant after the dungeon_completed signal). A
-	# negative value would be a contract violation upstream — clamp to
-	# 0 so the header is the canonical source for the UI's "Victory!"
-	# branch (completion_grant > 0).
-	var grant: int = completion_grant if completion_grant > 0 else 0
 	return {
 		"party_size": party_size,
 		"grand_total_xp": grand_total_xp,
@@ -158,8 +149,7 @@ static func build_header_from(
 		"local_kitten_name": local_kitten_name,
 		"local_xp_earned": local_xp_earned,
 		"has_local_player": has_local_player,
-		"dungeon_completed": grant > 0,
-		"completion_grant": grant,
+		"dungeon_completed": dungeon_completed,
 	}
 
 # Empty-state header. Same shape as a populated header but with
@@ -179,5 +169,4 @@ static func _empty_header() -> Dictionary:
 		"local_xp_earned": 0,
 		"has_local_player": false,
 		"dungeon_completed": false,
-		"completion_grant": 0,
 	}

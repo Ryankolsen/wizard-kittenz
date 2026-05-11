@@ -29,13 +29,12 @@ extends RefCounted
 # at the routing seam rather than hidden behind an XPSystem default.
 
 # Emitted post-XPSystem.award when the local member's real_stats.level
-# advanced. Lets a sibling subscriber (LocalTokenGrantRouter) react to
-# milestone-level crossings without having to read the member level
-# itself before/after each broadcast — the router already does that.
-# Not emitted on flat XP gain (no level change). The (old, new) shape
-# lets a multi-level dump report multiple milestone crossings in one
-# call (TokenGrantRules.tokens_for_level_up handles the open-closed
-# range).
+# advanced. Lets a sibling subscriber (future "level-up VFX", milestone
+# unlock detector) react to level-up edges without having to read the
+# member level itself before/after each broadcast. Not emitted on flat
+# XP gain (no level change). The (old, new) shape lets a multi-level
+# dump report the full range so a subscriber can iterate intermediate
+# levels in one emission.
 signal level_up(old_level: int, new_level: int)
 
 var local_player_id: String = ""

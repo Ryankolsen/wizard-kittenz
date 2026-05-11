@@ -12,10 +12,10 @@ extends RefCounted
 # the sense that it happened with network access. KillRewardRouter only
 # calls record() in the solo branch.
 #
-# Pure RefCounted, same shape as TokenInventory / MetaProgressionTracker
-# (thin wrapper around an int with a JSON projection via KittenSaveData).
-# Not stored as a Resource because saves are JSON-shaped (KittenSaveData),
-# not .tres-shaped (CharacterData).
+# Pure RefCounted, same shape as MetaProgressionTracker (thin wrapper
+# around an int with a JSON projection via KittenSaveData). Not stored
+# as a Resource because saves are JSON-shaped (KittenSaveData), not
+# .tres-shaped (CharacterData).
 
 var pending_xp: int = 0
 

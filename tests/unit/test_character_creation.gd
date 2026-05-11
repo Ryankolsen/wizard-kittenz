@@ -141,7 +141,8 @@ func test_appearance_index_round_trips_via_save_data():
 
 func test_legacy_save_without_appearance_index_defaults_to_zero():
 	# Saves predating this field must load as appearance_index=0 rather
-	# than crash. Mirrors the same migration contract used for revive_tokens.
+	# than crash. Mirrors the same migration contract used for other
+	# JSON-shaped projection fields.
 	var legacy := {
 		"character_name": "Old",
 		"character_class": int(CharacterData.CharacterClass.MAGE),

@@ -213,45 +213,37 @@ func test_start_rolls_back_on_dungeon_controller_rejection():
 
 # --- dungeon_completed wiring ----------------------------------------------
 
-func test_dungeon_completed_grants_tokens_and_advances_meta():
+func test_dungeon_completed_advances_meta_and_flips_completion_flag():
 	# Boss-room cleared edge fires DungeonRunCompletion.complete via the
-	# session's wire-up. Both side effects (meta tracker + token grant)
-	# land. The session re-emits the grant count via its own signal so
-	# the future "+N tokens" toast doesn't need to know about the
-	# DungeonRunCompletion helper.
+	# session's wire-up. The meta tracker advances and the session's
+	# `was_dungeon_completed()` flips so the summary screen can render
+	# the "Victory!" header without reaching through to run_controller.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var tracker := MetaProgressionTracker.new()
-	var inventory := TokenInventory.new()
 	var session := CoopSession.new(
 		lobby,
 		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
 		tracker,
-		inventory,
 	)
-	var grants: Array = []
-	session.dungeon_completed_grant.connect(func(n): grants.append(n))
+	var completions: Array = []
+	session.run_completed.connect(func(): completions.append(true))
 	session.start(_make_two_room_dungeon())
-	# Mark the boss room cleared — DungeonRunController fires the
-	# dungeon_completed signal which the session bridges to
-	# DungeonRunCompletion.complete.
+	assert_false(session.was_dungeon_completed(), "false pre-clear")
 	session.run_controller.mark_room_cleared(1)
 	assert_eq(tracker.dungeons_completed, 1, "meta tracker advanced")
-	assert_eq(inventory.count, TokenGrantRules.tokens_for_dungeon_complete(),
-		"inventory granted the dungeon-complete amount")
-	assert_eq(grants.size(), 1, "session emitted exactly one grant signal")
-	assert_eq(grants[0], TokenGrantRules.tokens_for_dungeon_complete())
-	assert_eq(session.last_completion_grant(), TokenGrantRules.tokens_for_dungeon_complete())
+	assert_true(session.was_dungeon_completed(), "completion flag flipped")
+	assert_eq(completions.size(), 1, "session re-emitted run_completed exactly once")
 
-func test_dungeon_completed_safe_when_tracker_and_inventory_null():
+func test_dungeon_completed_safe_when_tracker_null():
 	# A test-only / fresh-install path with no GameState attached must
 	# still complete cleanly. DungeonRunCompletion is null-safe; the
 	# session's wire-up shouldn't add a non-null requirement.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
 	session.start(_make_two_room_dungeon())
-	# Should not crash — both args null, complete returns 0.
 	session.run_controller.mark_room_cleared(1)
-	assert_eq(session.last_completion_grant(), 0)
+	assert_true(session.was_dungeon_completed(),
+		"completion flag flips even with a null tracker")
 
 # --- end() -----------------------------------------------------------------
 
@@ -339,7 +331,7 @@ func test_player_ids_preserve_lobby_join_order():
 func test_end_to_end_three_player_run_summary():
 	# Full-shape session: three players join, party scales to lowest
 	# level, run starts, three kills broadcast XP through the session,
-	# boss kill grants tokens, end() unscales. Summary tally has every
+	# boss kill advances meta, end() unscales. Summary tally has every
 	# player's per-run total.
 	var lobby := _make_lobby([
 		["alice", "A", "Mage"],
@@ -352,8 +344,7 @@ func test_end_to_end_three_player_run_summary():
 		"carol": _make_character(CharacterData.CharacterClass.THIEF, 5),
 	}
 	var tracker := MetaProgressionTracker.new()
-	var inventory := TokenInventory.new()
-	var session := CoopSession.new(lobby, characters, tracker, inventory)
+	var session := CoopSession.new(lobby, characters, tracker)
 	assert_eq(session.floor_level, 3, "scaled to lowest")
 	session.start(_make_two_room_dungeon())
 
@@ -368,10 +359,10 @@ func test_end_to_end_three_player_run_summary():
 	assert_eq(session.xp_summary.total_for("carol"), 33)
 	assert_eq(session.xp_summary.grand_total(), 99)
 
-	# Boss-room cleared edge fires the dungeon_completed grant.
+	# Boss-room cleared edge advances the meta tracker.
 	session.run_controller.mark_room_cleared(1)
 	assert_eq(tracker.dungeons_completed, 1)
-	assert_eq(inventory.count, TokenGrantRules.tokens_for_dungeon_complete())
+	assert_true(session.was_dungeon_completed())
 
 	# end() unscales every member.
 	session.end()
@@ -393,7 +384,7 @@ func test_start_builds_xp_router_when_local_player_in_party():
 		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
 		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
 	}
-	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	var session := CoopSession.new(lobby, characters, null, "u1")
 	assert_null(session.xp_router, "router is null pre-start")
 	session.start(_make_two_room_dungeon())
 	assert_not_null(session.xp_router, "router built on start")
@@ -419,7 +410,7 @@ func test_start_skips_xp_router_when_local_id_not_in_party():
 	# member that would silently drop every event.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var characters := {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}
-	var session := CoopSession.new(lobby, characters, null, null, "ghost")
+	var session := CoopSession.new(lobby, characters, null, "ghost")
 	session.start(_make_two_room_dungeon())
 	assert_null(session.xp_router, "unknown local id => no router")
 
@@ -436,7 +427,7 @@ func test_xp_broadcast_routes_to_local_member_real_stats_via_session():
 		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
 		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
 	}
-	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var u1_pre_xp := session.member_for("u1").real_stats.xp
 	var u2_pre_xp := session.member_for("u2").real_stats.xp
@@ -462,7 +453,7 @@ func test_xp_broadcast_routes_to_real_stats_not_effective_when_scaled():
 		"u1": _make_character(CharacterData.CharacterClass.MAGE, 10),
 		"u2": _make_character(CharacterData.CharacterClass.NINJA, 3),
 	}
-	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
 	# Pre-kill: u1 is scaled to floor 3, but real_stats stays at 10.
 	assert_eq(session.member_for("u1").effective_stats.level, 3)
@@ -483,7 +474,7 @@ func test_end_drops_xp_router():
 	var session := CoopSession.new(
 		lobby,
 		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
-		null, null, "u1")
+		null, "u1")
 	session.start(_make_two_room_dungeon())
 	var bc_before_end := session.xp_broadcaster
 	var member := session.member_for("u1")
@@ -504,7 +495,7 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	var session := CoopSession.new(
 		lobby,
 		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
-		null, null, "u1")
+		null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.end()
 	session.start(_make_two_room_dungeon())
@@ -513,103 +504,3 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	session.xp_broadcaster.on_enemy_killed(3)
 	assert_eq(session.member_for("u1").real_stats.xp, 3,
 		"second run's broadcasts route through fresh router")
-
-# --- LocalTokenGrantRouter wiring ------------------------------------------
-
-func test_start_builds_token_router_when_local_player_and_inventory():
-	# Both inputs present (local player_id in party AND non-null inventory)
-	# wires up the token router so milestone-from-broadcast XP drips a
-	# revive token to the local inventory.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(
-		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
-		null, inv, "u1")
-	assert_null(session.token_router, "token router null pre-start")
-	session.start(_make_two_room_dungeon())
-	assert_not_null(session.token_router, "token router built on start")
-	assert_true(session.token_router.is_bound())
-
-func test_start_skips_token_router_when_inventory_null():
-	# A session without an inventory injected (test / pre-hydration path)
-	# skips the token router. xp_router still routes XP — just no
-	# milestone token drips on this client.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(
-		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
-		null, null, "u1")
-	session.start(_make_two_room_dungeon())
-	assert_not_null(session.xp_router, "xp router still built")
-	assert_null(session.token_router, "token router skipped without inventory")
-
-func test_start_skips_token_router_when_local_id_not_in_party():
-	# Symmetric with xp_router: no local member => no router => no
-	# token router (even when an inventory is present).
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(
-		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
-		null, inv, "ghost")
-	session.start(_make_two_room_dungeon())
-	assert_null(session.xp_router)
-	assert_null(session.token_router)
-
-func test_milestone_xp_broadcast_drips_token_via_session():
-	# End-to-end through the session: a remote-killer broadcast that
-	# crosses the local member's milestone level drips a token to the
-	# session-bound inventory. Closes the AC for #20 ("token earn:
-	# awarded on level-up milestones") in the co-op path.
-	var lobby := _make_lobby([
-		["u1", "A", "Mage"],
-		["u2", "B", "Ninja"],
-	])
-	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 4),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 4),
-	}
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(lobby, characters, null, inv, "u1")
-	session.start(_make_two_room_dungeon())
-	# u2 got the killing blow but every party member earns the XP.
-	# xp_to_next_level(4) = 5 + 3*5 = 20 — exactly the L4->L5 step.
-	session.xp_broadcaster.on_enemy_killed(ProgressionSystem.xp_to_next_level(4), "u2")
-	assert_eq(session.member_for("u1").real_stats.level, 5,
-		"local member leveled up from broadcast XP")
-	assert_eq(inv.count, 1, "milestone L5 dripped one token")
-
-func test_non_milestone_broadcast_does_not_drip_token():
-	# A broadcast that crosses a non-milestone level (L2->L3) does not
-	# drip a token — only multiples of 5. Pins the rule end-to-end.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(
-		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 2)},
-		null, inv, "u1")
-	session.start(_make_two_room_dungeon())
-	# xp_to_next_level(2) = 5 + 1*5 = 10 — exactly the L2->L3 step.
-	session.xp_broadcaster.on_enemy_killed(ProgressionSystem.xp_to_next_level(2))
-	assert_eq(session.member_for("u1").real_stats.level, 3, "leveled to 3")
-	assert_eq(inv.count, 0, "L3 is not a milestone")
-
-func test_end_drops_token_router():
-	# Per-run lifecycle: end() must drop the token router so a stale
-	# subscriber from the previous run can't keep granting tokens after
-	# teardown. Pinned by firing a level_up directly on the (still-held)
-	# old xp_router and asserting the inventory doesn't move.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(
-		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)},
-		null, inv, "u1")
-	session.start(_make_two_room_dungeon())
-	assert_not_null(session.token_router)
-	var router_before_end := session.xp_router
-	session.end()
-	assert_null(session.token_router, "token router dropped on end")
-	router_before_end.level_up.emit(4, 5)
-	assert_eq(inv.count, 0, "post-end level_up doesn't grant")

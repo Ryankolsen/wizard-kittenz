@@ -48,12 +48,12 @@ func test_apply_merged_save_updates_meta_tracker():
 	gs.apply_merged_save(save)
 	assert_eq(gs.meta_tracker.dungeons_completed, 9)
 
-func test_apply_merged_save_updates_token_inventory():
+func test_game_state_has_no_token_inventory_property():
+	# Token economy removed in #30. GameState must not expose a
+	# token_inventory field; the property is gone, not just nulled.
 	var gs := get_node("/root/GameState")
-	var save := KittenSaveData.new()
-	save.revive_tokens = 4
-	gs.apply_merged_save(save)
-	assert_eq(gs.token_inventory.count, 4)
+	assert_false("token_inventory" in gs,
+		"token_inventory property must be absent after token economy removal")
 
 func test_apply_merged_save_updates_offline_xp_tracker():
 	var gs := get_node("/root/GameState")

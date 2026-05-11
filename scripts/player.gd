@@ -124,7 +124,7 @@ func _try_attack() -> void:
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _token_inventory(), _offline_xp_tracker())
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -149,7 +149,7 @@ func _try_cast_spell() -> void:
 				awarded = true
 		if awarded:
 			_record_meta_progress()
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _token_inventory(), _offline_xp_tracker())
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -179,25 +179,18 @@ func _meta_tracker() -> MetaProgressionTracker:
 		return null
 	return gs.meta_tracker
 
-func _token_inventory() -> TokenInventory:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.token_inventory
-
-# Routes a local kill to the right reward path: solo applies XP + grants
-# the combined kill rule locally; co-op broadcasts XP via the active
-# session and keeps only the boss-kill bonus on this client. The branch
-# itself lives in KillRewardRouter so it can be tested without booting
-# a Player scene. Null enemy_data degrades to a no-op (defensive for a
-# future kill source that doesn't pass the data, e.g. DoT spells).
+# Routes a local kill to the right reward path: solo applies XP locally
+# and tallies into the offline counter; co-op broadcasts XP via the
+# active session. The branch itself lives in KillRewardRouter so it can
+# be tested without booting a Player scene. Null enemy_data degrades to
+# a no-op (defensive for a future kill source that doesn't pass the
+# data, e.g. DoT spells).
 func _award_kill_xp(enemy_data: EnemyData) -> void:
 	if data == null or enemy_data == null:
 		return
 	KillRewardRouter.route_kill(
 		data,
 		enemy_data,
-		_token_inventory(),
 		_coop_session(),
 		_local_player_id(),
 		_offline_xp_tracker()

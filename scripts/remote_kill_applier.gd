@@ -43,13 +43,6 @@ extends RefCounted
 #     co-op requires the network so the XP is already "synced", and
 #     folding it into pending_xp would double-count when the next
 #     solo-mode merge fires).
-#   - Grant tokens. Boss-kill bonus stays on the killer's local
-#     KillRewardRouter (only the killer earns it). Milestone tokens
-#     drip from LocalTokenGrantRouter on the level_up edge — which
-#     fires from the LocalXPRouter that subscribes to the broadcaster
-#     this method just fired. So a remote-killer kill that levels me
-#     up to L5 still grants me a milestone token via the existing
-#     pipe.
 #
 # Returns true on a fresh apply (rising-edge: enemy was alive, now
 # dead), false on:

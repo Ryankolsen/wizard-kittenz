@@ -147,7 +147,7 @@ func _refresh_appearance_label() -> void:
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory, GameState.offline_xp_tracker)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker)
 	get_tree().change_scene_to_file(main_scene_path)
 
 func _ensure_character_for_multiplayer() -> CharacterData:
@@ -156,7 +156,7 @@ func _ensure_character_for_multiplayer() -> CharacterData:
 	# Quick-start as Mage for multiplayer if no character exists
 	var data := QuickStartController.create_for_class("mage")
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.token_inventory, GameState.offline_xp_tracker)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker)
 	return data
 
 func _ensure_session_async() -> NakamaSession:

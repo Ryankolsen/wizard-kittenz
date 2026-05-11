@@ -1,14 +1,13 @@
 extends GutTest
 
 # Unit tests for KillRewardRouter. Pure-data branch between solo and co-op
-# kill paths — testable without booting a Player scene.
+# kill paths — testable without booting a Player scene. Token economy was
+# stripped in #30; route_kill no longer takes an inventory and no longer
+# returns a grant count (boss-kill bonus is gone with the inventory).
 
 # --- Test helpers ----------------------------------------------------------
 
 func _make_character(level: int = 1) -> CharacterData:
-	# Mage L1 baseline. Level can be bumped to set up "near a milestone"
-	# preconditions for milestone-crossing tests. xp stays at 0 so a
-	# kill's xp_reward fully drives the level-up math.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.level = level
 	return c
@@ -47,7 +46,7 @@ func test_is_coop_route_inactive_session_returns_false():
 	# Constructed but not started — broadcaster is null. Solo branch
 	# fires so the kill still grants XP locally.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(KillRewardRouter.is_coop_route(session, "u1"))
 
@@ -56,32 +55,31 @@ func test_is_coop_route_empty_local_id_returns_false():
 	# resolved yet. Solo branch fires so the kill still grants XP
 	# locally rather than being silently dropped.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	assert_true(session.is_active())
 	assert_false(KillRewardRouter.is_coop_route(session, ""))
 
 func test_is_coop_route_active_session_with_local_id_returns_true():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	assert_true(KillRewardRouter.is_coop_route(session, "u1"))
 
 # --- route_kill: null safety ------------------------------------------------
 
-func test_route_kill_null_character_data_returns_zero():
-	var inv := TokenInventory.new()
+func test_route_kill_null_character_data_is_no_op():
+	# Must not crash. The enemy is left untouched.
 	var enemy := _make_enemy(10)
-	assert_eq(KillRewardRouter.route_kill(null, enemy, inv, null, ""), 0)
-	assert_eq(inv.count, 0, "no grant on null character")
+	var pre_xp_reward := enemy.xp_reward
+	KillRewardRouter.route_kill(null, enemy, null, "")
+	assert_eq(enemy.xp_reward, pre_xp_reward, "null character path is a no-op")
 
-func test_route_kill_null_enemy_data_returns_zero():
+func test_route_kill_null_enemy_data_is_no_op():
 	# A future DoT spell with no enemy reference must not crash.
 	var c := _make_character()
-	var inv := TokenInventory.new()
-	assert_eq(KillRewardRouter.route_kill(c, null, inv, null, ""), 0)
+	KillRewardRouter.route_kill(c, null, null, "")
 	assert_eq(c.xp, 0, "no XP applied")
-	assert_eq(inv.count, 0)
 
 # --- route_kill: solo path --------------------------------------------------
 
@@ -90,89 +88,35 @@ func test_route_kill_solo_applies_xp_locally():
 	# ProgressionSystem.add_xp against the killer's CharacterData.
 	var c := _make_character(1)
 	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
-	KillRewardRouter.route_kill(c, enemy, inv, null, "")
+	KillRewardRouter.route_kill(c, enemy, null, "")
 	assert_eq(c.level, 2, "L1->L2 on 5 XP")
 
-func test_route_kill_solo_no_token_below_milestone():
-	# Non-boss kill that doesn't cross a milestone level (L5). Returns 0
-	# tokens granted; inventory untouched.
-	var c := _make_character(1)
-	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, enemy, inv, null, "")
-	assert_eq(granted, 0)
-	assert_eq(inv.count, 0, "no milestone, no boss, no grant")
-
-func test_route_kill_solo_grants_boss_bonus():
-	# Boss kill. Boss bonus regardless of level transition.
+func test_route_kill_solo_boss_still_grants_xp():
+	# Boss flag no longer drives any token branch — it's now metadata
+	# only. The kill still grants XP via ProgressionSystem.add_xp.
 	var c := _make_character(1)
 	var boss := _make_enemy(5, true)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, boss, inv, null, "")
-	assert_eq(granted, TokenGrantRules.tokens_for_boss_kill())
-	assert_eq(inv.count, TokenGrantRules.tokens_for_boss_kill())
-
-func test_route_kill_solo_grants_milestone_on_threshold_crossing():
-	# Set up so the kill XP crosses L5 (milestone). At L4 the next level
-	# costs 5 + 3*5 = 20 XP. Award exactly 20 to land on L5.
-	var c := _make_character(4)
-	var enemy := _make_enemy(20)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, enemy, inv, null, "")
-	assert_eq(c.level, 5)
-	assert_eq(granted, TokenGrantRules.tokens_for_level_up(4, 5),
-		"milestone crossing grants the milestone amount")
-	assert_eq(inv.count, granted)
-
-func test_route_kill_solo_combines_milestone_and_boss():
-	# Boss kill that crosses a milestone — both rewards stack.
-	var c := _make_character(4)
-	var boss := _make_enemy(20, true)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, boss, inv, null, "")
-	var expected := TokenGrantRules.tokens_for_level_up(4, 5) + TokenGrantRules.tokens_for_boss_kill()
-	assert_eq(granted, expected, "milestone + boss combined")
-	assert_eq(inv.count, expected)
-
-func test_route_kill_solo_null_inventory_still_applies_xp():
-	# A test path with no GameState (null inventory) shouldn't block XP
-	# from applying. Returns 0 since no grant happens.
-	var c := _make_character(1)
-	var enemy := _make_enemy(5)
-	var granted := KillRewardRouter.route_kill(c, enemy, null, null, "")
-	assert_eq(granted, 0)
-	assert_eq(c.level, 2, "XP still applies without inventory")
+	KillRewardRouter.route_kill(c, boss, null, "")
+	assert_eq(c.level, 2, "boss kill applies XP same as a generic kill")
 
 # --- route_kill: offline XP tracker (#15 sync orchestrator hook) ------------
 
 func test_route_kill_solo_records_offline_xp():
 	# Solo path tallies the kill's xp_reward into the offline counter so
 	# OfflineProgressMerger.merge_xp can fold it into the server record
-	# on the next sync. Pinned amount: a 7-XP kill records 7 pending.
+	# on the next sync.
 	var c := _make_character(1)
 	var enemy := _make_enemy(7)
-	var inv := TokenInventory.new()
 	var t := OfflineXPTracker.new()
-	KillRewardRouter.route_kill(c, enemy, inv, null, "", t)
+	KillRewardRouter.route_kill(c, enemy, null, "", t)
 	assert_eq(t.pending_xp, 7, "solo kill recorded into offline tracker")
-
-func test_route_kill_solo_records_offline_xp_even_with_null_inventory():
-	# XP applies in the null-inventory test path; the offline counter
-	# must mirror it or the merge logic will undercount on reconnect.
-	var c := _make_character(1)
-	var enemy := _make_enemy(5)
-	var t := OfflineXPTracker.new()
-	KillRewardRouter.route_kill(c, enemy, null, null, "", t)
-	assert_eq(t.pending_xp, 5, "tracker records before inventory short-circuit")
 
 func test_route_kill_solo_null_tracker_safe():
 	# Pre-#15 wiring path / test paths without GameState pass null —
 	# the helper must not crash and XP must still apply.
 	var c := _make_character(1)
 	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
-	KillRewardRouter.route_kill(c, enemy, inv, null, "", null)
+	KillRewardRouter.route_kill(c, enemy, null, "", null)
 	assert_eq(c.level, 2, "null tracker doesn't block XP application")
 
 func test_route_kill_coop_does_not_record_offline_xp():
@@ -182,15 +126,14 @@ func test_route_kill_coop_does_not_record_offline_xp():
 	# a merge (the server already saw the broadcast).
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	# 4 XP keeps the kitten at L1 (L1->L2 needs 5) so the post-call xp
 	# read is the raw amount routed by LocalXPRouter, not a level-up
 	# remainder.
 	var enemy := _make_enemy(4)
 	var t := OfflineXPTracker.new()
-	KillRewardRouter.route_kill(c, enemy, inv, session, "u1", t)
+	KillRewardRouter.route_kill(c, enemy, session, "u1", t)
 	assert_eq(t.pending_xp, 0, "co-op kill does not touch offline tracker")
 	assert_eq(c.xp, 4, "router still applied XP locally via LocalXPRouter")
 
@@ -200,13 +143,12 @@ func test_route_kill_coop_inactive_session_records_offline_xp():
 	# so post-end kills still feed the offline counter.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.end()
 	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
 	var t := OfflineXPTracker.new()
-	KillRewardRouter.route_kill(c, enemy, inv, session, "u1", t)
+	KillRewardRouter.route_kill(c, enemy, session, "u1", t)
 	assert_eq(t.pending_xp, 5, "post-end falls back to solo + records offline")
 
 func test_route_kill_solo_accumulates_across_kills():
@@ -214,11 +156,10 @@ func test_route_kill_solo_accumulates_across_kills():
 	# gameplay loop: multiple offline kills accumulate into one merge
 	# at sign-in. The orchestrator clears after the merge.
 	var c := _make_character(1)
-	var inv := TokenInventory.new()
 	var t := OfflineXPTracker.new()
-	KillRewardRouter.route_kill(c, _make_enemy(3), inv, null, "", t)
-	KillRewardRouter.route_kill(c, _make_enemy(4), inv, null, "", t)
-	KillRewardRouter.route_kill(c, _make_enemy(2), inv, null, "", t)
+	KillRewardRouter.route_kill(c, _make_enemy(3), null, "", t)
+	KillRewardRouter.route_kill(c, _make_enemy(4), null, "", t)
+	KillRewardRouter.route_kill(c, _make_enemy(2), null, "", t)
 	assert_eq(t.pending_xp, 9, "9 = 3+4+2 across three kills")
 
 # --- route_kill: co-op path -------------------------------------------------
@@ -235,112 +176,35 @@ func test_route_kill_coop_broadcasts_xp_to_all_party_members():
 	])
 	var c := _make_character(1)
 	var characters := {"u1": c, "u2": _make_character(1)}
-	# local_player_id="u1" so the session wires LocalXPRouter for u1.
-	# member.real_stats is the same CharacterData reference c, so the
-	# router's XPSystem.award lands on c.xp.
-	var session := CoopSession.new(lobby, characters, null, null, "u1")
+	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var enemy := _make_enemy(3)
-	var inv := TokenInventory.new()
 	var emissions: Array = []
 	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
-	var granted := KillRewardRouter.route_kill(c, enemy, inv, session, "u1")
-	assert_eq(granted, 0, "non-boss kill in co-op grants 0 boss bonus")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	assert_eq(emissions.size(), 2, "broadcaster fired for both party members")
 	assert_eq(emissions[0][1], 3, "amount preserved")
 	# Local XP applied via the router (member.real_stats === c).
 	assert_eq(c.xp, 3, "router applied XP locally")
 
 func test_route_kill_coop_does_not_apply_xp_directly():
-	# Without a wired LocalXPRouter (default-constructed session, no
-	# local_player_id), the broadcast still fans out but no local
-	# member.real_stats receives it. The killer's data must NOT be
-	# mutated by route_kill itself — only the broadcaster's emission
-	# can route XP. This pins the contract that the co-op branch is
-	# pure broadcast, not a direct add_xp call.
+	# Without a wired LocalXPRouter the broadcast still fans out but no
+	# local member.real_stats receives it. The killer's data must NOT be
+	# mutated by route_kill itself — only the broadcaster's emission can
+	# route XP. Pins the contract that the co-op branch is pure broadcast,
+	# not a direct add_xp call.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	# Session active but no local_player_id => no LocalXPRouter wired
-	# even though "u1" matches via predicate. Pass empty local_id to
-	# the router, but to keep the predicate true we need a non-empty
-	# local id here. So instead, construct a session WITH local id
-	# but verify the broadcast happened independently of any local
-	# add_xp call. (The previous test already pins XP application via
-	# the router; this test pins that route_kill itself doesn't double.)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var enemy := _make_enemy(3)
 	var emissions: Array = []
 	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
-	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	# Exactly ONE emission for u1 (single party). c.xp == 3 from the
 	# router — if the helper also did its own add_xp it would be 6.
 	assert_eq(emissions.size(), 1)
 	assert_eq(c.xp, 3, "no double XP application")
-
-func test_route_kill_coop_grants_boss_bonus_locally():
-	# Boss-kill bonus stays on the killer's local inventory in co-op.
-	# The XP fan-out is broadcast (every party member); the boss bonus
-	# is killer-only.
-	var lobby := _make_lobby([
-		["u1", "A", "Mage"],
-		["u2", "B", "Ninja"],
-	])
-	var c := _make_character(1)
-	var session := CoopSession.new(
-		lobby,
-		{"u1": c, "u2": _make_character(1)},
-		null,
-		null,
-		"u1",
-	)
-	session.start(_make_two_room_dungeon())
-	var boss := _make_enemy(3, true)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, boss, inv, session, "u1")
-	assert_eq(granted, TokenGrantRules.tokens_for_boss_kill())
-	assert_eq(inv.count, TokenGrantRules.tokens_for_boss_kill(),
-		"local inventory got the boss bonus only")
-
-func test_route_kill_coop_does_not_grant_milestone_locally():
-	# Milestone tokens are routed via LocalTokenGrantRouter (subscribed
-	# to LocalXPRouter.level_up). Granting them again here would double-
-	# count for a local kill that crosses a milestone. The helper must
-	# NOT add tokens_for_level_up to the inventory in the co-op path.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var c := _make_character(4)
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
-	session.start(_make_two_room_dungeon())
-	var enemy := _make_enemy(20)
-	# Tokens come from LocalTokenGrantRouter via the level_up signal.
-	# The helper adds nothing to the inventory beyond the (zero) boss
-	# bonus on a non-boss kill.
-	var granted := KillRewardRouter.route_kill(c, enemy, inv, session, "u1")
-	assert_eq(granted, 0, "non-boss co-op kill grants 0 directly")
-	# But the inventory IS still credited via the token_router's
-	# level_up subscription on the L4->L5 crossing.
-	assert_eq(c.level, 5, "router applied XP and crossed milestone")
-	assert_eq(inv.count, TokenGrantRules.tokens_for_level_up(4, 5),
-		"milestone token came from token_router, not from route_kill")
-
-func test_route_kill_coop_milestone_plus_boss_no_double_grant():
-	# Boss kill that crosses a milestone in co-op: the inventory ends up
-	# with milestone (from token_router) + boss bonus (from this helper).
-	# If the helper accidentally also added milestone, the count would
-	# be 2x the milestone amount.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var c := _make_character(4)
-	var inv := TokenInventory.new()
-	var session := CoopSession.new(lobby, {"u1": c}, null, inv, "u1")
-	session.start(_make_two_room_dungeon())
-	var boss := _make_enemy(20, true)
-	var granted := KillRewardRouter.route_kill(c, boss, inv, session, "u1")
-	assert_eq(granted, TokenGrantRules.tokens_for_boss_kill(),
-		"helper returned boss bonus only")
-	var expected := TokenGrantRules.tokens_for_level_up(4, 5) + TokenGrantRules.tokens_for_boss_kill()
-	assert_eq(inv.count, expected,
-		"inventory has milestone (router) + boss (helper), no double")
 
 func test_route_kill_coop_inactive_session_falls_to_solo():
 	# A session that's been end()'d must take the solo branch — its
@@ -348,15 +212,13 @@ func test_route_kill_coop_inactive_session_falls_to_solo():
 	# and silently drop the XP. Solo branch keeps the kill rewarding.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.end()
 	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
-	var granted := KillRewardRouter.route_kill(c, enemy, inv, session, "u1")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	# Solo path applied XP locally.
 	assert_eq(c.level, 2, "post-end falls back to solo XP")
-	assert_eq(granted, 0, "non-boss + no milestone = 0 granted")
 
 # --- route_kill: co-op enemy_sync apply_death (#17 wire-layer hook) ---------
 
@@ -364,32 +226,30 @@ func test_route_kill_coop_applies_death_to_enemy_sync():
 	# Co-op path marks the enemy dead in the per-session EnemyStateSyncManager
 	# registry so the wire layer's remote enemy-died packet (when #14 lands)
 	# and this local kill detection converge through the same apply_death
-	# call. Pin the contract: a kill in an active session removes the enemy
-	# from the registry's alive set.
+	# call.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.enemy_sync.register_enemy("r3_e0")
 	assert_true(session.enemy_sync.is_alive("r3_e0"))
 	var enemy := _make_enemy(3)
 	enemy.enemy_id = "r3_e0"
-	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	assert_false(session.enemy_sync.is_alive("r3_e0"),
 		"co-op kill removed enemy from sync registry")
 
 func test_route_kill_coop_empty_enemy_id_skips_apply_death():
 	# Pre-spawn-layer / test fixture path: an enemy without an enemy_id
 	# must not poke the registry with an unkeyed entry. The reward path
-	# still runs (XP broadcast, boss bonus); only the apply_death call
-	# is skipped.
+	# still runs (XP broadcast); only the apply_death call is skipped.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var enemy := _make_enemy(3)
 	# enemy_id left as "" (default).
-	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	assert_eq(session.enemy_sync.alive_count(), 0,
 		"empty enemy_id never registers")
 	assert_eq(c.xp, 3, "XP still broadcast and routed locally")
@@ -401,7 +261,7 @@ func test_route_kill_coop_apply_death_idempotent_with_remote_packet():
 	# double-removed and the kill flow continues to broadcast XP.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.enemy_sync.register_enemy("r3_e0")
 	# Remote packet arrived first: registry already shows the enemy as dead.
@@ -411,7 +271,7 @@ func test_route_kill_coop_apply_death_idempotent_with_remote_packet():
 	enemy.enemy_id = "r3_e0"
 	# Second apply_death (this one) is a no-op — but the kill flow still
 	# broadcasts XP because the wire layer doesn't drive that path.
-	KillRewardRouter.route_kill(c, enemy, null, session, "u1")
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	assert_eq(c.xp, 3, "XP still broadcast on second apply_death")
 
 func test_route_kill_solo_does_not_touch_enemy_sync():
@@ -421,24 +281,20 @@ func test_route_kill_solo_does_not_touch_enemy_sync():
 	var c := _make_character(1)
 	var enemy := _make_enemy(3)
 	enemy.enemy_id = "r3_e0"
-	var inv := TokenInventory.new()
 	# No session, no co-op route. apply_death is unreachable.
-	KillRewardRouter.route_kill(c, enemy, inv, null, "")
+	KillRewardRouter.route_kill(c, enemy, null, "")
 	assert_eq(c.xp, 3, "solo path still applied XP locally with enemy_id set")
 
 func test_route_kill_coop_empty_local_id_falls_to_solo():
 	# A session active but with no local id resolved (pre-handshake
 	# wire-payload race) takes the solo branch so XP isn't dropped on
-	# the floor. The session is still "active" but no party member can
-	# receive a filtered xp_awarded since this client doesn't know its
-	# own id.
+	# the floor.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	var session := CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var enemy := _make_enemy(5)
-	var inv := TokenInventory.new()
-	KillRewardRouter.route_kill(c, enemy, inv, session, "")
+	KillRewardRouter.route_kill(c, enemy, session, "")
 	assert_eq(c.level, 2, "empty local_id triggers solo branch")
 
 # --- GameState wiring -------------------------------------------------------
@@ -477,7 +333,7 @@ func test_game_state_clear_drops_coop_session():
 	_snapshot_game_state()
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
-	GameState.coop_session = CoopSession.new(lobby, {"u1": c}, null, null, "u1")
+	GameState.coop_session = CoopSession.new(lobby, {"u1": c}, null, "u1")
 	GameState.coop_session.start(_make_two_room_dungeon())
 	GameState.local_player_id = "u1"
 	assert_true(GameState.coop_session.is_active())
