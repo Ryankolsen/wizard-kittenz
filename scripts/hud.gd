@@ -1,6 +1,8 @@
 class_name HUD
 extends CanvasLayer
 
+signal next_room_requested
+
 # Single-room HUD orchestrator. Polls each frame:
 # - HP bar reads player.data.hp/max_hp
 # - Room Clear banner shows when the initial enemy count drops to zero
@@ -26,6 +28,7 @@ var _use_revive_btn: Button
 var _buy_more_btn: Button
 var _initial_enemies: int = 0
 var _room_cleared: bool = false
+var _next_room_btn: Button
 
 func _ready() -> void:
 	_hp_fill = $HPBar/Fill
@@ -33,6 +36,8 @@ func _ready() -> void:
 	_xp_fill = $XPBar/Fill
 	_xp_label = $XPBar/Label
 	_room_clear = $RoomClear
+	_next_room_btn = $RoomClear/NextRoom
+	_next_room_btn.pressed.connect(_on_next_room_pressed)
 	_you_died = $YouDied
 	_death_prompt = $YouDied/Panel/VBox/Prompt
 	_use_revive_btn = $YouDied/Panel/VBox/UseRevive
@@ -195,6 +200,16 @@ func _check_room_clear() -> void:
 	if _count_enemies() == 0:
 		_room_cleared = true
 		_room_clear.visible = true
+
+# Called by the scene orchestrator when DungeonRunController.room_cleared fires.
+# Shows the banner and the "Next Room" button so the player can advance.
+func show_next_room_prompt() -> void:
+	_room_cleared = true
+	_room_clear.visible = true
+	_next_room_btn.visible = true
+
+func _on_next_room_pressed() -> void:
+	next_room_requested.emit()
 
 func _check_player_dead() -> void:
 	if _player == null or _player.data == null:

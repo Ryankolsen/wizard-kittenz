@@ -37,6 +37,11 @@ var lobby: NakamaLobby = null
 # and so a single source of truth reads from AccountManager.
 var local_player_id: String = ""
 var account_manager: AccountManager = AccountManager.new()
+# Active dungeon run controller. Non-null between dungeon start and completion
+# (boss cleared or player gives up). Stored on GameState so it survives
+# scene reloads when the player advances between rooms. Cleared on dungeon
+# completion or give-up so a fresh run gets a new dungeon.
+var dungeon_run_controller: DungeonRunController = null
 
 func _ready() -> void:
 	_try_load_save()
@@ -98,6 +103,7 @@ func clear() -> void:
 	coop_session = null
 	local_player_id = ""
 	lobby = null
+	dungeon_run_controller = null
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance

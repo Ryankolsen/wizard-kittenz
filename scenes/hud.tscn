@@ -67,6 +67,18 @@ vertical_alignment = 1
 text = "Room Clear!"
 theme_override_font_sizes/font_size = 32
 
+[node name="NextRoom" type="Button" parent="RoomClear"]
+visible = false
+anchor_left = 0.5
+anchor_top = 0.65
+anchor_right = 0.5
+anchor_bottom = 0.65
+offset_left = -60.0
+offset_top = 0.0
+offset_right = 60.0
+offset_bottom = 28.0
+text = "Next Room"
+
 [node name="YouDied" type="Control" parent="."]
 visible = false
 anchor_right = 1.0
