@@ -70,19 +70,53 @@ func _on_enemy_died() -> void:
 	_watcher.notify_death(_enemy.data.enemy_id)
 
 func _on_room_cleared(_room_id: int) -> void:
-	var room := _run_controller.current_room()
-	# Boss room has no connections — dungeon_completed fires right after;
-	# skip the Next Room button so a stale prompt doesn't flash before reload.
-	if room == null or room.connections.is_empty():
+	# is_dungeon_complete() is already true when this fires for the boss room
+	# (_cleared[boss_id] is set before room_cleared.emit). Let dungeon_completed
+	# handle that case; show the button for every other cleared room.
+	if _run_controller.is_dungeon_complete():
 		return
 	_hud.show_next_room_prompt()
 
 func _on_next_room_requested() -> void:
+	var next_id := _next_room_toward_boss()
+	if next_id < 0:
+		return
+	_run_controller.advance_to(next_id)
+	get_tree().reload_current_scene()
+
+# Returns the id of the best next room to advance to: the first connection
+# from which the boss is reachable (BFS). Skips dead-end branches so the
+# player never ends up in a non-boss leaf room. Falls back to connections[0]
+# only if every branch leads nowhere — which a valid spanning-tree dungeon
+# prevents by construction.
+func _next_room_toward_boss() -> int:
 	var room := _run_controller.current_room()
 	if room == null or room.connections.is_empty():
-		return
-	_run_controller.advance_to(room.connections[0])
-	get_tree().reload_current_scene()
+		return -1
+	var boss_id := _run_controller.dungeon.boss_id
+	for conn_id in room.connections:
+		if conn_id == boss_id or _can_reach(conn_id, boss_id):
+			return conn_id
+	return room.connections[0]
+
+func _can_reach(from_id: int, target_id: int) -> bool:
+	var dungeon := _run_controller.dungeon
+	var visited := {}
+	var queue := [from_id]
+	while not queue.is_empty():
+		var id: int = queue.pop_front()
+		if id == target_id:
+			return true
+		if visited.has(id):
+			continue
+		visited[id] = true
+		var r := dungeon.get_room(id)
+		if r == null:
+			continue
+		for next_id in r.connections:
+			if not visited.has(next_id):
+				queue.append(next_id)
+	return false
 
 func _on_dungeon_completed() -> void:
 	var gs := get_node_or_null("/root/GameState")
