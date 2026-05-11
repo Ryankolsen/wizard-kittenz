@@ -47,6 +47,28 @@ var dungeon_run_controller: DungeonRunController = null
 func _ready() -> void:
 	_try_load_save()
 	NakamaService.authenticated.connect(_on_nakama_authenticated)
+	# BillingManager is declared after GameState in project.godot, so its
+	# autoload node isn't on the tree yet when our _ready runs. Defer the
+	# connect to the next idle tick when all autoloads exist.
+	_connect_billing_signal.call_deferred()
+
+func _connect_billing_signal() -> void:
+	var bm := get_node_or_null("/root/BillingManager")
+	if bm == null:
+		return
+	if not bm.purchase_succeeded.is_connected(_on_purchase_succeeded):
+		bm.purchase_succeeded.connect(_on_purchase_succeeded)
+
+func _on_purchase_succeeded(product_id: String) -> void:
+	# Only persist when the handler actually applied a grant. Restore-from-
+	# server replays for already-owned cosmetics return false here, so a
+	# user opening the app twenty times doesn't rewrite the save file twenty
+	# times for no reason.
+	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory):
+		SaveManager.save(
+			current_character, SaveManager.DEFAULT_PATH,
+			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory
+		)
 
 func _try_load_save() -> void:
 	var save_data := SaveManager.load()
@@ -81,7 +103,7 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	apply_merged_save(merged)
 	SaveManager.save(
 		current_character, SaveManager.DEFAULT_PATH,
-		skill_tree, meta_tracker, offline_xp_tracker
+		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory
 	)
 	await NakamaService.upload_save_async(p_session, merged.to_dict())
 	save_synced.emit(merged)
