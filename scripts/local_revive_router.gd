@@ -1,9 +1,8 @@
 class_name LocalReviveRouter
 extends RefCounted
 
-# Per-client revive routing helper. Routes a revive (the player spends a
-# token to come back at half HP at the location of death) to the right
-# CharacterData block:
+# Per-client revive routing helper. Routes a free half-HP revive (post-#27,
+# monetization pivot — no token cost) to the right CharacterData block:
 #   - solo / no co-op session: revive lands on the player's CharacterData
 #     directly (real_stats == effective_stats in solo).
 #   - active co-op session: revive lands on the local PartyMember's
@@ -28,36 +27,6 @@ extends RefCounted
 # local_player_id non-empty + member found) — a refactor of one stays in
 # lockstep with the other so a future scaling shape change (e.g. adding
 # a "remote player took damage on my client" case) lands consistently.
-#
-# Why a separate router (vs. inline branching in ReviveSystem):
-#   - ReviveSystem is general-purpose: it spends a token + sets hp to
-#     half max_hp. It doesn't know about co-op scaling. Inlining the
-#     branch there would force every caller (solo death screen, co-op
-#     death screen, future hazard auto-revive) to pay for routing they
-#     don't need.
-#   - As inline branching in the future death-screen scene, the rule
-#     would be hidden in the scene-tree node, untestable in isolation.
-#     The router is RefCounted + all-static so a unit test pins the
-#     contract without booting a scene.
-#   - Mirrors LocalDamageRouter exactly so the routing rules for the
-#     same player stay symmetric: damage-routes-to-X implies revive-
-#     routes-to-X, period.
-#
-# What this does NOT do:
-#   - Apply general healing. A "+5 HP heal pickup" mid-run is a sibling
-#     concern (LocalHealRouter): solo + co-op both want heals to land
-#     on the "current view" of HP, but the heal-clamping ceiling is
-#     max_hp, which differs between real_stats and effective_stats.
-#     Outside this commit's scope.
-#   - Heal remote players. Each client revives its own member — a
-#     remote kitten's revive is that client's concern.
-#   - Touch the scene tree. The future death-screen scene calls into
-#     this helper rather than ReviveSystem.try_consume_revive directly;
-#     the router decides which CharacterData block is the target.
-#   - Adjust the revive HP fraction. ReviveSystem's REVIVE_HP_FRACTION
-#     (0.5) and minimum-1 floor inherit through the helper unchanged.
-#     A future "revive at full HP" debuff or class perk would be a
-#     separate seam.
 
 # Whether the "co-op active" branch should fire. Same gate as
 # LocalDamageRouter.is_coop_route — pulled out as a static so a test
@@ -91,19 +60,15 @@ static func target_for(session: CoopSession, character: CharacterData, local_pla
 		return character
 	return member.effective_stats
 
-# Spends one token from the inventory and revives the routed target.
-# Returns true on success; false (with no mutation to the target or
-# inventory) when:
-#   - inventory is null (test path / fresh-install)
-#   - inventory is empty (caller's death-screen surfaces the "Buy More"
-#     branch)
-#   - character is null (pre-spawn / test path; defensive)
-# Same shape as ReviveSystem.try_consume_revive — the router just
-# decides which CharacterData block gets handed to ReviveSystem.
-static func try_consume_revive(session: CoopSession, character: CharacterData, inventory: TokenInventory, local_player_id: String) -> bool:
+# Revives the routed target at half max_hp. Returns true on success;
+# false (with no mutation) when character is null (pre-spawn / test
+# path; defensive). The router just decides which CharacterData block
+# gets handed to ReviveSystem — no token gate, free at the point of use.
+static func revive(session: CoopSession, character: CharacterData, local_player_id: String) -> bool:
 	if character == null:
 		return false
 	var target := target_for(session, character, local_player_id)
 	if target == null:
 		return false
-	return ReviveSystem.try_consume_revive(target, inventory)
+	ReviveSystem.revive(target)
+	return true

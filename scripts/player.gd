@@ -60,9 +60,9 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("cast_spell"):
 		_try_cast_spell()
 
-# Emit `died` exactly once when hp first reaches zero. Future revive-screen
-# wiring (#20) calls ReviveSystem.try_consume_revive, which sets hp back
-# above zero — _died_emitted resets nowhere, but a successful revive simply
+# Emit `died` exactly once when hp first reaches zero. The death-screen
+# revive button calls LocalReviveRouter.revive, which sets hp back above
+# zero — _died_emitted resets nowhere, but a successful revive simply
 # means data.is_alive() goes true again so this branch is skipped.
 func _check_died() -> void:
 	if _died_emitted:

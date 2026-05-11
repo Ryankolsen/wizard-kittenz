@@ -99,14 +99,11 @@ theme_override_font_sizes/font_size = 36
 
 [node name="Prompt" type="Label" parent="YouDied/Panel/VBox"]
 horizontal_alignment = 1
-text = "Use a Revive Token?"
+text = "You Died"
 theme_override_font_sizes/font_size = 16
 
-[node name="UseRevive" type="Button" parent="YouDied/Panel/VBox"]
-text = "Use Revive Token"
-
-[node name="BuyMore" type="Button" parent="YouDied/Panel/VBox"]
-text = "Buy More"
+[node name="Revive" type="Button" parent="YouDied/Panel/VBox"]
+text = "Revive"
 
 [node name="GiveUp" type="Button" parent="YouDied/Panel/VBox"]
 text = "Give Up"

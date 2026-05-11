@@ -2460,8 +2460,8 @@ func test_local_revive_router_target_for_coop_returns_effective_stats():
 
 func test_local_revive_router_target_for_null_character_returns_null():
 	# Null-safe: a caller with no character (test path / pre-spawn)
-	# gets null back rather than a crash. try_consume_revive uses
-	# this to short-circuit to false.
+	# gets null back rather than a crash. revive() uses this to
+	# short-circuit to false.
 	assert_eq(LocalReviveRouter.target_for(null, null, "u1"), null)
 
 func test_local_revive_router_target_for_empty_local_id_returns_character():
@@ -2474,20 +2474,17 @@ func test_local_revive_router_target_for_empty_local_id_returns_character():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	assert_eq(LocalReviveRouter.target_for(session, c, ""), c)
 
-func test_local_revive_router_try_consume_revive_solo_revives_character():
-	# Solo path end-to-end: spends a token and sets character.hp to
-	# half max_hp. Mage default max_hp=10 => revive at 5.
-	var inv := TokenInventory.new()
-	inv.count = 2
+func test_local_revive_router_revive_solo_revives_character():
+	# Solo path end-to-end: sets character.hp to half max_hp. Mage default
+	# max_hp=10 => revive at 5. Free revive (post-#27) — no inventory.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.max_hp = 10
 	c.hp = 0
-	var ok := LocalReviveRouter.try_consume_revive(null, c, inv, "")
+	var ok := LocalReviveRouter.revive(null, c, "")
 	assert_true(ok)
-	assert_eq(inv.count, 1, "solo revive spent one token")
 	assert_eq(c.hp, 5, "character.hp restored to 50% of max_hp")
 
-func test_local_revive_router_try_consume_revive_coop_revives_effective_not_real():
+func test_local_revive_router_revive_coop_revives_effective_not_real():
 	# The whole point of the helper: in co-op, revive lands on
 	# effective_stats and leaves real_stats untouched. PartyMember.
 	# from_character makes real_stats == input character (by
@@ -2495,8 +2492,6 @@ func test_local_revive_router_try_consume_revive_coop_revives_effective_not_real
 	# halve the input character's hp too — losing the persistent
 	# character's full-HP shape across session.end()'s remove_scaling.
 	# Pin both sides: real_stats untouched, effective_stats restored.
-	var inv := TokenInventory.new()
-	inv.count = 1
 	var session := _make_active_session_for_apply("u1")
 	var member := session.member_for("u1")
 	var c := member.real_stats
@@ -2505,63 +2500,18 @@ func test_local_revive_router_try_consume_revive_coop_revives_effective_not_real
 	# never touches it in co-op.
 	member.effective_stats.hp = 0
 	var real_hp_before := c.hp
-	var ok := LocalReviveRouter.try_consume_revive(session, c, inv, "u1")
+	var ok := LocalReviveRouter.revive(session, c, "u1")
 	assert_true(ok)
-	assert_eq(inv.count, 0, "co-op revive spent the token")
 	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op revive")
 	# Mage L1 effective_stats.max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
 	assert_eq(member.effective_stats.hp, 4, "effective_stats.hp restored to 50%")
 
-func test_local_revive_router_try_consume_revive_no_tokens_no_op():
-	# Acceptance criterion mirror: dying with zero tokens returns
-	# false without mutating the target. UI's "Buy More" branch
-	# fires off the false return.
-	var inv := TokenInventory.new()
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	c.max_hp = 10
-	c.hp = 0
-	var ok := LocalReviveRouter.try_consume_revive(null, c, inv, "")
-	assert_false(ok)
-	assert_eq(inv.count, 0)
-	assert_eq(c.hp, 0, "no token => no revive => character stays dead")
-
-func test_local_revive_router_try_consume_revive_null_inventory_no_op():
-	# Null inventory (test path / pre-construction) returns false
-	# rather than crashing. Same shape as ReviveSystem.try_consume_
-	# revive — the router inherits the null-safety contract.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	c.max_hp = 10
-	c.hp = 0
-	assert_false(LocalReviveRouter.try_consume_revive(null, c, null, ""))
-	assert_eq(c.hp, 0)
-
-func test_local_revive_router_try_consume_revive_null_character_no_op():
+func test_local_revive_router_revive_null_character_no_op():
 	# Null-safe: pre-spawn / test path with no character data. Must
 	# not crash on the null deref via target_for; returns false so
 	# the caller's death-screen branch can stay a single uncondition-
 	# al call site.
-	var inv := TokenInventory.new()
-	inv.count = 1
-	assert_false(LocalReviveRouter.try_consume_revive(null, null, inv, ""))
-	assert_eq(inv.count, 1, "null character => no token spent")
-
-func test_local_revive_router_try_consume_revive_coop_no_tokens_does_not_mutate_effective():
-	# Co-op path with empty inventory: routing chooses effective_stats
-	# but the inventory check rejects before ReviveSystem touches the
-	# target. Pin that NEITHER block mutates on the failure path —
-	# a refactor that revived first and then tried to spend would
-	# leak HP onto effective_stats every time the player presses
-	# the death-screen button without funds.
-	var inv := TokenInventory.new()
-	var session := _make_active_session_for_apply("u1")
-	var member := session.member_for("u1")
-	var c := member.real_stats
-	member.effective_stats.hp = 0
-	var ok := LocalReviveRouter.try_consume_revive(session, c, inv, "u1")
-	assert_false(ok)
-	assert_eq(inv.count, 0)
-	assert_eq(member.effective_stats.hp, 0, "effective_stats untouched on revive failure")
-	assert_eq(c.hp, member.real_stats.hp, "real_stats also untouched")
+	assert_false(LocalReviveRouter.revive(null, null, ""))
 
 func test_local_revive_router_after_end_revives_character():
 	# Post-end() session: end() restored scaling (real == effective)
@@ -2569,16 +2519,13 @@ func test_local_revive_router_after_end_revives_character():
 	# screen during the same teardown frame must route to character
 	# (the solo target) so it lands on real_stats — the right block
 	# once scaling is gone.
-	var inv := TokenInventory.new()
-	inv.count = 1
 	var session := _make_active_session_for_apply("u1")
 	var member := session.member_for("u1")
 	var c := member.real_stats
 	c.hp = 0
 	session.end()
-	var ok := LocalReviveRouter.try_consume_revive(session, c, inv, "u1")
+	var ok := LocalReviveRouter.revive(session, c, "u1")
 	assert_true(ok)
-	assert_eq(inv.count, 0)
 	# Mage L1 max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
 	assert_eq(c.hp, 4, "post-end revive lands on character (real_stats)")
 
@@ -2590,8 +2537,6 @@ func test_local_revive_router_floor_player_revives_effective_not_real():
 	# future "skip cloning when stats match the floor" optimization
 	# (returning the input by reference) would silently revive
 	# real_stats on every floor-player death.
-	var inv := TokenInventory.new()
-	inv.count = 1
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
 	# Both at L1 — local is the floor player, no scaling reduction.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
@@ -2604,7 +2549,7 @@ func test_local_revive_router_floor_player_revives_effective_not_real():
 		"PartyScaler.clone_stats produces a separate reference even at floor")
 	member.effective_stats.hp = 0
 	var real_hp_before := c.hp
-	LocalReviveRouter.try_consume_revive(session, c, inv, "u1")
+	LocalReviveRouter.revive(session, c, "u1")
 	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched on revive")
 	# Mage L1 max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
 	assert_eq(member.effective_stats.hp, 4,
@@ -2620,8 +2565,6 @@ func test_local_revive_router_scaled_player_uses_lower_max_hp_for_revive():
 	# full + the player would have phantom HP that disappears as
 	# soon as the next damage tick clamps effective_stats.hp back
 	# inside its own max.
-	var inv := TokenInventory.new()
-	inv.count = 1
 	var lobby := _make_lobby_for_apply([
 		["u1", "Big",   "Mage"],
 		["u2", "Small", "Mage"],
@@ -2641,7 +2584,7 @@ func test_local_revive_router_scaled_player_uses_lower_max_hp_for_revive():
 	assert_eq(c1.max_hp, 26)
 	assert_eq(member.effective_stats.max_hp, 12)
 	member.effective_stats.hp = 0
-	var ok := LocalReviveRouter.try_consume_revive(session, c1, inv, "u1")
+	var ok := LocalReviveRouter.revive(session, c1, "u1")
 	assert_true(ok)
 	assert_eq(c1.hp, 26, "real_stats hp untouched")
 	# round(12 * 0.5) = 6, above the minimum-1 floor.
@@ -2654,11 +2597,9 @@ func test_local_revive_router_minimum_one_hp_floor_inherits_through_router():
 	# refactor that re-implemented the half-max math locally doesn't
 	# drop the floor — the death-screen would loop on a max_hp=1
 	# debuff target.
-	var inv := TokenInventory.new()
-	inv.count = 1
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.max_hp = 1
 	c.hp = 0
-	var ok := LocalReviveRouter.try_consume_revive(null, c, inv, "")
+	var ok := LocalReviveRouter.revive(null, c, "")
 	assert_true(ok)
 	assert_eq(c.hp, 1, "min-1 floor survives the router pass-through")

@@ -24,8 +24,7 @@ var _xp_label: Label
 var _room_clear: Control
 var _you_died: Control
 var _death_prompt: Label
-var _use_revive_btn: Button
-var _buy_more_btn: Button
+var _revive_btn: Button
 var _initial_enemies: int = 0
 var _room_cleared: bool = false
 var _next_room_btn: Button
@@ -40,12 +39,10 @@ func _ready() -> void:
 	_next_room_btn.pressed.connect(_on_next_room_pressed)
 	_you_died = $YouDied
 	_death_prompt = $YouDied/Panel/VBox/Prompt
-	_use_revive_btn = $YouDied/Panel/VBox/UseRevive
-	_buy_more_btn = $YouDied/Panel/VBox/BuyMore
+	_revive_btn = $YouDied/Panel/VBox/Revive
 	_room_clear.visible = false
 	_you_died.visible = false
-	_use_revive_btn.pressed.connect(_on_use_revive_pressed)
-	_buy_more_btn.pressed.connect(_on_buy_more_pressed)
+	_revive_btn.pressed.connect(_on_revive_pressed)
 	var give_up: Button = $YouDied/Panel/VBox/GiveUp
 	give_up.pressed.connect(_on_give_up_pressed)
 	_player = _find_player()
@@ -224,53 +221,32 @@ func _check_player_dead() -> void:
 		_refresh_death_screen()
 		_you_died.visible = true
 
-# Maps token count to the death-screen presentation. Public + static so the
-# test suite drives it directly without instancing the HUD scene tree —
-# same shape as xp_bar_ratio. The "prompt" string is what the player sees;
-# "can_revive" tells the HUD which of the Use/Buy buttons to surface.
-static func death_screen_state(token_count: int) -> Dictionary:
-	if token_count > 0:
-		return {
-			"can_revive": true,
-			"prompt": "Use a Revive Token? (%d)" % token_count,
-		}
+# Death-screen presentation (post-#27, free-revive contract). Free revives
+# are always available so the shape is fixed; the helper exists for a single
+# call site to render labels + as a test seam that can be exercised without
+# instancing the HUD scene tree.
+static func death_screen_state() -> Dictionary:
 	return {
-		"can_revive": false,
-		"prompt": "No Revive Tokens",
+		"can_revive": true,
+		"prompt": "You Died",
 	}
 
 func _refresh_death_screen() -> void:
-	var inv := _get_token_inventory()
-	var count := 0
-	if inv != null:
-		count = inv.count
-	var state := death_screen_state(count)
+	var state := death_screen_state()
 	_death_prompt.text = state["prompt"]
-	_use_revive_btn.visible = state["can_revive"]
-	_buy_more_btn.visible = not state["can_revive"]
+	_revive_btn.visible = state["can_revive"]
 
-# GameState is an autoload; lookup is null-safe so headless / test contexts
-# without the singleton don't crash the HUD.
-func _get_token_inventory() -> TokenInventory:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.token_inventory
-
-func _on_use_revive_pressed() -> void:
+func _on_revive_pressed() -> void:
 	if _player == null or _player.data == null:
 		return
-	var inv := _get_token_inventory()
-	if ReviveSystem.try_consume_revive(_player.data, inv):
+	var gs := get_node_or_null("/root/GameState")
+	var session: CoopSession = null
+	var pid := ""
+	if gs != null:
+		session = gs.coop_session
+		pid = gs.local_player_id
+	if LocalReviveRouter.revive(session, _player.data, pid):
 		_you_died.visible = false
-
-# Stub for the IAP "Buy More" path. The Google Play Billing integration is
-# tracked separately (#19, HITL); when it lands the success callback calls
-# GameState.token_inventory.grant(5) and the player can hit Use Revive on
-# the next death. Today the button is visible but no-ops so the UI shape
-# is locked in for the future wiring.
-func _on_buy_more_pressed() -> void:
-	pass
 
 func _on_give_up_pressed() -> void:
 	get_tree().reload_current_scene()
