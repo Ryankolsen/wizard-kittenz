@@ -33,8 +33,12 @@ var max_level_per_class: Dictionary = {}
 # Resets to 0 on a successful merge. Defaults to 0 so legacy saves
 # round-trip cleanly.
 var offline_xp_earned: int = 0
+# Permanently owned cosmetic pack ids (non-consumable IAPs from #29). Stored as
+# plain Array of strings so JSON round-trips cleanly via Variant. Legacy saves
+# predating this field default to an empty array.
+var cosmetic_packs: Array = []
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -54,6 +58,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 		s.max_level_per_class = tracker.max_level_per_class.duplicate()
 	if xp_tracker != null:
 		s.offline_xp_earned = xp_tracker.pending_xp
+	if cosmetic_inventory != null:
+		s.cosmetic_packs = cosmetic_inventory.owned_pack_ids.duplicate()
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -86,6 +92,7 @@ func to_dict() -> Dictionary:
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
 		"offline_xp_earned": offline_xp_earned,
+		"cosmetic_packs": cosmetic_packs,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -110,6 +117,9 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 		for k in per_class.keys():
 			s.max_level_per_class[String(k).to_lower()] = int(per_class[k])
 	s.offline_xp_earned = int(d.get("offline_xp_earned", 0))
+	var packs = d.get("cosmetic_packs", [])
+	if packs is Array:
+		s.cosmetic_packs = packs.duplicate()
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -122,3 +132,8 @@ func to_offline_xp_tracker() -> OfflineXPTracker:
 	var t := OfflineXPTracker.new()
 	t.pending_xp = offline_xp_earned
 	return t
+
+func to_cosmetic_inventory() -> CosmeticInventory:
+	var inv := CosmeticInventory.new()
+	inv.owned_pack_ids = cosmetic_packs.duplicate()
+	return inv

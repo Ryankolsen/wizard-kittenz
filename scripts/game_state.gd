@@ -15,6 +15,10 @@ var unlock_registry: UnlockRegistry = UnlockRegistry.make_default()
 # the sync orchestrator (post-#14) calls clear() after a successful
 # OfflineProgressMerger.merge_xp.
 var offline_xp_tracker: OfflineXPTracker = OfflineXPTracker.new()
+# Owned cosmetic packs (non-consumable IAPs from #29). Always non-null so the
+# shop UI (#33) and grant handler (#32) can read freely without a null check;
+# hydrated from KittenSaveData.cosmetic_packs in apply_merged_save.
+var cosmetic_inventory: CosmeticInventory = CosmeticInventory.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -57,6 +61,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
 	meta_tracker = save_data.to_tracker()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
+	cosmetic_inventory = save_data.to_cosmetic_inventory()
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)
@@ -90,6 +95,7 @@ func clear() -> void:
 	skill_tree = null
 	meta_tracker = MetaProgressionTracker.new()
 	offline_xp_tracker = OfflineXPTracker.new()
+	cosmetic_inventory = CosmeticInventory.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.
