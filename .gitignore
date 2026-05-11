@@ -2,5 +2,12 @@
 .godot/
 /android/
 
+# Build artifacts
+*.aab
+*.apk
+
 # Local server config
 nakama.env
+
+# macOS
+.DS_Store
