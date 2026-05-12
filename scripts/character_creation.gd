@@ -88,7 +88,7 @@ func _apply_unlock_gates() -> void:
 	# Ninja is gated on dungeons_completed >= 5 by default; gate both the
 	# Quick Start and Customize ninja buttons so the picker is consistent.
 	var ninja_unlocked: bool = GameState.unlock_registry.is_unlocked(
-		"ninja", GameState.meta_tracker)
+		"ninja", GameState.meta_tracker, GameState.paid_unlocks)
 	_qs_ninja_button.disabled = not ninja_unlocked
 	_custom_ninja_button.disabled = not ninja_unlocked
 
@@ -147,7 +147,7 @@ func _refresh_appearance_label() -> void:
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
 	get_tree().change_scene_to_file(main_scene_path)
 
 func _ensure_character_for_multiplayer() -> CharacterData:
@@ -156,7 +156,7 @@ func _ensure_character_for_multiplayer() -> CharacterData:
 	# Quick-start as Mage for multiplayer if no character exists
 	var data := QuickStartController.create_for_class("mage")
 	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory)
+	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
 	return data
 
 func _ensure_session_async() -> NakamaSession:

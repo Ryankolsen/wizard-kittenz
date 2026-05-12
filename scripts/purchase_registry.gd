@@ -50,6 +50,13 @@ const _CLASS_UNLOCK_IDS: Array = [
 	CLASS_UNLOCK_ARCHMAGE,
 ]
 
+# product_id -> class id string consulted by UnlockRegistry.is_unlocked. The
+# class id matches the lowercase string the unlock condition list keys on
+# (see UnlockRegistry.DEFAULT_CONDITIONS / CharacterFactory.name_from_class).
+const _CLASS_UNLOCK_TO_CLASS_ID: Dictionary = {
+	CLASS_UNLOCK_ARCHMAGE: "archmage",
+}
+
 const ALL_PRODUCT_IDS: Array = [
 	UPGRADE_MAGE_ARCHMAGE,
 	UPGRADE_THIEF_MASTER_THIEF,
@@ -76,3 +83,10 @@ static func class_for_product(product_id: String) -> int:
 	if _CLASS_UPGRADE_TO_SOURCE.has(product_id):
 		return int(_CLASS_UPGRADE_TO_SOURCE[product_id])
 	return -1
+
+# Returns the class id string for class-unlock products. Empty string for any
+# other product kind so callers can branch off the empty sentinel without
+# special-casing the lookup. The class id matches the lowercase keys
+# UnlockRegistry's condition list uses (e.g. "archmage").
+static func class_id_for_unlock(product_id: String) -> String:
+	return String(_CLASS_UNLOCK_TO_CLASS_ID.get(product_id, ""))

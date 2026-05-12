@@ -19,6 +19,11 @@ var offline_xp_tracker: OfflineXPTracker = OfflineXPTracker.new()
 # shop UI (#33) and grant handler (#32) can read freely without a null check;
 # hydrated from KittenSaveData.cosmetic_packs in apply_merged_save.
 var cosmetic_inventory: CosmeticInventory = CosmeticInventory.new()
+# Paid class-unlock entries (non-consumable IAPs, PRD #26 Tier 3). Always
+# non-null so UnlockRegistry.is_unlocked and the grant handler can read freely
+# without a null check; hydrated from KittenSaveData.paid_class_unlocks in
+# apply_merged_save.
+var paid_unlocks: PaidUnlockInventory = PaidUnlockInventory.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -64,10 +69,10 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	# server replays for already-owned cosmetics return false here, so a
 	# user opening the app twenty times doesn't rewrite the save file twenty
 	# times for no reason.
-	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory):
+	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks):
 		SaveManager.save(
 			current_character, SaveManager.DEFAULT_PATH,
-			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory
+			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks
 		)
 
 func _try_load_save() -> void:
@@ -84,6 +89,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	meta_tracker = save_data.to_tracker()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
+	paid_unlocks = save_data.to_paid_unlock_inventory()
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)
@@ -103,7 +109,7 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	apply_merged_save(merged)
 	SaveManager.save(
 		current_character, SaveManager.DEFAULT_PATH,
-		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory
+		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks
 	)
 	await NakamaService.upload_save_async(p_session, merged.to_dict())
 	save_synced.emit(merged)
@@ -118,6 +124,7 @@ func clear() -> void:
 	meta_tracker = MetaProgressionTracker.new()
 	offline_xp_tracker = OfflineXPTracker.new()
 	cosmetic_inventory = CosmeticInventory.new()
+	paid_unlocks = PaidUnlockInventory.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.

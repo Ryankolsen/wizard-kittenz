@@ -38,11 +38,15 @@ static func from_conditions(arr: Array) -> UnlockRegistry:
 			r.conditions.append(entry.duplicate())
 	return r
 
-# Returns true if `id` is unlocked. Starter classes are always unlocked. Any
-# other id falls through to its condition; missing condition => locked.
-func is_unlocked(id: String, tracker: MetaProgressionTracker) -> bool:
+# Returns true if `id` is unlocked. Starter classes are always unlocked. Paid
+# unlocks (PRD #26 Tier 3) pass even if the gameplay condition is unmet — the
+# IAP grants permanent access without removing the earnable path. Any other
+# id falls through to its condition; missing condition => locked.
+func is_unlocked(id: String, tracker: MetaProgressionTracker, paid_unlocks: PaidUnlockInventory = null) -> bool:
 	var key := id.to_lower()
 	if STARTER_CLASSES.has(key):
+		return true
+	if paid_unlocks != null and paid_unlocks.has_unlock(key):
 		return true
 	if tracker == null:
 		return false
@@ -59,21 +63,19 @@ func is_unlocked(id: String, tracker: MetaProgressionTracker) -> bool:
 # in this projection — the screen layer uses unlocked_ids() for "what's
 # *gated* and now open"; starter classes are always available and don't
 # need to appear in the list.
-func check_all(tracker: MetaProgressionTracker) -> Array:
+func check_all(tracker: MetaProgressionTracker, paid_unlocks: PaidUnlockInventory = null) -> Array:
 	var out: Array = []
-	if tracker == null:
-		return out
 	for cond in conditions:
 		var id := String(cond.get("id", ""))
-		if is_unlocked(id, tracker):
+		if is_unlocked(id, tracker, paid_unlocks):
 			out.append(id)
 	return out
 
 # Computes the set of ids that have just transitioned from locked to
 # unlocked. The screen layer / notification flow can call this after each
 # tracker mutation to fire a "new class available!" toast.
-func newly_unlocked(prev: Array, tracker: MetaProgressionTracker) -> Array:
-	var current := check_all(tracker)
+func newly_unlocked(prev: Array, tracker: MetaProgressionTracker, paid_unlocks: PaidUnlockInventory = null) -> Array:
+	var current := check_all(tracker, paid_unlocks)
 	var out: Array = []
 	for id in current:
 		if not prev.has(id):

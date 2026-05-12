@@ -83,16 +83,29 @@ func test_class_upgrade_without_tier_map_entry_is_noop():
 	assert_false(ok, "no TIER_MAP entry -> no grant")
 	assert_eq(c.character_class, int(CharacterData.CharacterClass.THIEF))
 
-func test_class_unlock_returns_true_stub():
-	# Class-unlock products are PRD-listed but UnlockRegistry isn't wired to
-	# IAP yet (it's earnable today). Stub returns true so BillingManager's
-	# acknowledgement path doesn't loop and so the grant handler counts it
-	# as "applied" for save-trigger purposes.
+func test_class_unlock_grants_via_paid_inventory():
+	# Class-unlock products now route to PaidUnlockInventory.grant; previously
+	# this was a no-op stub. UnlockRegistry consults the paid inventory as an
+	# OR'd path alongside the gameplay condition gates so a paid unlock
+	# bypasses the meta-progression threshold (PRD #26 Tier 3).
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	var inv := CosmeticInventory.new()
+	var cos := CosmeticInventory.new()
+	var paid := PaidUnlockInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE, c, inv)
-	assert_true(ok, "class-unlock stub returns true")
+		PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE, c, cos, paid)
+	assert_true(ok, "class-unlock grants via paid inventory")
+	assert_true(paid.has_unlock("archmage"))
+
+func test_class_unlock_without_paid_inventory_is_noop():
+	# Back-compat: legacy call sites that don't pass paid_unlocks get a
+	# safe "no grant landed" return. Replaces the prior "stub always true"
+	# behavior — now the contract is "no inventory => can't grant" so a
+	# legacy caller without a save target doesn't lie about applying.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var cos := CosmeticInventory.new()
+	var ok := PurchaseGrantHandler.handle(
+		PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE, c, cos)
+	assert_false(ok, "no paid inventory => no grant landed")
 
 func test_null_cosmetic_inventory_safe_on_cosmetic_grant():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)

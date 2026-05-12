@@ -37,8 +37,13 @@ var offline_xp_earned: int = 0
 # plain Array of strings so JSON round-trips cleanly via Variant. Legacy saves
 # predating this field default to an empty array.
 var cosmetic_packs: Array = []
+# Paid class-unlock ids (PRD #26 Tier 3). Lowercase class id strings; consulted
+# by UnlockRegistry.is_unlocked as an OR'd path alongside the gameplay gates so
+# a paid unlock bypasses the meta-progression threshold without removing the
+# earnable path. Legacy saves predating this field default to an empty array.
+var paid_class_unlocks: Array = []
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -60,6 +65,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 		s.offline_xp_earned = xp_tracker.pending_xp
 	if cosmetic_inventory != null:
 		s.cosmetic_packs = cosmetic_inventory.owned_pack_ids.duplicate()
+	if paid_unlocks != null:
+		s.paid_class_unlocks = paid_unlocks.owned_class_ids.duplicate()
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -93,6 +100,7 @@ func to_dict() -> Dictionary:
 		"max_level_per_class": max_level_per_class,
 		"offline_xp_earned": offline_xp_earned,
 		"cosmetic_packs": cosmetic_packs,
+		"paid_class_unlocks": paid_class_unlocks,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -120,6 +128,12 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	var packs = d.get("cosmetic_packs", [])
 	if packs is Array:
 		s.cosmetic_packs = packs.duplicate()
+	var unlocks = d.get("paid_class_unlocks", [])
+	if unlocks is Array:
+		for raw in unlocks:
+			var key := String(raw).to_lower()
+			if key != "" and not s.paid_class_unlocks.has(key):
+				s.paid_class_unlocks.append(key)
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -136,4 +150,9 @@ func to_offline_xp_tracker() -> OfflineXPTracker:
 func to_cosmetic_inventory() -> CosmeticInventory:
 	var inv := CosmeticInventory.new()
 	inv.owned_pack_ids = cosmetic_packs.duplicate()
+	return inv
+
+func to_paid_unlock_inventory() -> PaidUnlockInventory:
+	var inv := PaidUnlockInventory.new()
+	inv.owned_class_ids = paid_class_unlocks.duplicate()
 	return inv
