@@ -598,3 +598,139 @@ func test_position_broadcast_gate_rebuilds_on_next_run():
 	assert_not_null(session.position_broadcast_gate)
 	assert_ne(session.position_broadcast_gate, first_gate,
 		"second run gets a fresh gate instance")
+
+# --- finalize_run_summary --------------------------------------------------
+# Closes AC#5 ("End-of-run screen shows XP earned by each player") on the
+# data side. Before finalize_run_summary, main_scene._on_dungeon_completed
+# reloaded the scene without snapshotting the live xp_summary anywhere —
+# the future summary screen had nothing to read after the per-run managers
+# dropped. After finalize_run_summary, the rows + header are frozen on the
+# session and survive the scene reload (session is a GameState autoload
+# field, not a scene-tree node) and a subsequent end() call.
+
+func test_finalize_run_summary_captures_snapshot_and_emits_signal():
+	var lobby := _make_lobby([
+		["alice", "Whiskers", "Mage"],
+		["bob", "Shadow", "Ninja"],
+	])
+	var characters := {
+		"alice": _make_character(CharacterData.CharacterClass.MAGE, 5),
+		"bob": _make_character(CharacterData.CharacterClass.NINJA, 5),
+	}
+	var session := CoopSession.new(lobby, characters, null, "alice")
+	session.start(_make_two_room_dungeon())
+
+	# Two kills fan XP to every member via the broadcaster.
+	session.xp_broadcaster.on_enemy_killed(7)
+	session.xp_broadcaster.on_enemy_killed(13)
+
+	# Pre-finalize: header / rows are empty, dungeon_completed false.
+	assert_false(session.was_dungeon_completed())
+	assert_eq(session.last_run_summary_header, {})
+	assert_eq(session.last_run_summary_rows, [])
+
+	var emit_count := [0]
+	session.run_completed.connect(func(): emit_count[0] += 1)
+
+	assert_true(session.finalize_run_summary(),
+		"rising-edge finalize returns true")
+
+	# Snapshot captured: header + rows reflect the live tally.
+	assert_true(session.was_dungeon_completed())
+	assert_eq(emit_count[0], 1, "run_completed emitted exactly once")
+	assert_eq(session.last_run_summary_rows.size(), 2,
+		"one row per party member")
+	assert_eq(session.last_run_summary_header.get("party_size"), 2)
+	assert_eq(session.last_run_summary_header.get("grand_total_xp"), 40,
+		"sum of (7+13) * 2 members")
+	assert_true(session.last_run_summary_header.get("dungeon_completed"),
+		"header reflects victory state")
+	assert_eq(session.last_run_summary_header.get("local_player_id"), "alice",
+		"header carries the local player id")
+
+func test_finalize_run_summary_idempotent_within_run():
+	# A second call (e.g. duplicate handler invocation) must not double-emit
+	# run_completed nor overwrite the captured snapshot.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	session.start(_make_two_room_dungeon())
+	session.xp_broadcaster.on_enemy_killed(10)
+
+	var emit_count := [0]
+	session.run_completed.connect(func(): emit_count[0] += 1)
+
+	assert_true(session.finalize_run_summary(), "first call rising edge")
+	var first_header: Dictionary = session.last_run_summary_header
+	var first_rows: Array = session.last_run_summary_rows
+
+	assert_false(session.finalize_run_summary(),
+		"second call within the same run returns false")
+	assert_eq(emit_count[0], 1, "no double-emit of run_completed")
+	assert_same(session.last_run_summary_header, first_header,
+		"snapshot reference unchanged on no-op")
+	assert_same(session.last_run_summary_rows, first_rows,
+		"rows reference unchanged on no-op")
+
+func test_finalize_run_summary_snapshot_survives_end():
+	# AC#5 contract: the summary screen reads the snapshot AFTER end()
+	# drops the live xp_summary. The captured fields must outlive the
+	# per-run managers.
+	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.xp_broadcaster.on_enemy_killed(25)
+	session.finalize_run_summary()
+
+	assert_not_null(session.xp_summary, "summary live pre-end")
+	session.end()
+	assert_null(session.xp_summary, "live tally dropped on end")
+
+	# Snapshot still readable post-end.
+	assert_eq(session.last_run_summary_rows.size(), 1)
+	assert_eq(session.last_run_summary_header.get("grand_total_xp"), 25)
+	assert_true(session.was_dungeon_completed(),
+		"completion flag survives end (sticky)")
+
+func test_finalize_run_summary_safe_pre_start():
+	# Default-constructed / pre-start session: no xp_summary, no lobby.
+	# finalize must not crash; it just freezes empty rows and a default
+	# header so a UI flow that defensively calls finalize before start
+	# (shouldn't happen, but guard anyway) doesn't NPE.
+	var session := CoopSession.new()
+	assert_true(session.finalize_run_summary(),
+		"finalize on a fresh session still rising-edges")
+	assert_eq(session.last_run_summary_rows, [],
+		"no party => empty rows")
+	assert_eq(session.last_run_summary_header.get("party_size"), 0)
+	assert_true(session.last_run_summary_header.get("dungeon_completed"),
+		"finalize sets the flag even on a fresh session")
+
+func test_legacy_run_controller_completion_path_populates_snapshot():
+	# Back-compat: tests that drive session.run_controller directly (the
+	# legacy path) must still bump the meta tracker AND populate the
+	# snapshot via the same finalize_run_summary code path. Refactoring
+	# session._on_dungeon_completed to delegate to finalize_run_summary
+	# means both entry points produce the same post-completion state.
+	var lobby := _make_lobby([
+		["alice", "Whiskers", "Mage"],
+		["bob", "Shadow", "Ninja"],
+	])
+	var characters := {
+		"alice": _make_character(CharacterData.CharacterClass.MAGE, 5),
+		"bob": _make_character(CharacterData.CharacterClass.NINJA, 5),
+	}
+	var tracker := MetaProgressionTracker.new()
+	var session := CoopSession.new(lobby, characters, tracker, "alice")
+	session.start(_make_two_room_dungeon())
+	session.xp_broadcaster.on_enemy_killed(11)
+
+	# Drive session.run_controller's boss-cleared edge (the legacy / test
+	# path that doesn't go through main_scene).
+	session.run_controller.mark_room_cleared(1)
+
+	assert_eq(tracker.dungeons_completed, 1, "legacy path bumps meta tracker")
+	assert_true(session.was_dungeon_completed())
+	assert_eq(session.last_run_summary_rows.size(), 2,
+		"legacy path also populates snapshot")
+	assert_eq(session.last_run_summary_header.get("grand_total_xp"), 22,
+		"11 XP * 2 members")

@@ -93,6 +93,16 @@ var _active: bool = false
 # reads the session post-end still sees the completion.
 var _dungeon_completed: bool = false
 
+# Captured snapshot of the run summary, populated on finalize_run_summary().
+# Survives end() and the live xp_summary's drop so the future end-of-run
+# summary screen (#17 AC#5) can render rows + header from a still-alive
+# session reference long after the per-run managers are gone. Empty
+# (default-constructed) until the first finalize_run_summary call;
+# overwritten on each subsequent finalize so a multi-run "play again"
+# flow shows the latest run, not the first.
+var last_run_summary_header: Dictionary = {}
+var last_run_summary_rows: Array = []
+
 func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, local_id: String = "", seed_sync: DungeonSeedSync = null) -> void:
 	lobby = lobby_state
 	meta_tracker = tracker
@@ -193,10 +203,60 @@ func member_count() -> int:
 func was_dungeon_completed() -> bool:
 	return _dungeon_completed
 
+# Captures the run summary snapshot and emits run_completed. Closes the
+# AC#5 ("End-of-run screen shows XP earned by each player") gap on the
+# data side: before this method, main_scene._on_dungeon_completed reloaded
+# the scene without snapshotting the live xp_summary anywhere, so the
+# future summary screen had nothing to read. After this method, the
+# header + rows are frozen on the session and survive both the scene
+# reload (session is a GameState autoload field, not a scene-tree node)
+# and a subsequent end()/start() cycle.
+#
+# What this does:
+#   - Sets _dungeon_completed = true so RunSummaryHeaderBuilder.build_header
+#     reports dungeon_completed (gates the "Victory!" header in the future
+#     summary scene).
+#   - Captures last_run_summary_rows + last_run_summary_header from the
+#     LIVE xp_summary BEFORE end() drops it. Once captured, the snapshot
+#     is independent of session.xp_summary.
+#   - Emits run_completed (pure pass-through, no payload).
+#
+# What this does NOT do:
+#   - Call DungeonRunCompletion.complete. The meta-bump is the
+#     responsibility of the controller-driver: main_scene's own
+#     _on_dungeon_completed handler in production (since main_scene
+#     drives its own DungeonRunController, not session.run_controller),
+#     or the session's own _on_dungeon_completed wire in test paths
+#     that drive session.run_controller directly. Calling it here too
+#     would double-bump.
+#
+# Idempotent within a single run: a second call returns false without
+# overwriting. A new finalize after end()+start() would also no-op
+# because _dungeon_completed stays sticky across end() — multi-dungeon-
+# per-match support would need a separate reset hook (out of scope for
+# AC#5, which targets single-dungeon completion).
+#
+# Returns true on rising edge (snapshot captured), false on already-
+# finalized (no overwrite, no signal re-emit).
+func finalize_run_summary() -> bool:
+	if _dungeon_completed:
+		return false
+	_dungeon_completed = true
+	last_run_summary_rows = RunSummaryRowBuilder.build_rows(self)
+	last_run_summary_header = RunSummaryHeaderBuilder.build_header(self)
+	run_completed.emit()
+	return true
+
+# Legacy wire for tests / future paths that drive session.run_controller
+# directly (vs. main_scene driving its own controller). Bumps the meta
+# tracker AND captures the snapshot via finalize_run_summary so both
+# entry points produce the same post-completion state. The production
+# main_scene path bypasses this handler entirely (its controller is
+# separate from session.run_controller); main_scene calls
+# DungeonRunCompletion.complete + finalize_run_summary itself.
 func _on_dungeon_completed() -> void:
 	DungeonRunCompletion.complete(meta_tracker)
-	_dungeon_completed = true
-	run_completed.emit()
+	finalize_run_summary()
 
 func _drop_managers() -> void:
 	if xp_summary != null and xp_broadcaster != null:

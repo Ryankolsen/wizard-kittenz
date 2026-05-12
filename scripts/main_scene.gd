@@ -160,8 +160,27 @@ func _can_reach(from_id: int, target_id: int) -> bool:
 	return false
 
 func _on_dungeon_completed() -> void:
-	var gs := get_node_or_null("/root/GameState")
-	if gs != null:
-		DungeonRunCompletion.complete(gs.meta_tracker)
-		gs.dungeon_run_controller = null
+	_finalize_completed_run()
 	get_tree().reload_current_scene()
+
+# Testable seam for _on_dungeon_completed. The handler itself calls
+# reload_current_scene which clobbers the GUT runner's current scene,
+# so the testable side effects (meta-bump, controller clear, session
+# snapshot) live here. Production path: handler -> seam -> reload. Test
+# path: drive seam directly and inspect the side effects.
+#
+# Session snapshot closes AC#5 ("End-of-run screen shows XP earned by
+# each player") on the data side: finalize_run_summary freezes the
+# header + rows on the session BEFORE the scene reload would otherwise
+# drop them. The future summary screen (HITL) reads
+# gs.coop_session.last_run_summary_header / last_run_summary_rows to
+# render. Solo / null-session path is silently skipped — no co-op
+# means no per-player rows to render.
+func _finalize_completed_run() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return
+	DungeonRunCompletion.complete(gs.meta_tracker)
+	gs.dungeon_run_controller = null
+	if gs.coop_session != null:
+		gs.coop_session.finalize_run_summary()

@@ -179,6 +179,83 @@ func test_main_scene_with_pre_existing_run_controller_does_not_re_activate():
 		"resume-branch _ready must NOT rebuild enemy_sync — the wire's "
 		+ "registered ids would otherwise vanish on every room advance")
 
+# --- finalize-on-dungeon-complete (#17 AC#5) -------------------------------
+# Closes the snapshot side of AC#5. Before _finalize_completed_run was
+# extracted, main_scene._on_dungeon_completed reloaded the scene without
+# capturing the live xp_summary anywhere — the future summary screen
+# (#33 / HITL render surface) had nothing to read. After this wire, the
+# session freezes its rows + header before the reload so the screen
+# can render them from gs.coop_session.last_run_summary_*.
+
+func test_finalize_completed_run_captures_session_snapshot():
+	var session := _make_coop_session()
+	_install_session(session)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+
+	# Fan some XP through the session's broadcaster so the snapshot has
+	# something to capture (vs. a clear-room dungeon with zero XP).
+	session.xp_broadcaster.on_enemy_killed(15)
+
+	# Pre-finalize: snapshot is empty, completion flag false.
+	assert_false(session.was_dungeon_completed())
+	assert_eq(session.last_run_summary_header, {})
+
+	# Drive the testable seam directly (the production handler also calls
+	# reload_current_scene, which would clobber the GUT runner).
+	inst._finalize_completed_run()
+
+	assert_true(session.was_dungeon_completed(),
+		"finalize sets the dungeon-complete flag")
+	assert_eq(session.last_run_summary_rows.size(), 1,
+		"one row per party member")
+	assert_eq(session.last_run_summary_header.get("grand_total_xp"), 15,
+		"snapshot reflects the live xp_summary at finalize time")
+	assert_true(session.last_run_summary_header.get("dungeon_completed"),
+		"header carries the victory flag")
+
+func test_finalize_completed_run_solo_path_is_safe_with_null_session():
+	# Solo / pre-handshake: coop_session is null. The finalize seam must
+	# still advance the meta tracker and clear the run controller without
+	# crashing on the missing session.
+	_install_session(null)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+
+	var gs := get_node("/root/GameState")
+	var pre_completed: int = gs.meta_tracker.dungeons_completed
+	assert_not_null(gs.dungeon_run_controller,
+		"precondition: solo path installed a run controller")
+
+	inst._finalize_completed_run()
+
+	assert_eq(gs.meta_tracker.dungeons_completed, pre_completed + 1,
+		"meta tracker bumps on solo finalize")
+	assert_null(gs.dungeon_run_controller,
+		"run controller cleared so the next _ready takes the new-dungeon branch")
+
+func test_finalize_completed_run_clears_run_controller_for_next_run():
+	# After finalize, gs.dungeon_run_controller must be null so the next
+	# main_scene._ready takes the _start_new_dungeon branch (a fresh
+	# dungeon for the next run) rather than the resume branch (which
+	# would reuse the just-completed dungeon).
+	var session := _make_coop_session()
+	_install_session(session)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+
+	var gs := get_node("/root/GameState")
+	assert_not_null(gs.dungeon_run_controller,
+		"precondition: _ready installed a run controller")
+
+	inst._finalize_completed_run()
+
+	assert_null(gs.dungeon_run_controller,
+		"finalize clears the run controller")
+
 # --- helpers (cont.) -------------------------------------------------------
 
 func _tiny_dungeon() -> Dungeon:
