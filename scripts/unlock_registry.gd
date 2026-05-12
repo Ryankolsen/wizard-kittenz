@@ -21,6 +21,8 @@ const STARTER_CLASSES := ["mage", "thief"]
 const DEFAULT_CONDITIONS: Array = [
 	{"id": "ninja", "stat": "dungeons_completed", "threshold": 5},
 	{"id": "archmage", "stat": "max_level_per_class.mage", "threshold": 5},
+	{"id": "master_thief", "stat": "max_level_per_class.thief", "threshold": 5},
+	{"id": "shadow_ninja", "stat": "max_level_per_class.ninja", "threshold": 5},
 ]
 
 var conditions: Array = []

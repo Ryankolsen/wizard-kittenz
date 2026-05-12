@@ -301,3 +301,81 @@ func test_character_factory_handles_tier_2_thief_and_ninja():
 	assert_eq(
 		CharacterFactory.name_from_class(CharacterData.CharacterClass.SHADOW_NINJA),
 		"shadow_ninja")
+
+# --- Tier-2 gameplay-earnable unlock gates ----------------------------------
+# PRD #26 user story 43 ("IAP items achievable through gameplay too"). The
+# paid path through PaidUnlockInventory is wired by 3327f3e; this gate is the
+# gameplay-earned counterpart. Mirrors the existing archmage gate shape:
+# reach level 5 on the base class -> tier-2 id flips unlocked in the registry.
+
+func test_master_thief_unlock_via_thief_level():
+	# Symmetric to archmage's mage-level-5 gate — earnable path for the
+	# paid tier-2 thief upgrade.
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	assert_false(registry.is_unlocked("master_thief", tracker),
+		"locked at start (thief level 0)")
+	tracker.record_level_reached("thief", 4)
+	assert_false(registry.is_unlocked("master_thief", tracker),
+		"still locked at thief level 4 (< threshold)")
+	tracker.record_level_reached("thief", 5)
+	assert_true(registry.is_unlocked("master_thief", tracker),
+		"unlocks at exactly thief level 5 (>= threshold)")
+
+func test_shadow_ninja_unlock_via_ninja_level():
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	assert_false(registry.is_unlocked("shadow_ninja", tracker),
+		"locked at start (ninja level 0)")
+	tracker.record_level_reached("ninja", 5)
+	assert_true(registry.is_unlocked("shadow_ninja", tracker),
+		"unlocks at ninja level 5")
+
+func test_tier_2_gates_do_not_bleed_across_base_classes():
+	# Leveling Mage shouldn't unlock Master Thief / Shadow Ninja, and
+	# vice-versa. The per-class stat paths gate each tier-2 id on the
+	# matching base class only — same independence contract the
+	# tracker pins for level buckets.
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	tracker.record_level_reached("mage", 5)
+	assert_true(registry.is_unlocked("archmage", tracker),
+		"mage level 5 unlocks archmage")
+	assert_false(registry.is_unlocked("master_thief", tracker),
+		"mage level 5 does NOT unlock master_thief")
+	assert_false(registry.is_unlocked("shadow_ninja", tracker),
+		"mage level 5 does NOT unlock shadow_ninja")
+	tracker.record_level_reached("thief", 5)
+	assert_false(registry.is_unlocked("shadow_ninja", tracker),
+		"thief level 5 does NOT unlock shadow_ninja")
+
+func test_check_all_surfaces_tier_2_unlocks():
+	# The screen layer / "new class available!" toast reads check_all
+	# to project unlock state. All three tier-2 ids should surface once
+	# their respective gameplay conditions are met.
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	tracker.record_level_reached("mage", 5)
+	tracker.record_level_reached("thief", 5)
+	tracker.record_level_reached("ninja", 5)
+	var unlocked := registry.check_all(tracker)
+	assert_true(unlocked.has("archmage"), "archmage surfaced")
+	assert_true(unlocked.has("master_thief"), "master_thief surfaced")
+	assert_true(unlocked.has("shadow_ninja"), "shadow_ninja surfaced")
+
+func test_paid_unlock_bypasses_tier_2_thresholds():
+	# PRD's "earnable through gameplay OR purchased" parity for the
+	# tier-2 ids — paid grant lights up the id even with a fresh tracker.
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	var paid := PaidUnlockInventory.new()
+	assert_false(registry.is_unlocked("master_thief", tracker, paid),
+		"master_thief locked before purchase or gameplay")
+	paid.grant("master_thief")
+	assert_true(registry.is_unlocked("master_thief", tracker, paid),
+		"paid grant bypasses thief level threshold")
+	assert_false(registry.is_unlocked("shadow_ninja", tracker, paid),
+		"shadow_ninja still locked (no paid grant for it)")
+	paid.grant("shadow_ninja")
+	assert_true(registry.is_unlocked("shadow_ninja", tracker, paid),
+		"paid grant bypasses ninja level threshold")
