@@ -44,6 +44,18 @@ func _start_new_dungeon(gs) -> void:
 	_run_controller.start(dungeon)
 	if gs != null:
 		gs.dungeon_run_controller = _run_controller
+		# Co-op session activation. Before this commit, lobby.gd's
+		# _on_match_started constructed CoopSession but never start()'d
+		# it — so session.enemy_sync, xp_broadcaster, and
+		# position_broadcast_gate stayed null and every wire-layer flow
+		# (kill XP fan-out, position broadcast, remote-kill receive)
+		# silently no-op'd because is_coop_route / null-gate checks
+		# returned false. Activating here, after the dungeon is generated,
+		# gives the prior slices' managers real instances to fan into.
+		# Idempotent — a second start() returns false (scene reload after
+		# advance_to keeps the session managers across rooms).
+		if gs.coop_session != null:
+			gs.coop_session.start(dungeon)
 
 # Co-op clients converge on the host's minted seed via DungeonSeedSync, so all
 # party members generate identical room graphs. Solo path / no agreed seed
@@ -63,19 +75,35 @@ func _setup_current_room() -> void:
 	if room == null:
 		return
 
-	var enemy_data := RoomSpawnPlanner.plan_enemy(room)
-	if enemy_data == null:
+	# register_room_enemies mints + (in co-op) registers each spawn's
+	# enemy_id with session.enemy_sync so the remote-kill receive path
+	# (RemoteKillApplier.apply_death) finds the id in the registry and
+	# rising-edges true. Before this commit, _setup_current_room called
+	# plan_enemy without ever poking enemy_sync — so apply_death returned
+	# false for every remote OP_KILL packet (unknown id), the XP fan-out
+	# branch was skipped, and AC#3 (kill by any player awards XP to all)
+	# failed silently on the receiving client. Solo / null session falls
+	# through to a no-registry-touch path: the EnemyData is still minted
+	# and returned, so combat in solo behaves identically.
+	var spawned := RoomSpawnPlanner.register_room_enemies(_coop_session(), room)
+	if spawned.is_empty():
 		# No combat in this room — remove the enemy so the HUD counts zero.
 		if _enemy != null:
 			_enemy.queue_free()
 			_enemy = null
 	else:
 		if _enemy != null:
-			_enemy.data = enemy_data
+			_enemy.data = spawned[0]
 			_enemy.died.connect(_on_enemy_died)
 
 	_watcher = RoomClearWatcher.new()
 	_watcher.watch(room, _run_controller)
+
+func _coop_session() -> CoopSession:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.coop_session
 
 func _on_enemy_died() -> void:
 	if _enemy == null or _enemy.data == null:
