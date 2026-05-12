@@ -73,6 +73,12 @@ var xp_router: LocalXPRouter = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
+# Outbound counterpart to network_sync. One gate per local player per
+# match — Player.gd's _physics_process consults this gate each tick to
+# decide whether to fan a position packet over NakamaLobby. Same lifetime
+# as the other per-run managers: built in start(), dropped in end() so
+# solo play (no session) leaves the wire untouched.
+var position_broadcast_gate: PositionBroadcastGate = null
 
 var _active: bool = false
 # Sticky bool flipped true when run_controller.dungeon_completed fires.
@@ -123,6 +129,7 @@ func start(dungeon: Dungeon) -> bool:
 	network_sync = NetworkSyncManager.new()
 	enemy_sync = EnemyStateSyncManager.new()
 	run_controller = DungeonRunController.new()
+	position_broadcast_gate = PositionBroadcastGate.new()
 
 	for pid in player_ids:
 		xp_broadcaster.register_player(pid)
@@ -194,3 +201,4 @@ func _drop_managers() -> void:
 	network_sync = null
 	enemy_sync = null
 	run_controller = null
+	position_broadcast_gate = null

@@ -89,5 +89,5 @@ func _on_leave_pressed() -> void:
 	var lobby: NakamaLobby = GameState.lobby
 	if lobby != null:
 		lobby.leave_async()
-	GameState.lobby = null
+	GameState.set_lobby(null)
 	get_tree().change_scene_to_file(character_creation_scene_path)

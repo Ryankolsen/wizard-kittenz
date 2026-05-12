@@ -4,10 +4,20 @@ extends RefCounted
 const OP_PLAYER_INFO: int = 1
 const OP_READY_TOGGLE: int = 2
 const OP_START_MATCH: int = 3
+# In-match position broadcast. Payload: {"x": float, "y": float, "ts": float}.
+# Sender id is taken from the socket presence, not the payload, so a client
+# can't spoof another player's position.
+const OP_POSITION: int = 4
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
 signal join_failed(reason: String)
+# In-match position update from a remote player. GameState routes this into
+# coop_session.network_sync.apply_remote_state when a session is active.
+# Decoupled via signal so NakamaLobby stays testable without a live session
+# and so the Player render layer (CoopPlayerLayer / RemoteKitten) can be
+# wired without poking at the lobby internals.
+signal position_received(player_id: String, position: Vector2, timestamp: float)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -89,6 +99,12 @@ func send_ready_async(is_ready: bool) -> void:
 		return
 	await _socket.send_match_state_async(_match_id, OP_READY_TOGGLE, JSON.stringify({"ready": is_ready}))
 
+func send_position_async(now: float, position: Vector2) -> void:
+	if _socket == null or _match_id == "":
+		return
+	var payload := {"x": position.x, "y": position.y, "ts": now}
+	await _socket.send_match_state_async(_match_id, OP_POSITION, JSON.stringify(payload))
+
 func request_start_async() -> bool:
 	if lobby_state == null or not lobby_state.can_start():
 		return false
@@ -131,8 +147,15 @@ func apply_leaves(presences: Array) -> void:
 			lobby_state.remove_player(uid)
 	lobby_updated.emit(lobby_state)
 
-# Routes a decoded match-state message to the appropriate LobbyState mutation.
+# Routes a decoded match-state message to the appropriate LobbyState mutation
+# or in-match signal emission. OP_POSITION intentionally does not require
+# lobby_state to still be populated — the lobby may already have been torn
+# down on session start, but position packets continue to flow through this
+# routing for the duration of the match.
 func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
+	if op_code == OP_POSITION:
+		_route_position(sender_id, data)
+		return
 	if lobby_state == null:
 		return
 	match op_code:
@@ -147,6 +170,20 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 			lobby_updated.emit(lobby_state)
 		OP_START_MATCH:
 			match_started.emit(_match_id)
+
+# Decodes the OP_POSITION payload and emits position_received. Drops the
+# packet silently when sender_id is missing, when sender_id matches the
+# local player (echo of our own broadcast), or when x/y/ts keys are absent
+# — a malformed payload from a future protocol mismatch shouldn't crash
+# the render loop.
+func _route_position(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not (data.has("x") and data.has("y") and data.has("ts")):
+		return
+	var pos := Vector2(float(data.get("x", 0.0)), float(data.get("y", 0.0)))
+	var ts: float = float(data.get("ts", 0.0))
+	position_received.emit(sender_id, pos, ts)
 
 # --- Socket signal handlers ---------------------------------------------------
 

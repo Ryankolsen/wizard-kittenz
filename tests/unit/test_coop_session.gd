@@ -504,3 +504,48 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	session.xp_broadcaster.on_enemy_killed(3)
 	assert_eq(session.member_for("u1").real_stats.xp, 3,
 		"second run's broadcasts route through fresh router")
+
+# --- position_broadcast_gate lifecycle (#35) -------------------------------
+
+func test_position_broadcast_gate_null_pre_start():
+	# Solo / pre-handshake path: the gate doesn't exist until a run starts.
+	# Player.gd's _maybe_broadcast_position null-checks this so solo play
+	# leaves the wire untouched.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	assert_null(session.position_broadcast_gate, "gate is null pre-start")
+
+func test_start_constructs_position_broadcast_gate():
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.position_broadcast_gate, "gate built on start")
+	assert_false(session.position_broadcast_gate.has_broadcast(),
+		"fresh gate has no prior broadcast")
+
+func test_end_drops_position_broadcast_gate():
+	# Per-run lifecycle parity with the other managers — end() must drop
+	# the gate so a stale baseline from the previous run can't suppress
+	# the first broadcast of the next run.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	session.start(_make_two_room_dungeon())
+	# Mark a broadcast so a leaked gate would be observably different
+	# from a fresh one.
+	session.position_broadcast_gate.try_broadcast(0.0, Vector2(10, 20))
+	session.end()
+	assert_null(session.position_broadcast_gate, "gate dropped on end")
+
+func test_position_broadcast_gate_rebuilds_on_next_run():
+	# Multi-run match: each run gets a fresh gate so the first packet of
+	# the new run lands at the new spawn point immediately rather than
+	# being suppressed by the previous run's last-broadcast baseline.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	session.start(_make_two_room_dungeon())
+	var first_gate = session.position_broadcast_gate
+	session.end()
+	session.start(_make_two_room_dungeon())
+	assert_not_null(session.position_broadcast_gate)
+	assert_ne(session.position_broadcast_gate, first_gate,
+		"second run gets a fresh gate instance")

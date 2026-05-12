@@ -125,8 +125,32 @@ func clear() -> void:
 		coop_session.end()
 	coop_session = null
 	local_player_id = ""
+	if lobby != null:
+		_disconnect_lobby_signals(lobby)
 	lobby = null
 	dungeon_run_controller = null
+
+# Lobby setter — routes the inbound position_received signal into
+# coop_session.network_sync. The character creation / lobby UI scene calls
+# this after a successful create/join so the Player's outbound broadcast
+# (via Player._maybe_broadcast_position -> lobby.send_position_async) and
+# the inbound interpolation (via this handler -> network_sync.apply_remote_state)
+# share a single source-of-truth NakamaLobby reference.
+func set_lobby(new_lobby: NakamaLobby) -> void:
+	if lobby != null:
+		_disconnect_lobby_signals(lobby)
+	lobby = new_lobby
+	if lobby != null:
+		lobby.position_received.connect(_on_position_received)
+
+func _disconnect_lobby_signals(old: NakamaLobby) -> void:
+	if old.position_received.is_connected(_on_position_received):
+		old.position_received.disconnect(_on_position_received)
+
+func _on_position_received(player_id: String, position: Vector2, timestamp: float) -> void:
+	if coop_session == null or coop_session.network_sync == null:
+		return
+	coop_session.network_sync.apply_remote_state(player_id, position, timestamp)
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance

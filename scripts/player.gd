@@ -55,6 +55,7 @@ func _physics_process(delta: float) -> void:
 	_tick_spells(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
+	_maybe_broadcast_position()
 	if Input.is_action_just_pressed("attack"):
 		_try_attack()
 	if Input.is_action_just_pressed("cast_spell"):
@@ -201,6 +202,23 @@ func _coop_session() -> CoopSession:
 	if gs == null:
 		return null
 	return gs.coop_session
+
+# Per-tick co-op outbound: ask the gate whether to broadcast our position,
+# fire-and-forget the Nakama send if yes. Solo play (no session) is a
+# single null-check no-op so the wire stays untouched. The gate's three
+# rules (rate limit / delta / heartbeat) decide cadence — Player does
+# not need to know the thresholds.
+func _maybe_broadcast_position() -> void:
+	var session := _coop_session()
+	if session == null or session.position_broadcast_gate == null:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if not session.position_broadcast_gate.try_broadcast(now, global_position):
+		return
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.lobby == null:
+		return
+	gs.lobby.send_position_async(now, global_position)
 
 func _local_player_id() -> String:
 	var gs := get_node_or_null("/root/GameState")

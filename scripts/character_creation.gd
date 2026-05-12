@@ -189,7 +189,7 @@ func _on_create_room_pressed() -> void:
 		_multi_status_label.text = "Failed to create room"
 		_multi_create_button.disabled = false
 		return
-	GameState.lobby = lobby
+	GameState.set_lobby(lobby)
 	GameState.local_player_id = session.user_id
 	get_tree().change_scene_to_file(lobby_scene_path)
 
@@ -221,7 +221,7 @@ func _on_join_room_pressed() -> void:
 		_multi_status_label.text = "Room not found or full"
 		_multi_join_button.disabled = false
 		return
-	GameState.lobby = lobby
+	GameState.set_lobby(lobby)
 	GameState.local_player_id = session.user_id
 	get_tree().change_scene_to_file(lobby_scene_path)
 
