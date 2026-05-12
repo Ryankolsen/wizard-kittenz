@@ -33,11 +33,13 @@ extends RefCounted
 # and a remote-receive flow converge on the same idempotent state.
 #
 # What this does NOT do:
-#   - Touch the scene tree. The local enemy node's queue_free + died
-#     signal (which routes through RoomClearWatcher.notify_death) is
-#     the future spawner's job. The wire layer triggers the node-side
-#     death separately so a single notify_path serves both local-kill
-#     and remote-kill paths — no race between them.
+#   - Touch the scene tree. queue_free of the visible Enemy node is the
+#     RemoteEnemyDespawner.despawn(get_tree(), enemy_id) call gated
+#     behind this method's rising-edge true return at the call site
+#     (GameState._on_kill_received). Split because this helper is pure
+#     RefCounted data and exercised by tests without a SceneTree;
+#     bundling queue_free here would force every data-layer test to
+#     spin up a tree.
 #   - Apply offline-XP tracking. Co-op kills never feed the offline
 #     counter (matches KillRewardRouter's co-op branch contract:
 #     co-op requires the network so the XP is already "synced", and

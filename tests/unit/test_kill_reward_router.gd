@@ -526,3 +526,94 @@ func test_game_state_set_lobby_null_does_not_crash_on_kill():
 	GameState._on_kill_received("r3_e0", "u2", 5)
 	assert_true(true, "no crash on null session")
 	_restore_game_state()
+
+# --- GameState remote-kill scene-tree despawn (AC#4) -------------------------
+
+func _spawn_enemy_in_tree(enemy_id: String) -> Enemy:
+	var e := Enemy.new()
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e.data.enemy_id = enemy_id
+	add_child_autofree(e)
+	return e
+
+func test_game_state_remote_kill_queues_local_enemy_for_deletion():
+	# AC#4 ("no ghost enemies"): an OP_KILL packet for an enemy this
+	# client never killed locally must also queue_free the visible Enemy
+	# node, not just update the registry. Without this, the enemy lingers
+	# on screen until the next room reload.
+	_snapshot_game_state()
+	var lobby_state := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c, "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	GameState.coop_session = session
+	GameState.local_player_id = "u1"
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "u1"
+	GameState.set_lobby(lobby)
+	var enemy_node := _spawn_enemy_in_tree("r3_e0")
+	assert_false(enemy_node.is_queued_for_deletion(),
+		"sanity: enemy starts alive on screen")
+	lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 4})
+	assert_true(enemy_node.is_queued_for_deletion(),
+		"remote kill packet queued the visible Enemy node for deletion")
+	GameState.set_lobby(null)
+	_restore_game_state()
+
+func test_game_state_remote_kill_only_despawns_matching_enemy():
+	# Surgical: an OP_KILL for enemy_id A must not free enemy B that's
+	# also on screen. Pins that the despawn helper filters by id (not by
+	# "first Enemy in group").
+	_snapshot_game_state()
+	var lobby_state := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var session := CoopSession.new(lobby_state, {"u1": _make_character(1), "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	GameState.coop_session = session
+	GameState.local_player_id = "u1"
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "u1"
+	GameState.set_lobby(lobby)
+	var target := _spawn_enemy_in_tree("r3_e0")
+	var bystander := _spawn_enemy_in_tree("r4_e0")
+	lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 0})
+	assert_true(target.is_queued_for_deletion(), "target freed")
+	assert_false(bystander.is_queued_for_deletion(), "bystander untouched")
+	GameState.set_lobby(null)
+	_restore_game_state()
+
+func test_game_state_remote_kill_duplicate_packet_does_not_re_despawn():
+	# RemoteKillApplier.apply returns false on a duplicate packet
+	# (apply_death already returned false on a previously-erased id).
+	# The despawn must be gated behind that rising edge so a flaky-
+	# network re-send doesn't crash trying to re-scan for a freed node.
+	# We assert this indirectly: after the first OP_KILL on an unknown
+	# enemy_id (apply_death returns false because never registered), the
+	# enemy stays on screen.
+	_snapshot_game_state()
+	var lobby_state := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var session := CoopSession.new(lobby_state, {"u1": _make_character(1), "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	# Note: enemy NOT registered. apply_death returns false, despawn
+	# is gated, the node stays.
+	GameState.coop_session = session
+	GameState.local_player_id = "u1"
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "u1"
+	GameState.set_lobby(lobby)
+	var enemy_node := _spawn_enemy_in_tree("r3_e0")
+	lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 0})
+	assert_false(enemy_node.is_queued_for_deletion(),
+		"apply_death returned false (never registered) — despawn gated, node survives")
+	GameState.set_lobby(null)
+	_restore_game_state()

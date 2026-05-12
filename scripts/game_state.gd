@@ -155,14 +155,21 @@ func _on_position_received(player_id: String, position: Vector2, timestamp: floa
 		return
 	coop_session.network_sync.apply_remote_state(player_id, position, timestamp)
 
-# Inbound kill bridge — wire packet → RemoteKillApplier. apply_death's
-# idempotent gate rejects duplicate packets; xp_broadcaster fans XP to
-# every party member's LocalXPRouter (the local player picks its own
-# emission and applies to member.real_stats). Solo path / pre-session
-# (coop_session == null) is a silent no-op via RemoteKillApplier's own
-# null-check.
+# Inbound kill bridge — wire packet → RemoteKillApplier (data side) +
+# RemoteEnemyDespawner (scene side). apply_death's idempotent gate rejects
+# duplicate packets; xp_broadcaster fans XP to every party member's
+# LocalXPRouter (the local player picks its own emission and applies to
+# member.real_stats). Solo path / pre-session (coop_session == null) is a
+# silent no-op via RemoteKillApplier's own null-check.
+#
+# Despawn is gated on RemoteKillApplier's rising-edge true return so a
+# duplicate packet doesn't re-scan the scene tree for an already-freed
+# node. AC#4 ("no ghost enemies") closes here: the visible Enemy
+# CharacterBody2D disappears in lockstep with the registry update.
 func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> void:
-	RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value)
+	if not RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value):
+		return
+	RemoteEnemyDespawner.despawn(get_tree(), enemy_id)
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance
