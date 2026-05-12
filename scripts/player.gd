@@ -33,7 +33,10 @@ func _ready() -> void:
 	_attack_controller.cooldown = ATTACK_COOLDOWN
 	_hitbox = get_node_or_null("Hitbox")
 	_power_ups = PowerUpManager.new()
-	_visual = get_node_or_null("Placeholder")
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite != null:
+		sprite.texture = load("res://assets/sprites/wizard_kitten.png")
+	_visual = sprite
 
 func _physics_process(delta: float) -> void:
 	if data != null and not data.is_alive():

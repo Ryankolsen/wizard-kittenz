@@ -13,12 +13,22 @@ var _attack_controller: AttackController
 var _player_ref: Player = null
 var _died_emitted: bool = false
 
+const _TEXTURE_BY_KIND := {
+	EnemyData.EnemyKind.SLIME: "res://assets/sprites/slime.png",
+	EnemyData.EnemyKind.BAT:   "res://assets/sprites/bat.png",
+	EnemyData.EnemyKind.RAT:   "res://assets/sprites/bat.png",
+}
+
 func _ready() -> void:
 	add_to_group("enemies")
 	if data == null:
 		data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite != null:
+		var path: String = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
+		sprite.texture = load(path)
 
 func _physics_process(_delta: float) -> void:
 	if data == null:

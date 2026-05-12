@@ -21,6 +21,7 @@ var _hud: HUD = null
 var _enemy: Enemy = null
 
 func _ready() -> void:
+	DungeonFloor.paint($TileMap)
 	_hud = $HUD
 	_enemy = $Enemy
 
