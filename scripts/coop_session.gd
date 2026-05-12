@@ -64,6 +64,13 @@ var meta_tracker: MetaProgressionTracker = null
 # building the router in that case (no local id => nothing to filter
 # on => no-op subscription).
 var local_player_id: String = ""
+# Borrowed reference to the per-match agreed dungeon seed. Owned by NakamaLobby
+# (one sync per lobby instance, reset() between matches). The lobby's start
+# handler hands the same instance to every client's CoopSession at match-start
+# time so the dungeon layout converges across the party. Null on solo / pre-
+# handshake / test paths; main_scene.gd null-checks before consuming so solo
+# play falls through to DungeonGenerator's randomize-on-negative-seed branch.
+var dungeon_seed_sync: DungeonSeedSync = null
 
 # Per-run managers — non-null between start() and end(), null otherwise
 # so a caller can null-check `xp_broadcaster` to ask "is the run live?".
@@ -86,10 +93,11 @@ var _active: bool = false
 # reads the session post-end still sees the completion.
 var _dungeon_completed: bool = false
 
-func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, local_id: String = "") -> void:
+func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker: MetaProgressionTracker = null, local_id: String = "", seed_sync: DungeonSeedSync = null) -> void:
 	lobby = lobby_state
 	meta_tracker = tracker
 	local_player_id = local_id
+	dungeon_seed_sync = seed_sync
 	if lobby == null:
 		return
 	var levels: Array = []

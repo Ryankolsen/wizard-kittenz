@@ -19,6 +19,14 @@ const OP_KILL: int = 5
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
 signal join_failed(reason: String)
+# Emitted exactly once per match when the dungeon seed agrees — host fires on
+# host_mint via request_start_async, remote fires on apply_remote_seed via the
+# OP_START_MATCH payload. Decoupled via signal so GameState/CoopSession can
+# observe without poking dungeon_seed_sync internals. Re-emits across matches
+# rely on _host_mint_match_seed calling reset() on a stale sync before the
+# next host_mint so the previous match's agreed state doesn't suppress a
+# fresh mint.
+signal seed_agreed(seed: int)
 # In-match position update from a remote player. GameState routes this into
 # coop_session.network_sync.apply_remote_state when a session is active.
 # Decoupled via signal so NakamaLobby stays testable without a live session
@@ -33,6 +41,13 @@ signal kill_received(enemy_id: String, killer_id: String, xp_value: int)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
+# Per-match agreed dungeon seed. Host mints inside request_start_async and ships
+# the value in the OP_START_MATCH payload; remote applies in apply_state before
+# match_started.emit so any subscriber (lobby UI → CoopSession) sees an agreed
+# seed at the moment the match-started edge fires. Allocated once per lobby
+# instance and reset() at the start of each match to support multi-run lobbies
+# without re-allocating the sync.
+var dungeon_seed_sync: DungeonSeedSync = DungeonSeedSync.new()
 
 var _socket = null  # NakamaSocket, untyped to avoid preload at class scope
 var _session = null # NakamaSession
@@ -137,9 +152,26 @@ func request_start_async() -> bool:
 		return false
 	if _socket == null or _match_id == "":
 		return false
-	await _socket.send_match_state_async(_match_id, OP_START_MATCH, "{}")
+	var seed := _host_mint_match_seed()
+	await _socket.send_match_state_async(
+		_match_id, OP_START_MATCH, JSON.stringify({"seed": seed})
+	)
 	match_started.emit(_match_id)
 	return true
+
+# Host-side seed prep, pulled out so a test can pin the precondition (lobby
+# enters request_start_async with a fresh, agreed seed) without faking a real
+# socket. Resets a stale sync from the previous match (the lobby instance is
+# reused for multi-run sessions, so a second host_mint must not return the
+# previous match's seed and ship the party back into the same dungeon).
+# Returns the agreed seed for the caller to embed in the OP_START_MATCH
+# payload.
+func _host_mint_match_seed() -> int:
+	if dungeon_seed_sync.is_agreed():
+		dungeon_seed_sync.reset()
+	var seed := dungeon_seed_sync.host_mint()
+	seed_agreed.emit(seed)
+	return seed
 
 func leave_async() -> void:
 	if _socket != null and _match_id != "":
@@ -199,7 +231,27 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 			lobby_state.set_ready(sender_id, bool(data.get("ready", false)))
 			lobby_updated.emit(lobby_state)
 		OP_START_MATCH:
+			_apply_remote_match_seed(data)
 			match_started.emit(_match_id)
+
+# Reads the seed from an OP_START_MATCH payload and applies it via the per-
+# lobby DungeonSeedSync. No-op when the sync is already agreed (host's self-
+# echo arrives after request_start_async already minted, so apply_remote_seed
+# would reject the duplicate anyway — but skipping the reset avoids clobbering
+# the host's minted seed if a future race orders the echo before the local
+# mint). A missing or negative seed key is a no-op (legacy / corrupted
+# payloads fall through to the existing match_started emit so the lobby UI
+# still transitions).
+func _apply_remote_match_seed(data: Dictionary) -> void:
+	if dungeon_seed_sync.is_agreed():
+		return
+	if not data.has("seed"):
+		return
+	var seed: int = int(data.get("seed", -1))
+	if seed < 0:
+		return
+	if dungeon_seed_sync.apply_remote_seed(seed):
+		seed_agreed.emit(seed)
 
 # Decodes the OP_POSITION payload and emits position_received. Drops the
 # packet silently when sender_id is missing, when sender_id matches the

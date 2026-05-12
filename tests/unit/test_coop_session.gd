@@ -505,6 +505,55 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	assert_eq(session.member_for("u1").real_stats.xp, 3,
 		"second run's broadcasts route through fresh router")
 
+# --- dungeon_seed_sync borrowed reference (#17 AC#1) -----------------------
+
+func test_dungeon_seed_sync_defaults_null():
+	# Solo / pre-handshake / test path: no seed sync handed in => null. The
+	# main_scene consumer null-checks before reading is_agreed() so this falls
+	# through to DungeonGenerator's randomize sentinel.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	assert_null(session.dungeon_seed_sync,
+		"default null when no seed sync passed")
+
+func test_dungeon_seed_sync_stored_from_constructor():
+	# The lobby's start handler hands the same DungeonSeedSync instance to
+	# every client's CoopSession at match start so main_scene reads the
+	# agreed seed from session.dungeon_seed_sync.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var seed_sync := DungeonSeedSync.new()
+	seed_sync.host_mint(4242)
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		null, "u1", seed_sync,
+	)
+	assert_eq(session.dungeon_seed_sync, seed_sync,
+		"session holds the borrowed seed sync reference")
+	assert_true(session.dungeon_seed_sync.is_agreed())
+	assert_eq(session.dungeon_seed_sync.current_seed(), 4242,
+		"agreed seed visible through session field")
+
+func test_dungeon_seed_sync_survives_end_start_cycle():
+	# Multi-run lobby: end() drops per-run managers but the seed sync is
+	# borrowed (lobby-owned), so it must persist across end()/start() pairs
+	# unchanged. The lobby is responsible for reset() between matches —
+	# CoopSession just holds the reference.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var seed_sync := DungeonSeedSync.new()
+	seed_sync.host_mint(1234)
+	var session := CoopSession.new(
+		lobby,
+		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		null, "u1", seed_sync,
+	)
+	session.start(_make_two_room_dungeon())
+	session.end()
+	assert_eq(session.dungeon_seed_sync, seed_sync,
+		"end() does not drop the borrowed seed sync ref")
+	assert_true(session.dungeon_seed_sync.is_agreed(),
+		"borrowed sync state preserved across end()")
+
 # --- position_broadcast_gate lifecycle (#35) -------------------------------
 
 func test_position_broadcast_gate_null_pre_start():

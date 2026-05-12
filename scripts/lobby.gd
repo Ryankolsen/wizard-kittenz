@@ -66,7 +66,8 @@ func _on_match_started(_match_id: String) -> void:
 	GameState.coop_session = CoopSession.new(
 		lobby.lobby_state, chars,
 		GameState.meta_tracker,
-		GameState.local_player_id
+		GameState.local_player_id,
+		lobby.dungeon_seed_sync,
 	)
 	get_tree().change_scene_to_file(main_scene_path)
 

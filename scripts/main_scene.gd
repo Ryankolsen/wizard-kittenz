@@ -39,11 +39,24 @@ func _ready() -> void:
 	_setup_current_room()
 
 func _start_new_dungeon(gs) -> void:
-	var dungeon := DungeonGenerator.generate()
+	var dungeon := DungeonGenerator.generate(_dungeon_seed_for(gs))
 	_run_controller = DungeonRunController.new()
 	_run_controller.start(dungeon)
 	if gs != null:
 		gs.dungeon_run_controller = _run_controller
+
+# Co-op clients converge on the host's minted seed via DungeonSeedSync, so all
+# party members generate identical room graphs. Solo path / no agreed seed
+# falls through to -1 (DungeonGenerator's randomize-on-negative sentinel) so a
+# fresh dungeon rolls each run. Reads the seed sync via coop_session, which
+# holds the borrowed reference the lobby handed in at match-start.
+func _dungeon_seed_for(gs) -> int:
+	if gs == null or gs.coop_session == null:
+		return -1
+	var seed_sync: DungeonSeedSync = gs.coop_session.dungeon_seed_sync
+	if seed_sync == null or not seed_sync.is_agreed():
+		return -1
+	return seed_sync.current_seed()
 
 func _setup_current_room() -> void:
 	var room := _run_controller.current_room()
