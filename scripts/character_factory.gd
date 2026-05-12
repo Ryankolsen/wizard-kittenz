@@ -16,6 +16,8 @@ static func class_from_name(class_name_str: String) -> int:
 		"thief": return CharacterData.CharacterClass.THIEF
 		"ninja": return CharacterData.CharacterClass.NINJA
 		"archmage": return CharacterData.CharacterClass.ARCHMAGE
+		"master_thief": return CharacterData.CharacterClass.MASTER_THIEF
+		"shadow_ninja": return CharacterData.CharacterClass.SHADOW_NINJA
 	return CharacterData.CharacterClass.MAGE
 
 # Inverse lookup: enum int -> the lowercase id used by UnlockRegistry /
@@ -27,6 +29,8 @@ static func name_from_class(klass: int) -> String:
 		CharacterData.CharacterClass.THIEF: return "thief"
 		CharacterData.CharacterClass.NINJA: return "ninja"
 		CharacterData.CharacterClass.ARCHMAGE: return "archmage"
+		CharacterData.CharacterClass.MASTER_THIEF: return "master_thief"
+		CharacterData.CharacterClass.SHADOW_NINJA: return "shadow_ninja"
 	return "mage"
 
 static func create_default(class_name_str: String, character_name: String = "Kitten") -> CharacterData:

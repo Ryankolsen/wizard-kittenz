@@ -14,6 +14,8 @@ extends RefCounted
 
 const TIER_MAP: Dictionary = {
 	CharacterData.CharacterClass.MAGE: CharacterData.CharacterClass.ARCHMAGE,
+	CharacterData.CharacterClass.THIEF: CharacterData.CharacterClass.MASTER_THIEF,
+	CharacterData.CharacterClass.NINJA: CharacterData.CharacterClass.SHADOW_NINJA,
 }
 
 static func has_upgrade(klass: int) -> bool:

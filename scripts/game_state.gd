@@ -189,4 +189,6 @@ func _build_tree_for(c: CharacterData) -> SkillTree:
 		CharacterData.CharacterClass.THIEF: return SkillTree.make_thief_tree()
 		CharacterData.CharacterClass.NINJA: return SkillTree.make_ninja_tree()
 		CharacterData.CharacterClass.ARCHMAGE: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.MASTER_THIEF: return SkillTree.make_thief_tree()
+		CharacterData.CharacterClass.SHADOW_NINJA: return SkillTree.make_ninja_tree()
 	return SkillTree.make_mage_tree()

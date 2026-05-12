@@ -1,7 +1,7 @@
 class_name CharacterData
 extends Resource
 
-enum CharacterClass { MAGE, THIEF, NINJA, ARCHMAGE }
+enum CharacterClass { MAGE, THIEF, NINJA, ARCHMAGE, MASTER_THIEF, SHADOW_NINJA }
 
 const SAVE_PATH := "user://character.tres"
 
@@ -31,6 +31,8 @@ static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.THIEF: base = 10
 		CharacterClass.NINJA: base = 9
 		CharacterClass.ARCHMAGE: base = 12
+		CharacterClass.MASTER_THIEF: base = 14
+		CharacterClass.SHADOW_NINJA: base = 13
 	return base + (lvl - 1) * 2
 
 static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
@@ -39,6 +41,8 @@ static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.THIEF: return 3
 		CharacterClass.NINJA: return 4
 		CharacterClass.ARCHMAGE: return 4
+		CharacterClass.MASTER_THIEF: return 5
+		CharacterClass.SHADOW_NINJA: return 6
 	return 2
 
 static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
@@ -47,17 +51,24 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.THIEF: return 1
 		CharacterClass.NINJA: return 0
 		CharacterClass.ARCHMAGE: return 1
+		CharacterClass.MASTER_THIEF: return 2
+		CharacterClass.SHADOW_NINJA: return 1
 	return 0
 
 # Per-class movement speed (px/sec). Thief is fastest, Mage slowest, Ninja
 # balanced — matches the issue's "high speed / balanced / low" archetype.
-# Archmage trades a touch of speed for the heavier baseline stats above.
+# Tier-2 classes (Archmage / Master Thief / Shadow Ninja) inherit their base
+# class's identity (Master Thief stays fastest, Shadow Ninja balanced) with
+# a small uplift across the board so the upgrade feels meaningful without
+# warping the per-class archetype.
 static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 	match klass:
 		CharacterClass.MAGE: return 50.0
 		CharacterClass.THIEF: return 75.0
 		CharacterClass.NINJA: return 60.0
 		CharacterClass.ARCHMAGE: return 55.0
+		CharacterClass.MASTER_THIEF: return 80.0
+		CharacterClass.SHADOW_NINJA: return 65.0
 	return 60.0
 
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:

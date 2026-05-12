@@ -25,9 +25,10 @@ func test_class_for_product_cosmetic_returns_minus_one():
 # --- Coverage extras ---
 
 func test_class_upgrade_thief_and_ninja_map_to_source_class():
-	# Master Thief / Shadow Ninja aren't in CharacterClass yet, but the product
-	# IDs are pre-wired so Play Console can list them. class_for_product still
-	# returns the *source* class — slice 6 dispatches via ClassTierUpgrade.
+	# class_for_product returns the *source* class (the one being upgraded);
+	# the target lives in ClassTierUpgrade.TIER_MAP. All three Tier-1 products
+	# now route end-to-end (Master Thief / Shadow Ninja landed alongside
+	# Archmage in CharacterData.CharacterClass + TIER_MAP).
 	assert_eq(
 		PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF),
 		int(CharacterData.CharacterClass.THIEF))

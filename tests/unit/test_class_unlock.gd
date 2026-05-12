@@ -165,12 +165,14 @@ func test_tier_upgrade_recomputes_stats_to_target_class():
 	assert_lte(c.hp, c.max_hp, "hp clamped to new max")
 
 func test_tier_upgrade_no_op_when_no_target():
-	# Thief has no registered tier upgrade — upgrade should return false and
-	# leave the character alone.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	# Tier-2 classes (Archmage, Master Thief, Shadow Ninja) have no further
+	# upgrade in TIER_MAP — upgrade should return false and leave the
+	# character alone. Picks Archmage to pin "already-upgraded class can't
+	# re-upgrade" without depending on a base class staying unmapped.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.ARCHMAGE)
 	var ok: bool = ClassTierUpgrade.upgrade(c)
 	assert_false(ok, "no-op when target tier isn't registered")
-	assert_eq(c.character_class, CharacterData.CharacterClass.THIEF,
+	assert_eq(c.character_class, CharacterData.CharacterClass.ARCHMAGE,
 		"class unchanged on no-op")
 
 func test_save_manager_round_trips_meta_tracker():
@@ -221,3 +223,81 @@ func test_character_factory_handles_archmage():
 	var klass: int = CharacterFactory.class_from_name("archmage")
 	assert_eq(klass, CharacterData.CharacterClass.ARCHMAGE)
 	assert_eq(CharacterFactory.name_from_class(CharacterData.CharacterClass.ARCHMAGE), "archmage")
+
+# --- Tier-2 upgrades for Thief and Ninja ------------------------------------
+
+func test_master_thief_has_higher_baseline_than_thief():
+	# Tier upgrade replaces base class with improved stats — same shape as
+	# the archmage check, applied to the thief upgrade path.
+	var lvl := 3
+	assert_gt(
+		CharacterData.base_max_hp_for(CharacterData.CharacterClass.MASTER_THIEF, lvl),
+		CharacterData.base_max_hp_for(CharacterData.CharacterClass.THIEF, lvl),
+		"master thief has more max_hp than thief at the same level")
+	assert_gt(
+		CharacterData.base_attack_for(CharacterData.CharacterClass.MASTER_THIEF, lvl),
+		CharacterData.base_attack_for(CharacterData.CharacterClass.THIEF, lvl),
+		"master thief hits harder than thief")
+	assert_gt(
+		CharacterData.base_speed_for(CharacterData.CharacterClass.MASTER_THIEF, lvl),
+		CharacterData.base_speed_for(CharacterData.CharacterClass.THIEF, lvl),
+		"master thief stays the fastest archetype (speed uplift, not regression)")
+
+func test_shadow_ninja_has_higher_baseline_than_ninja():
+	var lvl := 3
+	assert_gt(
+		CharacterData.base_max_hp_for(CharacterData.CharacterClass.SHADOW_NINJA, lvl),
+		CharacterData.base_max_hp_for(CharacterData.CharacterClass.NINJA, lvl),
+		"shadow ninja has more max_hp than ninja at the same level")
+	assert_gt(
+		CharacterData.base_attack_for(CharacterData.CharacterClass.SHADOW_NINJA, lvl),
+		CharacterData.base_attack_for(CharacterData.CharacterClass.NINJA, lvl),
+		"shadow ninja hits harder than ninja")
+
+func test_tier_upgrade_thief_to_master_thief_preserves_progression():
+	# Same preserves-progression contract as the mage->archmage case.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	ProgressionSystem.add_xp(c, 17)  # L3 with 2 xp leftover
+	assert_eq(c.level, 3)
+	assert_eq(c.xp, 2)
+	var preserved_skill_points := c.skill_points
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok, "thief->master thief upgrade succeeds")
+	assert_eq(c.character_class, CharacterData.CharacterClass.MASTER_THIEF,
+		"class flipped to master thief")
+	assert_eq(c.level, 3, "level preserved across upgrade")
+	assert_eq(c.xp, 2, "xp preserved across upgrade")
+	assert_eq(c.skill_points, preserved_skill_points,
+		"skill_points preserved across upgrade")
+	assert_eq(c.max_hp,
+		CharacterData.base_max_hp_for(CharacterData.CharacterClass.MASTER_THIEF, 3),
+		"max_hp recomputed for master thief")
+
+func test_tier_upgrade_ninja_to_shadow_ninja_preserves_progression():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	ProgressionSystem.add_xp(c, 17)
+	assert_eq(c.level, 3)
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok, "ninja->shadow ninja upgrade succeeds")
+	assert_eq(c.character_class, CharacterData.CharacterClass.SHADOW_NINJA)
+	assert_eq(c.level, 3, "level preserved across upgrade")
+	assert_eq(c.attack,
+		CharacterData.base_attack_for(CharacterData.CharacterClass.SHADOW_NINJA, 3),
+		"attack recomputed for shadow ninja")
+
+func test_character_factory_handles_tier_2_thief_and_ninja():
+	# The lowercase ids round-trip through the factory the same way
+	# "archmage" does — keeps name_from_class consistent for any tracker /
+	# UnlockRegistry call that keys on the lowercase id string.
+	assert_eq(
+		CharacterFactory.class_from_name("master_thief"),
+		CharacterData.CharacterClass.MASTER_THIEF)
+	assert_eq(
+		CharacterFactory.name_from_class(CharacterData.CharacterClass.MASTER_THIEF),
+		"master_thief")
+	assert_eq(
+		CharacterFactory.class_from_name("shadow_ninja"),
+		CharacterData.CharacterClass.SHADOW_NINJA)
+	assert_eq(
+		CharacterFactory.name_from_class(CharacterData.CharacterClass.SHADOW_NINJA),
+		"shadow_ninja")

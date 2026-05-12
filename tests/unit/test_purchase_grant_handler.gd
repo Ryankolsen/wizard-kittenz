@@ -71,17 +71,26 @@ func test_cosmetic_pack_replay_returns_false():
 		"replay returns false; inventory.grant idempotent")
 	assert_eq(inv.owned_pack_ids.size(), 1, "no duplicate entry")
 
-func test_class_upgrade_without_tier_map_entry_is_noop():
-	# Thief -> Master Thief / Ninja -> Shadow Ninja are in PurchaseRegistry
-	# but NOT yet in ClassTierUpgrade.TIER_MAP. handle() must surface that
-	# as no-op (false) rather than mutating the character; the shop UI can
-	# then surface a "coming soon" path.
+func test_class_upgrade_thief_to_master_thief():
+	# AC: Thief -> Master Thief lands via the same dispatch as Mage -> Archmage.
+	# Pins the parity (every Tier-1 catalog product grants its tier upgrade).
 	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
 	var inv := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(
 		PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF, c, inv)
-	assert_false(ok, "no TIER_MAP entry -> no grant")
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.THIEF))
+	assert_true(ok, "thief upgrade returns true on the matching source class")
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.MASTER_THIEF),
+		"thief promoted to master thief")
+
+func test_class_upgrade_ninja_to_shadow_ninja():
+	# AC parity with the thief case: ninja upgrade dispatches end-to-end.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var inv := CosmeticInventory.new()
+	var ok := PurchaseGrantHandler.handle(
+		PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA, c, inv)
+	assert_true(ok, "ninja upgrade returns true on the matching source class")
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.SHADOW_NINJA),
+		"ninja promoted to shadow ninja")
 
 func test_class_unlock_grants_via_paid_inventory():
 	# Class-unlock products now route to PaidUnlockInventory.grant; previously
@@ -170,6 +179,35 @@ func test_purchase_succeeded_persists_cosmetic_grant():
 	assert_not_null(loaded)
 	assert_true(loaded.cosmetic_packs.has(PurchaseRegistry.COSMETIC_COAT_PACK),
 		"cosmetic pack persisted via SaveManager.save")
+
+func test_purchase_succeeded_signal_upgrades_thief_to_master_thief():
+	# AC parity with the mage->archmage signal path: BillingManager fires
+	# purchase_succeeded(UPGRADE_THIEF_MASTER_THIEF) -> GameState routes ->
+	# active character is mutated and persisted.
+	_cleanup_save()
+	var gs := get_node("/root/GameState")
+	var bm := get_node("/root/BillingManager")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.THIEF, "Whiskers"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF)
+	assert_eq(gs.current_character.character_class,
+		int(CharacterData.CharacterClass.MASTER_THIEF),
+		"current_character promoted to Master Thief")
+	assert_true(FileAccess.file_exists(TMP_SAVE_PATH),
+		"save file written after grant")
+	var loaded := SaveManager.load(TMP_SAVE_PATH)
+	assert_not_null(loaded)
+	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.MASTER_THIEF),
+		"upgraded class persisted to disk")
+
+func test_purchase_succeeded_signal_upgrades_ninja_to_shadow_ninja():
+	_cleanup_save()
+	var gs := get_node("/root/GameState")
+	var bm := get_node("/root/BillingManager")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA)
+	assert_eq(gs.current_character.character_class,
+		int(CharacterData.CharacterClass.SHADOW_NINJA),
+		"current_character promoted to Shadow Ninja")
 
 func test_purchase_succeeded_unknown_product_no_save():
 	# No grant => no save. Otherwise every spurious purchase_succeeded would
