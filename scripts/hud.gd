@@ -30,10 +30,10 @@ var _room_cleared: bool = false
 var _next_room_btn: Button
 
 func _ready() -> void:
-	_hp_fill = $HPBar/Fill
-	_hp_label = $HPBar/Label
-	_xp_fill = $XPBar/Fill
-	_xp_label = $XPBar/Label
+	_hp_fill = $StatsPanel/VBox/HPBar/Fill
+	_hp_label = $StatsPanel/VBox/HPBar/Label
+	_xp_fill = $StatsPanel/VBox/XPBar/Fill
+	_xp_label = $StatsPanel/VBox/XPBar/Label
 	_room_clear = $RoomClear
 	_next_room_btn = $RoomClear/NextRoom
 	_next_room_btn.pressed.connect(_on_next_room_pressed)
