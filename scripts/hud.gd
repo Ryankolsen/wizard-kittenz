@@ -249,7 +249,10 @@ func _on_revive_pressed() -> void:
 		_you_died.visible = false
 
 func _on_give_up_pressed() -> void:
-	get_tree().reload_current_scene()
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.clear()
+	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
 
 func _count_enemies() -> int:
 	return get_tree().get_nodes_in_group("enemies").size()
