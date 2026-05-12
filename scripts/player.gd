@@ -194,7 +194,8 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		enemy_data,
 		_coop_session(),
 		_local_player_id(),
-		_offline_xp_tracker()
+		_offline_xp_tracker(),
+		_lobby()
 	)
 
 func _coop_session() -> CoopSession:
@@ -202,6 +203,12 @@ func _coop_session() -> CoopSession:
 	if gs == null:
 		return null
 	return gs.coop_session
+
+func _lobby() -> NakamaLobby:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.lobby
 
 # Per-tick co-op outbound: ask the gate whether to broadcast our position,
 # fire-and-forget the Nakama send if yes. Solo play (no session) is a

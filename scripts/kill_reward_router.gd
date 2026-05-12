@@ -51,21 +51,30 @@ static func route_kill(
 	enemy_data: EnemyData,
 	session: CoopSession,
 	local_player_id: String,
-	xp_tracker: OfflineXPTracker = null
+	xp_tracker: OfflineXPTracker = null,
+	lobby: NakamaLobby = null
 ) -> void:
 	if data == null or enemy_data == null:
 		return
 	if is_coop_route(session, local_player_id):
 		session.xp_broadcaster.on_enemy_killed(enemy_data.xp_reward, local_player_id)
-		# Mark the enemy dead in the per-session network registry so a
-		# remote enemy-died packet (when the wire layer #14 lands) and
-		# the local kill detection converge cleanly. apply_death is
-		# idempotent — if the remote packet beat us, the second call
-		# returns false rather than erroring. Empty enemy_id is a
-		# pre-spawn-layer / test fixture path; skip the registry poke
-		# so we don't pollute it with an unkeyed entry.
+		# Mark the enemy dead in the per-session network registry so the
+		# remote enemy-died packet and the local kill detection converge
+		# cleanly. apply_death is idempotent — if the remote packet beat
+		# us, the second call returns false rather than erroring. Empty
+		# enemy_id is a pre-spawn-layer / test fixture path; skip the
+		# registry poke so we don't pollute it with an unkeyed entry.
 		if session.enemy_sync != null and enemy_data.enemy_id != "":
 			session.enemy_sync.apply_death(enemy_data.enemy_id)
+		# Outbound wire send — fire-and-forget so a slow Nakama RTT
+		# doesn't stall the kill flow. lobby == null is the test path /
+		# pre-handshake path (no socket yet); send_kill_async also
+		# null-checks its own socket internally so a disconnect mid-kill
+		# is a silent no-op rather than a crash. Empty enemy_id is
+		# already a no-op inside send_kill_async — caller doesn't need
+		# to repeat the gate here.
+		if lobby != null:
+			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, enemy_data.xp_reward)
 		return
 	# Solo path — apply XP locally and tally into the offline tracker.
 	ProgressionSystem.add_xp(data, enemy_data.xp_reward)

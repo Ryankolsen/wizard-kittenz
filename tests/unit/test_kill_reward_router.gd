@@ -5,6 +5,15 @@ extends GutTest
 # stripped in #30; route_kill no longer takes an inventory and no longer
 # returns a grant count (boss-kill bonus is gone with the inventory).
 
+# Test double for NakamaLobby that records calls to send_kill_async
+# without touching a real socket. Lets the lobby-param tests pin the
+# wire-send contract without booting the wire layer.
+class _RecordingLobby:
+	extends NakamaLobby
+	var sent_kills: Array = []
+	func send_kill_async(enemy_id: String, killer_id: String, xp_value: int) -> void:
+		sent_kills.append([enemy_id, killer_id, xp_value])
+
 # --- Test helpers ----------------------------------------------------------
 
 func _make_character(level: int = 1) -> CharacterData:
@@ -297,6 +306,108 @@ func test_route_kill_coop_empty_local_id_falls_to_solo():
 	KillRewardRouter.route_kill(c, enemy, session, "")
 	assert_eq(c.level, 2, "empty local_id triggers solo branch")
 
+# --- route_kill: wire send (lobby param) ------------------------------------
+
+func test_route_kill_coop_with_lobby_sends_wire_packet():
+	# Co-op path with a non-null lobby fans the kill over the wire so
+	# remote clients learn about it. Closes the AC#3 broadcast gap:
+	# without this send, remote clients never receive the kill event
+	# and never apply XP for kills made on this client.
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(7)
+	enemy.enemy_id = "r3_e0"
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
+	assert_eq(lobby.sent_kills.size(), 1, "wire packet sent on co-op kill")
+	assert_eq(lobby.sent_kills[0][0], "r3_e0", "enemy_id forwarded")
+	assert_eq(lobby.sent_kills[0][1], "u1", "killer_id is the local player_id")
+	assert_eq(lobby.sent_kills[0][2], 7, "xp_value is the enemy's xp_reward")
+
+func test_route_kill_coop_null_lobby_safe():
+	# Pre-handshake / test path where the lobby ref hasn't been resolved
+	# yet. Local broadcast still fires; only the wire send is skipped.
+	# Symmetric to the null-tracker contract on the solo branch.
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(3)
+	enemy.enemy_id = "r3_e0"
+	# Sixth arg (lobby) intentionally omitted — defaults to null.
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
+	assert_eq(c.xp, 3, "local broadcast still fires without a lobby")
+
+func test_route_kill_solo_with_lobby_does_not_send():
+	# A null/inactive session takes the solo branch even if a lobby is
+	# present. Solo kills never broadcast — the wire layer is co-op only.
+	# Without this gate, a player who left a co-op session but kept the
+	# lobby ref around would silently leak kills onto the wire.
+	var c := _make_character(1)
+	var enemy := _make_enemy(3)
+	enemy.enemy_id = "r3_e0"
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, null, "", null, lobby)
+	assert_eq(lobby.sent_kills.size(), 0, "solo path never broadcasts")
+	assert_eq(c.level, 1, "solo path applied XP locally (3 < L1->L2 threshold)")
+	assert_eq(c.xp, 3, "solo path applied XP locally")
+
+func test_route_kill_coop_inactive_session_with_lobby_does_not_send():
+	# An end()'d session falls through to solo; even with a lobby the
+	# kill must NOT go on the wire (post-end the broadcaster is null
+	# and any wire send would be misattributed to a dead session).
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.end()
+	var enemy := _make_enemy(5)
+	enemy.enemy_id = "r3_e0"
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
+	assert_eq(lobby.sent_kills.size(), 0, "post-end session does not broadcast")
+
+func test_route_kill_coop_empty_enemy_id_still_calls_send():
+	# The empty-enemy_id no-op gate lives inside send_kill_async itself
+	# (matching how send_position_async handles its no-socket guard) —
+	# the router doesn't replicate the gate. Pins that the router's
+	# contract is "if co-op and lobby, fire", and the lobby decides
+	# whether the packet actually goes on the wire. send_kill_async's
+	# own gate handles the empty-id silently.
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(3)
+	# enemy_id intentionally empty (default).
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
+	assert_eq(lobby.sent_kills.size(), 1, "router calls send unconditionally")
+	assert_eq(lobby.sent_kills[0][0], "", "empty enemy_id forwarded; gate is in send_kill_async")
+
+func test_route_kill_coop_with_lobby_still_records_local_state():
+	# The new lobby param is additive — it does NOT change the existing
+	# enemy_sync.apply_death + xp_broadcaster.on_enemy_killed contract.
+	# Pin all three side effects at once so a future refactor that drops
+	# one (e.g. "just send, the receiver will fan out") fails loudly.
+	# 4 XP keeps the kitten at L1 (L1->L2 needs 5) so the post-call xp
+	# read is the raw amount routed by LocalXPRouter, not a level-up
+	# remainder of zero.
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	var enemy := _make_enemy(4)
+	enemy.enemy_id = "r3_e0"
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
+	assert_false(session.enemy_sync.is_alive("r3_e0"), "enemy_sync.apply_death fired")
+	assert_eq(c.xp, 4, "xp_broadcaster fanned out + LocalXPRouter applied")
+	assert_eq(lobby.sent_kills.size(), 1, "wire packet sent")
+
 # --- GameState wiring -------------------------------------------------------
 
 # GameState is an autoload — a single instance shared across the test
@@ -340,4 +451,78 @@ func test_game_state_clear_drops_coop_session():
 	GameState.clear()
 	assert_null(GameState.coop_session, "session reference dropped")
 	assert_eq(GameState.local_player_id, "", "local id reset")
+	_restore_game_state()
+
+# --- GameState set_lobby kill_received bridge -------------------------------
+
+func test_game_state_set_lobby_routes_kill_received_to_remote_applier():
+	# set_lobby connects lobby.kill_received -> _on_kill_received ->
+	# RemoteKillApplier.apply. Closes the inbound side of AC#3: a kill
+	# packet from another client lands here, removes the enemy from the
+	# local registry, and fans XP through the local broadcaster so this
+	# client's LocalXPRouter applies XP to its member.real_stats.
+	_snapshot_game_state()
+	var lobby_state := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c, "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	GameState.coop_session = session
+	GameState.local_player_id = "u1"
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "u1"
+	GameState.set_lobby(lobby)
+	# Simulate a kill packet from u2 arriving via the wire. 4 XP keeps
+	# the kitten at L1 (L1->L2 needs 5) so the post-call xp read is the
+	# raw amount routed by LocalXPRouter, not a level-up remainder.
+	lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 4})
+	assert_false(session.enemy_sync.is_alive("r3_e0"),
+		"remote packet removed enemy from local registry")
+	# The broadcaster fanned XP to both players; u1's LocalXPRouter
+	# applied it to c.xp.
+	assert_eq(c.xp, 4, "remote kill awarded XP locally via broadcaster + router")
+	GameState.set_lobby(null)
+	_restore_game_state()
+
+func test_game_state_set_lobby_swap_disconnects_old_kill_handler():
+	# Re-binding to a different lobby must disconnect the old lobby's
+	# kill_received -> _on_kill_received connection. Otherwise a stale
+	# lobby (kept alive elsewhere) could fire a phantom kill into the
+	# fresh session's enemy_sync.
+	_snapshot_game_state()
+	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	session.enemy_sync.register_enemy("r3_e0")
+	GameState.coop_session = session
+	GameState.local_player_id = "u1"
+	var old_lobby := NakamaLobby.new()
+	old_lobby.local_player_id = "u1"
+	GameState.set_lobby(old_lobby)
+	var new_lobby := NakamaLobby.new()
+	new_lobby.local_player_id = "u1"
+	GameState.set_lobby(new_lobby)
+	# Firing on the old lobby must NOT reach the session anymore.
+	old_lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 5})
+	assert_true(session.enemy_sync.is_alive("r3_e0"),
+		"old lobby disconnected — no phantom apply")
+	GameState.set_lobby(null)
+	_restore_game_state()
+
+func test_game_state_set_lobby_null_does_not_crash_on_kill():
+	# A solo / pre-handshake GameState (lobby == null, session == null)
+	# must not crash if a stale signal somehow fires. Not a real-world
+	# path (no lobby = no signal source) but pins the defensive null
+	# checks in _on_kill_received.
+	_snapshot_game_state()
+	GameState.coop_session = null
+	GameState.local_player_id = ""
+	GameState.set_lobby(null)
+	# Direct call to the handler (simulating a leaked signal binding).
+	GameState._on_kill_received("r3_e0", "u2", 5)
+	assert_true(true, "no crash on null session")
 	_restore_game_state()

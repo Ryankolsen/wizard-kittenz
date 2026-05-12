@@ -142,15 +142,27 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 	lobby = new_lobby
 	if lobby != null:
 		lobby.position_received.connect(_on_position_received)
+		lobby.kill_received.connect(_on_kill_received)
 
 func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 	if old.position_received.is_connected(_on_position_received):
 		old.position_received.disconnect(_on_position_received)
+	if old.kill_received.is_connected(_on_kill_received):
+		old.kill_received.disconnect(_on_kill_received)
 
 func _on_position_received(player_id: String, position: Vector2, timestamp: float) -> void:
 	if coop_session == null or coop_session.network_sync == null:
 		return
 	coop_session.network_sync.apply_remote_state(player_id, position, timestamp)
+
+# Inbound kill bridge — wire packet → RemoteKillApplier. apply_death's
+# idempotent gate rejects duplicate packets; xp_broadcaster fans XP to
+# every party member's LocalXPRouter (the local player picks its own
+# emission and applies to member.real_stats). Solo path / pre-session
+# (coop_session == null) is a silent no-op via RemoteKillApplier's own
+# null-check.
+func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> void:
+	RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value)
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance
