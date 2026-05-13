@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b3rk7m9tn8pza"]
+[gd_scene format=3 uid="uid://b3rk7natn8p0a"]
 
 [ext_resource type="Script" path="res://scripts/remote_kitten.gd" id="1_remote_kitten"]
 

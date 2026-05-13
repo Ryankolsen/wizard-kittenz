@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://cwt4q9xkn3p7r"]
+[gd_scene format=3 uid="uid://cwt4raxkn3p7r"]
 
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="1_touch_controls"]
 [ext_resource type="Script" path="res://scripts/virtual_joystick.gd" id="2_joystick"]
