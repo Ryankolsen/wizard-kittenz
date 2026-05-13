@@ -15,6 +15,18 @@ const SAVE_PATH := "user://character.tres"
 @export var defense: int = 0
 @export var speed: float = 60.0
 @export var skill_points: int = 0
+# Expanded stat set (PRD #52 / issue #55). All new fields default to 0 / 0.0
+# so legacy saves loading via apply_to leave them at neutral baselines.
+# evasion and crit_chance are stored as floats in [0.0, 1.0]; displayed as %.
+@export var magic_attack: int = 0
+@export var magic_points: int = 0
+@export var max_mp: int = 0
+@export var magic_resistance: int = 0
+@export var dexterity: int = 0
+@export var evasion: float = 0.0
+@export var crit_chance: float = 0.0
+@export var luck: int = 0
+@export var regeneration: int = 0
 # Index into the (future) kitten sprite sheet. Pure data today — no
 # sprite swap is wired yet — but the persistence layer carries it so
 # Customize-flow choices survive save/load.
@@ -71,6 +83,28 @@ static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 		CharacterClass.SHADOW_NINJA: return 65.0
 	return 60.0
 
+static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
+	# Mages are magic-leaning; thieves are not. Mirrors base_attack_for shape.
+	match klass:
+		CharacterClass.MAGE: return 4
+		CharacterClass.THIEF: return 1
+		CharacterClass.NINJA: return 2
+		CharacterClass.ARCHMAGE: return 6
+		CharacterClass.MASTER_THIEF: return 2
+		CharacterClass.SHADOW_NINJA: return 3
+	return 2
+
+static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
+	var base := 5
+	match klass:
+		CharacterClass.MAGE: base = 10
+		CharacterClass.THIEF: base = 3
+		CharacterClass.NINJA: base = 5
+		CharacterClass.ARCHMAGE: base = 14
+		CharacterClass.MASTER_THIEF: base = 4
+		CharacterClass.SHADOW_NINJA: base = 7
+	return base + (lvl - 1) * 2
+
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
 	var c := CharacterData.new()
 	c.character_name = n
@@ -83,6 +117,10 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.attack = base_attack_for(klass, 1)
 	c.defense = base_defense_for(klass, 1)
 	c.speed = base_speed_for(klass, 1)
+	c.magic_attack = base_magic_attack_for(klass, 1)
+	var mp_max := base_max_mp_for(klass, 1)
+	c.max_mp = mp_max
+	c.magic_points = mp_max
 	return c
 
 func is_alive() -> bool:

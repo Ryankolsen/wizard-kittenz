@@ -72,3 +72,92 @@ func test_save_and_load_roundtrips_state():
 
 func test_load_from_missing_path_returns_null():
 	assert_null(CharacterData.load_from("user://does_not_exist.tres"))
+
+func test_expanded_stat_set_fields_exist():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	assert_true("magic_attack" in c)
+	assert_true("magic_points" in c)
+	assert_true("max_mp" in c)
+	assert_true("magic_resistance" in c)
+	assert_true("dexterity" in c)
+	assert_true("evasion" in c)
+	assert_true("crit_chance" in c)
+	assert_true("luck" in c)
+	assert_true("regeneration" in c)
+
+func test_expanded_stat_set_field_types():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	assert_eq(typeof(c.evasion), TYPE_FLOAT)
+	assert_eq(typeof(c.crit_chance), TYPE_FLOAT)
+	assert_eq(typeof(c.magic_attack), TYPE_INT)
+	assert_eq(typeof(c.magic_points), TYPE_INT)
+	assert_eq(typeof(c.max_mp), TYPE_INT)
+	assert_eq(typeof(c.magic_resistance), TYPE_INT)
+	assert_eq(typeof(c.dexterity), TYPE_INT)
+	assert_eq(typeof(c.luck), TYPE_INT)
+	assert_eq(typeof(c.regeneration), TYPE_INT)
+
+func test_make_new_sets_class_specific_magic_defaults():
+	var mage := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	assert_gt(mage.magic_attack, 0, "mage starts with non-zero magic_attack")
+	assert_gt(mage.max_mp, 0, "mage starts with non-zero max_mp")
+	assert_eq(mage.magic_points, mage.max_mp, "new mage starts at full mp")
+	assert_gt(mage.magic_attack, thief.magic_attack, "mage out-magics thief")
+	assert_gt(mage.max_mp, thief.max_mp, "mage has more mp than thief")
+
+func test_save_load_roundtrips_expanded_stat_set():
+	var tmp := "user://test_kitten_save_expanded.json"
+	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	c.magic_attack = 7
+	c.magic_points = 4
+	c.max_mp = 5
+	c.magic_resistance = 2
+	c.dexterity = 6
+	c.evasion = 0.15
+	c.crit_chance = 0.10
+	c.luck = 3
+	c.regeneration = 1
+	var err := SaveManager.save(c, tmp)
+	assert_eq(err, OK)
+	var loaded := SaveManager.load(tmp)
+	assert_not_null(loaded)
+	var restored := CharacterData.new()
+	loaded.apply_to(restored)
+	assert_eq(restored.magic_attack, 7)
+	assert_eq(restored.magic_points, 4)
+	assert_eq(restored.max_mp, 5)
+	assert_eq(restored.magic_resistance, 2)
+	assert_eq(restored.dexterity, 6)
+	assert_almost_eq(restored.evasion, 0.15, 0.001)
+	assert_almost_eq(restored.crit_chance, 0.10, 0.001)
+	assert_eq(restored.luck, 3)
+	assert_eq(restored.regeneration, 1)
+	if FileAccess.file_exists(tmp):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+
+func test_pre_prd_save_loads_with_zero_defaults():
+	var old_dict := {
+		"character_name": "Kitten",
+		"character_class": int(CharacterData.CharacterClass.THIEF),
+		"level": 3,
+		"xp": 0,
+		"hp": 10,
+		"max_hp": 10,
+		"attack": 2,
+		"defense": 0,
+		"speed": 60.0,
+		"skill_points": 0,
+	}
+	var save_data := KittenSaveData.from_dict(old_dict)
+	var c := CharacterData.new()
+	save_data.apply_to(c)
+	assert_eq(c.magic_attack, 0)
+	assert_eq(c.magic_points, 0)
+	assert_eq(c.max_mp, 0)
+	assert_eq(c.magic_resistance, 0)
+	assert_eq(c.dexterity, 0)
+	assert_almost_eq(c.evasion, 0.0, 0.001)
+	assert_almost_eq(c.crit_chance, 0.0, 0.001)
+	assert_eq(c.luck, 0)
+	assert_eq(c.regeneration, 0)

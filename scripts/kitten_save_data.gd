@@ -18,6 +18,17 @@ var attack: int = 0
 var defense: int = 0
 var speed: float = 0.0
 var skill_points: int = 0
+# Expanded stat set (PRD #52 / issue #55). All new fields default to 0 / 0.0
+# so a save written before this PR round-trips with neutral baselines.
+var magic_attack: int = 0
+var magic_points: int = 0
+var max_mp: int = 0
+var magic_resistance: int = 0
+var dexterity: int = 0
+var evasion: float = 0.0
+var crit_chance: float = 0.0
+var luck: int = 0
+var regeneration: int = 0
 # Stored as plain Array (not PackedStringArray) so JSON.stringify round-trips
 # cleanly via Variant. Snapshot of SkillTree.unlocked_ids() at save time.
 var unlocked_skill_ids: Array = []
@@ -63,6 +74,15 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	s.defense = c.defense
 	s.speed = c.speed
 	s.skill_points = c.skill_points
+	s.magic_attack = c.magic_attack
+	s.magic_points = c.magic_points
+	s.max_mp = c.max_mp
+	s.magic_resistance = c.magic_resistance
+	s.dexterity = c.dexterity
+	s.evasion = c.evasion
+	s.crit_chance = c.crit_chance
+	s.luck = c.luck
+	s.regeneration = c.regeneration
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
 	if tracker != null:
@@ -89,6 +109,15 @@ func apply_to(c: CharacterData) -> void:
 	c.defense = defense
 	c.speed = speed
 	c.skill_points = skill_points
+	c.magic_attack = magic_attack
+	c.magic_points = magic_points
+	c.max_mp = max_mp
+	c.magic_resistance = magic_resistance
+	c.dexterity = dexterity
+	c.evasion = evasion
+	c.crit_chance = crit_chance
+	c.luck = luck
+	c.regeneration = regeneration
 
 func to_dict() -> Dictionary:
 	return {
@@ -103,6 +132,15 @@ func to_dict() -> Dictionary:
 		"defense": defense,
 		"speed": speed,
 		"skill_points": skill_points,
+		"magic_attack": magic_attack,
+		"magic_points": magic_points,
+		"max_mp": max_mp,
+		"magic_resistance": magic_resistance,
+		"dexterity": dexterity,
+		"evasion": evasion,
+		"crit_chance": crit_chance,
+		"luck": luck,
+		"regeneration": regeneration,
 		"unlocked_skill_ids": unlocked_skill_ids,
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
@@ -125,6 +163,15 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.defense = int(d.get("defense", 0))
 	s.speed = float(d.get("speed", 0.0))
 	s.skill_points = int(d.get("skill_points", 0))
+	s.magic_attack = int(d.get("magic_attack", 0))
+	s.magic_points = int(d.get("magic_points", 0))
+	s.max_mp = int(d.get("max_mp", 0))
+	s.magic_resistance = int(d.get("magic_resistance", 0))
+	s.dexterity = int(d.get("dexterity", 0))
+	s.evasion = float(d.get("evasion", 0.0))
+	s.crit_chance = float(d.get("crit_chance", 0.0))
+	s.luck = int(d.get("luck", 0))
+	s.regeneration = int(d.get("regeneration", 0))
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:
 		s.unlocked_skill_ids = ids.duplicate()
