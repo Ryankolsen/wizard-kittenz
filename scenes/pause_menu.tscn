@@ -86,26 +86,34 @@ text = "Skills"
 [node name="InventoryTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Inventory"
 
-[node name="StatsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+[node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
+custom_minimum_size = Vector2(0, 250)
+horizontal_scroll_mode = 0
+
+[node name="TabContent" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="StatsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent"]
 theme_override_constants/separation = 2
 script = ExtResource("2_stats_tab_panel")
 
-[node name="SkillsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+[node name="SkillsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent"]
 visible = false
 theme_override_constants/separation = 4
 
-[node name="SkillPointsLabel" type="Label" parent="Center/CharacterSubmenu/VBox/SkillsPanel"]
+[node name="SkillPointsLabel" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent/SkillsPanel"]
 horizontal_alignment = 1
 text = "Skill Points: —"
 
-[node name="SkillsList" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/SkillsPanel"]
+[node name="SkillsList" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent/SkillsPanel"]
 theme_override_constants/separation = 2
 
-[node name="InventoryTab" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+[node name="InventoryTab" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent"]
 visible = false
 theme_override_constants/separation = 2
 
-[node name="InventoryStub" type="Label" parent="Center/CharacterSubmenu/VBox/InventoryTab"]
+[node name="InventoryStub" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabContent/InventoryTab"]
 horizontal_alignment = 1
 text = "Inventory — Coming soon"
 
