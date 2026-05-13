@@ -612,7 +612,7 @@ func test_local_xp_router_levels_up_local_member_when_threshold_crossed():
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
 	var _r := LocalXPRouter.new(bc, "me", member)
-	bc.on_enemy_killed(5)  # exactly L1->L2 threshold
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1))  # exactly L1->L2 threshold
 	assert_eq(member.real_stats.level, 2, "level up applied")
 
 func test_local_xp_router_applies_to_real_stats_not_effective_in_scaled_party():
@@ -738,7 +738,7 @@ func test_local_xp_router_emits_level_up_when_threshold_crossed():
 	var router := LocalXPRouter.new(bc, "me", member)
 	var events: Array = []
 	router.level_up.connect(func(old_l, new_l): events.append([old_l, new_l]))
-	bc.on_enemy_killed(5)  # exactly L1->L2 threshold
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1))  # exactly L1->L2 threshold
 	assert_eq(events.size(), 1, "single level-up emits once")
 	assert_eq(events[0], [1, 2], "old + new levels reported")
 

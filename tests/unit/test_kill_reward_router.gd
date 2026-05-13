@@ -93,18 +93,18 @@ func test_route_kill_null_enemy_data_is_no_op():
 # --- route_kill: solo path --------------------------------------------------
 
 func test_route_kill_solo_applies_xp_locally():
-	# Kill an enemy worth 5 XP (exactly L1->L2 threshold). Solo path runs
+	# Kill an enemy worth exactly the L1->L2 threshold of XP. Solo path runs
 	# ProgressionSystem.add_xp against the killer's CharacterData.
 	var c := _make_character(1)
-	var enemy := _make_enemy(5)
+	var enemy := _make_enemy(ProgressionSystem.xp_to_next_level(1))
 	KillRewardRouter.route_kill(c, enemy, null, "")
-	assert_eq(c.level, 2, "L1->L2 on 5 XP")
+	assert_eq(c.level, 2, "L1->L2 on threshold XP")
 
 func test_route_kill_solo_boss_still_grants_xp():
 	# Boss flag no longer drives any token branch — it's now metadata
 	# only. The kill still grants XP via ProgressionSystem.add_xp.
 	var c := _make_character(1)
-	var boss := _make_enemy(5, true)
+	var boss := _make_enemy(ProgressionSystem.xp_to_next_level(1), true)
 	KillRewardRouter.route_kill(c, boss, null, "")
 	assert_eq(c.level, 2, "boss kill applies XP same as a generic kill")
 
@@ -124,7 +124,7 @@ func test_route_kill_solo_null_tracker_safe():
 	# Pre-#15 wiring path / test paths without GameState pass null —
 	# the helper must not crash and XP must still apply.
 	var c := _make_character(1)
-	var enemy := _make_enemy(5)
+	var enemy := _make_enemy(ProgressionSystem.xp_to_next_level(1))
 	KillRewardRouter.route_kill(c, enemy, null, "", null)
 	assert_eq(c.level, 2, "null tracker doesn't block XP application")
 
@@ -224,7 +224,7 @@ func test_route_kill_coop_inactive_session_falls_to_solo():
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.end()
-	var enemy := _make_enemy(5)
+	var enemy := _make_enemy(ProgressionSystem.xp_to_next_level(1))
 	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	# Solo path applied XP locally.
 	assert_eq(c.level, 2, "post-end falls back to solo XP")
@@ -302,7 +302,7 @@ func test_route_kill_coop_empty_local_id_falls_to_solo():
 	var c := _make_character(1)
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
-	var enemy := _make_enemy(5)
+	var enemy := _make_enemy(ProgressionSystem.xp_to_next_level(1))
 	KillRewardRouter.route_kill(c, enemy, session, "")
 	assert_eq(c.level, 2, "empty local_id triggers solo branch")
 

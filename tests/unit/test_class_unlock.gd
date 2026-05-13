@@ -40,7 +40,9 @@ func test_check_all_returns_newly_unlocked_ids():
 func test_tier_upgrade_preserves_xp_and_level():
 	# Issue test 3: upgrading Mage to Archmage retains xp and level.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	ProgressionSystem.add_xp(c, 17)  # L3 with 2 xp leftover (5+10=15)
+	# L3 with 2 xp leftover: thresholds 100+282 = 382 then +2.
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2)
 	assert_eq(c.level, 3)
 	assert_eq(c.xp, 2)
 	var preserved_skill_points := c.skill_points
@@ -257,7 +259,8 @@ func test_shadow_ninja_has_higher_baseline_than_ninja():
 func test_tier_upgrade_thief_to_master_thief_preserves_progression():
 	# Same preserves-progression contract as the mage->archmage case.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
-	ProgressionSystem.add_xp(c, 17)  # L3 with 2 xp leftover
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2)  # L3 with 2 xp leftover
 	assert_eq(c.level, 3)
 	assert_eq(c.xp, 2)
 	var preserved_skill_points := c.skill_points
@@ -275,7 +278,8 @@ func test_tier_upgrade_thief_to_master_thief_preserves_progression():
 
 func test_tier_upgrade_ninja_to_shadow_ninja_preserves_progression():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
-	ProgressionSystem.add_xp(c, 17)
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2)
 	assert_eq(c.level, 3)
 	var ok: bool = ClassTierUpgrade.upgrade(c)
 	assert_true(ok, "ninja->shadow ninja upgrade succeeds")

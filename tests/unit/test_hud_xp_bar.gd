@@ -11,14 +11,16 @@ func test_ratio_zero_xp_at_level_one_is_zero():
 	assert_eq(HUD.xp_bar_ratio(1, 0), 0.0)
 
 func test_ratio_half_threshold_is_half():
-	# L1 threshold = 5; xp=2 is 0.4, xp=3 is 0.6 — pick the exact midpoint
-	# at L2 (threshold 10) for a clean assert without floating drift.
-	assert_almost_eq(HUD.xp_bar_ratio(2, 5), 0.5, 0.0001)
+	# Compute half-threshold dynamically from the curve so the test stays
+	# honest if XP_BASE is retuned.
+	var half: int = ProgressionSystem.xp_to_next_level(2) / 2
+	var threshold: int = ProgressionSystem.xp_to_next_level(2)
+	assert_almost_eq(HUD.xp_bar_ratio(2, half), float(half) / float(threshold), 0.0001)
 
 func test_ratio_at_threshold_clamps_to_one():
 	# xp == threshold means "level-up about to fire on the next add_xp."
 	# Bar reads as full; ratio is exactly 1.0.
-	assert_eq(HUD.xp_bar_ratio(1, 5), 1.0)
+	assert_eq(HUD.xp_bar_ratio(1, ProgressionSystem.xp_to_next_level(1)), 1.0)
 
 func test_ratio_clamps_to_one_when_xp_exceeds_threshold():
 	# Defensive: shouldn't happen in normal flow (add_xp resolves the
@@ -36,10 +38,11 @@ func test_ratio_resets_after_level_up():
 	# Drive it through ProgressionSystem so the fill ratio reflects the
 	# actual game flow, not just static math.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	# Right before threshold: bar reads 4/5 = 0.8.
-	ProgressionSystem.add_xp(c, 4)
+	var l1: int = ProgressionSystem.xp_to_next_level(1)
+	# Right before threshold: bar reads (l1-1)/l1.
+	ProgressionSystem.add_xp(c, l1 - 1)
 	assert_eq(c.level, 1)
-	assert_almost_eq(HUD.xp_bar_ratio(c.level, c.xp), 0.8, 0.0001)
+	assert_almost_eq(HUD.xp_bar_ratio(c.level, c.xp), float(l1 - 1) / float(l1), 0.0001)
 	# Cross the threshold: leveled up, xp resets to remainder, bar
 	# falls back to a small fraction of the new (larger) threshold.
 	ProgressionSystem.add_xp(c, 1)
@@ -49,20 +52,21 @@ func test_ratio_resets_after_level_up():
 		"bar resets to 0 immediately after leveling up at exact threshold")
 
 func test_ratio_carries_remainder_into_new_level():
-	# Overshoot: 7 xp at L1 -> level-up + 2 remainder against L2 threshold (10).
+	# Overshoot: (threshold + 2) xp at L1 -> level-up + 2 remainder against L2.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	ProgressionSystem.add_xp(c, 7)
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) + 2)
 	assert_eq(c.level, 2)
 	assert_eq(c.xp, 2)
-	assert_almost_eq(HUD.xp_bar_ratio(c.level, c.xp), 0.2, 0.0001,
-		"remainder shows as 2/10 of the new level's bar")
+	var l2: int = ProgressionSystem.xp_to_next_level(2)
+	assert_almost_eq(HUD.xp_bar_ratio(c.level, c.xp), 2.0 / float(l2), 0.0001,
+		"remainder shows as 2/threshold of the new level's bar")
 
 func test_ratio_higher_levels_use_higher_thresholds():
-	# Curve is linear (5, 10, 15, ...); the same xp value reads as a
+	# Curve is monotonically increasing; the same xp value reads as a
 	# smaller ratio at higher levels, confirming the threshold is
 	# being looked up per-level rather than constant.
-	var r2 := HUD.xp_bar_ratio(2, 5)   # 5/10 = 0.5
-	var r3 := HUD.xp_bar_ratio(3, 5)   # 5/15 ~= 0.333
+	var r2 := HUD.xp_bar_ratio(2, 50)
+	var r3 := HUD.xp_bar_ratio(3, 50)
 	assert_gt(r2, r3, "same xp reads smaller at higher levels")
 
 # --- xp_bar_label ------------------------------------------------------------

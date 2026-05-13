@@ -109,18 +109,22 @@ func test_unknown_node_id_is_rejected():
 	assert_eq(_character.skill_points, 5)
 
 func test_progression_awards_skill_point_on_level_up():
-	# Skill point currency comes from leveling. One point per level.
+	# Skill points come from leveling: 3 per level-up in the first tier.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
 	assert_eq(c.skill_points, 0, "starts with no points")
-	ProgressionSystem.add_xp(c, 5)
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2)
-	assert_eq(c.skill_points, 1, "+1 skill point per level")
+	assert_eq(c.skill_points, 3, "+3 skill points per level-up in tier 1 (L1-10)")
 
 func test_progression_skill_points_accumulate_across_levels():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	ProgressionSystem.add_xp(c, 33)  # L1->L4 with 3 xp remaining (5+10+15=30)
+	# L1->L4 with 3 xp remaining: thresholds 1+2+3 then +3.
+	var total: int = ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) \
+		+ ProgressionSystem.xp_to_next_level(3) + 3
+	ProgressionSystem.add_xp(c, total)
 	assert_eq(c.level, 4)
-	assert_eq(c.skill_points, 3, "skill points accumulate one per level-up")
+	assert_eq(c.skill_points, 9, "3 levels * 3 points/level in tier 1")
 
 func test_save_layer_preserves_skill_points():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)

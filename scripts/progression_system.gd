@@ -1,11 +1,16 @@
 class_name ProgressionSystem
 extends RefCounted
 
-# XP required to advance from `level` to `level + 1`. Linear curve:
-# L1->L2 = 5, L2->L3 = 10, L3->L4 = 15. Easy to reason about for early
-# pacing tests; swap for a geometric curve once we have playtest data.
+# Soft power XP curve: floor(XP_BASE * level^1.5). XP_BASE is the single
+# tuning knob — flip this constant to globally scale early-vs-late pacing
+# without touching the formula.
+const XP_BASE := 100
+
+# XP required to advance from `level` to `level + 1`.
 static func xp_to_next_level(level: int) -> int:
-	return 5 + maxi(0, level - 1) * 5
+	if level <= 0:
+		return XP_BASE
+	return floori(float(XP_BASE) * pow(float(level), 1.5))
 
 # Adds XP to the character, applying any level-ups that the new total triggers.
 # Returns the number of levels gained. Negative or zero amounts are a no-op so
@@ -22,16 +27,15 @@ static func add_xp(c: CharacterData, amount: int) -> int:
 		_apply_level_up(c)
 	return levels_gained
 
-# On level-up: bump max_hp via the per-class curve already on CharacterData,
-# heal up by the same delta, and award one skill point so the player has
-# currency to spend in the skill tree (#9). attack/defense don't scale with
-# level yet (the per-class helpers ignore lvl); wire those in once #9/#10
-# give us per-class growth curves.
-const SKILL_POINTS_PER_LEVEL := 1
+# Stat points awarded for reaching `level`. Scales every 10 levels:
+# Levels 1-10 award 3, 11-20 award 4, 21-30 award 5, etc. The "level"
+# argument is the post-increment level (the level just achieved).
+static func stat_points_for_level(level: int) -> int:
+	return 3 + (maxi(1, level) - 1) / 10
 
 static func _apply_level_up(c: CharacterData) -> void:
 	var new_max_hp := CharacterData.base_max_hp_for(c.character_class, c.level)
 	var hp_gain := new_max_hp - c.max_hp
 	c.max_hp = new_max_hp
 	c.hp = mini(c.hp + hp_gain, c.max_hp)
-	c.skill_points += SKILL_POINTS_PER_LEVEL
+	c.skill_points += stat_points_for_level(c.level)
