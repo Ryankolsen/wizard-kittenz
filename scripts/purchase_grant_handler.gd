@@ -2,10 +2,10 @@ class_name PurchaseGrantHandler
 extends RefCounted
 
 # Dispatches a completed IAP into the concrete grant action for its product
-# kind (class tier upgrade / cosmetic pack / class unlock). Stateless static
-# surface so the rules can be exercised without booting GameState — the
-# autoload only owns the signal wiring and the post-grant SaveManager.save
-# call, not the dispatch itself.
+# kind (class tier upgrade / cosmetic pack / class unlock / gem bundle /
+# skill unlock). Stateless static surface so the rules can be exercised
+# without booting GameState — the autoload only owns the signal wiring and
+# the post-grant SaveManager.save call, not the dispatch itself.
 #
 # Returns true iff a grant was actually applied. The GameState wiring branches
 # off this so a no-op replay (restore-purchases re-firing for an already-owned
@@ -13,7 +13,9 @@ extends RefCounted
 
 static func handle(product_id: String, character: CharacterData,
 		cosmetic_inventory: CosmeticInventory,
-		paid_unlocks: PaidUnlockInventory = null) -> bool:
+		paid_unlocks: PaidUnlockInventory = null,
+		currency_ledger: CurrencyLedger = null,
+		skill_inventory = null) -> bool:
 	var grant_type := PurchaseRegistry.grant_type_for(product_id)
 	match grant_type:
 		PurchaseRegistry.GRANT_CLASS_UPGRADE:
@@ -24,6 +26,10 @@ static func handle(product_id: String, character: CharacterData,
 			return cosmetic_inventory.grant(product_id)
 		PurchaseRegistry.GRANT_CLASS_UNLOCK:
 			return _handle_class_unlock(product_id, paid_unlocks)
+		PurchaseRegistry.GRANT_GEM_BUNDLE:
+			return _handle_gem_bundle(product_id, currency_ledger)
+		PurchaseRegistry.GRANT_SKILL_UNLOCK:
+			return _handle_skill_unlock(product_id, skill_inventory)
 	return false
 
 # Class-unlock products grant a permanent paid unlock entry consulted by
@@ -41,6 +47,31 @@ static func _handle_class_unlock(product_id: String,
 	if class_id == "":
 		return false
 	return paid_unlocks.grant(class_id)
+
+# Gem-bundle products credit the configured Gem amount against the active
+# ledger. Replay guard lives on CurrencyLedger.try_grant_bundle so a second
+# purchase_succeeded for the same bundle (BillingManager re-firing on
+# startup before the consume-acknowledge lands) is a no-op.
+static func _handle_gem_bundle(product_id: String,
+		currency_ledger: CurrencyLedger) -> bool:
+	if currency_ledger == null:
+		return false
+	var amount := PurchaseRegistry.gem_amount_for(product_id)
+	if amount <= 0:
+		return false
+	return currency_ledger.try_grant_bundle(product_id, amount)
+
+# Skill-unlock products grant a permanent skill entry. Mirrors the class-unlock
+# path but routes into SkillInventory (#71's eventual SkillTree consults this
+# as an OR'd path next to the in-game unlock gate). Null inventory is a safe
+# no-op so legacy call sites without a skill inventory pre-wired don't crash.
+static func _handle_skill_unlock(product_id: String, skill_inventory) -> bool:
+	if skill_inventory == null:
+		return false
+	var skill_id := PurchaseRegistry.skill_id_for_unlock(product_id)
+	if skill_id == "":
+		return false
+	return skill_inventory.grant(skill_id)
 
 static func _handle_class_upgrade(product_id: String, character: CharacterData) -> bool:
 	if character == null:

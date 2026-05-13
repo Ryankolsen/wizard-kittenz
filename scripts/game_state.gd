@@ -4,6 +4,7 @@ extends Node
 # preload the serializer so the autoload script parses regardless of
 # script-load order.
 const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
+const SkillInventoryRef = preload("res://scripts/skill_inventory.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -33,6 +34,10 @@ var paid_unlocks: PaidUnlockInventory = PaidUnlockInventory.new()
 # clear watcher, and shop UI can credit/debit without a null check.
 # Hydrated from KittenSaveData.to_currency_ledger() in apply_merged_save.
 var currency_ledger: CurrencyLedger = CurrencyLedger.new()
+# Owned skill ids (PRD #53 / issue #69). Always non-null so the grant handler
+# and future SkillTree availability gate can read freely without a null
+# check. Hydrated from KittenSaveData.to_skill_inventory() in apply_merged_save.
+var skill_inventory = SkillInventoryRef.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -78,11 +83,11 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	# server replays for already-owned cosmetics return false here, so a
 	# user opening the app twenty times doesn't rewrite the save file twenty
 	# times for no reason.
-	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks):
+	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory):
 		SaveManager.save(
 			current_character, SaveManager.DEFAULT_PATH,
 			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
-			{}, currency_ledger
+			{}, currency_ledger, skill_inventory
 		)
 
 func _try_load_save() -> void:
@@ -101,6 +106,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
 	paid_unlocks = save_data.to_paid_unlock_inventory()
 	currency_ledger = save_data.to_currency_ledger()
+	skill_inventory = save_data.to_skill_inventory()
 	# Resume an in-flight solo dungeon run (PRD #42 / #46). When the saved
 	# state is empty (legacy save / no run in flight / multiplayer-only) the
 	# serializer returns null and main_scene falls through to
@@ -144,6 +150,7 @@ func clear() -> void:
 	cosmetic_inventory = CosmeticInventory.new()
 	paid_unlocks = PaidUnlockInventory.new()
 	currency_ledger = CurrencyLedger.new()
+	skill_inventory = SkillInventoryRef.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.

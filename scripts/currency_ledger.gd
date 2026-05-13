@@ -15,6 +15,14 @@ var _balances: Dictionary = {
 	Currency.GEM: 0,
 }
 
+# Session-scoped replay guard for consumable Gem bundle IAPs (PRD #53 / #69).
+# BillingManager replays purchase_succeeded for unconsumed tokens on startup;
+# without this set a second-firing wire packet would credit the bundle twice
+# before the consume-acknowledge round-trips. Not persisted to disk — once
+# the token is consumed against Play Billing, the same product_id can be
+# re-purchased in a future session and credit again.
+var _granted_bundle_ids: Array = []
+
 func balance(currency: int) -> int:
 	return int(_balances.get(currency, 0))
 
@@ -32,4 +40,17 @@ func debit(amount: int, currency: int) -> bool:
 		return false
 	_balances[currency] = current - amount
 	balance_changed.emit(currency, _balances[currency])
+	return true
+
+# Credits a Gem bundle exactly once per (ledger, product_id). Returns true iff
+# the bundle was newly granted on this call; false on a replay. The replay
+# guard is co-located with the credit op so the "did this bundle pay out?"
+# question lives next to the balance it pays into.
+func try_grant_bundle(product_id: String, gem_amount: int) -> bool:
+	if product_id == "" or gem_amount <= 0:
+		return false
+	if _granted_bundle_ids.has(product_id):
+		return false
+	_granted_bundle_ids.append(product_id)
+	credit(gem_amount, Currency.GEM)
 	return true

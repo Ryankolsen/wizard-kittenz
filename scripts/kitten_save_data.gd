@@ -58,6 +58,11 @@ var cosmetic_packs: Array = []
 # a paid unlock bypasses the meta-progression threshold without removing the
 # earnable path. Legacy saves predating this field default to an empty array.
 var paid_class_unlocks: Array = []
+# Permanently owned skill ids (non-consumable purchases from #69). Lowercase
+# skill id strings; consulted by the future SkillTree availability gate as an
+# OR'd path alongside the earnable unlock condition. Legacy saves predating
+# this field default to an empty array.
+var skill_unlocks: Array = []
 # Snapshot of the active solo dungeon run (PRD #42 / #46). Captures the seed
 # (so DungeonGenerator regenerates the same graph), the current_room_id, and
 # the explicitly cleared room ids. Empty dict when no run is in flight or
@@ -77,7 +82,7 @@ var gem_balance: int = 0
 # tracker) because it's a per-save anchor, not a meta-progression milestone.
 var last_login_date: String = ""
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -115,6 +120,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if currency_ledger != null:
 		s.gold_balance = currency_ledger.balance(CurrencyLedger.Currency.GOLD)
 		s.gem_balance = currency_ledger.balance(CurrencyLedger.Currency.GEM)
+	if skill_inventory != null:
+		s.skill_unlocks = skill_inventory.owned_skill_ids.duplicate()
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -172,6 +179,7 @@ func to_dict() -> Dictionary:
 		"gold_balance": gold_balance,
 		"gem_balance": gem_balance,
 		"last_login_date": last_login_date,
+		"skill_unlocks": skill_unlocks,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -226,6 +234,12 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.gold_balance = int(d.get("gold_balance", 0))
 	s.gem_balance = int(d.get("gem_balance", 0))
 	s.last_login_date = String(d.get("last_login_date", ""))
+	var skills = d.get("skill_unlocks", [])
+	if skills is Array:
+		for raw in skills:
+			var key := String(raw).to_lower()
+			if key != "" and not s.skill_unlocks.has(key):
+				s.skill_unlocks.append(key)
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -251,6 +265,12 @@ func to_cosmetic_inventory() -> CosmeticInventory:
 func to_paid_unlock_inventory() -> PaidUnlockInventory:
 	var inv := PaidUnlockInventory.new()
 	inv.owned_class_ids = paid_class_unlocks.duplicate()
+	return inv
+
+func to_skill_inventory():
+	var SkillInventoryClass = load("res://scripts/skill_inventory.gd")
+	var inv = SkillInventoryClass.new()
+	inv.owned_skill_ids = skill_unlocks.duplicate()
 	return inv
 
 func to_currency_ledger() -> CurrencyLedger:

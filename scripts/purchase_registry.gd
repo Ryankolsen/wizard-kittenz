@@ -14,6 +14,8 @@ extends RefCounted
 const GRANT_CLASS_UPGRADE := "class_upgrade"
 const GRANT_COSMETIC_PACK := "cosmetic_pack"
 const GRANT_CLASS_UNLOCK := "class_unlock"
+const GRANT_GEM_BUNDLE := "gem_bundle"
+const GRANT_SKILL_UNLOCK := "skill_unlock"
 
 # Tier 1 — class tier upgrades. The source class is the one being upgraded;
 # `ClassTierUpgrade.TIER_MAP` owns the upgrade target. Today only Mage ->
@@ -33,6 +35,36 @@ const COSMETIC_DUNGEON_SKINS := "cosmetic_dungeon_skins"
 # so it doubles as the placeholder. Earnable via the existing UnlockRegistry
 # gate (`max_level_per_class.mage >= 5`).
 const CLASS_UNLOCK_ARCHMAGE := "class_unlock_archmage"
+
+# Tier 4 — Gem bundle consumable IAPs (PRD #53). Real-money product IDs; the
+# grant handler routes each to a CurrencyLedger.credit(Currency.GEM, amount)
+# call. Amounts intentionally match ShopCatalog.GEMS_* so the catalog row and
+# the IAP grant agree on what the player paid for.
+const GEM_BUNDLE_STARTER := "gem_bundle_starter"
+const GEM_BUNDLE_EXPLORER := "gem_bundle_explorer"
+const GEM_BUNDLE_ADVENTURER := "gem_bundle_adventurer"
+const GEM_BUNDLE_HERO := "gem_bundle_hero"
+
+# Tier 5 — skill unlock products. Soft-currency or IAP purchase routes through
+# the same dispatch; skill_id_for_unlock maps the product_id to the canonical
+# skill id consulted by SkillInventory. The id strings match the skill tree's
+# node ids (e.g. SkillTree.make_mage_tree's "fireball").
+const SKILL_UNLOCK_FIREBALL := "skill_unlock_fireball"
+const SKILL_UNLOCK_SHADOWSTEP := "skill_unlock_shadowstep"
+const SKILL_UNLOCK_SMOKE_BOMB := "skill_unlock_smoke_bomb"
+
+const _GEM_BUNDLE_AMOUNTS: Dictionary = {
+	GEM_BUNDLE_STARTER: 100,
+	GEM_BUNDLE_EXPLORER: 600,
+	GEM_BUNDLE_ADVENTURER: 1400,
+	GEM_BUNDLE_HERO: 3000,
+}
+
+const _SKILL_UNLOCK_TO_SKILL_ID: Dictionary = {
+	SKILL_UNLOCK_FIREBALL: "fireball",
+	SKILL_UNLOCK_SHADOWSTEP: "shadowstep",
+	SKILL_UNLOCK_SMOKE_BOMB: "smoke_bomb",
+}
 
 const _CLASS_UPGRADE_TO_SOURCE: Dictionary = {
 	UPGRADE_MAGE_ARCHMAGE: CharacterData.CharacterClass.MAGE,
@@ -65,6 +97,13 @@ const ALL_PRODUCT_IDS: Array = [
 	COSMETIC_SPELL_EFFECTS,
 	COSMETIC_DUNGEON_SKINS,
 	CLASS_UNLOCK_ARCHMAGE,
+	GEM_BUNDLE_STARTER,
+	GEM_BUNDLE_EXPLORER,
+	GEM_BUNDLE_ADVENTURER,
+	GEM_BUNDLE_HERO,
+	SKILL_UNLOCK_FIREBALL,
+	SKILL_UNLOCK_SHADOWSTEP,
+	SKILL_UNLOCK_SMOKE_BOMB,
 ]
 
 static func grant_type_for(product_id: String) -> String:
@@ -74,7 +113,23 @@ static func grant_type_for(product_id: String) -> String:
 		return GRANT_COSMETIC_PACK
 	if _CLASS_UNLOCK_IDS.has(product_id):
 		return GRANT_CLASS_UNLOCK
+	if _GEM_BUNDLE_AMOUNTS.has(product_id):
+		return GRANT_GEM_BUNDLE
+	if _SKILL_UNLOCK_TO_SKILL_ID.has(product_id):
+		return GRANT_SKILL_UNLOCK
 	return ""
+
+# Returns the Gem grant amount for a gem-bundle product id; 0 for any other
+# product kind. PurchaseGrantHandler reads this on the dispatch path; the
+# zero sentinel keeps a future "non-bundle product accidentally routed here"
+# from minting Gems.
+static func gem_amount_for(product_id: String) -> int:
+	return int(_GEM_BUNDLE_AMOUNTS.get(product_id, 0))
+
+# Returns the canonical skill_id for a skill-unlock product. Empty string for
+# any other product kind so callers can branch off the empty sentinel.
+static func skill_id_for_unlock(product_id: String) -> String:
+	return String(_SKILL_UNLOCK_TO_SKILL_ID.get(product_id, ""))
 
 # Returns the source CharacterClass for class-upgrade products (the class being
 # upgraded — the target tier lives in ClassTierUpgrade.TIER_MAP). All other
