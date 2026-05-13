@@ -28,6 +28,10 @@ var _revive_btn: Button
 var _initial_enemies: int = 0
 var _room_cleared: bool = false
 var _next_room_btn: Button
+var _pause_btn: Button
+var _pause_menu: CanvasLayer = null
+
+const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -45,6 +49,8 @@ func _ready() -> void:
 	_revive_btn.pressed.connect(_on_revive_pressed)
 	var give_up: Button = $YouDied/Panel/VBox/GiveUp
 	give_up.pressed.connect(_on_give_up_pressed)
+	_pause_btn = $PauseButton
+	_pause_btn.pressed.connect(_on_pause_pressed)
 	_player = _find_player()
 	# Defer enemy count by one frame — main.tscn's enemy children may not
 	# have run _ready() yet (and therefore haven't joined the "enemies"
@@ -253,6 +259,17 @@ func _on_give_up_pressed() -> void:
 	if gs != null:
 		gs.clear()
 	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
+
+# Lazy-instantiates a PauseMenu under the HUD and routes the button to its
+# open(). Adding the overlay under the HUD CanvasLayer keeps the wiring
+# scene-local — no need to touch main.tscn or hand a reference around.
+# The PauseMenu sets its own process_mode = ALWAYS so it stays responsive
+# while solo play freezes the rest of the tree.
+func _on_pause_pressed() -> void:
+	if _pause_menu == null:
+		_pause_menu = PAUSE_MENU_SCENE.instantiate()
+		add_child(_pause_menu)
+	_pause_menu.open()
 
 func _count_enemies() -> int:
 	return get_tree().get_nodes_in_group("enemies").size()

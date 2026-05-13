@@ -17,6 +17,13 @@ content_margin_bottom = 4.0
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
+[node name="PauseButton" type="Button" parent="."]
+offset_left = 432.0
+offset_top = 4.0
+offset_right = 476.0
+offset_bottom = 24.0
+text = "Pause"
+
 [node name="StatsPanel" type="PanelContainer" parent="."]
 offset_left = 4.0
 offset_top = 4.0
