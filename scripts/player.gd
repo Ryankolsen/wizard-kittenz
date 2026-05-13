@@ -15,6 +15,8 @@ var _power_ups: PowerUpManager
 var _visual: Node2D
 var _wobble_time: float = 0.0
 var _died_emitted: bool = false
+var _level_up_effect: LevelUpEffect
+var _coop_level_up_bound: bool = false
 
 func _ready() -> void:
 	add_to_group("player")
@@ -37,6 +39,8 @@ func _ready() -> void:
 	if sprite != null:
 		sprite.texture = load("res://assets/sprites/wizard_kitten.png")
 	_visual = sprite
+	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
+	_bind_coop_level_up()
 
 func _physics_process(delta: float) -> void:
 	if data != null and not data.is_alive():
@@ -193,6 +197,11 @@ func _meta_tracker() -> MetaProgressionTracker:
 func _award_kill_xp(enemy_data: EnemyData) -> void:
 	if data == null or enemy_data == null:
 		return
+	# Solo: route_kill mutates data.level via ProgressionSystem.add_xp, so
+	# a before/after diff is the level-up edge. Co-op: route_kill broadcasts
+	# via xp_broadcaster; data.level on the Player is untouched and the
+	# level-up edge arrives via LocalXPRouter.level_up (wired in _ready).
+	var old_level := data.level
 	KillRewardRouter.route_kill(
 		data,
 		enemy_data,
@@ -201,6 +210,33 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_offline_xp_tracker(),
 		_lobby()
 	)
+	if LevelUpEffect.is_real_level_up(old_level, data.level):
+		_trigger_level_up_effect(data.level)
+	# Co-op router may have been built after _ready (session.start() runs
+	# after the player spawns). Re-attempt binding here so the first kill
+	# that triggers a session-start path still picks up subsequent level
+	# events.
+	if not _coop_level_up_bound:
+		_bind_coop_level_up()
+
+func _bind_coop_level_up() -> void:
+	if _coop_level_up_bound:
+		return
+	var session := _coop_session()
+	if session == null or session.xp_router == null:
+		return
+	if not session.xp_router.level_up.is_connected(_on_coop_level_up):
+		session.xp_router.level_up.connect(_on_coop_level_up)
+	_coop_level_up_bound = true
+
+func _on_coop_level_up(old_level: int, new_level: int) -> void:
+	if LevelUpEffect.is_real_level_up(old_level, new_level):
+		_trigger_level_up_effect(new_level)
+
+func _trigger_level_up_effect(new_level: int) -> void:
+	if _level_up_effect == null:
+		return
+	_level_up_effect.play(new_level)
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
