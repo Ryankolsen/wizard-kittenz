@@ -24,6 +24,7 @@ extends CanvasLayer
 signal resumed
 
 const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
+const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
 
 func _ready() -> void:
 	visible = false
@@ -57,6 +58,9 @@ func _ready() -> void:
 	var inventory_tab := find_child("InventoryTabButton", true, false) as Button
 	if inventory_tab != null:
 		inventory_tab.pressed.connect(_on_inventory_tab_pressed)
+	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
+	if layout_opt != null:
+		layout_opt.item_selected.connect(_on_layout_option_selected)
 
 func open() -> void:
 	visible = true
@@ -155,6 +159,7 @@ func open_settings_submenu() -> void:
 	if settings != null:
 		settings.visible = true
 	_load_audio_settings_into_sliders()
+	_load_controls_layout_into_option()
 
 func close_settings_submenu() -> void:
 	_show_main_menu()
@@ -186,6 +191,22 @@ func _load_audio_settings_into_sliders() -> void:
 		sfx_slider.set_value_no_signal(loaded["sfx"])
 	AudioSettings.set_bgm_volume(loaded["bgm"])
 	AudioSettings.set_sfx_volume(loaded["sfx"])
+
+# Mirrors _load_audio_settings_into_sliders for the Controls section.
+# Reads the persisted layout and selects the matching OptionButton item
+# without firing item_selected, so populating doesn't trigger a save
+# cycle on every submenu open.
+func _load_controls_layout_into_option() -> void:
+	var opt := find_child("LayoutOption", true, false) as OptionButton
+	if opt == null:
+		return
+	var layout := ControlsSettings.load_layout()
+	var idx := 1 if layout == ControlsSettings.LAYOUT_RIGHT_HAND else 0
+	opt.select(idx)
+
+func _on_layout_option_selected(index: int) -> void:
+	var layout := ControlsSettings.LAYOUT_RIGHT_HAND if index == 1 else ControlsSettings.LAYOUT_LEFT_HAND
+	ControlsSettings.save_layout(layout)
 
 func _on_bgm_slider_changed(value: float) -> void:
 	AudioSettings.set_bgm_volume(value)
