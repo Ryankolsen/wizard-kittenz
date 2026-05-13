@@ -55,7 +55,7 @@ layout_mode = 2
 [node name="Scroll" type="ScrollContainer" parent="MarginContainer/Layout"]
 layout_mode = 2
 size_flags_vertical = 3
-horizontal_scroll_mode = 2
+horizontal_scroll_mode = 0
 
 [node name="ItemList" type="VBoxContainer" parent="MarginContainer/Layout/Scroll"]
 layout_mode = 2
