@@ -38,6 +38,11 @@ var unlocked_skill_ids: Array = []
 # round-trips cleanly.
 var dungeons_completed: int = 0
 var max_level_per_class: Dictionary = {}
+# Dungeon ids that have been first-cleared (PRD #53 / issue #67). Mirrors
+# MetaProgressionTracker.cleared_dungeons so the first-clear Gem bonus pays
+# exactly once per dungeon across reloads. Stored as plain Array of strings
+# so JSON round-trips cleanly. Legacy saves default to an empty array.
+var cleared_dungeons: Array = []
 # XP earned while offline since the last server sync. The sync orchestrator
 # (post-#14) hands this to OfflineProgressMerger.merge_xp so the server
 # record catches up to the offline gameplay without losing in-flight XP.
@@ -93,6 +98,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if tracker != null:
 		s.dungeons_completed = tracker.dungeons_completed
 		s.max_level_per_class = tracker.max_level_per_class.duplicate()
+		s.cleared_dungeons = tracker.cleared_dungeons.duplicate()
 	if xp_tracker != null:
 		s.offline_xp_earned = xp_tracker.pending_xp
 	if cosmetic_inventory != null:
@@ -152,6 +158,7 @@ func to_dict() -> Dictionary:
 		"unlocked_skill_ids": unlocked_skill_ids,
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
+		"cleared_dungeons": cleared_dungeons,
 		"offline_xp_earned": offline_xp_earned,
 		"cosmetic_packs": cosmetic_packs,
 		"paid_class_unlocks": paid_class_unlocks,
@@ -190,6 +197,12 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	if per_class is Dictionary:
 		for k in per_class.keys():
 			s.max_level_per_class[String(k).to_lower()] = int(per_class[k])
+	var cleared = d.get("cleared_dungeons", [])
+	if cleared is Array:
+		for raw in cleared:
+			var id := String(raw)
+			if id != "" and not s.cleared_dungeons.has(id):
+				s.cleared_dungeons.append(id)
 	s.offline_xp_earned = int(d.get("offline_xp_earned", 0))
 	var packs = d.get("cosmetic_packs", [])
 	if packs is Array:
@@ -211,6 +224,10 @@ func to_tracker() -> MetaProgressionTracker:
 	var t := MetaProgressionTracker.new()
 	t.dungeons_completed = dungeons_completed
 	t.max_level_per_class = max_level_per_class.duplicate()
+	for id in cleared_dungeons:
+		var s_id := String(id)
+		if s_id != "" and not t.cleared_dungeons.has(s_id):
+			t.cleared_dungeons.append(s_id)
 	return t
 
 func to_offline_xp_tracker() -> OfflineXPTracker:

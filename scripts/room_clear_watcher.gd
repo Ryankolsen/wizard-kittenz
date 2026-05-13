@@ -134,7 +134,7 @@ func _award_room_clear_xp() -> void:
 		_session.xp_broadcaster.on_enemy_killed(per_player, "")
 		return
 	if _character != null:
-		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP)
+		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP, _ledger)
 
 # PRD #53 room-clear Gold bonus. Credited directly to the local
 # CurrencyLedger on the last expected death of a combat room. Same

@@ -13,6 +13,15 @@ var dungeons_completed: int = 0
 # highest level ever reached on that class. Tracked per-class so the
 # registry can gate upgrades like "reach level 5 with Mage".
 var max_level_per_class: Dictionary = {}
+# Dungeon ids that have been first-cleared. record_first_clear consults this
+# array and is a no-op on a repeat clear so the Gem bonus pays exactly once
+# per dungeon for the lifetime of the save.
+var cleared_dungeons: Array[String] = []
+
+# Gems awarded the first time a given dungeon is cleared. Larger than the
+# per-level drip (ProgressionSystem.LEVEL_UP_GEM_REWARD) because first-clears
+# are a much rarer event. Tunes in the QA pass (#72).
+const FIRST_DUNGEON_CLEAR_GEM_REWARD := 25
 
 func record_dungeon_complete() -> void:
 	dungeons_completed += 1
@@ -27,6 +36,23 @@ func record_level_reached(class_name_str: String, level: int) -> void:
 
 func max_level_for(class_name_str: String) -> int:
 	return int(max_level_per_class.get(class_name_str.to_lower(), 0))
+
+# Marks a dungeon as first-cleared and credits FIRST_DUNGEON_CLEAR_GEM_REWARD
+# Gems to the given ledger. Returns true on the first call for a given id,
+# false on every subsequent call (no credit, no mutation). Null ledger or
+# empty id is a silent no-op — defensive against wiring bugs.
+func record_first_clear(dungeon_id: String, ledger: CurrencyLedger = null) -> bool:
+	if dungeon_id == "":
+		return false
+	if cleared_dungeons.has(dungeon_id):
+		return false
+	cleared_dungeons.append(dungeon_id)
+	if ledger != null:
+		ledger.credit(FIRST_DUNGEON_CLEAR_GEM_REWARD, CurrencyLedger.Currency.GEM)
+	return true
+
+func has_cleared(dungeon_id: String) -> bool:
+	return cleared_dungeons.has(dungeon_id)
 
 # Stat lookup by string path. Supports the simple top-level stats and a dotted
 # form for per-class lookups: "max_level_per_class.mage" -> the level int. The
@@ -44,6 +70,7 @@ func to_dict() -> Dictionary:
 	return {
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class.duplicate(),
+		"cleared_dungeons": cleared_dungeons.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> MetaProgressionTracker:
@@ -53,4 +80,10 @@ static func from_dict(d: Dictionary) -> MetaProgressionTracker:
 	if per_class is Dictionary:
 		for k in per_class.keys():
 			t.max_level_per_class[String(k).to_lower()] = int(per_class[k])
+	var cleared = d.get("cleared_dungeons", [])
+	if cleared is Array:
+		for raw in cleared:
+			var id := String(raw)
+			if id != "" and not t.cleared_dungeons.has(id):
+				t.cleared_dungeons.append(id)
 	return t

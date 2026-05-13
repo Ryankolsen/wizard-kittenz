@@ -90,7 +90,9 @@ static func route_kill(
 			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, per_player)
 		return
 	# Solo path — apply XP locally and tally into the offline tracker.
-	ProgressionSystem.add_xp(data, enemy_data.xp_reward)
+	# Passing the ledger threads the LEVEL_UP_GEM_REWARD credit through any
+	# level-ups that this kill triggers (PRD #53 / issue #67).
+	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger)
 	if xp_tracker != null:
 		xp_tracker.record(enemy_data.xp_reward)
 
