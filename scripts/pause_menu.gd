@@ -26,6 +26,7 @@ signal resumed
 const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
 const QuitHandler := preload("res://scripts/quit_dungeon_handler.gd")
+const StatsTabPanelScript := preload("res://scripts/stats_tab_panel.gd")
 
 func _ready() -> void:
 	visible = false
@@ -360,39 +361,16 @@ func _persist_audio_sliders() -> void:
 	var sfx := sfx_slider.value if sfx_slider != null else AudioSettings.DEFAULT_SFX
 	AudioSettings.save_settings({"bgm": bgm, "sfx": sfx})
 
-# Pulls live values off GameState.current_character into the stat labels.
-# Missing character (pre-creation / cleared GameState) falls back to em-
-# dash placeholders so the labels never read as zeroed real values.
-# Mirrors the HUD's HP/XP bar polling style: a single render call from
-# the open path, no per-frame loop — the menu is a static snapshot, not
-# a live readout (the dungeon is paused in solo, and a multiplayer
-# player can close and re-open to refresh).
+# Delegates the per-stat render to the StatsTabPanel script attached to
+# the StatsPanel node (#60). The panel builds its own rows + "+" buttons
+# and reads through StatAllocator; this method's job is just to push the
+# current CharacterData in. Safe with a null character — the panel falls
+# back to em-dash placeholders.
 func _refresh_character_stats() -> void:
-	var c := _current_character()
-	var level_label := find_child("LevelLabel", true, false) as Label
-	var hp_label := find_child("HPLabel", true, false) as Label
-	var mp_label := find_child("MPLabel", true, false) as Label
-	var atk_label := find_child("ATKLabel", true, false) as Label
-	var def_label := find_child("DEFLabel", true, false) as Label
-	var spd_label := find_child("SPDLabel", true, false) as Label
-	if c == null:
-		if level_label != null: level_label.text = "Lv —"
-		if hp_label != null: hp_label.text = "HP —/—"
-		if mp_label != null: mp_label.text = "MP —"
-		if atk_label != null: atk_label.text = "ATK —"
-		if def_label != null: def_label.text = "DEF —"
-		if spd_label != null: spd_label.text = "SPD —"
+	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
+	if panel == null:
 		return
-	if level_label != null: level_label.text = "Lv %d" % c.level
-	if hp_label != null: hp_label.text = "HP %d/%d" % [c.hp, c.max_hp]
-	# CharacterData has no MP field today — render a dash so the row reads
-	# as "planned but unimplemented" rather than a fake zero. PRD #42 calls
-	# out MP in the stats list; surfacing the row keeps the layout stable
-	# once the resource gains the field.
-	if mp_label != null: mp_label.text = "MP —"
-	if atk_label != null: atk_label.text = "ATK %d" % c.attack
-	if def_label != null: def_label.text = "DEF %d" % c.defense
-	if spd_label != null: spd_label.text = "SPD %d" % int(round(c.speed))
+	panel.refresh(_current_character())
 
 func _current_character() -> CharacterData:
 	var gs := get_node_or_null("/root/GameState")

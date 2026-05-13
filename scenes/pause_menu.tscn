@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://bpm9aux1k7q8f"]
+[gd_scene load_steps=4 format=3 uid="uid://bpm9aux1k7q8f"]
 
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="1_pause_menu"]
+[ext_resource type="Script" path="res://scripts/stats_tab_panel.gd" id="2_stats_tab_panel"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pause"]
 bg_color = Color(0.05, 0.07, 0.12, 0.85)
@@ -87,24 +88,7 @@ text = "Inventory"
 
 [node name="StatsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
 theme_override_constants/separation = 2
-
-[node name="LevelLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "Lv —"
-
-[node name="HPLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "HP —/—"
-
-[node name="MPLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "MP —"
-
-[node name="ATKLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "ATK —"
-
-[node name="DEFLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "DEF —"
-
-[node name="SPDLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
-text = "SPD —"
+script = ExtResource("2_stats_tab_panel")
 
 [node name="SkillsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
 visible = false
