@@ -30,6 +30,7 @@ var _room_cleared: bool = false
 var _next_room_btn: Button
 var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
+var _stat_points_badge: Label
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
@@ -52,6 +53,7 @@ func _ready() -> void:
 	give_up.pressed.connect(_on_give_up_pressed)
 	_pause_btn = $PauseButton
 	_pause_btn.pressed.connect(_on_pause_pressed)
+	_stat_points_badge = $StatPointsBadge
 	_player = _find_player()
 	# Defer enemy count by one frame — main.tscn's enemy children may not
 	# have run _ready() yet (and therefore haven't joined the "enemies"
@@ -74,8 +76,24 @@ func _init_enemy_count() -> void:
 func _process(_dt: float) -> void:
 	_update_hp_bar()
 	_update_xp_bar()
+	_update_stat_points_badge()
 	_check_room_clear()
 	_check_player_dead()
+
+# Polls player.data.skill_points each frame and toggles the badge. Same
+# polling shape as the HP/XP bars — the badge updates within one frame of
+# a level-up (which awards stat points) or a StatAllocator.allocate (which
+# spends them). #58 AC: visible iff skill_points > 0.
+func _update_stat_points_badge() -> void:
+	if _stat_points_badge == null:
+		return
+	if _player == null or _player.data == null:
+		_stat_points_badge.visible = false
+		return
+	var pts := _player.data.skill_points
+	_stat_points_badge.visible = StatBadge.should_show(pts)
+	if _stat_points_badge.visible:
+		_stat_points_badge.text = "+%d stat pts" % pts
 
 func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:

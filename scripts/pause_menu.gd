@@ -75,6 +75,23 @@ func _ready() -> void:
 	if host_pause_toggle != null:
 		host_pause_toggle.pressed.connect(_on_host_pause_toggle_pressed)
 
+func _process(_dt: float) -> void:
+	_update_stats_tab_badge()
+
+# Polls current_character.skill_points each frame and toggles the Stats
+# tab badge (#58). Same polling shape as HUD._update_stat_points_badge —
+# the badge updates within one frame of a level-up or a StatAllocator
+# spend. Cheap: one find_child + one read off CharacterData.
+func _update_stats_tab_badge() -> void:
+	var badge := find_child("StatsTabBadge", true, false) as Label
+	if badge == null:
+		return
+	var c := _current_character()
+	if c == null:
+		badge.visible = false
+		return
+	badge.visible = StatBadge.should_show(c.skill_points)
+
 func open() -> void:
 	visible = true
 	_show_main_menu()

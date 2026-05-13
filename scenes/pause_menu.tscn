@@ -73,6 +73,12 @@ theme_override_constants/separation = 4
 [node name="StatsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Stats"
 
+[node name="StatsTabBadge" type="Label" parent="Center/CharacterSubmenu/VBox/TabBar"]
+visible = false
+text = "•"
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 20
+
 [node name="SkillsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Skills"
 
