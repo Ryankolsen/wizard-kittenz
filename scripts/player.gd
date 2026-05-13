@@ -119,6 +119,7 @@ func _try_attack() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
+	_play_attack_flash()
 	if _hitbox == null:
 		return
 	for area in _hitbox.get_overlapping_areas():
@@ -253,3 +254,10 @@ func _paid_unlocks() -> PaidUnlockInventory:
 	if gs == null:
 		return null
 	return gs.paid_unlocks
+
+func _play_attack_flash() -> void:
+	if _visual == null:
+		return
+	var tween := create_tween()
+	tween.tween_property(_visual, "scale", Vector2(1.4, 1.4), 0.08)
+	tween.tween_property(_visual, "scale", Vector2(1.0, 1.0), 0.12)
