@@ -15,6 +15,13 @@ const OP_POSITION: int = 4
 # duplicates idempotently and xp_broadcaster.on_enemy_killed fans XP to
 # every party member's LocalXPRouter.
 const OP_KILL: int = 5
+# Host-initiated pause / unpause broadcast. Empty payload — the sender
+# presence on the receiving side is checked against the lobby host so only
+# the party host (lobby creator) can pause / unpause for everyone.
+# Distinct from the per-player soft-pause in #42's PauseMenu, which only
+# overlays the local player's screen. OP_HOST_PAUSE freezes every client.
+const OP_HOST_PAUSE: int = 6
+const OP_HOST_UNPAUSE: int = 7
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -38,6 +45,13 @@ signal position_received(player_id: String, position: Vector2, timestamp: float)
 # signal for the same reason as position_received — lets NakamaLobby be
 # tested without a live CoopSession.
 signal kill_received(enemy_id: String, killer_id: String, xp_value: int)
+# Host-initiated pause / unpause edges. Only fire on a real transition (the
+# HostPauseState rising/falling-edge gate inside apply_state suppresses
+# duplicate packets). The scene-tree bridge in GameState binds these to
+# get_tree().paused so remote clients freeze in lockstep with the host's
+# pause press.
+signal host_paused()
+signal host_unpaused()
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -48,6 +62,12 @@ var local_player_id: String = ""
 # instance and reset() at the start of each match to support multi-run lobbies
 # without re-allocating the sync.
 var dungeon_seed_sync: DungeonSeedSync = DungeonSeedSync.new()
+# Per-match host-initiated pause flag. Lives on the lobby (not CoopSession)
+# because the host's pause press happens through the lobby's wire layer and
+# the auto-release on host-disconnect (apply_leaves below) reads from the
+# same lobby's presence list. Always non-null so call sites can read
+# .is_paused() freely.
+var host_pause_state: HostPauseState = HostPauseState.new()
 
 var _socket = null  # NakamaSocket, untyped to avoid preload at class scope
 var _session = null # NakamaSession
@@ -147,6 +167,44 @@ func send_kill_async(enemy_id: String, _killer_id: String, xp_value: int) -> voi
 	var payload := {"enemy_id": enemy_id, "xp": xp_value}
 	await _socket.send_match_state_async(_match_id, OP_KILL, JSON.stringify(payload))
 
+# Returns true iff the local player is the lobby host. Host gate for the
+# OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
+# sender check in apply_state. Defensive on null lobby_state / missing host
+# (returns false) so a malformed lobby never grants pause authority.
+func is_local_host() -> bool:
+	if lobby_state == null:
+		return false
+	var h := lobby_state.host()
+	if h == null:
+		return false
+	return h.player_id != "" and h.player_id == local_player_id
+
+# Host-only: broadcasts a pause and locally rising-edges host_pause_state +
+# emits host_paused. Non-host callers are silent no-ops (the receiving-side
+# apply_state would reject the packet anyway, but gating on the send side
+# saves bandwidth + matches the OP_KILL pattern). Self-broadcast loops back
+# through apply_state's host-id check, so the host's own paused edge fires
+# through the same code path as remote clients.
+func send_host_pause_async() -> void:
+	if not is_local_host():
+		return
+	if not host_pause_state.set_paused(true):
+		return
+	host_paused.emit()
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_HOST_PAUSE, "{}")
+
+func send_host_unpause_async() -> void:
+	if not is_local_host():
+		return
+	if not host_pause_state.set_paused(false):
+		return
+	host_unpaused.emit()
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_HOST_UNPAUSE, "{}")
+
 func request_start_async() -> bool:
 	if lobby_state == null or not lobby_state.can_start():
 		return false
@@ -200,10 +258,22 @@ func apply_joins(presences: Array) -> void:
 func apply_leaves(presences: Array) -> void:
 	if lobby_state == null:
 		return
+	# Snapshot the host id BEFORE remove_player runs — once the host's
+	# LobbyPlayer is gone from the array, lobby_state.host() returns null
+	# and we lose the ability to tell whether the leaver was the host.
+	var pre_host := lobby_state.host()
+	var pre_host_id: String = pre_host.player_id if pre_host != null else ""
 	for p in presences:
 		var uid: String = String(p.get("user_id", ""))
 		if uid != "":
 			lobby_state.remove_player(uid)
+	# Auto-release on host-disconnect: if the lobby was host-paused and the
+	# host just left, drop the pause so the remaining players aren't stuck
+	# behind a "Host has paused" overlay forever. The issue spec ("if the
+	# host disconnects while paused, the pause is released automatically").
+	if pre_host_id != "" and lobby_state.find_player(pre_host_id) == null:
+		if host_pause_state.set_paused(false):
+			host_unpaused.emit()
 	lobby_updated.emit(lobby_state)
 
 # Routes a decoded match-state message to the appropriate LobbyState mutation
@@ -217,6 +287,12 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 		return
 	if op_code == OP_KILL:
 		_route_kill(sender_id, data)
+		return
+	if op_code == OP_HOST_PAUSE:
+		_route_host_pause(sender_id, true)
+		return
+	if op_code == OP_HOST_UNPAUSE:
+		_route_host_pause(sender_id, false)
 		return
 	if lobby_state == null:
 		return
@@ -285,6 +361,30 @@ func _route_kill(sender_id: String, data: Dictionary) -> void:
 		return
 	var xp_value: int = int(data.get("xp", 0))
 	kill_received.emit(enemy_id, sender_id, xp_value)
+
+# Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
+# sender presence must match the lobby's current host. A non-host client
+# sending OP_HOST_PAUSE is silently dropped — the host gate lives on both
+# the send side (is_local_host()) and the receive side so a misbehaving /
+# tampered client can't desync the party. Empty sender_id is also dropped
+# (defensive against a future presence-strip).
+#
+# Edge-gated through HostPauseState.set_paused — duplicate packets (a flaky
+# wire double-delivering OP_HOST_PAUSE) don't re-emit host_paused.
+func _route_host_pause(sender_id: String, paused: bool) -> void:
+	if sender_id == "":
+		return
+	if lobby_state == null:
+		return
+	var h := lobby_state.host()
+	if h == null or h.player_id != sender_id:
+		return
+	if not host_pause_state.set_paused(paused):
+		return
+	if paused:
+		host_paused.emit()
+	else:
+		host_unpaused.emit()
 
 # --- Socket signal handlers ---------------------------------------------------
 

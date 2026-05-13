@@ -162,12 +162,30 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 	if lobby != null:
 		lobby.position_received.connect(_on_position_received)
 		lobby.kill_received.connect(_on_kill_received)
+		lobby.host_paused.connect(_on_host_paused)
+		lobby.host_unpaused.connect(_on_host_unpaused)
 
 func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 	if old.position_received.is_connected(_on_position_received):
 		old.position_received.disconnect(_on_position_received)
 	if old.kill_received.is_connected(_on_kill_received):
 		old.kill_received.disconnect(_on_kill_received)
+	if old.host_paused.is_connected(_on_host_paused):
+		old.host_paused.disconnect(_on_host_paused)
+	if old.host_unpaused.is_connected(_on_host_unpaused):
+		old.host_unpaused.disconnect(_on_host_unpaused)
+
+# Host-pause scene-tree bridge (#43). NakamaLobby's wire layer flips
+# host_pause_state and emits host_paused / host_unpaused on a real edge;
+# this binds those edges to get_tree().paused so every client freezes in
+# lockstep with the host's pause press. Distinct from PauseMenu.open()'s
+# solo-only tree pause (#44) — that one is per-player; this one is party-
+# wide and gated on host authority by the lobby.
+func _on_host_paused() -> void:
+	get_tree().paused = true
+
+func _on_host_unpaused() -> void:
+	get_tree().paused = false
 
 func _on_position_received(player_id: String, position: Vector2, timestamp: float) -> void:
 	if coop_session == null or coop_session.network_sync == null:
