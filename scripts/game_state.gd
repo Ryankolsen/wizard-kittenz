@@ -1,5 +1,10 @@
 extends Node
 
+# Sibling class_name resolution is load-order-fragile (see prior commits);
+# preload the serializer so the autoload script parses regardless of
+# script-load order.
+const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
+
 signal save_synced(merged: KittenSaveData)
 
 var current_character: CharacterData = null
@@ -90,6 +95,13 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
 	paid_unlocks = save_data.to_paid_unlock_inventory()
+	# Resume an in-flight solo dungeon run (PRD #42 / #46). When the saved
+	# state is empty (legacy save / no run in flight / multiplayer-only) the
+	# serializer returns null and main_scene falls through to
+	# _start_new_dungeon. The serializer regenerates the dungeon from the
+	# stored seed, advances the controller to the saved room, and replays
+	# explicit clears.
+	dungeon_run_controller = DungeonRunSerializerRef.deserialize(save_data.dungeon_run_state)
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)

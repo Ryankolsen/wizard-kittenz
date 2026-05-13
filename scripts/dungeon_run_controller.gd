@@ -36,6 +36,13 @@ signal dungeon_completed()
 var dungeon: Dungeon = null
 var current_room_id: int = -1
 var _cleared: Dictionary = {}
+# Source seed for the active dungeon (PRD #42 / #46 save/resume). The
+# generator hands back a Dungeon with no provenance, so the orchestrator
+# (main_scene._start_new_dungeon, DungeonRunSerializer.deserialize) stamps
+# this after generate() so the QuitDungeon save path can serialize it.
+# -1 means "no seed recorded yet" — DungeonGenerator's randomize-on-negative
+# sentinel, which matches the solo / no-coop default.
+var seed: int = -1
 
 func start(d: Dungeon) -> bool:
 	if d == null or d.start_id < 0:
@@ -105,6 +112,17 @@ func advance_to(target_room_id: int) -> bool:
 	current_room_id = target_room_id
 	advanced_to.emit(current_room_id)
 	return true
+
+# Explicitly-cleared room ids in insertion order. Used by DungeonRunSerializer
+# to capture run state for save/resume (PRD #42 / #46). Auto-cleared rooms
+# (start, power-up) aren't in `_cleared` and are re-derived from the
+# regenerated dungeon on restore, so they're intentionally excluded here.
+func cleared_ids() -> Array:
+	var ids: Array = []
+	for k in _cleared.keys():
+		if _cleared[k]:
+			ids.append(int(k))
+	return ids
 
 func is_dungeon_complete() -> bool:
 	if dungeon == null:

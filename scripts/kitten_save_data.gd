@@ -42,8 +42,15 @@ var cosmetic_packs: Array = []
 # a paid unlock bypasses the meta-progression threshold without removing the
 # earnable path. Legacy saves predating this field default to an empty array.
 var paid_class_unlocks: Array = []
+# Snapshot of the active solo dungeon run (PRD #42 / #46). Captures the seed
+# (so DungeonGenerator regenerates the same graph), the current_room_id, and
+# the explicitly cleared room ids. Empty dict when no run is in flight or
+# when the player is in multiplayer (multiplayer runs aren't persisted —
+# see QuitDungeonHandler). Legacy saves predating this field round-trip as
+# an empty dict, which main_scene treats as "start a fresh dungeon."
+var dungeon_run_state: Dictionary = {}
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -67,6 +74,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 		s.cosmetic_packs = cosmetic_inventory.owned_pack_ids.duplicate()
 	if paid_unlocks != null:
 		s.paid_class_unlocks = paid_unlocks.owned_class_ids.duplicate()
+	s.dungeon_run_state = dungeon_run_state.duplicate(true)
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -101,6 +109,7 @@ func to_dict() -> Dictionary:
 		"offline_xp_earned": offline_xp_earned,
 		"cosmetic_packs": cosmetic_packs,
 		"paid_class_unlocks": paid_class_unlocks,
+		"dungeon_run_state": dungeon_run_state,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -134,6 +143,9 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 			var key := String(raw).to_lower()
 			if key != "" and not s.paid_class_unlocks.has(key):
 				s.paid_class_unlocks.append(key)
+	var run_state = d.get("dungeon_run_state", {})
+	if run_state is Dictionary:
+		s.dungeon_run_state = run_state.duplicate(true)
 	return s
 
 func to_tracker() -> MetaProgressionTracker:

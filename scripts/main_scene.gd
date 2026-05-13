@@ -40,9 +40,11 @@ func _ready() -> void:
 	_setup_current_room()
 
 func _start_new_dungeon(gs) -> void:
-	var dungeon := DungeonGenerator.generate(_dungeon_seed_for(gs))
+	var seed := _dungeon_seed_for(gs)
+	var dungeon := DungeonGenerator.generate(seed)
 	_run_controller = DungeonRunController.new()
 	_run_controller.start(dungeon)
+	_run_controller.seed = seed
 	if gs != null:
 		gs.dungeon_run_controller = _run_controller
 		# Co-op session activation. Before this commit, lobby.gd's

@@ -1,6 +1,12 @@
 class_name QuitDungeonHandler
 extends RefCounted
 
+# class_name resolution for sibling scripts is unreliable at script-parse
+# time (see notes in pause_menu / audio_settings_manager commits). Preload
+# the serializer to keep the QuitDungeon save path independent of load
+# order.
+const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
+
 # Quit Dungeon exit logic (PRD #42, #45). Pulled out of PauseMenu so the
 # save-vs-skip branch is exercised by unit tests without a scene tree.
 #
@@ -20,10 +26,17 @@ extends RefCounted
 # a null character (defensive — the caller wouldn't otherwise know to
 # skip the scene change).
 
-static func save_and_exit(c: CharacterData, session: CoopSession, path: String = SaveManager.DEFAULT_PATH, tree: SkillTree = null) -> bool:
+static func save_and_exit(c: CharacterData, session: CoopSession, path: String = SaveManager.DEFAULT_PATH, tree: SkillTree = null, run_controller: DungeonRunController = null, seed: int = -1) -> bool:
 	if c == null:
 		return false
 	if session != null:
 		return true
-	SaveManager.save(c, path, tree)
+	# Capture the in-flight dungeon run so the next launch resumes at the same
+	# room with the same cleared-room state (PRD #42 / #46). When no run is in
+	# flight (run_controller == null) the saved state is an empty dict, which
+	# main_scene treats as "start a fresh dungeon" on resume.
+	var run_state: Dictionary = {}
+	if run_controller != null:
+		run_state = DungeonRunSerializerRef.serialize(run_controller, seed)
+	SaveManager.save(c, path, tree, null, null, null, null, run_state)
 	return true
