@@ -32,6 +32,7 @@ var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
+const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -56,6 +57,16 @@ func _ready() -> void:
 	# have run _ready() yet (and therefore haven't joined the "enemies"
 	# group) when the HUD's _ready fires.
 	call_deferred("_init_enemy_count")
+	# Host-pause overlay (#43). Eagerly instanced so a remote host-pause
+	# packet that arrives before the player presses their own pause button
+	# still has a surface to render the "Host has paused" banner on. The
+	# overlay self-suppresses on the host's client, so this is a no-op for
+	# the host's HUD.
+	_spawn_host_pause_overlay()
+
+func _spawn_host_pause_overlay() -> void:
+	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
+	add_child(overlay)
 
 func _init_enemy_count() -> void:
 	_initial_enemies = _count_enemies()

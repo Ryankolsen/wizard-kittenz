@@ -47,6 +47,10 @@ text = "Character"
 [node name="Settings" type="Button" parent="Center/MainMenu/VBox"]
 text = "Settings"
 
+[node name="HostPauseToggle" type="Button" parent="Center/MainMenu/VBox"]
+visible = false
+text = "Pause for everyone"
+
 [node name="QuitDungeon" type="Button" parent="Center/MainMenu/VBox"]
 text = "Quit Dungeon"
 

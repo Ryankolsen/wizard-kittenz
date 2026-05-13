@@ -71,6 +71,9 @@ func _ready() -> void:
 	var quit_cancel := find_child("QuitCancel", true, false) as Button
 	if quit_cancel != null:
 		quit_cancel.pressed.connect(_on_quit_cancel_pressed)
+	var host_pause_toggle := find_child("HostPauseToggle", true, false) as Button
+	if host_pause_toggle != null:
+		host_pause_toggle.pressed.connect(_on_host_pause_toggle_pressed)
 
 func open() -> void:
 	visible = true
@@ -80,13 +83,29 @@ func open() -> void:
 
 func close() -> void:
 	visible = false
-	# Always clear the pause flag on close, even in multiplayer — open()
-	# only sets it in solo, so a multiplayer close() is a no-op against
-	# a flag that was already false. Cheaper than re-evaluating
-	# is_multiplayer() at close time, and robust if the player tabs into
-	# multiplayer mid-pause via a future debug toggle.
-	get_tree().paused = false
+	# Clear the local soft-pause flag — UNLESS a host-initiated party-wide
+	# pause is active (#43). The host opening their own PauseMenu after
+	# pressing "Pause for everyone" would otherwise silently unfreeze the
+	# tree locally on Resume without sending OP_HOST_UNPAUSE, desyncing
+	# the host from the remote clients still frozen behind the wire flag.
+	if not _is_host_paused():
+		get_tree().paused = false
 	resumed.emit()
+
+# Reads the lobby's host-pause flag through GameState. Returns false on every
+# fall-through (no autoload / no lobby / null state) so the solo path keeps
+# the existing "Resume always unpauses" contract.
+func _is_host_paused() -> bool:
+	var lobby := _current_lobby()
+	if lobby == null or lobby.host_pause_state == null:
+		return false
+	return lobby.host_pause_state.is_paused()
+
+func _current_lobby() -> NakamaLobby:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.lobby
 
 # True when there is an active CoopSession on GameState. Used by open()
 # to decide whether to pause the tree. Returns false on every fall-
@@ -187,6 +206,39 @@ func _show_main_menu() -> void:
 	var quit_dialog := find_child("QuitConfirmDialog", true, false) as Control
 	if quit_dialog != null:
 		quit_dialog.visible = false
+	_refresh_host_pause_toggle()
+
+# Updates the host-only "Pause/Unpause for everyone" button (#43). The
+# button is only visible when there is an active lobby and the local player
+# is the host (lobby creator). Label flips based on the current
+# host_pause_state so a paused host sees "Unpause for everyone" — closes
+# the toggle loop. Re-runs every time the root menu is shown so opening
+# the menu picks up state changes from the wire (e.g. host-disconnect
+# auto-release while the host's own pause menu was already open).
+func _refresh_host_pause_toggle() -> void:
+	var btn := find_child("HostPauseToggle", true, false) as Button
+	if btn == null:
+		return
+	var lobby := _current_lobby()
+	if lobby == null or not lobby.is_local_host():
+		btn.visible = false
+		return
+	btn.visible = true
+	var paused := lobby.host_pause_state != null and lobby.host_pause_state.is_paused()
+	btn.text = "Unpause for everyone" if paused else "Pause for everyone"
+
+func _on_host_pause_toggle_pressed() -> void:
+	var lobby := _current_lobby()
+	if lobby == null or not lobby.is_local_host():
+		return
+	# Toggle on the live state, not the button label, so a race where the
+	# label was rendered against a stale wire state still routes to the
+	# correct op. is_paused() is the single source of truth.
+	if lobby.host_pause_state != null and lobby.host_pause_state.is_paused():
+		lobby.send_host_unpause_async()
+	else:
+		lobby.send_host_pause_async()
+	_refresh_host_pause_toggle()
 
 # Opens the Quit-Dungeon confirmation dialog (PRD #42 / #45). Hides the
 # main menu and shows the dialog. The Message label is swapped for the
