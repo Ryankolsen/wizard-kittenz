@@ -2,9 +2,10 @@ class_name PauseMenu
 extends CanvasLayer
 
 # Pause overlay (PRD #42, walking skeleton in #44, Character submenu in
-# #47). Owns its own visibility + the get_tree().paused flag in solo
-# mode, plus a root-menu / Character-submenu swap inside the existing
-# CenterContainer.
+# #47, Skills tab in #48). Owns its own visibility + the get_tree().paused
+# flag in solo mode, plus a root-menu / Character-submenu swap inside the
+# existing CenterContainer. The Character submenu itself swaps between
+# Stats / Skills / Inventory tabs via TabBar buttons.
 #
 # Solo (GameState.coop_session == null or inactive):
 #   open() sets get_tree().paused = true so enemies + the player freeze
@@ -33,6 +34,15 @@ func _ready() -> void:
 	var back_btn := find_child("Back", true, false) as Button
 	if back_btn != null:
 		back_btn.pressed.connect(_on_back_pressed)
+	var stats_tab := find_child("StatsTabButton", true, false) as Button
+	if stats_tab != null:
+		stats_tab.pressed.connect(_on_stats_tab_pressed)
+	var skills_tab := find_child("SkillsTabButton", true, false) as Button
+	if skills_tab != null:
+		skills_tab.pressed.connect(_on_skills_tab_pressed)
+	var inventory_tab := find_child("InventoryTabButton", true, false) as Button
+	if inventory_tab != null:
+		inventory_tab.pressed.connect(_on_inventory_tab_pressed)
 
 func open() -> void:
 	visible = true
@@ -67,6 +77,8 @@ func is_multiplayer() -> bool:
 # shows the CharacterSubmenu panel, and refreshes the stat labels from
 # GameState.current_character. Safe to call without first calling open()
 # — tests exercise the submenu independently of the root open flow.
+# Always lands on the Stats tab so a player re-entering the submenu gets
+# a predictable starting view rather than wherever they were last time.
 func open_character_submenu() -> void:
 	visible = true
 	var main := find_child("MainMenu", true, false) as Control
@@ -75,7 +87,39 @@ func open_character_submenu() -> void:
 	var submenu := find_child("CharacterSubmenu", true, false) as Control
 	if submenu != null:
 		submenu.visible = true
+	_show_stats_tab()
 	_refresh_character_stats()
+
+# Opens the Character submenu pre-switched to the Skills tab. Mirrors
+# open_character_submenu's "make-it-visible-from-anywhere" contract so
+# tests can exercise the panel without first navigating through the
+# root menu + Character button + Skills tab chain.
+func open_skills_panel() -> void:
+	visible = true
+	var main := find_child("MainMenu", true, false) as Control
+	if main != null:
+		main.visible = false
+	var submenu := find_child("CharacterSubmenu", true, false) as Control
+	if submenu != null:
+		submenu.visible = true
+	_show_skills_tab()
+	_refresh_skills_panel()
+
+# Spend one skill point to unlock node_id, via SkillTreeManager so the
+# can_unlock gate (prereqs + points + already-unlocked) is shared with
+# the rest of the codebase. Returns true on success. Refreshes the
+# panel on success so the SkillPointsLabel and per-node state reflect
+# the new world immediately.
+func try_unlock_skill(node_id: String) -> bool:
+	var c := _current_character()
+	var tree := _current_skill_tree()
+	if c == null or tree == null:
+		return false
+	var manager := SkillTreeManager.make(tree, c)
+	var ok := manager.unlock(node_id)
+	if ok:
+		_refresh_skills_panel()
+	return ok
 
 func close_character_submenu() -> void:
 	_show_main_menu()
@@ -128,6 +172,94 @@ func _current_character() -> CharacterData:
 		return null
 	return gs.current_character
 
+func _current_skill_tree() -> SkillTree:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.skill_tree
+
+# Toggles tab visibility inside the Character submenu. Each helper hides
+# the other tabs and shows its own — kept as three small functions
+# rather than one with a parameter because the call sites read more
+# clearly ("open Stats" vs "open Skills") and the extra dispatch is
+# free against three Control nodes.
+func _show_stats_tab() -> void:
+	_set_tab_visible("StatsPanel", true)
+	_set_tab_visible("SkillsPanel", false)
+	_set_tab_visible("InventoryTab", false)
+
+func _show_skills_tab() -> void:
+	_set_tab_visible("StatsPanel", false)
+	_set_tab_visible("SkillsPanel", true)
+	_set_tab_visible("InventoryTab", false)
+
+func _show_inventory_tab() -> void:
+	_set_tab_visible("StatsPanel", false)
+	_set_tab_visible("SkillsPanel", false)
+	_set_tab_visible("InventoryTab", true)
+
+func _set_tab_visible(node_name: String, vis: bool) -> void:
+	var n := find_child(node_name, true, false) as Control
+	if n != null:
+		n.visible = vis
+
+# Renders the Skills tab from GameState. The SkillPointsLabel always
+# reads the live current_character.skill_points; the SkillsList is
+# rebuilt from scratch each refresh so unlock state changes (and the
+# resulting enable/disable on the per-row Unlock button) propagate
+# without manual diffing. Cheap — the tree is three nodes per class.
+func _refresh_skills_panel() -> void:
+	var c := _current_character()
+	var tree := _current_skill_tree()
+	var sp_label := find_child("SkillPointsLabel", true, false) as Label
+	if sp_label != null:
+		if c == null:
+			sp_label.text = "Skill Points: —"
+		else:
+			sp_label.text = "Skill Points: %d" % c.skill_points
+	var list := find_child("SkillsList", true, false) as VBoxContainer
+	if list == null:
+		return
+	# Synchronous free (not queue_free) so the old rows leave the tree
+	# before the new ones are added. queue_free defers to end-of-frame,
+	# which leaves the old rows around long enough for find_child to
+	# pick up a stale "Locked" label after a same-frame unlock —
+	# tripping #48's "unlocked label says Unlocked" contract. UI rows
+	# carry no async state, so free() is safe.
+	for child in list.get_children():
+		list.remove_child(child)
+		child.free()
+	if tree == null:
+		return
+	var manager: SkillTreeManager = null
+	if c != null:
+		manager = SkillTreeManager.make(tree, c)
+	for n in tree.all_nodes():
+		list.add_child(_make_skill_row(n, manager))
+
+func _make_skill_row(node: SkillNode, manager: SkillTreeManager) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "SkillRow_%s" % node.id
+	var label := Label.new()
+	label.name = "SkillRowLabel_%s" % node.id
+	# Status suffix is the visually-distinct marker between locked and
+	# unlocked nodes the acceptance criterion calls for. A future polish
+	# pass can swap in icons / color tints, but the text contract is what
+	# the tests pin.
+	var status := "Unlocked" if node.unlocked else "Locked"
+	label.text = "%s — %s" % [node.display_name, status]
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+	if not node.unlocked:
+		var btn := Button.new()
+		btn.name = "UnlockButton_%s" % node.id
+		btn.text = "Unlock (%d pt)" % node.cost
+		btn.disabled = manager == null or not manager.can_unlock(node.id)
+		var node_id := node.id
+		btn.pressed.connect(func(): try_unlock_skill(node_id))
+		row.add_child(btn)
+	return row
+
 func _on_resume_pressed() -> void:
 	close()
 
@@ -136,3 +268,14 @@ func _on_character_pressed() -> void:
 
 func _on_back_pressed() -> void:
 	close_character_submenu()
+
+func _on_stats_tab_pressed() -> void:
+	_show_stats_tab()
+	_refresh_character_stats()
+
+func _on_skills_tab_pressed() -> void:
+	_show_skills_tab()
+	_refresh_skills_panel()
+
+func _on_inventory_tab_pressed() -> void:
+	_show_inventory_tab()

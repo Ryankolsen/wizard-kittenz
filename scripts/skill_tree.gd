@@ -23,6 +23,15 @@ func unlocked_ids() -> Array:
 			out.append(n.id)
 	return out
 
+# Snapshot accessor for UI / tests that want to iterate the graph without
+# mutating `nodes` directly. Returns the live array — mutations bleed back.
+func all_nodes() -> Array:
+	return nodes
+
+func is_unlocked(node_id: String) -> bool:
+	var n := find(node_id)
+	return n != null and n.unlocked
+
 # Re-applies a saved unlocked-id set onto the freshly-built tree. Unknown ids
 # are ignored so an old save against a renamed node won't crash — it just
 # silently drops the stale entry.

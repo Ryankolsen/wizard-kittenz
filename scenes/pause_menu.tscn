@@ -64,6 +64,19 @@ horizontal_alignment = 1
 text = "Character"
 theme_override_font_sizes/font_size = 24
 
+[node name="TabBar" type="HBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+alignment = 1
+theme_override_constants/separation = 4
+
+[node name="StatsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
+text = "Stats"
+
+[node name="SkillsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
+text = "Skills"
+
+[node name="InventoryTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
+text = "Inventory"
+
 [node name="StatsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
 theme_override_constants/separation = 2
 
@@ -85,7 +98,19 @@ text = "DEF —"
 [node name="SPDLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
 text = "SPD —"
 
+[node name="SkillsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+visible = false
+theme_override_constants/separation = 4
+
+[node name="SkillPointsLabel" type="Label" parent="Center/CharacterSubmenu/VBox/SkillsPanel"]
+horizontal_alignment = 1
+text = "Skill Points: —"
+
+[node name="SkillsList" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/SkillsPanel"]
+theme_override_constants/separation = 2
+
 [node name="InventoryTab" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+visible = false
 theme_override_constants/separation = 2
 
 [node name="InventoryStub" type="Label" parent="Center/CharacterSubmenu/VBox/InventoryTab"]
