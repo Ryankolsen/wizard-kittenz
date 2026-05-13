@@ -27,28 +27,70 @@ color = Color(0, 0, 0, 0.5)
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="Panel" type="PanelContainer" parent="Center"]
+[node name="MainMenu" type="PanelContainer" parent="Center"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
 
-[node name="VBox" type="VBoxContainer" parent="Center/Panel"]
+[node name="VBox" type="VBoxContainer" parent="Center/MainMenu"]
 theme_override_constants/separation = 6
 
-[node name="Title" type="Label" parent="Center/Panel/VBox"]
+[node name="Title" type="Label" parent="Center/MainMenu/VBox"]
 horizontal_alignment = 1
 text = "Paused"
 theme_override_font_sizes/font_size = 24
 
-[node name="Resume" type="Button" parent="Center/Panel/VBox"]
+[node name="Resume" type="Button" parent="Center/MainMenu/VBox"]
 text = "Resume"
 
-[node name="Character" type="Button" parent="Center/Panel/VBox"]
-disabled = true
+[node name="Character" type="Button" parent="Center/MainMenu/VBox"]
 text = "Character"
 
-[node name="Settings" type="Button" parent="Center/Panel/VBox"]
+[node name="Settings" type="Button" parent="Center/MainMenu/VBox"]
 disabled = true
 text = "Settings"
 
-[node name="QuitDungeon" type="Button" parent="Center/Panel/VBox"]
+[node name="QuitDungeon" type="Button" parent="Center/MainMenu/VBox"]
 disabled = true
 text = "Quit Dungeon"
+
+[node name="CharacterSubmenu" type="PanelContainer" parent="Center"]
+visible = false
+theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
+
+[node name="VBox" type="VBoxContainer" parent="Center/CharacterSubmenu"]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Center/CharacterSubmenu/VBox"]
+horizontal_alignment = 1
+text = "Character"
+theme_override_font_sizes/font_size = 24
+
+[node name="StatsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+theme_override_constants/separation = 2
+
+[node name="LevelLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "Lv —"
+
+[node name="HPLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "HP —/—"
+
+[node name="MPLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "MP —"
+
+[node name="ATKLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "ATK —"
+
+[node name="DEFLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "DEF —"
+
+[node name="SPDLabel" type="Label" parent="Center/CharacterSubmenu/VBox/StatsPanel"]
+text = "SPD —"
+
+[node name="InventoryTab" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox"]
+theme_override_constants/separation = 2
+
+[node name="InventoryStub" type="Label" parent="Center/CharacterSubmenu/VBox/InventoryTab"]
+horizontal_alignment = 1
+text = "Inventory — Coming soon"
+
+[node name="Back" type="Button" parent="Center/CharacterSubmenu/VBox"]
+text = "Back"
