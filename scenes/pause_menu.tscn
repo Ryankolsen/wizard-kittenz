@@ -88,6 +88,7 @@ text = "Inventory"
 
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
 custom_minimum_size = Vector2(0, 250)
+size_flags_vertical = 0
 horizontal_scroll_mode = 0
 
 [node name="TabContent" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll"]
