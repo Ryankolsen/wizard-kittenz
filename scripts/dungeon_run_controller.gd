@@ -32,6 +32,13 @@ extends RefCounted
 signal room_cleared(room_id: int)
 signal advanced_to(room_id: int)
 signal dungeon_completed()
+# Fires when the orchestrator decides to advance from this dungeon into a
+# new one. Distinct from dungeon_completed (which is the boss-cleared edge):
+# transitioned is the deliberate "load the next dungeon" call, not the
+# combat outcome. PRD #52 / #61: main_scene calls transition() on the
+# boss-cleared edge, the scene layer listens for this signal to open the
+# stat-allocation screen before the reload.
+signal dungeon_transitioned()
 
 var dungeon: Dungeon = null
 var current_room_id: int = -1
@@ -128,3 +135,12 @@ func is_dungeon_complete() -> bool:
 	if dungeon == null:
 		return false
 	return _cleared.get(dungeon.boss_id, false)
+
+# Emits dungeon_transitioned. Called by the scene-layer orchestrator
+# (main_scene) when it's about to load the next dungeon — gives listeners
+# (the stat-allocation screen, future analytics) a single edge to bind to
+# without coupling to the boss-clear path or the scene reload itself.
+# Pure data — does not mutate run state; the scene layer is responsible
+# for actually reloading after the signal's listeners have run.
+func transition() -> void:
+	dungeon_transitioned.emit()

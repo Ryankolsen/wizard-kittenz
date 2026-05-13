@@ -310,6 +310,44 @@ func test_is_dungeon_complete_before_start_returns_false():
 	var c := DungeonRunController.new()
 	assert_false(c.is_dungeon_complete())
 
+# --- transition / dungeon_transitioned (PRD #52 / #61) ----------------------
+
+func test_transition_emits_dungeon_transitioned_signal():
+	# Core wiring: transition() is the orchestrator's "advance to next
+	# dungeon" call. Fires the signal so the scene layer can open the
+	# stat-allocation screen before the actual scene reload.
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.advance_to(1)
+	c.mark_room_cleared(1)
+	c.transition()
+	assert_signal_emitted(c, "dungeon_transitioned")
+
+func test_transition_distinct_from_dungeon_completed_on_boss_clear():
+	# Boss clear fires dungeon_completed (run-end), NOT dungeon_transitioned.
+	# transition() is the deliberate orchestrator call, not the combat
+	# outcome — keeps the two edges decoupled so a listener can react to
+	# "run over" without entangling with "moving to next dungeon."
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.mark_room_cleared(2)
+	assert_signal_emitted(c, "dungeon_completed")
+	assert_signal_not_emitted(c, "dungeon_transitioned")
+
+func test_transition_does_not_emit_dungeon_completed():
+	# Symmetric: transition() fires only its own signal, not dungeon_completed.
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.transition()
+	assert_signal_not_emitted(c, "dungeon_completed")
+	assert_signal_emit_count(c, "dungeon_transitioned", 1)
+
 # --- end-to-end happy path --------------------------------------------------
 
 func test_full_run_through_branching_dungeon_via_powerup():

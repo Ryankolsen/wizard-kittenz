@@ -13,6 +13,10 @@ extends VBoxContainer
 # Stats-panel tests from #47 keep finding them by name.
 
 signal allocated(stat: String)
+# Fires when the player presses the Continue button (only visible in the
+# dungeon-transition flow, PRD #52 / #61). The pause menu re-emits this so
+# main_scene can resume dungeon loading.
+signal continue_pressed
 
 # Display rows in the order the issue lists them. Each entry maps a stat
 # key (matching StatAllocator) to a display name, the value-formatter
@@ -37,6 +41,7 @@ var _unspent_label: Label = null
 var _level_label: Label = null
 var _stat_labels := {}
 var _plus_buttons := {}
+var _continue_button: Button = null
 var _built := false
 
 func _init() -> void:
@@ -59,6 +64,12 @@ func _build() -> void:
 	add_child(_level_label)
 	for s in STAT_ROWS:
 		add_child(_make_row(s))
+	_continue_button = Button.new()
+	_continue_button.name = "ContinueButton"
+	_continue_button.text = "Continue"
+	_continue_button.visible = false
+	_continue_button.pressed.connect(_on_continue_pressed)
+	add_child(_continue_button)
 
 func _make_row(s: Dictionary) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -128,6 +139,22 @@ func _on_plus_pressed(stat_key: String) -> void:
 		return
 	refresh(_character)
 	allocated.emit(stat_key)
+
+func _on_continue_pressed() -> void:
+	continue_pressed.emit()
+
+# Toggles the Continue button used by the dungeon-transition flow
+# (PRD #52 / #61). Hidden by default — only shown when the pause menu
+# is opened via open_for_dungeon_transition(). Always enabled
+# regardless of skill_points so a player with zero unspent points can
+# dismiss the screen immediately.
+func set_continue_visible(vis: bool) -> void:
+	_build()
+	_continue_button.visible = vis
+
+func get_continue_button() -> Button:
+	_build()
+	return _continue_button
 
 func get_unspent_label_text() -> String:
 	_build()

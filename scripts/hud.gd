@@ -295,10 +295,23 @@ func _on_give_up_pressed() -> void:
 # The PauseMenu sets its own process_mode = ALWAYS so it stays responsive
 # while solo play freezes the rest of the tree.
 func _on_pause_pressed() -> void:
+	_ensure_pause_menu().open()
+
+func _ensure_pause_menu() -> CanvasLayer:
 	if _pause_menu == null:
 		_pause_menu = PAUSE_MENU_SCENE.instantiate()
 		add_child(_pause_menu)
-	_pause_menu.open()
+	return _pause_menu
+
+# Lazy-instantiates the PauseMenu (mirroring _on_pause_pressed) and opens
+# it in dungeon-transition mode (PRD #52 / #61). Returns the menu so the
+# caller can wire its transition_continued signal. Kept on HUD because
+# the menu lives under the HUD CanvasLayer — main_scene asks for it
+# rather than instancing its own copy.
+func open_pause_menu_for_transition() -> CanvasLayer:
+	var pm := _ensure_pause_menu()
+	pm.open_for_dungeon_transition()
+	return pm
 
 func _count_enemies() -> int:
 	return get_tree().get_nodes_in_group("enemies").size()

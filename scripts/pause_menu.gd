@@ -22,6 +22,11 @@ extends CanvasLayer
 # scene, leaving the player stuck on a paused screen with no way out).
 
 signal resumed
+# Re-emitted from StatsTabPanel.continue_pressed (PRD #52 / #61). Fires
+# when the dungeon-transition flow's Continue button is pressed —
+# main_scene listens for this to resume dungeon loading after the player
+# has had a chance to spend any unspent stat points.
+signal transition_continued
 
 const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
@@ -154,6 +159,33 @@ func open_character_submenu() -> void:
 		submenu.visible = true
 	_show_stats_tab()
 	_refresh_character_stats()
+
+# Opens the pause menu in dungeon-transition mode (PRD #52 / #61). Lands
+# directly on the Stats tab with the Continue button visible so the player
+# can spend unspent points before the next dungeon loads. In solo play the
+# tree pauses just like a normal open() so combat doesn't continue while
+# the player is allocating; in multiplayer the tree keeps ticking.
+# Continue press fires transition_continued — main_scene listens for that
+# to drive the actual scene reload.
+func open_for_dungeon_transition() -> void:
+	open_character_submenu()
+	if not is_multiplayer():
+		get_tree().paused = true
+	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
+	if panel == null:
+		return
+	panel.set_continue_visible(true)
+	if not panel.continue_pressed.is_connected(_on_transition_continue_pressed):
+		panel.continue_pressed.connect(_on_transition_continue_pressed)
+
+func _on_transition_continue_pressed() -> void:
+	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
+	if panel != null:
+		panel.set_continue_visible(false)
+	visible = false
+	if not _is_host_paused():
+		get_tree().paused = false
+	transition_continued.emit()
 
 # Opens the Character submenu pre-switched to the Skills tab. Mirrors
 # open_character_submenu's "make-it-visible-from-anywhere" contract so

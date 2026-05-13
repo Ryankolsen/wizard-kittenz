@@ -35,6 +35,7 @@ func _ready() -> void:
 	# Connect before _setup_current_room so auto-clear rooms get the signal.
 	_run_controller.room_cleared.connect(_on_room_cleared)
 	_run_controller.dungeon_completed.connect(_on_dungeon_completed)
+	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
 	_hud.next_room_requested.connect(_on_next_room_requested)
 
 	_setup_current_room()
@@ -172,6 +173,31 @@ func _can_reach(from_id: int, target_id: int) -> bool:
 	return false
 
 func _on_dungeon_completed() -> void:
+	# PRD #52 / #61: the boss-cleared edge no longer reloads directly.
+	# Call transition() on the controller so the dungeon_transitioned
+	# listener can open the stat-allocation screen — the actual reload
+	# is deferred until the player presses Continue.
+	_run_controller.transition()
+
+# Listens for DungeonRunController.dungeon_transitioned and opens the
+# pause menu in dungeon-transition mode (Stats tab + Continue button).
+# The Continue button's transition_continued signal then drives the
+# actual finalize + reload. PRD #52 / #61.
+func _on_dungeon_transitioned() -> void:
+	if _hud == null:
+		_finalize_and_reload()
+		return
+	var pm: CanvasLayer = _hud.open_pause_menu_for_transition()
+	if pm == null:
+		_finalize_and_reload()
+		return
+	if not pm.transition_continued.is_connected(_on_transition_continued):
+		pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
+
+func _on_transition_continued() -> void:
+	_finalize_and_reload()
+
+func _finalize_and_reload() -> void:
 	_finalize_completed_run()
 	get_tree().reload_current_scene()
 
