@@ -23,6 +23,8 @@ extends CanvasLayer
 
 signal resumed
 
+const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
+
 func _ready() -> void:
 	visible = false
 	var resume_btn := find_child("Resume", true, false) as Button
@@ -34,6 +36,18 @@ func _ready() -> void:
 	var back_btn := find_child("Back", true, false) as Button
 	if back_btn != null:
 		back_btn.pressed.connect(_on_back_pressed)
+	var settings_btn := find_child("Settings", true, false) as Button
+	if settings_btn != null:
+		settings_btn.pressed.connect(_on_settings_pressed)
+	var settings_back := find_child("SettingsBack", true, false) as Button
+	if settings_back != null:
+		settings_back.pressed.connect(_on_settings_back_pressed)
+	var bgm_slider := find_child("BGMSlider", true, false) as HSlider
+	if bgm_slider != null:
+		bgm_slider.value_changed.connect(_on_bgm_slider_changed)
+	var sfx_slider := find_child("SFXSlider", true, false) as HSlider
+	if sfx_slider != null:
+		sfx_slider.value_changed.connect(_on_sfx_slider_changed)
 	var stats_tab := find_child("StatsTabButton", true, false) as Button
 	if stats_tab != null:
 		stats_tab.pressed.connect(_on_stats_tab_pressed)
@@ -124,6 +138,27 @@ func try_unlock_skill(node_id: String) -> bool:
 func close_character_submenu() -> void:
 	_show_main_menu()
 
+# Opens the Settings submenu (PRD #42 / #49). Hides MainMenu and the
+# Character submenu, shows SettingsSubmenu, and pre-populates the
+# sliders from the persisted audio settings so the player sees the
+# current state rather than the .tscn default (1.0). Safe to call
+# without first calling open() — tests exercise the submenu directly.
+func open_settings_submenu() -> void:
+	visible = true
+	var main := find_child("MainMenu", true, false) as Control
+	if main != null:
+		main.visible = false
+	var character := find_child("CharacterSubmenu", true, false) as Control
+	if character != null:
+		character.visible = false
+	var settings := find_child("SettingsSubmenu", true, false) as Control
+	if settings != null:
+		settings.visible = true
+	_load_audio_settings_into_sliders()
+
+func close_settings_submenu() -> void:
+	_show_main_menu()
+
 func _show_main_menu() -> void:
 	var main := find_child("MainMenu", true, false) as Control
 	if main != null:
@@ -131,6 +166,41 @@ func _show_main_menu() -> void:
 	var submenu := find_child("CharacterSubmenu", true, false) as Control
 	if submenu != null:
 		submenu.visible = false
+	var settings := find_child("SettingsSubmenu", true, false) as Control
+	if settings != null:
+		settings.visible = false
+
+# Reads the persisted audio settings and pushes them into the slider
+# values. Also applies them to AudioServer so the live volume matches
+# what the sliders show — covers the case where the submenu is opened
+# before apply_loaded() has run at app start.
+func _load_audio_settings_into_sliders() -> void:
+	var loaded := AudioSettings.load_settings()
+	var bgm_slider := find_child("BGMSlider", true, false) as HSlider
+	var sfx_slider := find_child("SFXSlider", true, false) as HSlider
+	# set_value_no_signal so populating the slider doesn't fire
+	# _on_bgm_slider_changed → re-save → re-apply cycle on every open.
+	if bgm_slider != null:
+		bgm_slider.set_value_no_signal(loaded["bgm"])
+	if sfx_slider != null:
+		sfx_slider.set_value_no_signal(loaded["sfx"])
+	AudioSettings.set_bgm_volume(loaded["bgm"])
+	AudioSettings.set_sfx_volume(loaded["sfx"])
+
+func _on_bgm_slider_changed(value: float) -> void:
+	AudioSettings.set_bgm_volume(value)
+	_persist_audio_sliders()
+
+func _on_sfx_slider_changed(value: float) -> void:
+	AudioSettings.set_sfx_volume(value)
+	_persist_audio_sliders()
+
+func _persist_audio_sliders() -> void:
+	var bgm_slider := find_child("BGMSlider", true, false) as HSlider
+	var sfx_slider := find_child("SFXSlider", true, false) as HSlider
+	var bgm := bgm_slider.value if bgm_slider != null else AudioSettings.DEFAULT_BGM
+	var sfx := sfx_slider.value if sfx_slider != null else AudioSettings.DEFAULT_SFX
+	AudioSettings.save_settings({"bgm": bgm, "sfx": sfx})
 
 # Pulls live values off GameState.current_character into the stat labels.
 # Missing character (pre-creation / cleared GameState) falls back to em-
@@ -279,3 +349,9 @@ func _on_skills_tab_pressed() -> void:
 
 func _on_inventory_tab_pressed() -> void:
 	_show_inventory_tab()
+
+func _on_settings_pressed() -> void:
+	open_settings_submenu()
+
+func _on_settings_back_pressed() -> void:
+	close_settings_submenu()
