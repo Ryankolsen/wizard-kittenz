@@ -116,3 +116,30 @@ func test_solo_dialog_message_mentions_save():
 	assert_not_null(msg)
 	assert_true(msg.text.to_lower().contains("save"),
 		"solo dialog message must mention save (got '%s')" % msg.text)
+
+# Regression: confirm_quit_dungeon must clear GameState.current_character
+# so character_creation.gd does NOT auto-bounce back to main.tscn.
+# Root cause: PauseMenu called change_scene_to_file while current_character
+# was still non-null, causing character_creation._ready() to skip the picker
+# and immediately redirect to the dungeon — making Confirm appear to do nothing.
+func test_confirm_quit_clears_game_state_character():
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		pending("GameState autoload not present — skipping")
+		return
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "TestKitten")
+	gs.current_character = c
+	gs.skill_tree = SkillTree.make_mage_tree()
+	gs.dungeon_run_controller = null
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	# confirm_quit_dungeon queues a deferred change_scene_to_file — the
+	# GameState clearing happens synchronously before that, so assertions
+	# here run before the deferred call fires.
+	scene.confirm_quit_dungeon()
+	assert_null(gs.current_character,
+		"GameState.current_character must be null after confirm_quit_dungeon")
+	assert_null(gs.skill_tree,
+		"GameState.skill_tree must be null after confirm_quit_dungeon")
+	assert_null(gs.dungeon_run_controller,
+		"GameState.dungeon_run_controller must be null after confirm_quit_dungeon")

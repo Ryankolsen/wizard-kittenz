@@ -276,6 +276,11 @@ func confirm_quit_dungeon() -> void:
 	var run_seed := run_ctrl.seed if run_ctrl != null else -1
 	QuitHandler.save_and_exit(c, session, SaveManager.DEFAULT_PATH, tree, run_ctrl, run_seed)
 	get_tree().paused = false
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.current_character = null
+		gs.skill_tree = null
+		gs.dungeon_run_controller = null
 	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
 
 func _current_coop_session() -> CoopSession:
