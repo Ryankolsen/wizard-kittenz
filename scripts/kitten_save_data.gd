@@ -60,8 +60,13 @@ var paid_class_unlocks: Array = []
 # see QuitDungeonHandler). Legacy saves predating this field round-trip as
 # an empty dict, which main_scene treats as "start a fresh dungeon."
 var dungeon_run_state: Dictionary = {}
+# Dual-currency balances (PRD #53 / issue #63). Default 0 so legacy saves
+# round-trip cleanly. Sourced from a CurrencyLedger at save time and used
+# to rehydrate one via to_currency_ledger() at load time.
+var gold_balance: int = 0
+var gem_balance: int = 0
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -95,6 +100,9 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if paid_unlocks != null:
 		s.paid_class_unlocks = paid_unlocks.owned_class_ids.duplicate()
 	s.dungeon_run_state = dungeon_run_state.duplicate(true)
+	if currency_ledger != null:
+		s.gold_balance = currency_ledger.balance(CurrencyLedger.Currency.GOLD)
+		s.gem_balance = currency_ledger.balance(CurrencyLedger.Currency.GEM)
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -148,6 +156,8 @@ func to_dict() -> Dictionary:
 		"cosmetic_packs": cosmetic_packs,
 		"paid_class_unlocks": paid_class_unlocks,
 		"dungeon_run_state": dungeon_run_state,
+		"gold_balance": gold_balance,
+		"gem_balance": gem_balance,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -193,6 +203,8 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	var run_state = d.get("dungeon_run_state", {})
 	if run_state is Dictionary:
 		s.dungeon_run_state = run_state.duplicate(true)
+	s.gold_balance = int(d.get("gold_balance", 0))
+	s.gem_balance = int(d.get("gem_balance", 0))
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -215,3 +227,11 @@ func to_paid_unlock_inventory() -> PaidUnlockInventory:
 	var inv := PaidUnlockInventory.new()
 	inv.owned_class_ids = paid_class_unlocks.duplicate()
 	return inv
+
+func to_currency_ledger() -> CurrencyLedger:
+	var ledger := CurrencyLedger.new()
+	if gold_balance > 0:
+		ledger.credit(gold_balance, CurrencyLedger.Currency.GOLD)
+	if gem_balance > 0:
+		ledger.credit(gem_balance, CurrencyLedger.Currency.GEM)
+	return ledger
