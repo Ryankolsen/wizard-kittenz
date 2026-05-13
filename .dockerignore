@@ -1,0 +1,16 @@
+.godot/
+scenes/
+scripts/
+addons/
+tests/
+android/
+assets/
+*.tscn
+*.gd
+*.tres
+*.import
+*.cfg
+nakama.env
+*.aab
+*.apk
+.DS_Store

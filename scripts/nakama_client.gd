@@ -11,7 +11,8 @@ func _ready() -> void:
 	var host := _env("NAKAMA_HOST", "127.0.0.1")
 	var port := int(_env("NAKAMA_PORT", "7350"))
 	var server_key := _env("NAKAMA_SERVER_KEY", "localdev_server_key")
-	_client = Nakama.create_client(server_key, host, port)
+	var scheme := _env("NAKAMA_SCHEME", "http")
+	_client = Nakama.create_client(server_key, host, port, scheme)
 
 const _SAVE_COLLECTION := "saves"
 const _SAVE_KEY := "kitten"
