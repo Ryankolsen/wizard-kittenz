@@ -70,6 +70,12 @@ var dungeon_run_state: Dictionary = {}
 # to rehydrate one via to_currency_ledger() at load time.
 var gold_balance: int = 0
 var gem_balance: int = 0
+# Last calendar date (ISO yyyy-mm-dd) on which the daily-login Gem bonus
+# (PRD #53 / issue #68) was awarded. Empty string means the player has
+# never received one — DailyLoginBonus.try_award treats that as a brand-new
+# day and pays the first bonus. Stored on KittenSaveData (not on the
+# tracker) because it's a per-save anchor, not a meta-progression milestone.
+var last_login_date: String = ""
 
 static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
@@ -165,6 +171,7 @@ func to_dict() -> Dictionary:
 		"dungeon_run_state": dungeon_run_state,
 		"gold_balance": gold_balance,
 		"gem_balance": gem_balance,
+		"last_login_date": last_login_date,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -218,6 +225,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 		s.dungeon_run_state = run_state.duplicate(true)
 	s.gold_balance = int(d.get("gold_balance", 0))
 	s.gem_balance = int(d.get("gem_balance", 0))
+	s.last_login_date = String(d.get("last_login_date", ""))
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
