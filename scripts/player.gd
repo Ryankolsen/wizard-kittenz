@@ -153,7 +153,7 @@ func _try_attack() -> void:
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks())
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -178,7 +178,7 @@ func _try_cast_spell() -> void:
 				awarded = true
 		if awarded:
 			_record_meta_progress()
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks())
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -228,7 +228,8 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_coop_session(),
 		_local_player_id(),
 		_offline_xp_tracker(),
-		_lobby()
+		_lobby(),
+		_currency_ledger()
 	)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
@@ -310,6 +311,12 @@ func _paid_unlocks() -> PaidUnlockInventory:
 	if gs == null:
 		return null
 	return gs.paid_unlocks
+
+func _currency_ledger() -> CurrencyLedger:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.currency_ledger
 
 func _play_attack_flash() -> void:
 	if _visual == null:

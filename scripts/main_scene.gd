@@ -104,7 +104,7 @@ func _setup_current_room() -> void:
 	# Pass the local character + session so the watcher fires PRD #52
 	# room-clear XP through the right path: solo adds XP to the local
 	# character, co-op fans through the party-split broadcaster.
-	_watcher.watch(room, _run_controller, _local_character(), _coop_session())
+	_watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
@@ -117,6 +117,12 @@ func _local_character() -> CharacterData:
 	if gs == null:
 		return null
 	return gs.current_character
+
+func _currency_ledger() -> CurrencyLedger:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.currency_ledger
 
 func _on_enemy_died() -> void:
 	if _enemy == null or _enemy.data == null:

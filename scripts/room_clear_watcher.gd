@@ -49,6 +49,11 @@ extends RefCounted
 # combat, not traversal.
 const ROOM_CLEAR_XP: int = 50
 
+# Per-room Gold bonus (PRD #53). Credited to the local CurrencyLedger on the
+# last expected death of a combat room. Auto-clear rooms (start, power-up)
+# do NOT pay out — same combat-only rule as ROOM_CLEAR_XP.
+const ROOM_CLEAR_GOLD: int = 10
+
 var room_id: int = -1
 var controller: DungeonRunController = null
 var _expected: Dictionary = {}  # enemy_id -> true
@@ -56,6 +61,7 @@ var _initial_count: int = 0
 var _cleared: bool = false
 var _character: CharacterData = null
 var _session: CoopSession = null
+var _ledger: CurrencyLedger = null
 
 # Begins watching a room. Returns true on success, false on null
 # inputs. Reads expected enemy_ids from RoomSpawnPlanner so the
@@ -69,13 +75,14 @@ var _session: CoopSession = null
 # co-op callers pass `session` (the watcher routes through the
 # party-split broadcaster). Tests / pre-spawn-layer paths can omit
 # both — the watcher still tracks the cleared edge but pays no XP.
-func watch(room: Room, c: DungeonRunController, character: CharacterData = null, session: CoopSession = null) -> bool:
+func watch(room: Room, c: DungeonRunController, character: CharacterData = null, session: CoopSession = null, ledger: CurrencyLedger = null) -> bool:
 	if room == null or c == null:
 		return false
 	room_id = room.id
 	controller = c
 	_character = character
 	_session = session
+	_ledger = ledger
 	_expected.clear()
 	_cleared = false
 	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
@@ -108,6 +115,7 @@ func notify_death(enemy_id: String) -> bool:
 	if _expected.is_empty():
 		_cleared = true
 		_award_room_clear_xp()
+		_award_room_clear_gold()
 		if controller != null:
 			controller.mark_room_cleared(room_id)
 		return true
@@ -127,6 +135,15 @@ func _award_room_clear_xp() -> void:
 		return
 	if _character != null:
 		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP)
+
+# PRD #53 room-clear Gold bonus. Credited directly to the local
+# CurrencyLedger on the last expected death of a combat room. Same
+# full-amount rule for solo and co-op (Gold is per-character, not
+# split). Null ledger is a silent no-op (test path / pre-wiring).
+func _award_room_clear_gold() -> void:
+	if _ledger == null:
+		return
+	_ledger.credit(ROOM_CLEAR_GOLD, CurrencyLedger.Currency.GOLD)
 
 func is_cleared() -> bool:
 	return _cleared

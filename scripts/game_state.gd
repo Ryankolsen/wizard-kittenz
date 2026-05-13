@@ -29,6 +29,10 @@ var cosmetic_inventory: CosmeticInventory = CosmeticInventory.new()
 # without a null check; hydrated from KittenSaveData.paid_class_unlocks in
 # apply_merged_save.
 var paid_unlocks: PaidUnlockInventory = PaidUnlockInventory.new()
+# Dual-currency balances (PRD #53). Always non-null so the kill flow, room
+# clear watcher, and shop UI can credit/debit without a null check.
+# Hydrated from KittenSaveData.to_currency_ledger() in apply_merged_save.
+var currency_ledger: CurrencyLedger = CurrencyLedger.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -77,7 +81,8 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks):
 		SaveManager.save(
 			current_character, SaveManager.DEFAULT_PATH,
-			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks
+			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
+			{}, currency_ledger
 		)
 
 func _try_load_save() -> void:
@@ -95,6 +100,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
 	paid_unlocks = save_data.to_paid_unlock_inventory()
+	currency_ledger = save_data.to_currency_ledger()
 	# Resume an in-flight solo dungeon run (PRD #42 / #46). When the saved
 	# state is empty (legacy save / no run in flight / multiplayer-only) the
 	# serializer returns null and main_scene falls through to
@@ -137,6 +143,7 @@ func clear() -> void:
 	offline_xp_tracker = OfflineXPTracker.new()
 	cosmetic_inventory = CosmeticInventory.new()
 	paid_unlocks = PaidUnlockInventory.new()
+	currency_ledger = CurrencyLedger.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.

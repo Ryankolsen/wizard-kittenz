@@ -10,6 +10,10 @@ enum EnemyKind { SLIME, BAT, RAT }
 @export var attack: int = 1
 @export var defense: int = 0
 @export var xp_reward: int = 2
+# Gold dropped on death (PRD #53). Credited to the local CurrencyLedger via
+# KillRewardRouter on every kill — solo and co-op both pay the full amount
+# (Gold is per-character, not party-split like XP).
+@export var gold_reward: int = 2
 # Marks this enemy as the dungeon's boss. Defaults false so a generic spawn
 # never accidentally registers as a boss; the dungeon spawner sets it true
 # on the boss room's enemy.
@@ -54,6 +58,13 @@ static func base_xp_for(k: EnemyKind) -> int:
 		EnemyKind.RAT: return 3
 	return 2
 
+static func base_gold_for(k: EnemyKind) -> int:
+	match k:
+		EnemyKind.SLIME: return 2
+		EnemyKind.BAT: return 2
+		EnemyKind.RAT: return 3
+	return 2
+
 static func display_name_for(k: EnemyKind) -> String:
 	match k:
 		EnemyKind.SLIME: return "Slime"
@@ -70,6 +81,7 @@ static func make_new(k: EnemyKind) -> EnemyData:
 	e.attack = base_attack_for(k)
 	e.defense = base_defense_for(k)
 	e.xp_reward = base_xp_for(k)
+	e.gold_reward = base_gold_for(k)
 	return e
 
 func is_alive() -> bool:

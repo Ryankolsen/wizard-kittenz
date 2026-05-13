@@ -52,10 +52,17 @@ static func route_kill(
 	session: CoopSession,
 	local_player_id: String,
 	xp_tracker: OfflineXPTracker = null,
-	lobby: NakamaLobby = null
+	lobby: NakamaLobby = null,
+	ledger: CurrencyLedger = null
 ) -> void:
 	if data == null or enemy_data == null:
 		return
+	# Gold drop (PRD #53). Credit the local CurrencyLedger by the enemy's
+	# gold_reward on every kill — full amount in both solo and co-op (Gold
+	# is per-character, not party-split). Null ledger (pre-wiring callers /
+	# tests that don't care about Gold) is a silent no-op.
+	if ledger != null:
+		ledger.credit(enemy_data.gold_reward, CurrencyLedger.Currency.GOLD)
 	if is_coop_route(session, local_player_id):
 		# Party XP split: each member receives floor(xp_reward / party_size)
 		# rather than the full reward. Both the local broadcast and the wire
