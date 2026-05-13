@@ -18,9 +18,7 @@ const XP_BAR_WIDTH: float = 96.0
 
 var _player: Player = null
 var _hp_fill: ColorRect
-var _hp_label: Label
 var _xp_fill: ColorRect
-var _xp_label: Label
 var _room_clear: Control
 var _you_died: Control
 var _death_prompt: Label
@@ -37,9 +35,7 @@ const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn"
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
-	_hp_label = $StatsPanel/VBox/HPBar/Label
 	_xp_fill = $StatsPanel/VBox/XPBar/Fill
-	_xp_label = $StatsPanel/VBox/XPBar/Label
 	_room_clear = $RoomClear
 	_next_room_btn = $RoomClear/NextRoom
 	_next_room_btn.pressed.connect(_on_next_room_pressed)
@@ -105,7 +101,6 @@ func _update_hp_bar() -> void:
 	var eff_hp: int = eff.get("hp", -1)
 	var eff_max: int = eff.get("max_hp", -1)
 	_hp_fill.size.x = HP_BAR_WIDTH * hp_bar_ratio(d.hp, d.max_hp, eff_hp, eff_max)
-	_hp_label.text = hp_bar_label(d.hp, d.max_hp, eff_hp, eff_max)
 
 # Polls the player's xp / level each frame and refills the XP bar.
 # After a level-up ProgressionSystem.add_xp resets `c.xp` to the carry-over
@@ -118,7 +113,6 @@ func _update_xp_bar() -> void:
 	var threshold := ProgressionSystem.xp_to_next_level(d.level)
 	var ratio := xp_bar_ratio(d.level, d.xp)
 	_xp_fill.size.x = XP_BAR_WIDTH * ratio
-	_xp_label.text = xp_bar_label(d.level, d.xp, threshold, _local_effective_level())
 
 # Pure-function fill ratio for the HP bar. Mirrors xp_bar_ratio: solo /
 # no-session path passes the default sentinels and the math runs against
