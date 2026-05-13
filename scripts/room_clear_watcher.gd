@@ -43,11 +43,19 @@ extends RefCounted
 #   - re-watch() on the same instance resets state cleanly (clears
 #     prior expected set and _cleared flag).
 
+# Per-room XP reward (PRD #52). Awarded on the last expected death
+# of a combat room. No-enemy rooms (start, power-up) auto-clear on
+# watch() and intentionally do NOT pay out — the reward fires from
+# combat, not traversal.
+const ROOM_CLEAR_XP: int = 50
+
 var room_id: int = -1
 var controller: DungeonRunController = null
 var _expected: Dictionary = {}  # enemy_id -> true
 var _initial_count: int = 0
 var _cleared: bool = false
+var _character: CharacterData = null
+var _session: CoopSession = null
 
 # Begins watching a room. Returns true on success, false on null
 # inputs. Reads expected enemy_ids from RoomSpawnPlanner so the
@@ -55,11 +63,19 @@ var _cleared: bool = false
 # Auto-fires mark_room_cleared for rooms with no expected enemies
 # (power-up / start) so DungeonRunController.is_room_cleared returns
 # true and the player can advance without a kill.
-func watch(room: Room, c: DungeonRunController) -> bool:
+#
+# Optional `character` / `session` references opt the watcher into
+# the PRD #52 room-clear XP award. Solo callers pass `character`;
+# co-op callers pass `session` (the watcher routes through the
+# party-split broadcaster). Tests / pre-spawn-layer paths can omit
+# both — the watcher still tracks the cleared edge but pays no XP.
+func watch(room: Room, c: DungeonRunController, character: CharacterData = null, session: CoopSession = null) -> bool:
 	if room == null or c == null:
 		return false
 	room_id = room.id
 	controller = c
+	_character = character
+	_session = session
 	_expected.clear()
 	_cleared = false
 	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
@@ -91,10 +107,26 @@ func notify_death(enemy_id: String) -> bool:
 	_expected.erase(enemy_id)
 	if _expected.is_empty():
 		_cleared = true
+		_award_room_clear_xp()
 		if controller != null:
 			controller.mark_room_cleared(room_id)
 		return true
 	return false
+
+# PRD #52 room-clear XP payout. Routes through the same solo/co-op
+# fork as KillRewardRouter: an active co-op session fans XP through
+# the party-split broadcaster (each member receives the same per-
+# player share); solo path adds XP directly to the watched character.
+# Either reference may be null (test path / pre-spawn-layer); a null
+# session falls back to solo, a null character degrades to a no-op.
+func _award_room_clear_xp() -> void:
+	if _session != null and _session.is_active() and _session.xp_broadcaster != null:
+		var per_player := KillRewardRouter.xp_per_player(
+			ROOM_CLEAR_XP, _session.xp_broadcaster.player_count())
+		_session.xp_broadcaster.on_enemy_killed(per_player, "")
+		return
+	if _character != null:
+		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP)
 
 func is_cleared() -> bool:
 	return _cleared

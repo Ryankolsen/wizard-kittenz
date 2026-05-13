@@ -245,6 +245,114 @@ func test_end_to_end_boss_room_fires_dungeon_completed():
 	w.notify_death(planned.enemy_id)
 	assert_signal_emit_count(controller, "dungeon_completed", 1, "boss-cleared edge fires once")
 
+# --- PRD #52 room-clear XP -------------------------------------------------
+
+func _make_character(level: int = 1) -> CharacterData:
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	c.level = level
+	return c
+
+func _make_coop_lobby(specs: Array) -> LobbyState:
+	var ls := LobbyState.new("ABCDE")
+	for spec in specs:
+		ls.add_player(LobbyPlayer.make(spec[0], spec[1], spec[2], false))
+	return ls
+
+func _make_two_room_dungeon() -> Dungeon:
+	var d := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	start.connections = [1]
+	d.add_room(start)
+	d.start_id = 0
+	var boss := Room.make(1, Room.TYPE_BOSS)
+	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	d.add_room(boss)
+	d.boss_id = 1
+	return d
+
+func test_room_clear_solo_awards_xp_on_final_death():
+	# AC: RoomClearWatcher awards ROOM_CLEAR_XP on the final enemy death
+	# (solo path).
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var c := _make_character(1)
+	var xp_before := c.xp
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c)
+	assert_eq(c.xp, xp_before, "no XP before death")
+	w.notify_death("r3_e0")
+	assert_eq(c.xp - xp_before, RoomClearWatcher.ROOM_CLEAR_XP,
+		"final death awards ROOM_CLEAR_XP to solo character")
+
+func test_room_clear_solo_no_award_without_character():
+	# Test / pre-spawn-layer path: omitting the character argument leaves
+	# the watcher's edge tracking intact but pays no XP.
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller)
+	assert_true(w.notify_death("r3_e0"), "edge still fires")
+	# No character was passed; nothing to mutate. Pin no crash.
+
+func test_room_clear_powerup_room_does_not_award():
+	# Auto-clear (no enemies) does NOT pay out — reward fires from
+	# combat, not traversal.
+	var room := _make_powerup_room(2)
+	var controller := _make_controller_for(room)
+	var c := _make_character(1)
+	var xp_before := c.xp
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c)
+	assert_true(w.is_cleared(), "auto-cleared")
+	assert_eq(c.xp, xp_before, "auto-clear pays no XP")
+
+func test_room_clear_idempotent_no_double_award():
+	# A duplicate notify after the room fired must not pay out twice.
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var c := _make_character(1)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c)
+	w.notify_death("r3_e0")
+	var xp_after_first := c.xp
+	w.notify_death("r3_e0")  # duplicate
+	assert_eq(c.xp, xp_after_first, "no double award on duplicate notify")
+
+func test_room_clear_coop_splits_xp_across_party():
+	# AC: room clear XP splits by party size in co-op. 2-player party
+	# → each gets floor(50/2) = 25.
+	var lobby := _make_coop_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c, "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c, session)
+	w.notify_death("r3_e0")
+	assert_eq(emissions.size(), 2, "broadcaster fired for both members")
+	for e in emissions:
+		assert_eq(e[1], 25, "floor(50/2) per member")
+	assert_eq(c.xp, 25, "local member real_stats received per-player share")
+
+func test_room_clear_coop_single_player_keeps_full_xp():
+	# 1-player co-op session: full ROOM_CLEAR_XP, no split.
+	var lobby := _make_coop_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c, session)
+	w.notify_death("r3_e0")
+	assert_eq(c.xp, RoomClearWatcher.ROOM_CLEAR_XP, "1-player coop keeps full reward")
+
 func test_end_to_end_powerup_room_auto_advance_path():
 	# Power-up rooms auto-clear on watch() so the player can step
 	# through. Controller's is_room_cleared returns true (via the

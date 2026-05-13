@@ -179,6 +179,9 @@ func test_route_kill_coop_broadcasts_xp_to_all_party_members():
 	# directly here — the LocalXPRouter on this client (constructed by
 	# the session when it knows the local id) bounces the broadcast back
 	# to member.real_stats === Player.data.
+	#
+	# PRD #52 party split: a 2-player party gets floor(xp_reward / 2) per
+	# member, not the full reward.
 	var lobby := _make_lobby([
 		["u1", "A", "Mage"],
 		["u2", "B", "Ninja"],
@@ -187,14 +190,74 @@ func test_route_kill_coop_broadcasts_xp_to_all_party_members():
 	var characters := {"u1": c, "u2": _make_character(1)}
 	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
-	var enemy := _make_enemy(3)
+	var enemy := _make_enemy(10)
 	var emissions: Array = []
 	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
 	KillRewardRouter.route_kill(c, enemy, session, "u1")
 	assert_eq(emissions.size(), 2, "broadcaster fired for both party members")
-	assert_eq(emissions[0][1], 3, "amount preserved")
-	# Local XP applied via the router (member.real_stats === c).
-	assert_eq(c.xp, 3, "router applied XP locally")
+	assert_eq(emissions[0][1], 5, "amount split floor(10/2) per member")
+	assert_eq(c.xp, 5, "router applied per-player share locally")
+
+func test_route_kill_coop_three_player_party_floor_divides_xp():
+	# PRD #52 AC: 100 XP / 3 players = 33 each (floor divide).
+	var lobby := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+		["u3", "C", "Thief"],
+	])
+	var c := _make_character(1)
+	var characters := {
+		"u1": c,
+		"u2": _make_character(1),
+		"u3": _make_character(1),
+	}
+	var session := CoopSession.new(lobby, characters, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(100)
+	var emissions: Array = []
+	session.xp_broadcaster.xp_awarded.connect(func(pid, amt): emissions.append([pid, amt]))
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
+	assert_eq(emissions.size(), 3, "fan-out to all three players")
+	for e in emissions:
+		assert_eq(e[1], 33, "100 / 3 floors to 33")
+	assert_eq(c.xp, 33, "router applied per-player share locally")
+
+func test_route_kill_coop_single_player_party_keeps_full_xp():
+	# PRD #52 AC: 1-player co-op session keeps the full reward
+	# (party_size == 1 → no split).
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(20)
+	KillRewardRouter.route_kill(c, enemy, session, "u1")
+	assert_eq(c.xp, 20, "solo-coop kill keeps full reward")
+
+func test_xp_per_player_pure_helper():
+	# Pure split helper — testable without booting a session.
+	assert_eq(KillRewardRouter.xp_per_player(100, 3), 33, "floor(100/3)")
+	assert_eq(KillRewardRouter.xp_per_player(10, 2), 5, "even split")
+	assert_eq(KillRewardRouter.xp_per_player(20, 1), 20, "party_size 1 returns full")
+	assert_eq(KillRewardRouter.xp_per_player(20, 0), 20, "defensive: party_size 0 returns full")
+	assert_eq(KillRewardRouter.xp_per_player(2, 3), 0, "tiny reward floors to 0")
+
+func test_route_kill_coop_two_player_wire_send_uses_split():
+	# PRD #52 AC: the wire packet carries the per-player share so the
+	# receiver's RemoteKillApplier can fan out the same per-player amount
+	# without re-deriving party_size on its end. 10 XP / 2 = 5 on the wire.
+	var lobby_state := _make_lobby([
+		["u1", "A", "Mage"],
+		["u2", "B", "Ninja"],
+	])
+	var c := _make_character(1)
+	var session := CoopSession.new(lobby_state, {"u1": c, "u2": _make_character(1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	var enemy := _make_enemy(10)
+	enemy.enemy_id = "r3_e0"
+	var lobby := _RecordingLobby.new()
+	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
+	assert_eq(lobby.sent_kills.size(), 1)
+	assert_eq(lobby.sent_kills[0][2], 5, "wire xp carries per-player share, not raw reward")
 
 func test_route_kill_coop_does_not_apply_xp_directly():
 	# Without a wired LocalXPRouter the broadcast still fans out but no

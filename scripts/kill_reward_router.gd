@@ -57,7 +57,13 @@ static func route_kill(
 	if data == null or enemy_data == null:
 		return
 	if is_coop_route(session, local_player_id):
-		session.xp_broadcaster.on_enemy_killed(enemy_data.xp_reward, local_player_id)
+		# Party XP split: each member receives floor(xp_reward / party_size)
+		# rather than the full reward. Both the local broadcast and the wire
+		# packet carry the per-player amount, so the receiver's RemoteKillApplier
+		# fans out the same per-player share without needing to know party
+		# size again. Solo-coop (party_size == 1) keeps the full reward.
+		var per_player := xp_per_player(enemy_data.xp_reward, session.xp_broadcaster.player_count())
+		session.xp_broadcaster.on_enemy_killed(per_player, local_player_id)
 		# Mark the enemy dead in the per-session network registry so the
 		# remote enemy-died packet and the local kill detection converge
 		# cleanly. apply_death is idempotent — if the remote packet beat
@@ -74,9 +80,19 @@ static func route_kill(
 		# already a no-op inside send_kill_async — caller doesn't need
 		# to repeat the gate here.
 		if lobby != null:
-			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, enemy_data.xp_reward)
+			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, per_player)
 		return
 	# Solo path — apply XP locally and tally into the offline tracker.
 	ProgressionSystem.add_xp(data, enemy_data.xp_reward)
 	if xp_tracker != null:
 		xp_tracker.record(enemy_data.xp_reward)
+
+# Pure split helper. floor(xp_total / max(1, party_size)) so a 1-player
+# co-op session keeps the full reward and odd totals (e.g. 100 / 3)
+# floor-divide cleanly per AC. Exposed as a static so RoomClearWatcher
+# and Player.collect_power_up share the same formula rather than
+# duplicating the divide inline.
+static func xp_per_player(xp_total: int, party_size: int) -> int:
+	if party_size <= 1:
+		return xp_total
+	return xp_total / party_size

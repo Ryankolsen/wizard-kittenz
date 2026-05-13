@@ -100,13 +100,22 @@ func _setup_current_room() -> void:
 			_enemy.died.connect(_on_enemy_died)
 
 	_watcher = RoomClearWatcher.new()
-	_watcher.watch(room, _run_controller)
+	# Pass the local character + session so the watcher fires PRD #52
+	# room-clear XP through the right path: solo adds XP to the local
+	# character, co-op fans through the party-split broadcaster.
+	_watcher.watch(room, _run_controller, _local_character(), _coop_session())
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
 	if gs == null:
 		return null
 	return gs.coop_session
+
+func _local_character() -> CharacterData:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.current_character
 
 func _on_enemy_died() -> void:
 	if _enemy == null or _enemy.data == null:

@@ -4,6 +4,10 @@ extends CharacterBody2D
 signal died
 
 const ATTACK_COOLDOWN: float = 0.4
+# PRD #52 power-up pickup XP. Awarded on every collect_power_up call.
+# Co-op routes through the party-split broadcaster (each member receives
+# floor(POWERUP_XP / party_size)); solo applies directly to data.
+const POWERUP_XP: int = 25
 
 @export var speed: float = 60.0
 @export var data: CharacterData
@@ -84,6 +88,22 @@ func collect_power_up(type_id: String) -> void:
 		var mushroom: MushroomEffect = effect
 		if not mushroom.random_spell_fired.is_connected(_on_mushroom_spell_fired):
 			mushroom.random_spell_fired.connect(_on_mushroom_spell_fired)
+	_award_power_up_xp()
+
+# PRD #52: every power-up pickup pays POWERUP_XP. Co-op fans through
+# the same broadcaster-split path as kills so each party member gets
+# floor(POWERUP_XP / party_size); solo applies directly to data.
+func _award_power_up_xp() -> void:
+	if data == null:
+		return
+	var session := _coop_session()
+	var local_id := _local_player_id()
+	if KillRewardRouter.is_coop_route(session, local_id):
+		var per_player := KillRewardRouter.xp_per_player(
+			POWERUP_XP, session.xp_broadcaster.player_count())
+		session.xp_broadcaster.on_enemy_killed(per_player, local_id)
+		return
+	ProgressionSystem.add_xp(data, POWERUP_XP)
 
 # Mushroom power-up integration: every 2 seconds while active, cast the first
 # ready unlocked spell against any enemies overlapping the swing-radius
