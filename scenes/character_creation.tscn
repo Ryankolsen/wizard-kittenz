@@ -31,6 +31,10 @@ layout_mode = 2
 text = "Wizard Kittenz"
 horizontal_alignment = 1
 
+[node name="ResumeButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Resume"
+
 [node name="QuickStartButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2
 text = "Quick Start"
@@ -204,3 +208,34 @@ modulate = Color(1, 0.4, 0.4, 1)
 [node name="BackButton" type="Button" parent="MultiMenu/VBox"]
 layout_mode = 2
 text = "Back"
+
+[node name="OverwriteConfirmPanel" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="OverwriteConfirmPanel"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Message" type="Label" parent="OverwriteConfirmPanel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 0)
+text = "Starting a new game will overwrite your saved progress. Continue?"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="OverwriteConfirmPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="OverwriteConfirmPanel/VBox/Buttons"]
+layout_mode = 2
+text = "Continue"
+
+[node name="CancelButton" type="Button" parent="OverwriteConfirmPanel/VBox/Buttons"]
+layout_mode = 2
+text = "Cancel"

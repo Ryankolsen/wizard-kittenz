@@ -24,10 +24,14 @@ const APPEARANCE_MAX: int = 7
 @onready var _customize_panel: Control = $Customize
 @onready var _multi_menu: Control = $MultiMenu
 
+@onready var _resume_button: Button = $MainMenu/VBox/ResumeButton
 @onready var _quick_start_button: Button = $MainMenu/VBox/QuickStartButton
 @onready var _customize_button: Button = $MainMenu/VBox/CustomizeButton
 @onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
 @onready var _shop_button: Button = $MainMenu/VBox/ShopButton
+@onready var _overwrite_confirm_panel: Control = $OverwriteConfirmPanel
+@onready var _overwrite_confirm_button: Button = $OverwriteConfirmPanel/VBox/Buttons/ConfirmButton
+@onready var _overwrite_cancel_button: Button = $OverwriteConfirmPanel/VBox/Buttons/CancelButton
 
 @onready var _multi_create_button: Button = $MultiMenu/VBox/CreateRoomButton
 @onready var _multi_code_edit: LineEdit = $MultiMenu/VBox/CodeEdit
@@ -52,6 +56,7 @@ const APPEARANCE_MAX: int = 7
 
 var _suggester: NameSuggester = NameSuggester.new()
 var _current_appearance: int = 0
+var _save_exists: bool = false
 
 func _ready() -> void:
 	# If a save was already restored into GameState, skip the picker entirely
@@ -61,10 +66,15 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(main_scene_path)
 		return
 
-	_quick_start_button.pressed.connect(_show_quick_start)
+	_save_exists = SaveManager.load() != null
+	_resume_button.visible = _save_exists
+	_resume_button.pressed.connect(_on_resume_pressed)
+	_quick_start_button.pressed.connect(_on_quick_start_pressed)
 	_customize_button.pressed.connect(_show_customize)
 	_multiplayer_button.pressed.connect(_show_multi_menu)
 	_shop_button.pressed.connect(_show_shop)
+	_overwrite_confirm_button.pressed.connect(_on_overwrite_confirmed)
+	_overwrite_cancel_button.pressed.connect(_show_main_menu)
 
 	_multi_create_button.pressed.connect(_on_create_room_pressed)
 	_multi_join_button.pressed.connect(_on_join_room_pressed)
@@ -99,6 +109,25 @@ func _show_main_menu() -> void:
 	_quick_start_panel.visible = false
 	_customize_panel.visible = false
 	_multi_menu.visible = false
+	_overwrite_confirm_panel.visible = false
+
+func _on_resume_pressed() -> void:
+	var save_data := SaveManager.load()
+	if save_data == null:
+		return
+	GameState.apply_merged_save(save_data)
+	get_tree().change_scene_to_file(main_scene_path)
+
+func _on_quick_start_pressed() -> void:
+	if _save_exists:
+		_main_menu.visible = false
+		_overwrite_confirm_panel.visible = true
+	else:
+		_show_quick_start()
+
+func _on_overwrite_confirmed() -> void:
+	_overwrite_confirm_panel.visible = false
+	_show_quick_start()
 
 func _show_multi_menu() -> void:
 	_main_menu.visible = false
