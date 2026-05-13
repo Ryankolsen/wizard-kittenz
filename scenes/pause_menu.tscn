@@ -48,7 +48,6 @@ text = "Character"
 text = "Settings"
 
 [node name="QuitDungeon" type="Button" parent="Center/MainMenu/VBox"]
-disabled = true
 text = "Quit Dungeon"
 
 [node name="CharacterSubmenu" type="PanelContainer" parent="Center"]
@@ -186,3 +185,29 @@ popup/item_1/id = 1
 
 [node name="SettingsBack" type="Button" parent="Center/SettingsSubmenu/VBox"]
 text = "Back"
+
+[node name="QuitConfirmDialog" type="PanelContainer" parent="Center"]
+visible = false
+theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
+
+[node name="VBox" type="VBoxContainer" parent="Center/QuitConfirmDialog"]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Center/QuitConfirmDialog/VBox"]
+horizontal_alignment = 1
+text = "Quit Dungeon?"
+theme_override_font_sizes/font_size = 24
+
+[node name="Message" type="Label" parent="Center/QuitConfirmDialog/VBox"]
+horizontal_alignment = 1
+text = "Save and exit?"
+
+[node name="ButtonRow" type="HBoxContainer" parent="Center/QuitConfirmDialog/VBox"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="QuitConfirm" type="Button" parent="Center/QuitConfirmDialog/VBox/ButtonRow"]
+text = "Confirm"
+
+[node name="QuitCancel" type="Button" parent="Center/QuitConfirmDialog/VBox/ButtonRow"]
+text = "Cancel"

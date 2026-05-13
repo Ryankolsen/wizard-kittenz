@@ -25,6 +25,7 @@ signal resumed
 
 const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
+const QuitHandler := preload("res://scripts/quit_dungeon_handler.gd")
 
 func _ready() -> void:
 	visible = false
@@ -61,6 +62,15 @@ func _ready() -> void:
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)
+	var quit_btn := find_child("QuitDungeon", true, false) as Button
+	if quit_btn != null:
+		quit_btn.pressed.connect(_on_quit_dungeon_pressed)
+	var quit_confirm := find_child("QuitConfirm", true, false) as Button
+	if quit_confirm != null:
+		quit_confirm.pressed.connect(_on_quit_confirm_pressed)
+	var quit_cancel := find_child("QuitCancel", true, false) as Button
+	if quit_cancel != null:
+		quit_cancel.pressed.connect(_on_quit_cancel_pressed)
 
 func open() -> void:
 	visible = true
@@ -174,6 +184,51 @@ func _show_main_menu() -> void:
 	var settings := find_child("SettingsSubmenu", true, false) as Control
 	if settings != null:
 		settings.visible = false
+	var quit_dialog := find_child("QuitConfirmDialog", true, false) as Control
+	if quit_dialog != null:
+		quit_dialog.visible = false
+
+# Opens the Quit-Dungeon confirmation dialog (PRD #42 / #45). Hides the
+# main menu and shows the dialog. The Message label is swapped for the
+# multiplayer wording ("Leave party?") so the user understands the
+# multiplayer branch doesn't save — that decision is in
+# QuitDungeonHandler. Safe to call without first calling open() — tests
+# exercise the dialog directly.
+func open_quit_confirm_dialog() -> void:
+	visible = true
+	var main := find_child("MainMenu", true, false) as Control
+	if main != null:
+		main.visible = false
+	var dialog := find_child("QuitConfirmDialog", true, false) as Control
+	if dialog != null:
+		dialog.visible = true
+	var msg := find_child("Message", true, false) as Label
+	if msg != null:
+		msg.text = "Leave party?" if is_multiplayer() else "Save and exit?"
+
+# Cancels the confirmation and returns to the root menu. Pure UI swap —
+# no save, no scene change, no unpause beyond what close()/open() owns.
+func cancel_quit_confirm_dialog() -> void:
+	_show_main_menu()
+
+# Confirms the quit. Routes the save-vs-skip branch through
+# QuitDungeonHandler and then changes the scene to character_creation.
+# Always clears get_tree().paused first — change_scene_to_file works
+# from a paused tree but the destination scene shouldn't inherit the
+# paused flag.
+func confirm_quit_dungeon() -> void:
+	var c := _current_character()
+	var tree := _current_skill_tree()
+	var session := _current_coop_session()
+	QuitHandler.save_and_exit(c, session, SaveManager.DEFAULT_PATH, tree)
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
+
+func _current_coop_session() -> CoopSession:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.coop_session
 
 # Reads the persisted audio settings and pushes them into the slider
 # values. Also applies them to AudioServer so the live volume matches
@@ -376,3 +431,12 @@ func _on_settings_pressed() -> void:
 
 func _on_settings_back_pressed() -> void:
 	close_settings_submenu()
+
+func _on_quit_dungeon_pressed() -> void:
+	open_quit_confirm_dialog()
+
+func _on_quit_confirm_pressed() -> void:
+	confirm_quit_dungeon()
+
+func _on_quit_cancel_pressed() -> void:
+	cancel_quit_confirm_dialog()

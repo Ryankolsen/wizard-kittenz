@@ -32,6 +32,16 @@ func is_unlocked(node_id: String) -> bool:
 	var n := find(node_id)
 	return n != null and n.unlocked
 
+# Forces a node into the unlocked state without going through SkillTreeManager
+# (no prereq / skill-point checks). Useful for save-restore (#46) and tests
+# that need to set up a known unlock state. Unknown ids are a no-op.
+func unlock(node_id: String) -> bool:
+	var n := find(node_id)
+	if n == null:
+		return false
+	n.unlocked = true
+	return true
+
 # Re-applies a saved unlocked-id set onto the freshly-built tree. Unknown ids
 # are ignored so an old save against a renamed node won't crash — it just
 # silently drops the stale entry.
