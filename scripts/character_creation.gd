@@ -27,6 +27,7 @@ const APPEARANCE_MAX: int = 7
 @onready var _quick_start_button: Button = $MainMenu/VBox/QuickStartButton
 @onready var _customize_button: Button = $MainMenu/VBox/CustomizeButton
 @onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
+@onready var _shop_button: Button = $MainMenu/VBox/ShopButton
 
 @onready var _multi_create_button: Button = $MultiMenu/VBox/CreateRoomButton
 @onready var _multi_code_edit: LineEdit = $MultiMenu/VBox/CodeEdit
@@ -63,6 +64,7 @@ func _ready() -> void:
 	_quick_start_button.pressed.connect(_show_quick_start)
 	_customize_button.pressed.connect(_show_customize)
 	_multiplayer_button.pressed.connect(_show_multi_menu)
+	_shop_button.pressed.connect(_show_shop)
 
 	_multi_create_button.pressed.connect(_on_create_room_pressed)
 	_multi_join_button.pressed.connect(_on_join_room_pressed)
@@ -104,6 +106,9 @@ func _show_multi_menu() -> void:
 	_customize_panel.visible = false
 	_multi_menu.visible = true
 	_multi_status_label.text = ""
+
+func _show_shop() -> void:
+	get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")
 
 func _show_quick_start() -> void:
 	_main_menu.visible = false

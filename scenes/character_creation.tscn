@@ -43,6 +43,10 @@ text = "Customize Your Kitten"
 layout_mode = 2
 text = "Multiplayer"
 
+[node name="ShopButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+text = "Shop"
+
 [node name="QuickStart" type="CenterContainer" parent="."]
 visible = false
 layout_mode = 1
