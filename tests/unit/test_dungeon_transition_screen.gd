@@ -111,6 +111,40 @@ func test_pause_menu_open_for_transition_emits_transition_continued() -> void:
 		"pause menu re-emits transition_continued on Continue press")
 	assert_false(pm.visible, "menu closes after Continue press")
 
+func test_close_during_transition_mode_emits_transition_continued() -> void:
+	# Regression: pressing Back → Resume (bypassing the Continue button) while
+	# open_for_dungeon_transition is active must still emit transition_continued
+	# so main_scene._on_transition_continued fires and the dungeon loads.
+	# Before the fix, close() only emitted resumed (no listeners) and the
+	# player was permanently stuck on the Room Clear screen.
+	_install_solo_character()
+	var pm: CanvasLayer = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(pm)
+	pm.open_for_dungeon_transition()
+
+	watch_signals(pm)
+	# Simulate Back → Resume: navigate back to main menu then close via Resume.
+	pm.close_character_submenu()
+	pm.close()
+
+	assert_signal_emitted(pm, "transition_continued",
+		"Back → Resume during transition flow must emit transition_continued")
+	assert_false(pm.visible, "menu must close after Back → Resume in transition mode")
+
+func test_close_during_transition_mode_hides_continue_button() -> void:
+	# The Continue button must not linger visible after Back → Resume closes the menu.
+	_install_solo_character()
+	var pm: CanvasLayer = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(pm)
+	pm.open_for_dungeon_transition()
+
+	pm.close_character_submenu()
+	pm.close()
+
+	var stats_panel := pm.find_child("StatsPanel", true, false) as StatsTabPanel
+	var btn := stats_panel.get_continue_button()
+	assert_false(btn.visible, "Continue button must be hidden after transition close")
+
 func test_main_scene_subscribes_to_transition_continued() -> void:
 	# Pin that main_scene wires _on_transition_continued as a listener on
 	# the PauseMenu's transition_continued signal so production drives the

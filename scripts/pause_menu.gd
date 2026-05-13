@@ -28,6 +28,12 @@ signal resumed
 # has had a chance to spend any unspent stat points.
 signal transition_continued
 
+# True while open_for_dungeon_transition is active. Guards close() so that
+# pressing Back → Resume (bypassing the Continue button) still fires
+# transition_continued rather than silently stranding the player on the
+# Room Clear screen.
+var _transition_mode: bool = false
+
 const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
 const QuitHandler := preload("res://scripts/quit_dungeon_handler.gd")
@@ -105,6 +111,18 @@ func open() -> void:
 		get_tree().paused = true
 
 func close() -> void:
+	# If the player presses Back → Resume while in transition mode, treat it
+	# the same as pressing Continue so the dungeon-load flow is not stranded.
+	if _transition_mode:
+		_transition_mode = false
+		var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
+		if panel != null:
+			panel.set_continue_visible(false)
+		visible = false
+		if not _is_host_paused():
+			get_tree().paused = false
+		transition_continued.emit()
+		return
 	visible = false
 	# Clear the local soft-pause flag — UNLESS a host-initiated party-wide
 	# pause is active (#43). The host opening their own PauseMenu after
@@ -168,6 +186,7 @@ func open_character_submenu() -> void:
 # Continue press fires transition_continued — main_scene listens for that
 # to drive the actual scene reload.
 func open_for_dungeon_transition() -> void:
+	_transition_mode = true
 	open_character_submenu()
 	if not is_multiplayer():
 		get_tree().paused = true
@@ -179,6 +198,7 @@ func open_for_dungeon_transition() -> void:
 		panel.continue_pressed.connect(_on_transition_continue_pressed)
 
 func _on_transition_continue_pressed() -> void:
+	_transition_mode = false
 	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
 	if panel != null:
 		panel.set_continue_visible(false)
