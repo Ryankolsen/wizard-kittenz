@@ -1,9 +1,12 @@
 # Wizard Kittenz — server operations
-# Requires: Railway CLI (brew install railway), Docker, postgresql-client (brew install libpq)
+# Requires: flyctl (brew install flyctl), Docker, postgresql-client (brew install libpq)
 
+FLY_APP     := wizard-kittenz
+FLY_PG_APP  := wizard-kittenz-db
 LOCAL_DB_URL := postgresql://postgres:localdev@localhost:5432/nakama
+PROXY_PORT  := 15432
 
-.PHONY: server-start server-stop railway-init deploy db-push db-pull
+.PHONY: server-start server-stop fly-init deploy db-push db-pull
 
 # ── Local dev ──────────────────────────────────────────────────────────────────
 
@@ -13,28 +16,40 @@ server-start:
 server-stop:
 	docker compose down
 
-# ── Railway setup (run once) ───────────────────────────────────────────────────
+# ── Fly.io setup (run once) ────────────────────────────────────────────────────
 
-railway-init:
-	@chmod +x server/railway-setup.sh && sh server/railway-setup.sh
+fly-init:
+	@chmod +x server/fly-setup.sh && sh server/fly-setup.sh
 
 # ── Deploy ─────────────────────────────────────────────────────────────────────
 
 deploy:
-	railway up --detach
+	fly deploy -a $(FLY_APP)
 
 # ── Database sync ──────────────────────────────────────────────────────────────
+# Both targets proxy Fly's private Postgres to localhost:$(PROXY_PORT),
+# then use standard pg_dump / psql to move data.
 
-# Push local Postgres → Railway (overwrites remote data)
+# Push local Postgres → Fly (overwrites remote data)
 db-push:
-	@echo "==> Pushing local DB to Railway..."
-	pg_dump --no-owner --no-privileges "$(LOCAL_DB_URL)" \
-	  | railway run psql "$$DATABASE_URL"
+	@echo "==> Opening proxy to Fly Postgres on localhost:$(PROXY_PORT)..."
+	fly proxy $(PROXY_PORT):5432 -a $(FLY_PG_APP) &
+	@sleep 3
+	@echo "==> Pushing local DB to Fly..."
+	@FLY_DB=$$(fly ssh console -a $(FLY_APP) -C 'printenv DATABASE_URL' 2>/dev/null | tr -d '\r\n') && \
+	  PROXY_URL=$$(echo "$$FLY_DB" | sed 's|@[^:]*:5432|@localhost:$(PROXY_PORT)|') && \
+	  pg_dump --no-owner --no-privileges "$(LOCAL_DB_URL)" | psql "$$PROXY_URL"
+	@pkill -f "fly proxy $(PROXY_PORT)" || true
 	@echo "==> Done."
 
-# Pull Railway Postgres → local (overwrites local data)
+# Pull Fly Postgres → local (overwrites local data)
 db-pull:
-	@echo "==> Pulling Railway DB to local..."
-	railway run sh -c 'pg_dump --no-owner --no-privileges "$$DATABASE_URL"' \
-	  | psql "$(LOCAL_DB_URL)"
+	@echo "==> Opening proxy to Fly Postgres on localhost:$(PROXY_PORT)..."
+	fly proxy $(PROXY_PORT):5432 -a $(FLY_PG_APP) &
+	@sleep 3
+	@echo "==> Pulling Fly DB to local..."
+	@FLY_DB=$$(fly ssh console -a $(FLY_APP) -C 'printenv DATABASE_URL' 2>/dev/null | tr -d '\r\n') && \
+	  PROXY_URL=$$(echo "$$FLY_DB" | sed 's|@[^:]*:5432|@localhost:$(PROXY_PORT)|') && \
+	  pg_dump --no-owner --no-privileges "$$PROXY_URL" | psql "$(LOCAL_DB_URL)"
+	@pkill -f "fly proxy $(PROXY_PORT)" || true
 	@echo "==> Done."
