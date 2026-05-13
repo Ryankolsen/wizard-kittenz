@@ -169,6 +169,7 @@ func _try_cast_spell() -> void:
 	for spell in _spell_tree.get_unlocked_spells():
 		if not spell.cast():
 			continue
+		_play_spell_flash()
 		SpellEffectResolver.apply(spell, data, enemy_data)
 		var awarded := false
 		for n in enemy_nodes:
@@ -324,3 +325,10 @@ func _play_attack_flash() -> void:
 	var tween := create_tween()
 	tween.tween_property(_visual, "scale", Vector2(1.4, 1.4), 0.08)
 	tween.tween_property(_visual, "scale", Vector2(1.0, 1.0), 0.12)
+
+func _play_spell_flash() -> void:
+	if _visual == null:
+		return
+	var tween := create_tween()
+	tween.tween_property(_visual, "modulate", Color(0.4, 0.6, 1.0), 0.06)
+	tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0), 0.18)
