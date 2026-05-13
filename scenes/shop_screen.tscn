@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cshopscr33n01"]
+[gd_scene format=3 uid="uid://cshopscr33n01"]
 
 [ext_resource type="Script" path="res://scripts/shop_screen.gd" id="1_shop_screen"]
 
@@ -55,6 +55,7 @@ layout_mode = 2
 [node name="Scroll" type="ScrollContainer" parent="MarginContainer/Layout"]
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 2
 
 [node name="ItemList" type="VBoxContainer" parent="MarginContainer/Layout/Scroll"]
 layout_mode = 2

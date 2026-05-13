@@ -73,6 +73,7 @@ func _add_item_row(item: ShopCatalogItem, character: CharacterData,
 	desc_label.text = item.description
 	desc_label.modulate = Color(0.7, 0.7, 0.7, 1)
 	desc_label.add_theme_font_size_override("font_size", 11)
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_ARBITRARY
 	name_desc.add_child(desc_label)
 
 	row.add_child(name_desc)
