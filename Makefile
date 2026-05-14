@@ -12,7 +12,7 @@ PROXY_PORT  := 15432
 
 build-module:
 	mkdir -p server/dist
-	cd server && npm init -y && npm install @heroiclabs/nakama-runtime && npx esbuild rooms.ts --bundle --platform=node --target=es2020 --outfile=dist/rooms.js
+	cd server && npx --yes esbuild rooms.ts --bundle --platform=node --target=es2020 --tree-shaking=false --outfile=dist/rooms.js
 
 server-start: build-module
 	docker compose up -d

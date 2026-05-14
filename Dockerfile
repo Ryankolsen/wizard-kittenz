@@ -1,8 +1,8 @@
 FROM node:18-alpine AS builder
 WORKDIR /build
+RUN npm install -g esbuild
 COPY server/rooms.ts .
-RUN npm init -y && npm install @heroiclabs/nakama-runtime
-RUN npx esbuild rooms.ts --bundle --platform=node --target=es2020 --outfile=rooms.js
+RUN esbuild rooms.ts --bundle --platform=node --target=es2020 --tree-shaking=false --outfile=rooms.js
 
 FROM heroiclabs/nakama:3.22.0
 COPY nakama-start.sh /nakama-start.sh
