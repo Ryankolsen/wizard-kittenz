@@ -19,7 +19,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./server/dist:/nakama/data/modules
+      - ./server/dist/index.js:/nakama/data/modules/index.js
     entrypoint:
       - "/bin/sh"
       - "-ecx"
