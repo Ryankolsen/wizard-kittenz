@@ -47,14 +47,25 @@ func create_socket_async(p_session: NakamaSession) -> NakamaSocket:
 		return null
 	return socket
 
-func find_match_async(p_session: NakamaSession, room_code: String) -> String:
-	var result = await _client.list_matches_async(p_session, 0, 4, 10, false, room_code, "")
+func register_room_async(p_session: NakamaSession, room_code: String, match_id: String) -> bool:
+	var result = await _client.rpc_async(p_session, "register_room", JSON.stringify({"room_code": room_code, "match_id": match_id}))
 	if result.is_exception():
-		push_error("find_match_async error: " + result.get_exception().message)
+		push_error("register_room_async error: " + result.get_exception().message)
+		return false
+	return true
+
+func find_room_async(p_session: NakamaSession, room_code: String) -> String:
+	var result = await _client.rpc_async(p_session, "find_room", JSON.stringify({"room_code": room_code}))
+	if result.is_exception():
+		push_error("find_room_async error: " + result.get_exception().message)
 		return ""
-	if result.matches.is_empty():
-		return ""
-	return result.matches[0].match_id
+	var data: Dictionary = JSON.parse_string(result.payload)
+	return data.get("match_id", "")
+
+func delete_room_async(p_session: NakamaSession, room_code: String) -> void:
+	var result = await _client.rpc_async(p_session, "delete_room", JSON.stringify({"room_code": room_code}))
+	if result.is_exception():
+		push_error("delete_room_async error: " + result.get_exception().message)
 
 func authenticate_device_async(device_id: String) -> NakamaSession:
 	var result: NakamaSession = await _client.authenticate_device_async(device_id)

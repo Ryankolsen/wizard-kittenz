@@ -18,6 +18,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./server/dist:/nakama/data/modules
     entrypoint:
       - "/bin/sh"
       - "-ecx"

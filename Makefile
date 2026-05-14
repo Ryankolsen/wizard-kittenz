@@ -6,11 +6,15 @@ FLY_PG_APP  := wizard-kittenz-db
 LOCAL_DB_URL := postgresql://postgres:localdev@localhost:5432/nakama
 PROXY_PORT  := 15432
 
-.PHONY: server-start server-stop fly-init deploy db-push db-pull
+.PHONY: server-start server-stop fly-init deploy db-push db-pull build-module
 
 # ── Local dev ──────────────────────────────────────────────────────────────────
 
-server-start:
+build-module:
+	mkdir -p server/dist
+	cd server && npm init -y && npm install @heroiclabs/nakama-runtime && npx esbuild rooms.ts --bundle --platform=node --target=es2020 --outfile=dist/rooms.js
+
+server-start: build-module
 	docker compose up -d
 
 server-stop:

@@ -95,6 +95,7 @@ func create_async(room_code: String, local_player: LobbyPlayer) -> bool:
 	lobby_state = LobbyState.new(room_code)
 	local_player.is_host = true
 	lobby_state.add_player(local_player)
+	await NakamaService.register_room_async(_session, room_code, _match_id)
 	# Broadcast our info to any late-joiners watching this match
 	await send_player_info_async(local_player)
 	lobby_updated.emit(lobby_state)
@@ -107,7 +108,7 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 	if _socket == null:
 		join_failed.emit("No socket")
 		return false
-	var match_id: String = await NakamaService.find_match_async(_session, room_code)
+	var match_id: String = await NakamaService.find_room_async(_session, room_code)
 	if match_id == "":
 		join_failed.emit("Room not found")
 		return false
@@ -233,6 +234,8 @@ func _host_mint_match_seed() -> int:
 
 func leave_async() -> void:
 	if _socket != null and _match_id != "":
+		if is_local_host() and lobby_state != null:
+			await NakamaService.delete_room_async(_session, lobby_state.room_code)
 		await _socket.leave_match_async(_match_id)
 	_match_id = ""
 	lobby_state = null
