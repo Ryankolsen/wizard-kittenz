@@ -8,10 +8,10 @@ var session: NakamaSession
 signal authenticated(session: NakamaSession)
 
 func _ready() -> void:
-	var host := _env("NAKAMA_HOST", "127.0.0.1")
-	var port := int(_env("NAKAMA_PORT", "7350"))
-	var server_key := _env("NAKAMA_SERVER_KEY", "localdev_server_key")
-	var scheme := _env("NAKAMA_SCHEME", "http")
+	var host := _env("NAKAMA_HOST", "wizard-kittenz.fly.dev")
+	var port := int(_env("NAKAMA_PORT", "443"))
+	var server_key := _env("NAKAMA_SERVER_KEY", "jujwem-wemzo2-dogxUx")
+	var scheme := _env("NAKAMA_SCHEME", "https")
 	_client = Nakama.create_client(server_key, host, port, scheme)
 
 const _SAVE_COLLECTION := "saves"

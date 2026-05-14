@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# Railway provides DATABASE_URL as postgresql://user:pass@host:port/db
+# Fly.io provides DATABASE_URL as postgresql://user:pass@host:port/db
 # Nakama expects: user:pass@host:port/db
 DB_ADDR="${DATABASE_URL#postgresql://}"
 DB_ADDR="${DB_ADDR#postgres://}"
@@ -12,7 +12,7 @@ until /nakama/nakama migrate up --database.address "$DB_ADDR"; do
 done
 
 exec /nakama/nakama \
-  --name wizard-kittenz \
+  --config /nakama-config.yml \
   --database.address "$DB_ADDR" \
   --socket.server_key "${NAKAMA_SERVER_KEY}" \
   --runtime.http_key "${NAKAMA_HTTP_KEY}" \
