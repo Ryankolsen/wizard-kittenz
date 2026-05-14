@@ -81,8 +81,15 @@ var gem_balance: int = 0
 # day and pays the first bonus. Stored on KittenSaveData (not on the
 # tracker) because it's a per-save anchor, not a meta-progression milestone.
 var last_login_date: String = ""
+# Items System (PRD #73 / issue #78). equipped_items maps slot int
+# (ItemData.Slot) to item id string. item_bag is an array of item id strings.
+# Both default to empty so legacy saves predating items round-trip cleanly
+# without migration. Unknown ids at load time are silently skipped via
+# ItemCatalog.find returning null.
+var equipped_items: Dictionary = {}
+var item_bag: Array = []
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -122,6 +129,13 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 		s.gem_balance = currency_ledger.balance(CurrencyLedger.Currency.GEM)
 	if skill_inventory != null:
 		s.skill_unlocks = skill_inventory.owned_skill_ids.duplicate()
+	if item_inventory != null:
+		for slot in [ItemData.Slot.WEAPON, ItemData.Slot.ARMOR, ItemData.Slot.ACCESSORY]:
+			var eq: ItemData = item_inventory.equipped_in(slot)
+			if eq != null:
+				s.equipped_items[int(slot)] = eq.id
+		for it in item_inventory.bag_items():
+			s.item_bag.append(it.id)
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -180,6 +194,8 @@ func to_dict() -> Dictionary:
 		"gem_balance": gem_balance,
 		"last_login_date": last_login_date,
 		"skill_unlocks": skill_unlocks,
+		"equipped_items": equipped_items,
+		"item_bag": item_bag,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -240,6 +256,14 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 			var key := String(raw).to_lower()
 			if key != "" and not s.skill_unlocks.has(key):
 				s.skill_unlocks.append(key)
+	var eq_items = d.get("equipped_items", {})
+	if eq_items is Dictionary:
+		for slot_key in eq_items.keys():
+			s.equipped_items[int(slot_key)] = String(eq_items[slot_key])
+	var bag = d.get("item_bag", [])
+	if bag is Array:
+		for raw in bag:
+			s.item_bag.append(String(raw))
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -271,6 +295,18 @@ func to_skill_inventory():
 	var SkillInventoryClass = load("res://scripts/skill_inventory.gd")
 	var inv = SkillInventoryClass.new()
 	inv.owned_skill_ids = skill_unlocks.duplicate()
+	return inv
+
+func to_item_inventory() -> ItemInventory:
+	var inv := ItemInventory.new()
+	for slot_key in equipped_items.keys():
+		var item := ItemCatalog.find(String(equipped_items[slot_key]))
+		if item != null:
+			inv.equip(item)
+	for raw_id in item_bag:
+		var item2 := ItemCatalog.find(String(raw_id))
+		if item2 != null:
+			inv.add_to_bag(item2)
 	return inv
 
 func to_currency_ledger() -> CurrencyLedger:
