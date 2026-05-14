@@ -47,12 +47,12 @@ func test_at_least_one_skill_per_class():
 	for item in ShopCatalog.items():
 		if item.category != ShopCatalogItem.CATEGORY_SKILL:
 			continue
-		var pid := item.product_id.to_lower()
-		if pid.find("mage") >= 0:
+		var name_l := item.display_name.to_lower()
+		if name_l.find("mage") >= 0:
 			has_mage = true
-		if pid.find("thief") >= 0:
+		if name_l.find("thief") >= 0:
 			has_thief = true
-		if pid.find("ninja") >= 0:
+		if name_l.find("ninja") >= 0:
 			has_ninja = true
 	assert_true(has_mage, "missing mage skill row")
 	assert_true(has_thief, "missing thief skill row")

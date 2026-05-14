@@ -35,6 +35,8 @@ const COSMETIC_DUNGEON_SKINS := "cosmetic_dungeon_skins"
 # so it doubles as the placeholder. Earnable via the existing UnlockRegistry
 # gate (`max_level_per_class.mage >= 5`).
 const CLASS_UNLOCK_ARCHMAGE := "class_unlock_archmage"
+const CLASS_UNLOCK_THIEF := "class_unlock_thief"
+const CLASS_UNLOCK_NINJA := "class_unlock_ninja"
 
 # Tier 4 — Gem bundle consumable IAPs (PRD #53). Real-money product IDs; the
 # grant handler routes each to a CurrencyLedger.credit(Currency.GEM, amount)
@@ -80,6 +82,8 @@ const _COSMETIC_IDS: Array = [
 
 const _CLASS_UNLOCK_IDS: Array = [
 	CLASS_UNLOCK_ARCHMAGE,
+	CLASS_UNLOCK_THIEF,
+	CLASS_UNLOCK_NINJA,
 ]
 
 # product_id -> class id string consulted by UnlockRegistry.is_unlocked. The
@@ -87,6 +91,8 @@ const _CLASS_UNLOCK_IDS: Array = [
 # (see UnlockRegistry.DEFAULT_CONDITIONS / CharacterFactory.name_from_class).
 const _CLASS_UNLOCK_TO_CLASS_ID: Dictionary = {
 	CLASS_UNLOCK_ARCHMAGE: "archmage",
+	CLASS_UNLOCK_THIEF: "thief",
+	CLASS_UNLOCK_NINJA: "ninja",
 }
 
 const ALL_PRODUCT_IDS: Array = [
@@ -97,6 +103,8 @@ const ALL_PRODUCT_IDS: Array = [
 	COSMETIC_SPELL_EFFECTS,
 	COSMETIC_DUNGEON_SKINS,
 	CLASS_UNLOCK_ARCHMAGE,
+	CLASS_UNLOCK_THIEF,
+	CLASS_UNLOCK_NINJA,
 	GEM_BUNDLE_STARTER,
 	GEM_BUNDLE_EXPLORER,
 	GEM_BUNDLE_ADVENTURER,
