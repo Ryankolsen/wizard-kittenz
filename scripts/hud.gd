@@ -35,6 +35,9 @@ var _stat_points_badge: Label
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
+const LOOT_PROMPT_SCENE := preload("res://scenes/loot_prompt.tscn")
+
+var _loot_prompt: CanvasLayer = null
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -57,6 +60,7 @@ func _ready() -> void:
 	_pause_btn.pressed.connect(_on_pause_pressed)
 	_stat_points_badge = $StatPointsBadge
 	_player = _find_player()
+	_bind_player_item_drop()
 	# Defer enemy count by one frame — main.tscn's enemy children may not
 	# have run _ready() yet (and therefore haven't joined the "enemies"
 	# group) when the HUD's _ready fires.
@@ -101,6 +105,7 @@ func _update_stat_points_badge() -> void:
 func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:
 		_player = _find_player()
+		_bind_player_item_drop()
 		if _player == null or _player.data == null:
 			return
 	var d := _player.data
@@ -336,3 +341,55 @@ func _find_player() -> Player:
 		if n is Player:
 			return n
 	return null
+
+# Loot prompt (PRD #73 / issue #80). Player emits item_dropped after the
+# kill-reward router returns a non-null ItemData; HUD owns the modal
+# dialog. Disabling _physics_process on the player while the prompt is
+# open is what enforces "movement/attacks blocked" without touching the
+# tree-wide pause flag (which would also freeze coop peers).
+func _bind_player_item_drop() -> void:
+	if _player == null:
+		return
+	if not _player.item_dropped.is_connected(_on_player_item_dropped):
+		_player.item_dropped.connect(_on_player_item_dropped)
+
+func _on_player_item_dropped(item: ItemData) -> void:
+	if item == null:
+		return
+	var prompt := _ensure_loot_prompt()
+	if _player != null:
+		_player.set_physics_process(false)
+	prompt.show_for(item)
+
+func _ensure_loot_prompt() -> CanvasLayer:
+	if _loot_prompt == null:
+		_loot_prompt = LOOT_PROMPT_SCENE.instantiate()
+		add_child(_loot_prompt)
+		_loot_prompt.choice_made.connect(_on_loot_choice_made)
+	return _loot_prompt
+
+func _on_loot_choice_made(item: ItemData, equip: bool) -> void:
+	if _player != null:
+		_player.set_physics_process(true)
+	if item == null:
+		return
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.item_inventory == null:
+		return
+	var inventory: ItemInventory = gs.item_inventory
+	if equip:
+		# Subtract the displaced item's bonus before swap so the new
+		# bonus replaces (not stacks on top of) the old. ItemInventory.equip
+		# moves the displaced item into the bag.
+		var prev: ItemData = inventory.equipped_in(item.slot)
+		if prev != null and prev.stat_name != "" and _player != null and _player.data != null:
+			var cur: Variant = _player.data.get(prev.stat_name)
+			if cur != null:
+				_player.data.set(prev.stat_name, cur - prev.stat_bonus)
+		inventory.equip(item)
+		if _player != null and _player.data != null and item.stat_name != "":
+			var cur2: Variant = _player.data.get(item.stat_name)
+			if cur2 != null:
+				_player.data.set(item.stat_name, cur2 + item.stat_bonus)
+	else:
+		inventory.add_to_bag(item)
