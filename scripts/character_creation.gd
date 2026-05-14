@@ -59,14 +59,7 @@ var _current_appearance: int = 0
 var _save_exists: bool = false
 
 func _ready() -> void:
-	# If a save was already restored into GameState, skip the picker entirely
-	# so progression carries across sessions. Add a "New Character" path later
-	# (likely on the main HUD) once save-slot UI lands with #15.
-	if GameState.current_character != null:
-		get_tree().change_scene_to_file(main_scene_path)
-		return
-
-	_save_exists = SaveManager.load() != null
+	_save_exists = GameState.current_character != null or SaveManager.load() != null
 	_resume_button.visible = _save_exists
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_quick_start_button.pressed.connect(_on_quick_start_pressed)
