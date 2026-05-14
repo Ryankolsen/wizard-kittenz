@@ -30,7 +30,10 @@
       "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path /Users/ryankolsen/IdeaProjects/wizard-kittenz --script addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gprefix=test_ -gsuffix=.gd -gexit)",
       "WebFetch(domain:godot-sdk-integrations.github.io)",
       "Bash(adb shell *)",
-      "Bash(gh issue *)"
+      "Bash(gh issue *)",
+      "Bash(/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=res://tests/unit/test_dungeon_transition_screen.gd -gexit)",
+      "Bash(./run_tests.sh)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script addons/gut/gut_cmdln.gd -gdir=res://tests/unit)"
     ],
     "ask": [
       "Bash(npx supabase db query --linked \"DELETE:*)",
