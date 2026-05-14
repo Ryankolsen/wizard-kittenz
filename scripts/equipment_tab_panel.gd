@@ -75,7 +75,7 @@ func _make_slot_row(slot: int, slot_label: String) -> Control:
 	if item == null:
 		label.text = "%s: Empty" % slot_label
 	else:
-		label.text = "%s: %s (%s)" % [slot_label, item.display_name, _rarity_name(item.rarity)]
+		label.text = "%s: %s (%s) — %s" % [slot_label, item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
 	# Tapping the row toggles an Unequip button for filled slots only —
 	# empty slots are inert. Disabled (rather than hidden) on empty so
 	# the row's hit area stays consistent across states.
@@ -120,7 +120,7 @@ func _make_bag_row(item: ItemData, index: int) -> Control:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var label := Label.new()
 	label.name = "BagLabel_%d" % index
-	label.text = "%s (%s)" % [item.display_name, _rarity_name(item.rarity)]
+	label.text = "%s (%s) — %s" % [item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	var btn := Button.new()
@@ -181,6 +181,17 @@ func _find_bag_item(item_id: String) -> ItemData:
 		if it.id == item_id:
 			return it
 	return null
+
+func _stat_desc(item: ItemData) -> String:
+	if item.stat_name == "":
+		return ""
+	var bonus := item.stat_bonus
+	var formatted: String
+	if bonus == int(bonus):
+		formatted = "+%d" % int(bonus)
+	else:
+		formatted = "+%.2f" % bonus
+	return "%s %s" % [formatted, item.stat_name]
 
 func _rarity_name(rarity: int) -> String:
 	return RARITY_NAMES.get(rarity, "Common")

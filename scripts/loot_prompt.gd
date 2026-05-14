@@ -41,7 +41,8 @@ func show_for(item: ItemData) -> void:
 	if _name_label != null:
 		_name_label.text = item.display_name
 	if _rarity_label != null:
-		_rarity_label.text = RARITY_NAMES.get(item.rarity, "Common")
+		var rarity: String = RARITY_NAMES.get(item.rarity, "Common")
+		_rarity_label.text = "%s — %s" % [rarity, _stat_desc(item)]
 	visible = true
 
 func _on_equip_pressed() -> void:
@@ -49,6 +50,17 @@ func _on_equip_pressed() -> void:
 
 func _on_bag_pressed() -> void:
 	_resolve(false)
+
+func _stat_desc(item: ItemData) -> String:
+	if item.stat_name == "":
+		return ""
+	var bonus := item.stat_bonus
+	var formatted: String
+	if bonus == int(bonus):
+		formatted = "+%d" % int(bonus)
+	else:
+		formatted = "+%.2f" % bonus
+	return "%s %s" % [formatted, item.stat_name]
 
 func _resolve(equip: bool) -> void:
 	var item := _item
