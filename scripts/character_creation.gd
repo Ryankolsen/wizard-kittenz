@@ -250,9 +250,11 @@ func _on_join_room_pressed() -> void:
 		CharacterData.CharacterClass.keys()[c.character_class]
 	)
 	var lobby := NakamaLobby.new(socket, session)
+	var join_error := ""
+	lobby.join_failed.connect(func(reason: String) -> void: join_error = reason)
 	var ok := await lobby.join_async(raw_code, local_player)
 	if not ok:
-		_multi_status_label.text = "Room not found or full"
+		_multi_status_label.text = join_error if join_error != "" else "Room not found or full"
 		_multi_join_button.disabled = false
 		return
 	GameState.set_lobby(lobby)

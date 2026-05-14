@@ -7,22 +7,11 @@ extends RefCounted
 # the scene; owned state is resolved at render time by ShopScreen against
 # PaidUnlockInventory / CharacterData / CurrencyLedger.
 #
-# product_id naming overlaps with PurchaseRegistry for the three class-upgrade
-# rows so the BillingManager wire-up stays one product per Play Console SKU.
-# class-unlock and skill rows are Gem/Gold purchases that don't go through
-# IAP — their product_ids are scoped to this catalog.
-
-const PRODUCT_GEM_BUNDLE_STARTER := "gem_bundle_starter_099"
-const PRODUCT_GEM_BUNDLE_EXPLORER := "gem_bundle_explorer_499"
-const PRODUCT_GEM_BUNDLE_ADVENTURER := "gem_bundle_adventurer_999"
-const PRODUCT_GEM_BUNDLE_HERO := "gem_bundle_hero_1999"
-
-const PRODUCT_CLASS_UNLOCK_THIEF := "class_unlock_thief"
-const PRODUCT_CLASS_UNLOCK_NINJA := "class_unlock_ninja"
-
-const PRODUCT_SKILL_MAGE_FIREBALL := "skill_mage_fireball"
-const PRODUCT_SKILL_THIEF_SHADOWSTEP := "skill_thief_shadowstep"
-const PRODUCT_SKILL_NINJA_SMOKE_BOMB := "skill_ninja_smoke_bomb"
+# Product IDs all flow through PurchaseRegistry so the dispatch path
+# (debit-then-handle for soft-currency rows, BillingManager.start_purchase
+# for gem bundles) doesn't need a parallel id table — PurchaseRegistry's
+# grant_type_for / *_id_for_* helpers route every product the catalog can
+# surface.
 
 # Gem bundle gem grants — bonus scales with tier (PRD §Gem Bundle IAP).
 const GEMS_STARTER := 100
@@ -61,60 +50,68 @@ static func items() -> Array[ShopCatalogItem]:
 		ShopCatalogItem.CATEGORY_CLASS_UPGRADE))
 
 	out.append(ShopCatalogItem.make(
-		PRODUCT_CLASS_UNLOCK_THIEF,
+		PurchaseRegistry.CLASS_UNLOCK_THIEF,
 		"Unlock Thief",
 		"Unlock the Thief class for new characters.",
 		CurrencyLedger.Currency.GEM, 500,
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_CLASS_UNLOCK_NINJA,
+		PurchaseRegistry.CLASS_UNLOCK_NINJA,
 		"Unlock Ninja",
 		"Unlock the Ninja class for new characters.",
 		CurrencyLedger.Currency.GEM, 500,
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK))
 
 	out.append(ShopCatalogItem.make(
-		PRODUCT_SKILL_MAGE_FIREBALL,
+		PurchaseRegistry.SKILL_UNLOCK_FIREBALL,
 		"Fireball (Mage)",
 		"Launch a fiery projectile that explodes on impact.",
 		CurrencyLedger.Currency.GOLD, 250,
 		ShopCatalogItem.CATEGORY_SKILL))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_SKILL_THIEF_SHADOWSTEP,
+		PurchaseRegistry.SKILL_UNLOCK_SHADOWSTEP,
 		"Shadowstep (Thief)",
 		"Short-range teleport behind the nearest enemy.",
 		CurrencyLedger.Currency.GOLD, 250,
 		ShopCatalogItem.CATEGORY_SKILL))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_SKILL_NINJA_SMOKE_BOMB,
+		PurchaseRegistry.SKILL_UNLOCK_SMOKE_BOMB,
 		"Smoke Bomb (Ninja)",
 		"Drop a smoke cloud that briefly stuns nearby enemies.",
 		CurrencyLedger.Currency.GOLD, 250,
 		ShopCatalogItem.CATEGORY_SKILL))
 
 	out.append(ShopCatalogItem.make(
-		PRODUCT_GEM_BUNDLE_STARTER,
+		PurchaseRegistry.GEM_BUNDLE_STARTER,
 		"Starter Bundle",
 		"%d Gems" % GEMS_STARTER,
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_STARTER,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_GEM_BUNDLE_EXPLORER,
+		PurchaseRegistry.GEM_BUNDLE_EXPLORER,
 		"Explorer Bundle",
 		"%d Gems" % GEMS_EXPLORER,
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_EXPLORER,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_GEM_BUNDLE_ADVENTURER,
+		PurchaseRegistry.GEM_BUNDLE_ADVENTURER,
 		"Adventurer Bundle",
 		"%d Gems" % GEMS_ADVENTURER,
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_ADVENTURER,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 	out.append(ShopCatalogItem.make(
-		PRODUCT_GEM_BUNDLE_HERO,
+		PurchaseRegistry.GEM_BUNDLE_HERO,
 		"Hero Bundle",
 		"%d Gems" % GEMS_HERO,
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_HERO,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 
 	return out
+
+# Looks up a catalog row by product_id; null if unknown. ShopScreen and tests
+# use this to read price/category/currency without rebuilding the full list.
+static func find(product_id: String) -> ShopCatalogItem:
+	for item in items():
+		if item.product_id == product_id:
+			return item
+	return null

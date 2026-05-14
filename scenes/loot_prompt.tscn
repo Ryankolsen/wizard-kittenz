@@ -1,0 +1,59 @@
+[gd_scene format=3 uid="uid://vqvsq5e1ax40"]
+
+[ext_resource type="Script" path="res://scripts/loot_prompt.gd" id="1_loot_prompt"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_loot"]
+bg_color = Color(0.05, 0.07, 0.12, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.55, 0.75, 1)
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+
+[node name="LootPrompt" type="CanvasLayer"]
+layer = 3
+process_mode = 3
+script = ExtResource("1_loot_prompt")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.5)
+mouse_filter = 0
+
+[node name="Center" type="CenterContainer" parent="Backdrop"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="Backdrop/Center"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_loot")
+
+[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel"]
+theme_override_constants/separation = 6
+
+[node name="ItemName" type="Label" parent="Backdrop/Center/Panel/VBox"]
+horizontal_alignment = 1
+text = "Item"
+theme_override_font_sizes/font_size = 20
+
+[node name="Rarity" type="Label" parent="Backdrop/Center/Panel/VBox"]
+horizontal_alignment = 1
+text = "Common"
+
+[node name="Prompt" type="Label" parent="Backdrop/Center/Panel/VBox"]
+horizontal_alignment = 1
+text = "Equip or add to bag?"
+
+[node name="ButtonRow" type="HBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="Equip" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+text = "Equip"
+
+[node name="Bag" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+text = "Bag"

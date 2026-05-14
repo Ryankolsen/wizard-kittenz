@@ -2,6 +2,11 @@ class_name Player
 extends CharacterBody2D
 
 signal died
+# Fired after KillRewardRouter.route_kill returns a non-null ItemData
+# (PRD #73 / issue #80). HUD listens and surfaces the equip-or-bag
+# prompt; Player is intentionally unaware of the UI so headless tests
+# can drive the kill flow without instancing a CanvasLayer.
+signal item_dropped(item: ItemData)
 
 const ATTACK_COOLDOWN: float = 0.4
 # PRD #52 power-up pickup XP. Awarded on every collect_power_up call.
@@ -153,7 +158,7 @@ func _try_attack() -> void:
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger(), null, _item_inventory())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -179,7 +184,7 @@ func _try_cast_spell() -> void:
 				awarded = true
 		if awarded:
 			_record_meta_progress()
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger(), null, _item_inventory())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -223,7 +228,7 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 	# via xp_broadcaster; data.level on the Player is untouched and the
 	# level-up edge arrives via LocalXPRouter.level_up (wired in _ready).
 	var old_level := data.level
-	KillRewardRouter.route_kill(
+	var item_drop := KillRewardRouter.route_kill(
 		data,
 		enemy_data,
 		_coop_session(),
@@ -232,6 +237,8 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_lobby(),
 		_currency_ledger()
 	)
+	if item_drop != null:
+		item_dropped.emit(item_drop)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
 	# Co-op router may have been built after _ready (session.start() runs
@@ -318,6 +325,12 @@ func _currency_ledger() -> CurrencyLedger:
 	if gs == null:
 		return null
 	return gs.currency_ledger
+
+func _item_inventory() -> ItemInventory:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.item_inventory
 
 func _play_attack_flash() -> void:
 	if _visual == null:
