@@ -49,14 +49,24 @@ func test_stats_panel_shows_hp():
 	assert_true(label.text.contains("18"), "HP label must show current HP")
 	gs.clear()
 
-func test_inventory_tab_shows_coming_soon():
+func test_inventory_tab_has_equipment_panel():
+	# Stub label was replaced by the EquipmentTabPanel in issue #82. The
+	# InventoryTab node now carries the EquipmentTabPanel script and
+	# renders Equipped / Bag sections on inventory-tab press.
+	var gs := get_node("/root/GameState")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WARRIOR))
+	gs.item_inventory = ItemInventory.new()
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
 	scene.open_character_submenu()
-	var stub = scene.find_child("InventoryStub", true, false) as Label
-	assert_not_null(stub, "InventoryStub label must exist")
-	assert_true(stub.text.to_lower().contains("coming soon"),
-		"Inventory stub must say 'coming soon'")
+	var inv_btn := scene.find_child("InventoryTabButton", true, false) as Button
+	assert_not_null(inv_btn)
+	inv_btn.pressed.emit()
+	var tab := scene.find_child("InventoryTab", true, false)
+	assert_not_null(tab, "InventoryTab node must exist")
+	var section := scene.find_child("Section_Equipped", true, false) as Label
+	assert_not_null(section, "Equipment panel must render an Equipped section")
+	gs.clear()
 
 func test_character_button_is_enabled():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()

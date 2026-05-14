@@ -38,6 +38,7 @@ const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
 const QuitHandler := preload("res://scripts/quit_dungeon_handler.gd")
 const StatsTabPanelScript := preload("res://scripts/stats_tab_panel.gd")
+const EquipmentTabPanelScript := preload("res://scripts/equipment_tab_panel.gd")
 
 func _ready() -> void:
 	visible = false
@@ -537,6 +538,22 @@ func _on_skills_tab_pressed() -> void:
 
 func _on_inventory_tab_pressed() -> void:
 	_show_inventory_tab()
+	_refresh_equipment_panel()
+
+# Pushes GameState.item_inventory + current_character into the
+# EquipmentTabPanel script attached to the InventoryTab node (#82).
+# Called whenever the Inventory tab is shown so the panel reflects the
+# current loadout — including any items the player picked up between
+# pause-menu opens.
+func _refresh_equipment_panel() -> void:
+	var panel := find_child("InventoryTab", true, false) as EquipmentTabPanelScript
+	if panel == null:
+		return
+	var gs := get_node_or_null("/root/GameState")
+	var inv: ItemInventory = null
+	if gs != null:
+		inv = gs.item_inventory
+	panel.refresh(inv, _current_character())
 
 func _on_settings_pressed() -> void:
 	open_settings_submenu()
