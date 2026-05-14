@@ -10,6 +10,11 @@ enum EffectKind { DAMAGE, AREA, BUFF }
 var id: String = ""
 var display_name: String = ""
 var cooldown: float = 1.0
+# Immutable base cooldown captured at make()-time. cooldown is the effective
+# (post-magic_attack-scaling) value; base_cooldown is the source-of-truth for
+# Player to re-derive each frame so magic_attack changes propagate without a
+# separate hook (mirrors data.speed / data.dexterity rewriting).
+var base_cooldown: float = 1.0
 var effect_kind: int = EffectKind.DAMAGE
 var power: int = 0
 var cooldown_remaining: float = 0.0
@@ -21,6 +26,7 @@ static func make(s_id: String, name: String, kind: int, power_val: int, cd: floa
 	s.effect_kind = kind
 	s.power = power_val
 	s.cooldown = cd
+	s.base_cooldown = cd
 	return s
 
 func is_ready() -> bool:

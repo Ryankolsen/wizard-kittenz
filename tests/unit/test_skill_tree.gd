@@ -155,7 +155,10 @@ func test_spell_kinds_are_distinct_for_mage_tree():
 
 func test_spell_effect_resolver_damage_hits_first_alive_target():
 	var fireball := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
+	# PRD #85: caster.magic_attack now adds to spell.power. Pin to 0 so the
+	# test stays focused on the "first target only" contract.
 	var caster := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	caster.magic_attack = 0
 	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var e2 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var e1_hp_before := e1.hp

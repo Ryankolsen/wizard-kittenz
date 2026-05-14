@@ -141,7 +141,15 @@ func _apply_ale_wobble(delta: float) -> void:
 func _tick_spells(dt: float) -> void:
 	if _spell_tree == null:
 		return
+	# PRD #85: magic_attack shaves spell cooldowns. Re-derive each frame so
+	# level-ups / item swaps propagate without a separate hook (mirrors how
+	# dexterity rewrites _attack_controller.cooldown in _try_attack).
+	var ma := 0
+	if data != null:
+		ma = data.magic_attack
+	var scale := 1.0 + float(ma) * 0.03
 	for spell in _spell_tree.get_unlocked_spells():
+		spell.cooldown = spell.base_cooldown / scale
 		spell.tick(dt)
 
 func _try_attack() -> void:
