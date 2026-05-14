@@ -153,7 +153,7 @@ func _try_attack() -> void:
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
-				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
+				SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger(), null, _item_inventory())
 				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
@@ -179,7 +179,7 @@ func _try_cast_spell() -> void:
 				awarded = true
 		if awarded:
 			_record_meta_progress()
-			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger())
+			SaveManager.save(data, SaveManager.DEFAULT_PATH, _spell_tree, _meta_tracker(), _offline_xp_tracker(), _cosmetic_inventory(), _paid_unlocks(), {}, _currency_ledger(), null, _item_inventory())
 		return
 
 func _overlapping_enemy_nodes() -> Array:
@@ -318,6 +318,12 @@ func _currency_ledger() -> CurrencyLedger:
 	if gs == null:
 		return null
 	return gs.currency_ledger
+
+func _item_inventory() -> ItemInventory:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.item_inventory
 
 func _play_attack_flash() -> void:
 	if _visual == null:

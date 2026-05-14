@@ -3,10 +3,10 @@ extends RefCounted
 
 const DEFAULT_PATH := "user://save.json"
 
-static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null) -> Error:
+static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null, item_inventory: ItemInventory = null) -> Error:
 	if c == null:
 		return ERR_INVALID_PARAMETER
-	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv)
+	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv, item_inventory)
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return FileAccess.get_open_error()

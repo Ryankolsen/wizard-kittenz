@@ -5,6 +5,7 @@ extends Node
 # script-load order.
 const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
 const SkillInventoryRef = preload("res://scripts/skill_inventory.gd")
+const ItemStatApplicatorRef = preload("res://scripts/item_stat_applicator.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -38,6 +39,11 @@ var currency_ledger: CurrencyLedger = CurrencyLedger.new()
 # and future SkillTree availability gate can read freely without a null
 # check. Hydrated from KittenSaveData.to_skill_inventory() in apply_merged_save.
 var skill_inventory = SkillInventoryRef.new()
+# Equipped items + bag (PRD #73 / issue #81). Always non-null so the loot
+# prompt (#80) and pause-menu equipment panel (#82) can read freely without
+# a null check. Hydrated from KittenSaveData.to_item_inventory() in
+# apply_merged_save; reset to a fresh inventory in clear().
+var item_inventory: ItemInventory = ItemInventory.new()
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -87,7 +93,7 @@ func _on_purchase_succeeded(product_id: String) -> void:
 		SaveManager.save(
 			current_character, SaveManager.DEFAULT_PATH,
 			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
-			{}, currency_ledger, skill_inventory
+			{}, currency_ledger, skill_inventory, item_inventory
 		)
 
 func _try_load_save() -> void:
@@ -107,6 +113,8 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	paid_unlocks = save_data.to_paid_unlock_inventory()
 	currency_ledger = save_data.to_currency_ledger()
 	skill_inventory = save_data.to_skill_inventory()
+	item_inventory = save_data.to_item_inventory()
+	ItemStatApplicatorRef.apply(item_inventory, current_character)
 	# Resume an in-flight solo dungeon run (PRD #42 / #46). When the saved
 	# state is empty (legacy save / no run in flight / multiplayer-only) the
 	# serializer returns null and main_scene falls through to
@@ -133,7 +141,8 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	apply_merged_save(merged)
 	SaveManager.save(
 		current_character, SaveManager.DEFAULT_PATH,
-		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks
+		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
+		{}, currency_ledger, skill_inventory, item_inventory
 	)
 	await NakamaService.upload_save_async(p_session, merged.to_dict())
 	save_synced.emit(merged)
@@ -151,6 +160,7 @@ func clear() -> void:
 	paid_unlocks = PaidUnlockInventory.new()
 	currency_ledger = CurrencyLedger.new()
 	skill_inventory = SkillInventoryRef.new()
+	item_inventory = ItemInventory.new()
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.
