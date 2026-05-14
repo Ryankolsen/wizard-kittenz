@@ -14,10 +14,12 @@ signal next_room_requested
 # enemy count grows large enough to make per-frame counting wasteful.
 
 const HP_BAR_WIDTH: float = 96.0
+const MP_BAR_WIDTH: float = 96.0
 const XP_BAR_WIDTH: float = 96.0
 
 var _player: Player = null
 var _hp_fill: ColorRect
+var _mp_fill: ColorRect
 var _xp_fill: ColorRect
 var _room_clear: Control
 var _you_died: Control
@@ -35,6 +37,7 @@ const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn"
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
+	_mp_fill = $StatsPanel/VBox/MPBar/Fill
 	_xp_fill = $StatsPanel/VBox/XPBar/Fill
 	_room_clear = $RoomClear
 	_next_room_btn = $RoomClear/NextRoom
@@ -71,6 +74,7 @@ func _init_enemy_count() -> void:
 
 func _process(_dt: float) -> void:
 	_update_hp_bar()
+	_update_mp_bar()
 	_update_xp_bar()
 	_update_stat_points_badge()
 	_check_room_clear()
@@ -101,6 +105,17 @@ func _update_hp_bar() -> void:
 	var eff_hp: int = eff.get("hp", -1)
 	var eff_max: int = eff.get("max_hp", -1)
 	_hp_fill.size.x = HP_BAR_WIDTH * hp_bar_ratio(d.hp, d.max_hp, eff_hp, eff_max)
+
+func _update_mp_bar() -> void:
+	if _player == null or _player.data == null:
+		return
+	var d := _player.data
+	_mp_fill.size.x = MP_BAR_WIDTH * mp_bar_ratio(d.magic_points, d.max_mp)
+
+static func mp_bar_ratio(mp: int, max_mp: int) -> float:
+	if max_mp <= 0:
+		return 0.0
+	return clampf(float(mp) / float(max_mp), 0.0, 1.0)
 
 # Polls the player's xp / level each frame and refills the XP bar.
 # After a level-up ProgressionSystem.add_xp resets `c.xp` to the carry-over
