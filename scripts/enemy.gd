@@ -83,7 +83,13 @@ func _try_contact_damage(player: Player) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
-	DamageResolver.apply(data, player.data)
+	var dealt := DamageResolver.apply(data, player.data)
+	# PRD #85 / issue #91: enemy-on-player misses surface a floating
+	# "Miss" near the player. Player evasion is the dominant contributor
+	# at the player side — same indicator covers HitResolver miss and
+	# evade because DamageResolver collapses both to 0.
+	if dealt == 0 and data != null and data.attack > 0:
+		FloatingText.spawn(player, "Miss")
 
 func _find_player() -> Player:
 	if _player_ref != null and is_instance_valid(_player_ref):

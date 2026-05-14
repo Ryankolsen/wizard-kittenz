@@ -23,6 +23,7 @@ var _spell_tree: SkillTree
 var _power_ups: PowerUpManager
 var _visual: Node2D
 var _wobble_time: float = 0.0
+var _regen_accum: float = 0.0
 var _died_emitted: bool = false
 var _level_up_effect: LevelUpEffect
 var _coop_level_up_bound: bool = false
@@ -69,6 +70,7 @@ func _physics_process(delta: float) -> void:
 		data.facing = input_dir.normalized()
 	move_and_slide()
 	_tick_spells(delta)
+	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
 	_maybe_broadcast_position()
@@ -152,6 +154,15 @@ func _tick_spells(dt: float) -> void:
 		spell.cooldown = spell.base_cooldown / scale
 		spell.tick(dt)
 
+func _tick_regeneration(dt: float) -> void:
+	if data == null or data.regeneration <= 0 or not data.is_alive():
+		_regen_accum = 0.0
+		return
+	_regen_accum += dt
+	if _regen_accum >= 1.0:
+		_regen_accum -= 1.0
+		data.heal(data.regeneration)
+
 func _try_attack() -> void:
 	# PRD #85: dexterity shaves attack cooldown — re-read each call so
 	# level-ups and power-ups propagate without a separate hook.
@@ -166,7 +177,14 @@ func _try_attack() -> void:
 	for area in _hitbox.get_overlapping_areas():
 		var node := area.get_parent()
 		if node is Enemy and node.data != null and node.data.is_alive():
-			DamageResolver.apply(data, node.data)
+			var dealt := DamageResolver.apply(data, node.data)
+			# PRD #85 / issue #91: surface "Miss" on a failed physical hit.
+			# DamageResolver returns 0 on miss (HitResolver) or evade
+			# (target.evasion); both render the same indicator. Skip when
+			# attacker had no attack to begin with so we don't spam Miss
+			# for zero-attack contact cases.
+			if dealt == 0 and data != null and data.attack > 0:
+				FloatingText.spawn(node, "Miss")
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
