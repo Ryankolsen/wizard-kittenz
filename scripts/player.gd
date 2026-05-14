@@ -145,6 +145,10 @@ func _tick_spells(dt: float) -> void:
 		spell.tick(dt)
 
 func _try_attack() -> void:
+	# PRD #85: dexterity shaves attack cooldown — re-read each call so
+	# level-ups and power-ups propagate without a separate hook.
+	if data != null:
+		_attack_controller.cooldown = ATTACK_COOLDOWN / (1.0 + data.dexterity * 0.05)
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return

@@ -27,5 +27,6 @@ static func hit_chance(dex_or_attacker, luck: int = 0) -> float:
 	var raw: float = BASE + dex_val * DEX_WEIGHT + luck_val * LUCK_WEIGHT
 	return clamp(raw, BASE, CAP)
 
-static func roll_hit(dex_or_attacker, luck: int = 0) -> bool:
-	return randf() < hit_chance(dex_or_attacker, luck)
+static func roll_hit(dex_or_attacker, luck: int = 0, rng: RandomNumberGenerator = null) -> bool:
+	var roll := rng.randf() if rng != null else randf()
+	return roll < hit_chance(dex_or_attacker, luck)

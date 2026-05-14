@@ -2006,6 +2006,19 @@ func _make_attacker(attack: int) -> EnemyData:
 	e.attack = attack
 	return e
 
+# PRD #85: DamageResolver gates damage behind HitResolver (15% miss floor).
+# These routing tests need a deterministic hit, so we hand apply_damage a
+# pre-seeded rng whose first randf is below 0.85 (forces hit). crit and
+# evasion are 0/0.0 here, so the hit roll is the only rng consumer.
+func _rng_force_hit() -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	for s in range(1, 100000):
+		rng.seed = s
+		if rng.randf() < 0.85:
+			rng.seed = s
+			return rng
+	return rng
+
 func test_local_damage_router_is_coop_route_null_session():
 	# Solo path predicate: no session means solo, period.
 	assert_false(LocalDamageRouter.is_coop_route(null, "u1"))
@@ -2093,7 +2106,7 @@ func test_local_damage_router_apply_damage_solo_hits_character():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	var hp_before := c.hp
 	var attacker := _make_attacker(3)
-	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "")
+	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "", _rng_force_hit())
 	assert_eq(dealt, 3)
 	assert_eq(c.hp, hp_before - 3, "solo damage hits character.hp directly")
 
@@ -2110,7 +2123,7 @@ func test_local_damage_router_apply_damage_coop_hits_effective_not_real():
 	var real_hp_before := c.hp
 	var eff_hp_before := member.effective_stats.hp
 	var attacker := _make_attacker(3)
-	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
 	assert_eq(dealt, 3)
 	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op")
 	assert_eq(member.effective_stats.hp, eff_hp_before - 3, "effective_stats.hp reduced")
@@ -2150,7 +2163,7 @@ func test_local_damage_router_apply_damage_defense_mitigates_to_floor_one():
 	c.defense = 3
 	var hp_before := c.hp
 	var attacker := _make_attacker(1)
-	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "")
+	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "", _rng_force_hit())
 	assert_eq(dealt, 1, "defense floor of 1")
 	assert_eq(c.hp, hp_before - 1)
 
@@ -2165,7 +2178,7 @@ func test_local_damage_router_apply_damage_after_end_routes_to_character():
 	session.end()
 	var hp_before := c.hp
 	var attacker := _make_attacker(2)
-	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
 	assert_eq(dealt, 2, "post-end damage still applies, routed to character")
 	assert_eq(c.hp, hp_before - 2)
 
@@ -2190,7 +2203,7 @@ func test_local_damage_router_floor_player_routes_to_effective_not_real():
 		"PartyScaler.clone_stats produces a separate reference even at floor")
 	var real_hp_before := c.hp
 	var attacker := _make_attacker(2)
-	LocalDamageRouter.apply_damage(session, attacker, c, "u1")
+	LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
 	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched")
 	assert_eq(member.effective_stats.hp, member.effective_stats.max_hp - 2,
 		"floor-player effective_stats took the hit")
@@ -2221,7 +2234,7 @@ func test_local_damage_router_scaled_player_uses_lower_max_hp():
 	assert_eq(c1.max_hp, 26, "real_stats max_hp at L10")
 	assert_eq(member.effective_stats.max_hp, 12, "effective_stats max_hp at floor L3")
 	var attacker := _make_attacker(5)
-	LocalDamageRouter.apply_damage(session, attacker, c1, "u1")
+	LocalDamageRouter.apply_damage(session, attacker, c1, "u1", _rng_force_hit())
 	assert_eq(c1.hp, 26, "real_stats hp untouched")
 	assert_eq(member.effective_stats.hp, 7, "effective_stats took 5 dmg from 12")
 

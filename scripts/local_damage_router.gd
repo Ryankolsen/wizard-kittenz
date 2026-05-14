@@ -92,10 +92,10 @@ static func target_for(session: CoopSession, character: CharacterData, local_pla
 # character degrade to 0 — same shape as KillRewardRouter's null-safe
 # fall-through. The DamageResolver.apply contract handles raw-attack
 # zero / negative as a no-op (returns 0).
-static func apply_damage(session: CoopSession, attacker_stats, character: CharacterData, local_player_id: String) -> int:
+static func apply_damage(session: CoopSession, attacker_stats, character: CharacterData, local_player_id: String, rng: RandomNumberGenerator = null) -> int:
 	if attacker_stats == null or character == null:
 		return 0
 	var target := target_for(session, character, local_player_id)
 	if target == null:
 		return 0
-	return DamageResolver.apply(attacker_stats, target)
+	return DamageResolver.apply(attacker_stats, target, rng)
