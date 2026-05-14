@@ -26,6 +26,13 @@ enum EnemyKind { SLIME, BAT, RAT }
 # KillRewardRouter skips the apply_death call when this is empty so legacy
 # / test enemies don't poke the registry with an unkeyed entry.
 @export var enemy_id: String = ""
+# World-space position the spawn layer should instantiate this enemy at. Set by
+# RoomSpawnPlanner.register_all_room_enemies from the DungeonLayout room center
+# so every client computes the same coordinate from the synced dungeon seed.
+# Vector2.ZERO is the "no position assigned" sentinel — pre-spawn-layer fixtures
+# and the legacy single-enemy-in-main.tscn path leave it unset; the scene
+# spawner falls back to the node's authored position in that case.
+@export var spawn_position: Vector2 = Vector2.ZERO
 # Last move direction. Read by ThiefAbilities.backstab to detect attacks from
 # behind (attacker.facing roughly aligned with target.facing).
 var facing: Vector2 = Vector2.DOWN

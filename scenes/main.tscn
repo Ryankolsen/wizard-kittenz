@@ -1,8 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://c9rq8m2zw5xab"]
+[gd_scene load_steps=7 format=3 uid="uid://c9rq8m2zw5xab"]
 
 [ext_resource type="Script" path="res://scripts/main_scene.gd" id="0_main_scene"]
 [ext_resource type="PackedScene" uid="uid://b8wk1tn3p2yqa" path="res://scenes/player.tscn" id="1_player_scene"]
-[ext_resource type="PackedScene" uid="uid://b1emy7k8tn3pq" path="res://scenes/enemy.tscn" id="2_enemy_scene"]
 [ext_resource type="PackedScene" uid="uid://b5wkp7mzn9xqa" path="res://scenes/power_up.tscn" id="3_powerup_scene"]
 [ext_resource type="PackedScene" uid="uid://b9hud2k7r3xqz" path="res://scenes/hud.tscn" id="4_hud_scene"]
 [ext_resource type="PackedScene" uid="uid://cwt4q9xkn3p7r" path="res://scenes/touch_controls.tscn" id="5_touch_controls"]
@@ -19,9 +18,6 @@ position = Vector2(64, 64)
 
 [node name="CoopPlayerLayer" type="Node2D" parent="."]
 script = ExtResource("6_coop_player_layer")
-
-[node name="Enemy" parent="." instance=ExtResource("2_enemy_scene")]
-position = Vector2(340, 135)
 
 [node name="CatnipPickup" parent="." instance=ExtResource("3_powerup_scene")]
 position = Vector2(240, 80)

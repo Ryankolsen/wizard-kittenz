@@ -245,6 +245,142 @@ func test_register_room_enemies_idempotent_on_repeat():
 
 # --- end-to-end: spawn -> kill -> apply_death --------------------------------
 
+func _generate_dungeon_with_layout(seed: int = 1234) -> Array:
+	# Returns [dungeon, layout] from the production generator + engine so the
+	# multi-room tests cover the same code path as production. Seed is fixed so
+	# the assertion shape (room types, ids) is deterministic.
+	var d := DungeonGenerator.generate(seed)
+	var layout := DungeonLayoutEngine.new().compute(d)
+	return [d, layout]
+
+# --- register_all_room_enemies (multi-room, issue #96) ---------------------
+
+func test_register_all_room_enemies_returns_one_id_per_combat_room():
+	# Core wiring: every STANDARD + BOSS room in the dungeon mints exactly one
+	# enemy id at dungeon load (vs. the lazy per-room-enter pattern this
+	# replaces). START + POWERUP rooms produce no ids.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	var ids := planner.register_all_room_enemies(dungeon, layout)
+	var combat_room_count := 0
+	for r in dungeon.rooms:
+		if r.type == Room.TYPE_STANDARD or r.type == Room.TYPE_BOSS:
+			combat_room_count += 1
+	assert_eq(ids.size(), combat_room_count,
+		"one enemy_id per combat room")
+
+func test_register_all_room_enemies_assigns_spawn_position_from_layout():
+	# Each combat room's EnemyData.spawn_position equals the layout's
+	# room_center_world(room_id). Locks the contract the scene-tree spawner
+	# reads to drop the Enemy node at the right pixel coordinate.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	for r in dungeon.rooms:
+		if r.type != Room.TYPE_STANDARD and r.type != Room.TYPE_BOSS:
+			continue
+		var data := planner.enemy_data_for_room(r.id)
+		assert_not_null(data, "combat room %d has planned data" % r.id)
+		assert_eq(data.spawn_position, layout.room_center_world(r.id),
+			"room %d spawn_position matches layout center" % r.id)
+
+func test_register_all_room_enemies_skips_non_combat_rooms():
+	# START and POWERUP rooms must not have a planned EnemyData — the
+	# scene-tree spawner reads enemy_data_for_room as the gate for "should I
+	# instantiate an enemy here?".
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	for r in dungeon.rooms:
+		if r.type == Room.TYPE_START or r.type == Room.TYPE_POWERUP:
+			assert_null(planner.enemy_data_for_room(r.id),
+				"non-combat room %d (%s) has no planned enemy" % [r.id, r.type])
+
+func test_register_all_room_enemies_marks_boss_room_with_is_boss():
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	var boss := planner.enemy_data_for_room(dungeon.boss_id)
+	assert_not_null(boss, "boss room has a planned enemy")
+	assert_true(boss.is_boss, "boss room enemy carries the is_boss flag")
+
+func test_register_all_room_enemies_uses_stable_id_format():
+	# enemy_id format remains "r{room_id}_e{spawn_idx}" — the wire layer's
+	# OP_KILL packet and the per-room watcher's expected set both depend on
+	# this format. A drift here would break remote-kill apply at the receiver.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	for r in dungeon.rooms:
+		if r.type != Room.TYPE_STANDARD and r.type != Room.TYPE_BOSS:
+			continue
+		var data := planner.enemy_data_for_room(r.id)
+		assert_eq(data.enemy_id, "r%d_e0" % r.id)
+
+func test_register_all_room_enemies_registers_each_id_with_session():
+	# Co-op path: every minted id is present in session.enemy_sync so the
+	# remote-kill receive flow's apply_death finds it on the receiving client.
+	var session := _make_session_with_lobby()
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	var ids := planner.register_all_room_enemies(dungeon, layout, session)
+	for id in ids:
+		assert_true(session.enemy_sync.is_alive(id),
+			"session.enemy_sync knows about every planned id: %s" % id)
+
+func test_register_all_room_enemies_null_session_still_returns_ids():
+	# Solo path: session is null. The planner still mints and stores data so
+	# the scene-tree spawner can instantiate the Enemy nodes; the wire layer's
+	# empty-registry short-circuit keeps solo behavior unchanged.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	var ids := planner.register_all_room_enemies(dungeon, layout, null)
+	assert_gt(ids.size(), 0, "solo path still mints ids")
+	var boss := planner.enemy_data_for_room(dungeon.boss_id)
+	assert_not_null(boss)
+
+func test_register_all_room_enemies_idempotent_on_repeat_call():
+	# A second call rebuilds the internal map from scratch but does not pollute
+	# the session registry (register_enemy is idempotent). Mirrors the
+	# scene-reload pattern that may double-fire register during the
+	# advance_to->reload deprecation in #97.
+	var session := _make_session_with_lobby()
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout, session)
+	var before := session.enemy_sync.alive_count()
+	var second := planner.register_all_room_enemies(dungeon, layout, session)
+	assert_eq(session.enemy_sync.alive_count(), before,
+		"no registry growth on repeat call")
+	assert_eq(second.size(), planner.planned_room_ids().size(),
+		"second call still returns the full id list")
+
+func test_register_all_room_enemies_null_dungeon_safe():
+	var planner := RoomSpawnPlanner.new()
+	var ids := planner.register_all_room_enemies(null, null)
+	assert_eq(ids.size(), 0, "null dungeon is a safe no-op")
+
+func test_enemy_data_for_room_unknown_id_returns_null():
+	var planner := RoomSpawnPlanner.new()
+	assert_null(planner.enemy_data_for_room(999),
+		"unknown room id returns null before any planning")
+
 func test_planned_enemy_id_round_trips_through_apply_death():
 	# Pins that the id minted by the planner is the same key
 	# KillRewardRouter / EnemyStateSyncManager.apply_death use, so a

@@ -80,34 +80,28 @@ func test_main_scene_activates_coop_session_on_ready():
 	assert_not_null(session.position_broadcast_gate,
 		"start() builds position_broadcast_gate — Player reads this each tick")
 
-func test_main_scene_registers_current_combat_enemy_with_session():
-	# AC#3 (kill by any player awards XP to all) requires every client's
-	# session.enemy_sync to know about every spawned enemy_id, so the
-	# remote-kill receive path's apply_death rising-edges true. Pin that
-	# main_scene's room setup registers the current room's enemy on entry.
+func test_main_scene_registers_all_combat_enemies_with_session():
+	# Issue #96: every combat room's enemy_id must be registered with
+	# session.enemy_sync at dungeon load (not lazily on room enter), so the
+	# remote-kill receive path's apply_death rising-edges true regardless of
+	# which room the death packet refers to. Pin that the registry contains
+	# one id per STANDARD + BOSS room and zero ids for non-combat rooms.
 	var session := _make_coop_session()
 	_install_session(session)
 
 	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
 	add_child_autofree(inst)
 
-	# main_scene rolls a fresh dungeon when run_controller is null; the
-	# start room is non-combat and the next-room button advances. So
-	# enemy_sync may have 0 or 1 alive ids depending on whether the start
-	# room or a combat room is current. Read the current room's planned
-	# enemy and assert the registry agrees with it.
 	var rc: DungeonRunController = get_node("/root/GameState").dungeon_run_controller
 	assert_not_null(rc, "main_scene must install the run controller")
-	var room: Room = rc.current_room()
-	assert_not_null(room)
-	var expected_ids := RoomSpawnPlanner.enemy_ids_for_room(room)
-	for id in expected_ids:
-		assert_true(session.enemy_sync.is_alive(id),
-			"enemy_sync must contain the current room's planned id %s" % id)
-	# Sanity: if there are no expected ids (start room), the registry is empty.
-	if expected_ids.is_empty():
-		assert_eq(session.enemy_sync.alive_count(), 0,
-			"non-combat room leaves the registry untouched")
+	var combat_count := 0
+	for r in rc.dungeon.rooms:
+		if r.type == Room.TYPE_STANDARD or r.type == Room.TYPE_BOSS:
+			combat_count += 1
+			assert_true(session.enemy_sync.is_alive("r%d_e0" % r.id),
+				"enemy_sync must contain combat room %d's planned id" % r.id)
+	assert_eq(session.enemy_sync.alive_count(), combat_count,
+		"registry has exactly one id per combat room — no over- or under-registration")
 
 func test_main_scene_solo_path_does_not_crash_with_null_session():
 	# Solo / pre-handshake / no-multiplayer path: coop_session is null.

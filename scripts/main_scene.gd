@@ -3,27 +3,29 @@ extends Node2D
 # Scene-layer orchestrator for the main dungeon room. Bridges the pure-data
 # layer (DungeonRunController + RoomClearWatcher) to the scene tree:
 #   - Initializes or resumes the dungeon run from GameState (survives reloads).
-#   - Assigns per-room EnemyData from RoomSpawnPlanner to the Enemy node so
-#     enemy_id, kind, and is_boss are correct for the current room.
-#   - Wires Enemy.died -> RoomClearWatcher.notify_death so the kill flow
-#     drives DungeonRunController.mark_room_cleared.
+#   - Spawns every combat room's Enemy node at its layout-derived world center
+#     at dungeon load (issue #96). Replaces the lazy per-room-enter pattern.
+#   - Creates a RoomClearWatcher per combat room up-front so kills in any room
+#     fire mark_room_cleared without a scene reload.
+#   - Wires each Enemy.died -> the matching watcher's notify_death.
 #   - Listens for room_cleared -> shows the "Next Room" prompt on the HUD.
 #   - Advances to the next room (via advance_to + scene reload) on button press.
 #   - Handles dungeon_completed (boss killed): calls DungeonRunCompletion,
 #     clears run state, and reloads for a new dungeon.
 #
-# No-enemy rooms (start, power-up): enemy node is freed on enter; the watcher
-# auto-clears immediately and the Next Room prompt appears without combat.
+# No-enemy rooms (start, power-up): no Enemy is instantiated; their watchers
+# auto-clear immediately on construction.
+
+const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 
 var _run_controller: DungeonRunController = null
-var _watcher: RoomClearWatcher = null
+var _watchers: Array[RoomClearWatcher] = []
 var _hud: HUD = null
-var _enemy: Enemy = null
 var _dungeon_layout: DungeonLayout = null
+var _spawn_planner: RoomSpawnPlanner = null
 
 func _ready() -> void:
 	_hud = $HUD
-	_enemy = $Enemy
 
 	var gs := get_node_or_null("/root/GameState")
 
@@ -34,13 +36,13 @@ func _ready() -> void:
 
 	_paint_dungeon()
 
-	# Connect before _setup_current_room so auto-clear rooms get the signal.
+	# Connect before _setup_rooms so auto-clear rooms get the signal.
 	_run_controller.room_cleared.connect(_on_room_cleared)
 	_run_controller.dungeon_completed.connect(_on_dungeon_completed)
 	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
 	_hud.next_room_requested.connect(_on_next_room_requested)
 
-	_setup_current_room()
+	_setup_rooms()
 
 # Computes the spatial layout from the active dungeon graph and paints the
 # full multi-room tilemap (rooms + corridors + walls). The layout is cached
@@ -96,37 +98,39 @@ func _dungeon_seed_for(gs) -> int:
 		return -1
 	return seed_sync.current_seed()
 
-func _setup_current_room() -> void:
-	var room := _run_controller.current_room()
-	if room == null:
+# Spawns every combat room's Enemy node and creates a watcher per room at
+# dungeon load (issue #96). Replaces the lazy per-room-enter pattern: all
+# enemies exist simultaneously in the scene tree and each watcher tracks its
+# room's kills independently. Start / power-up rooms get a watcher that
+# auto-clears immediately (no enemy instantiated).
+#
+# Already-cleared rooms (from a resumed run or a scene reload after
+# advance_to) skip enemy instantiation so the player doesn't re-fight a room
+# they've already finished. The watcher is still created so room_cleared
+# refires on auto-clear and the controller's _cleared flag is consistent.
+func _setup_rooms() -> void:
+	if _run_controller == null or _run_controller.dungeon == null:
 		return
 
-	# register_room_enemies mints + (in co-op) registers each spawn's
-	# enemy_id with session.enemy_sync so the remote-kill receive path
-	# (RemoteKillApplier.apply_death) finds the id in the registry and
-	# rising-edges true. Before this commit, _setup_current_room called
-	# plan_enemy without ever poking enemy_sync — so apply_death returned
-	# false for every remote OP_KILL packet (unknown id), the XP fan-out
-	# branch was skipped, and AC#3 (kill by any player awards XP to all)
-	# failed silently on the receiving client. Solo / null session falls
-	# through to a no-registry-touch path: the EnemyData is still minted
-	# and returned, so combat in solo behaves identically.
-	var spawned := RoomSpawnPlanner.register_room_enemies(_coop_session(), room)
-	if spawned.is_empty():
-		# No combat in this room — remove the enemy so the HUD counts zero.
-		if _enemy != null:
-			_enemy.queue_free()
-			_enemy = null
-	else:
-		if _enemy != null:
-			_enemy.data = spawned[0]
-			_enemy.died.connect(_on_enemy_died)
+	_spawn_planner = RoomSpawnPlanner.new()
+	_spawn_planner.register_all_room_enemies(
+		_run_controller.dungeon, _dungeon_layout, _coop_session())
 
-	_watcher = RoomClearWatcher.new()
-	# Pass the local character + session so the watcher fires PRD #52
-	# room-clear XP through the right path: solo adds XP to the local
-	# character, co-op fans through the party-split broadcaster.
-	_watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
+	var enemy_scene := load(ENEMY_SCENE_PATH)
+	for room in _run_controller.dungeon.rooms:
+		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
+		if data != null and not _run_controller.is_room_cleared(room.id):
+			var enemy: Enemy = enemy_scene.instantiate()
+			enemy.data = data
+			enemy.position = data.spawn_position
+			enemy.died.connect(_on_enemy_died.bind(enemy))
+			add_child(enemy)
+		var watcher := RoomClearWatcher.new()
+		# Pass the local character + session so the watcher fires PRD #52
+		# room-clear XP through the right path: solo adds XP to the local
+		# character, co-op fans through the party-split broadcaster.
+		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
+		_watchers.append(watcher)
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
@@ -146,10 +150,15 @@ func _currency_ledger() -> CurrencyLedger:
 		return null
 	return gs.currency_ledger
 
-func _on_enemy_died() -> void:
-	if _enemy == null or _enemy.data == null:
+func _on_enemy_died(enemy: Enemy) -> void:
+	if enemy == null or enemy.data == null:
 		return
-	_watcher.notify_death(_enemy.data.enemy_id)
+	# Fan the death across all watchers; each watcher gates on its own
+	# expected enemy_id set, so only the matching room's watcher
+	# rising-edges true. Cheaper than maintaining a parallel
+	# room_id -> watcher map for the small per-dungeon room count.
+	for watcher in _watchers:
+		watcher.notify_death(enemy.data.enemy_id)
 
 func _on_room_cleared(_room_id: int) -> void:
 	# is_dungeon_complete() is already true when this fires for the boss room

@@ -1,6 +1,15 @@
 class_name RoomSpawnPlanner
 extends RefCounted
 
+# Instance-mode state: populated by register_all_room_enemies. Maps room_id ->
+# EnemyData so the scene-tree spawner can look up the planned spawn for each
+# combat room without re-deriving the id / position / boss flag at every call
+# site. Empty until register_all_room_enemies fires; the legacy static API
+# (plan_enemy / enemy_ids_for_room / register_room_enemies) ignores this dict
+# and keeps working unchanged so existing call sites (RoomClearWatcher,
+# main_scene's per-room setup) aren't disturbed.
+var _enemy_data_by_room_id: Dictionary = {}
+
 # Pure-data bridge between Dungeon graph (Room.enemy_kind / Room.type) and the
 # spawn-time wiring KillRewardRouter / EnemyStateSyncManager expect (populated
 # EnemyData with stable enemy_id + is_boss flag). The future scene-tree
@@ -128,3 +137,51 @@ static func register_room_enemies(session: CoopSession, room: Room) -> Array[Ene
 			session.enemy_sync.register_enemy(data.enemy_id)
 		spawned.append(data)
 	return spawned
+
+# Plans and (in co-op) registers every combat room's enemy in a single pass at
+# dungeon load. Replaces the lazy "spawn on room enter" pattern with an
+# upfront fan-out so all enemies exist simultaneously in the scene tree (issue
+# #96). The DungeonLayout is required to mint spawn_position values from each
+# room's world center — the scene-tree spawner reads those positions to drop
+# the enemy node at the right pixel coordinate.
+#
+# Returns the flat list of enemy_ids minted across all combat rooms. Caller
+# (main_scene) iterates the planner's per-room map via enemy_data_for_room to
+# instantiate Enemy nodes. Solo / null-session path is a registry-touch-free
+# data populate; co-op path also calls session.enemy_sync.register_enemy for
+# each id so OP_KILL packets converge at the receiving client.
+#
+# Idempotent on the registry side — session.enemy_sync.register_enemy itself
+# is a no-op on a repeat id, so calling this twice in a row (e.g. across a
+# scene reload during the deprecation of advance_to) doesn't pollute the
+# registry. The internal map is rebuilt from scratch each call so a fresh
+# dungeon doesn't inherit a stale prior run's entries.
+func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session: CoopSession = null) -> Array[String]:
+	var ids: Array[String] = []
+	_enemy_data_by_room_id.clear()
+	if dungeon == null:
+		return ids
+	for room in dungeon.rooms:
+		var data := plan_enemy(room)
+		if data == null:
+			continue
+		if layout != null:
+			data.spawn_position = layout.room_center_world(room.id)
+		_enemy_data_by_room_id[room.id] = data
+		if session != null and session.enemy_sync != null:
+			session.enemy_sync.register_enemy(data.enemy_id)
+		ids.append(data.enemy_id)
+	return ids
+
+# Per-room lookup of the EnemyData minted by register_all_room_enemies. Returns
+# null for non-combat rooms and for rooms not yet planned (caller must call
+# register_all_room_enemies first). The scene-tree spawner uses this to read
+# spawn_position / enemy_id / is_boss for each room's Enemy node.
+func enemy_data_for_room(room_id: int) -> EnemyData:
+	return _enemy_data_by_room_id.get(room_id, null)
+
+# Returns the list of combat room ids the planner has spawned for. Useful for
+# the scene-tree spawner to know which rooms to iterate without re-deriving
+# the combat-room filter from the dungeon graph.
+func planned_room_ids() -> Array:
+	return _enemy_data_by_room_id.keys()
