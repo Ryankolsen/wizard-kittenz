@@ -28,6 +28,7 @@ var _revive_btn: Button
 var _initial_enemies: int = 0
 var _room_cleared: bool = false
 var _next_room_btn: Button
+var _room_clear_pause_btn: Button
 var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
@@ -42,6 +43,8 @@ func _ready() -> void:
 	_room_clear = $RoomClear
 	_next_room_btn = $RoomClear/NextRoom
 	_next_room_btn.pressed.connect(_on_next_room_pressed)
+	_room_clear_pause_btn = $RoomClear/RoomClearPause
+	_room_clear_pause_btn.pressed.connect(_on_pause_pressed)
 	_you_died = $YouDied
 	_death_prompt = $YouDied/Panel/VBox/Prompt
 	_revive_btn = $YouDied/Panel/VBox/Revive
@@ -241,6 +244,7 @@ func _check_room_clear() -> void:
 	if _count_enemies() == 0:
 		_room_cleared = true
 		_room_clear.visible = true
+		_room_clear_pause_btn.visible = true
 
 # Called by the scene orchestrator when DungeonRunController.room_cleared fires.
 # Shows the banner and the "Next Room" button so the player can advance.
@@ -248,6 +252,7 @@ func show_next_room_prompt() -> void:
 	_room_cleared = true
 	_room_clear.visible = true
 	_next_room_btn.visible = true
+	_room_clear_pause_btn.visible = true
 
 func _on_next_room_pressed() -> void:
 	next_room_requested.emit()

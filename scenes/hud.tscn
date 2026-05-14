@@ -140,6 +140,14 @@ offset_right = 300.0
 offset_bottom = 196.0
 text = "Next Room"
 
+[node name="RoomClearPause" type="Button" parent="RoomClear"]
+visible = false
+offset_left = 180.0
+offset_top = 204.0
+offset_right = 300.0
+offset_bottom = 232.0
+text = "Pause"
+
 [node name="YouDied" type="Control" parent="."]
 visible = false
 anchor_right = 1.0
