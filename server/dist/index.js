@@ -2,6 +2,7 @@
 var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var COLLECTION = "rooms";
 var rpcRegisterRoom = (ctx, logger, nk, payload) => {
+  logger.info("register_room called: %s", payload);
   const { room_code, match_id } = JSON.parse(payload);
   nk.storageWrite([{
     collection: COLLECTION,
@@ -14,6 +15,7 @@ var rpcRegisterRoom = (ctx, logger, nk, payload) => {
   return JSON.stringify({ success: true });
 };
 var rpcFindRoom = (ctx, logger, nk, payload) => {
+  logger.info("find_room called: %s", payload);
   const { room_code } = JSON.parse(payload);
   const objects = nk.storageRead([{ collection: COLLECTION, key: room_code, userId: SYSTEM_USER }]);
   return JSON.stringify({ match_id: objects.length > 0 ? objects[0].value.match_id : "" });
