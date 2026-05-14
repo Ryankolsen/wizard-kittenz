@@ -27,9 +27,3 @@ func test_main_scene_has_tilemap():
 	assert_true(tilemap is TileMap, "TileMap node must be typed TileMap")
 	scene.free()
 
-func test_dungeon_floor_paint_populates_cells():
-	var tilemap := TileMap.new()
-	add_child_autofree(tilemap)
-	DungeonFloor.paint(tilemap, 480, 270)
-	assert_true(tilemap.get_used_cells(0).size() > 0,
-		"DungeonFloor.paint must set at least one floor cell")

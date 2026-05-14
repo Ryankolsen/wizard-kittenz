@@ -19,9 +19,9 @@ var _run_controller: DungeonRunController = null
 var _watcher: RoomClearWatcher = null
 var _hud: HUD = null
 var _enemy: Enemy = null
+var _dungeon_layout: DungeonLayout = null
 
 func _ready() -> void:
-	DungeonFloor.paint($TileMap)
 	_hud = $HUD
 	_enemy = $Enemy
 
@@ -32,6 +32,8 @@ func _ready() -> void:
 	else:
 		_run_controller = gs.dungeon_run_controller
 
+	_paint_dungeon()
+
 	# Connect before _setup_current_room so auto-clear rooms get the signal.
 	_run_controller.room_cleared.connect(_on_room_cleared)
 	_run_controller.dungeon_completed.connect(_on_dungeon_completed)
@@ -39,6 +41,26 @@ func _ready() -> void:
 	_hud.next_room_requested.connect(_on_next_room_requested)
 
 	_setup_current_room()
+
+# Computes the spatial layout from the active dungeon graph and paints the
+# full multi-room tilemap (rooms + corridors + walls). The layout is cached
+# so future renderers (exit door placement, room-bound camera) can read it
+# without recomputing. Camera limits clamp to the painted extents so the
+# camera never reveals void past the dungeon walls.
+func _paint_dungeon() -> void:
+	if _run_controller == null or _run_controller.dungeon == null:
+		return
+	var tilemap: TileMap = $TileMap
+	if tilemap == null:
+		return
+	_dungeon_layout = DungeonLayoutEngine.new().compute(_run_controller.dungeon)
+	var painter := DungeonTilemapPainter.new()
+	painter.paint(_dungeon_layout, tilemap, _run_controller.dungeon)
+	var player := get_node_or_null("Player")
+	if player != null:
+		var camera := player.get_node_or_null("Camera2D") as Camera2D
+		if camera != null:
+			DungeonTilemapPainter.apply_camera_limits(camera, tilemap)
 
 func _start_new_dungeon(gs) -> void:
 	var seed := _dungeon_seed_for(gs)

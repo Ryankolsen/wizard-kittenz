@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://c9rq8m2zw5xab"]
+[gd_scene load_steps=8 format=3 uid="uid://c9rq8m2zw5xab"]
 
 [ext_resource type="Script" path="res://scripts/main_scene.gd" id="0_main_scene"]
 [ext_resource type="PackedScene" uid="uid://b8wk1tn3p2yqa" path="res://scenes/player.tscn" id="1_player_scene"]
@@ -8,60 +8,14 @@
 [ext_resource type="PackedScene" uid="uid://cwt4q9xkn3p7r" path="res://scenes/touch_controls.tscn" id="5_touch_controls"]
 [ext_resource type="Script" path="res://scripts/coop_player_layer.gd" id="6_coop_player_layer"]
 
-[sub_resource type="RectangleShape2D" id="WallShape_h"]
-size = Vector2(480, 4)
-
-[sub_resource type="RectangleShape2D" id="WallShape_v"]
-size = Vector2(4, 270)
-
 [node name="Main" type="Node2D"]
 script = ExtResource("0_main_scene")
 
 [node name="TileMap" type="TileMap" parent="."]
 z_index = -1
 
-[node name="Walls" type="StaticBody2D" parent="."]
-
-[node name="Top" type="CollisionShape2D" parent="Walls"]
-position = Vector2(240, 2)
-shape = SubResource("WallShape_h")
-
-[node name="Bottom" type="CollisionShape2D" parent="Walls"]
-position = Vector2(240, 268)
-shape = SubResource("WallShape_h")
-
-[node name="Left" type="CollisionShape2D" parent="Walls"]
-position = Vector2(2, 135)
-shape = SubResource("WallShape_v")
-
-[node name="Right" type="CollisionShape2D" parent="Walls"]
-position = Vector2(478, 135)
-shape = SubResource("WallShape_v")
-
-[node name="TopVisual" type="ColorRect" parent="Walls"]
-offset_right = 480.0
-offset_bottom = 4.0
-color = Color(0.18, 0.22, 0.3, 1)
-
-[node name="BottomVisual" type="ColorRect" parent="Walls"]
-offset_top = 266.0
-offset_right = 480.0
-offset_bottom = 270.0
-color = Color(0.18, 0.22, 0.3, 1)
-
-[node name="LeftVisual" type="ColorRect" parent="Walls"]
-offset_right = 4.0
-offset_bottom = 270.0
-color = Color(0.18, 0.22, 0.3, 1)
-
-[node name="RightVisual" type="ColorRect" parent="Walls"]
-offset_left = 476.0
-offset_right = 480.0
-offset_bottom = 270.0
-color = Color(0.18, 0.22, 0.3, 1)
-
 [node name="Player" parent="." instance=ExtResource("1_player_scene")]
-position = Vector2(160, 135)
+position = Vector2(64, 64)
 
 [node name="CoopPlayerLayer" type="Node2D" parent="."]
 script = ExtResource("6_coop_player_layer")
