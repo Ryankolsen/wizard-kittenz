@@ -15,6 +15,12 @@ const RARE_GEMS: int = 5
 
 var kind: int = Kind.STANDARD
 var _opened: bool = false
+# Item drop produced by the most recent successful open() (PRD #73 /
+# issue #79). Null when no item rolled or when the chest was never
+# opened. Stored as a field rather than returned alongside the bool so
+# existing callers that only care about the currency credit stay
+# untouched.
+var last_item_drop: ItemData = null
 
 static func make(p_kind: int) -> Chest:
 	var c := Chest.new()
@@ -29,17 +35,26 @@ func is_opened() -> bool:
 # or when `ledger` is null. Same idempotence shape as the per-kill
 # Gold credit in KillRewardRouter — re-firing the open signal can't
 # pay out twice.
-func open(ledger: CurrencyLedger) -> bool:
+#
+# Optional `player_level` + `rng` drive the item drop roll (PRD #73 /
+# issue #79). The dropped ItemData (or null) is stored on
+# `last_item_drop`; callers that want it read it after open() returns.
+# Standard chests roll at ~25%, rare at ~50%.
+func open(ledger: CurrencyLedger, player_level: int = 1, rng: RandomNumberGenerator = null) -> bool:
 	if _opened:
 		return false
 	if ledger == null:
 		return false
+	var drop_context: int
 	match kind:
 		Kind.STANDARD:
 			ledger.credit(STANDARD_GOLD, CurrencyLedger.Currency.GOLD)
+			drop_context = ItemDropResolver.Context.CHEST_STANDARD
 		Kind.RARE:
 			ledger.credit(RARE_GEMS, CurrencyLedger.Currency.GEM)
+			drop_context = ItemDropResolver.Context.CHEST_RARE
 		_:
 			return false
+	last_item_drop = ItemDropResolver.resolve(player_level, drop_context, rng)
 	_opened = true
 	return true

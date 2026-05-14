@@ -53,16 +53,24 @@ static func route_kill(
 	local_player_id: String,
 	xp_tracker: OfflineXPTracker = null,
 	lobby: NakamaLobby = null,
-	ledger: CurrencyLedger = null
-) -> void:
+	ledger: CurrencyLedger = null,
+	rng: RandomNumberGenerator = null
+) -> ItemData:
 	if data == null or enemy_data == null:
-		return
+		return null
 	# Gold drop (PRD #53). Credit the local CurrencyLedger by the enemy's
 	# gold_reward on every kill — full amount in both solo and co-op (Gold
 	# is per-character, not party-split). Null ledger (pre-wiring callers /
 	# tests that don't care about Gold) is a silent no-op.
 	if ledger != null:
 		ledger.credit(enemy_data.gold_reward, CurrencyLedger.Currency.GOLD)
+	# Item drop (PRD #73 / issue #79). Resolve via the rarity-gated drop
+	# table. Boss kills always produce an item; regular kills ~10%. The
+	# router does not mutate ItemInventory — it returns the ItemData so
+	# the caller (Player) can decide between auto-equip / equip prompt /
+	# auto-bag based on inventory state.
+	var drop_context: int = ItemDropResolver.Context.BOSS if enemy_data.is_boss else ItemDropResolver.Context.ENEMY
+	var item_drop: ItemData = ItemDropResolver.resolve(data.level, drop_context, rng)
 	if is_coop_route(session, local_player_id):
 		# Party XP split: each member receives floor(xp_reward / party_size)
 		# rather than the full reward. Both the local broadcast and the wire
@@ -88,13 +96,14 @@ static func route_kill(
 		# to repeat the gate here.
 		if lobby != null:
 			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, per_player)
-		return
+		return item_drop
 	# Solo path — apply XP locally and tally into the offline tracker.
 	# Passing the ledger threads the LEVEL_UP_GEM_REWARD credit through any
 	# level-ups that this kill triggers (PRD #53 / issue #67).
 	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger)
 	if xp_tracker != null:
 		xp_tracker.record(enemy_data.xp_reward)
+	return item_drop
 
 # Pure split helper. floor(xp_total / max(1, party_size)) so a 1-player
 # co-op session keeps the full reward and odd totals (e.g. 100 / 3)
