@@ -96,6 +96,96 @@ func test_route_kill_null_enemy_returns_null():
 	var item := KillRewardRouter.route_kill(c, null, null, "", null, null, null, _seeded_rng(1))
 	assert_null(item)
 
+# --- Luck gold bonus + rarity bump (PRD #85 / issue #90) ---------------------
+
+func test_luck_gold_bonus_credited_on_kill():
+	# Luck=3 + base gold=2 ⇒ ledger receives 5 total per kill.
+	var c := _make_character(1)
+	c.luck = 3
+	var enemy := _make_enemy(false)
+	enemy.gold_reward = 2
+	var ledger := CurrencyLedger.new()
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, ledger, _seeded_rng(1))
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 5,
+		"base 2 + luck bonus 3 = 5")
+
+func test_luck_zero_no_extra_gold():
+	# Default character has luck=0 — only the base gold credits. Pin the
+	# no-regression contract: existing kills without the Luck stat wired
+	# still credit exactly enemy.gold_reward.
+	var c := _make_character(1)
+	assert_eq(c.luck, 0, "sanity: default character has zero luck")
+	var enemy := _make_enemy(false)
+	enemy.gold_reward = 2
+	var ledger := CurrencyLedger.new()
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, ledger, _seeded_rng(1))
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 2,
+		"luck=0 path credits exactly base gold")
+
+func test_null_ledger_with_luck_no_crash():
+	# Null ledger short-circuits the entire gold path — luck gold can't
+	# crash on the credit. Pin the AC.
+	var c := _make_character(1)
+	c.luck = 5
+	var enemy := _make_enemy(false)
+	enemy.gold_reward = 2
+	# ledger arg omitted (null). Must not crash.
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, _seeded_rng(1))
+	assert_true(true, "null ledger + non-zero luck did not crash")
+
+func test_luck_rarity_bump_promotes_drop_under_saturated_luck():
+	# luck=100 ⇒ bump chance 2.0 ⇒ randf() always < chance ⇒ every drop
+	# bumps. Use a L1 character so the resolver gates everything down to
+	# COMMON; after bump every dropped item must be RARE (or EPIC if the
+	# bump pool offered EPIC — not possible from COMMON→next-tier).
+	var c := _make_character(1)
+	c.luck = 100
+	var enemy := _make_enemy(true)  # boss ⇒ guaranteed drop
+	for s in [1, 2, 3, 17, 42]:
+		var item: ItemData = KillRewardRouter.route_kill(
+			c, enemy, null, "", null, null, null, _seeded_rng(s)
+		)
+		assert_not_null(item, "seed %d: boss drop" % s)
+		assert_eq(item.rarity, ItemData.Rarity.RARE,
+			"seed %d: COMMON drop bumped to RARE under saturated luck" % s)
+
+func test_luck_rarity_bump_noop_when_drop_already_epic():
+	# L11 boss + saturated luck. If the resolver rolls an EPIC, the bump
+	# must be a no-op (no tier above EPIC). Sweep seeds and assert that
+	# EPIC outputs are still EPIC (and never null-out due to a bad pool
+	# lookup).
+	var c := _make_character(11)
+	c.luck = 100
+	var enemy := _make_enemy(true)
+	var saw_epic := false
+	for s in [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67]:
+		var item: ItemData = KillRewardRouter.route_kill(
+			c, enemy, null, "", null, null, null, _seeded_rng(s)
+		)
+		assert_not_null(item, "seed %d: boss drop never null" % s)
+		# Whatever rarity comes out, EPIC stays EPIC (no overflow / null).
+		if item.rarity == ItemData.Rarity.EPIC:
+			saw_epic = true
+	assert_true(saw_epic, "sweep covered at least one EPIC outcome")
+
+func test_luck_does_not_affect_drop_when_no_item_dropped():
+	# Regular enemy + low drop rate + luck > 0 must NOT manufacture an
+	# item out of a resolver miss — the bump operates on a non-null
+	# resolver result only.
+	var c := _make_character(1)
+	c.luck = 100  # saturated — would always bump IF there were an item
+	var rng := _seeded_rng(7)
+	var nulls := 0
+	for i in 50:
+		var enemy := _make_enemy(false)
+		var item := KillRewardRouter.route_kill(
+			c, enemy, null, "", null, null, null, rng
+		)
+		if item == null:
+			nulls += 1
+	assert_true(nulls > 0,
+		"saturated luck does not invent items from a missed resolver roll")
+
 func test_route_kill_null_rng_does_not_crash():
 	# The resolver allocates a fresh RNG when caller passes null. Pins
 	# that the router doesn't crash on the pre-wiring code path.

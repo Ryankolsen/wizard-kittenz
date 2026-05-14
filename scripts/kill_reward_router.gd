@@ -64,6 +64,13 @@ static func route_kill(
 	# tests that don't care about Gold) is a silent no-op.
 	if ledger != null:
 		ledger.credit(enemy_data.gold_reward, CurrencyLedger.Currency.GOLD)
+		# Luck flat gold bonus (PRD #85 / issue #90). +1 gold per luck point
+		# on every kill — stacks with the base gold credit above. luck<=0
+		# returns 0 inside gold_bonus, so the credit is a no-op for any
+		# character/enemy that ships luck=0.
+		var luck_gold := LuckRewardModifier.gold_bonus(data.luck)
+		if luck_gold > 0:
+			ledger.credit(luck_gold, CurrencyLedger.Currency.GOLD)
 	# Item drop (PRD #73 / issue #79). Resolve via the rarity-gated drop
 	# table. Boss kills always produce an item; regular kills ~10%. The
 	# router does not mutate ItemInventory — it returns the ItemData so
@@ -71,6 +78,11 @@ static func route_kill(
 	# auto-bag based on inventory state.
 	var drop_context: int = ItemDropResolver.Context.BOSS if enemy_data.is_boss else ItemDropResolver.Context.ENEMY
 	var item_drop: ItemData = ItemDropResolver.resolve(data.level, drop_context, rng)
+	# Luck rarity bump (PRD #85 / issue #90). Reuse the same rng so a
+	# seeded test can pin both the resolver roll and the bump roll. Null
+	# item, luck<=0, or EPIC-tier drops all pass through untouched inside
+	# bump_item — no extra gating needed here.
+	item_drop = LuckRewardModifier.bump_item(item_drop, data.luck, rng)
 	if is_coop_route(session, local_player_id):
 		# Party XP split: each member receives floor(xp_reward / party_size)
 		# rather than the full reward. Both the local broadcast and the wire
