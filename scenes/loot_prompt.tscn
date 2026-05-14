@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://b7lootprompt00"]
+[gd_scene format=3 uid="uid://vqvsq5e1ax40"]
 
 [ext_resource type="Script" path="res://scripts/loot_prompt.gd" id="1_loot_prompt"]
 

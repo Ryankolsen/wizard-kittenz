@@ -48,8 +48,11 @@ func create_socket_async(p_session: NakamaSession) -> NakamaSocket:
 	return socket
 
 func find_match_async(p_session: NakamaSession, room_code: String) -> String:
-	var result = await _client.list_matches_async(p_session, 1, 4, 10, false, room_code, "")
-	if result.is_exception() or result.matches.is_empty():
+	var result = await _client.list_matches_async(p_session, 0, 4, 10, false, room_code, "")
+	if result.is_exception():
+		push_error("find_match_async error: " + result.get_exception().message)
+		return ""
+	if result.matches.is_empty():
 		return ""
 	return result.matches[0].match_id
 
