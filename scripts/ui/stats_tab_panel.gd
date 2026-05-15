@@ -134,7 +134,7 @@ func _format_stat(c: CharacterData, s: Dictionary) -> String:
 func _on_plus_pressed(stat_key: String) -> void:
 	if _character == null:
 		return
-	var ok := StatAllocator.allocate(_character, {stat_key: 1})
+	var ok := CharacterMutator.new(_character).allocate_stat_points({stat_key: 1})
 	if not ok:
 		return
 	refresh(_character)

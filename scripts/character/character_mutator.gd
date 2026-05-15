@@ -27,3 +27,13 @@ func apply_stat_delta(stat_name: String, delta: float) -> void:
 	if data == null:
 		return
 	data.apply_stat_delta(stat_name, delta)
+
+func allocate_stat_points(plan: Dictionary) -> bool:
+	if data == null:
+		return false
+	return StatAllocator.allocate(data, plan)
+
+func apply_item_bonuses(inventory: ItemInventory) -> void:
+	if data == null:
+		return
+	ItemStatApplicator.apply(inventory, data)

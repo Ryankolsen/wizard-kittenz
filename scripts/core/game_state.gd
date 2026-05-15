@@ -5,7 +5,6 @@ extends Node
 # script-load order.
 const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
 const SkillInventoryRef = preload("res://scripts/progression/skill_inventory.gd")
-const ItemStatApplicatorRef = preload("res://scripts/character/item_stat_applicator.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -110,7 +109,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	currency_ledger = save_data.to_currency_ledger()
 	skill_inventory = save_data.to_skill_inventory()
 	item_inventory = save_data.to_item_inventory()
-	ItemStatApplicatorRef.apply(item_inventory, current_character)
+	CharacterMutator.new(current_character).apply_item_bonuses(item_inventory)
 	# Resume an in-flight solo dungeon run (PRD #42 / #46). When the saved
 	# state is empty (legacy save / no run in flight / multiplayer-only) the
 	# serializer returns null and main_scene falls through to

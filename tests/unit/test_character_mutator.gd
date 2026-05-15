@@ -91,6 +91,56 @@ func test_apply_stat_delta_null_data_no_crash():
 
 # --- idempotent equip/unequip round-trip ------------------------------------
 
+# --- allocate_stat_points ----------------------------------------------------
+
+func test_allocate_stat_points_spends_point_and_applies_increment():
+	var c := _make_mage()
+	c.skill_points = 1
+	var before := c.attack
+	var ok := CharacterMutator.new(c).allocate_stat_points({"attack": 1})
+	assert_true(ok)
+	assert_eq(c.attack, before + StatAllocator.INT_INCREMENTS["attack"])
+	assert_eq(c.skill_points, 0)
+
+func test_allocate_stat_points_fails_insufficient_points():
+	var c := _make_mage()
+	c.skill_points = 0
+	var ok := CharacterMutator.new(c).allocate_stat_points({"attack": 1})
+	assert_false(ok)
+
+func test_allocate_stat_points_null_data_returns_false():
+	assert_false(CharacterMutator.new(null).allocate_stat_points({"attack": 1}))
+
+# --- apply_item_bonuses -------------------------------------------------------
+
+func _make_weapon(stat: String, bonus: float) -> ItemData:
+	var item := ItemData.new()
+	item.id = "test_weapon"
+	item.display_name = "Test Weapon"
+	item.slot = ItemData.Slot.WEAPON
+	item.stat_name = stat
+	item.stat_bonus = bonus
+	return item
+
+func test_apply_item_bonuses_adds_equipped_bonus():
+	var c := _make_mage()
+	var before := c.attack
+	var inv := ItemInventory.new()
+	inv.equip(_make_weapon("attack", 5.0))
+	CharacterMutator.new(c).apply_item_bonuses(inv)
+	assert_eq(c.attack, before + 5)
+
+func test_apply_item_bonuses_empty_inventory_no_change():
+	var c := _make_mage()
+	var before := c.attack
+	CharacterMutator.new(c).apply_item_bonuses(ItemInventory.new())
+	assert_eq(c.attack, before)
+
+func test_apply_item_bonuses_null_data_no_crash():
+	CharacterMutator.new(null).apply_item_bonuses(ItemInventory.new())
+
+# --- idempotent equip/unequip round-trip ------------------------------------
+
 func test_equip_then_unequip_restores_original_stat():
 	var c := _make_mage()
 	var base_attack := c.attack
