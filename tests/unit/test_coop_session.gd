@@ -137,6 +137,10 @@ func test_start_builds_managers_and_emits_signal():
 	assert_not_null(session.network_sync)
 	assert_not_null(session.enemy_sync)
 	assert_not_null(session.run_controller)
+	# Co-op TAUNT relay (PRD #124 follow-up to #128) — built in lockstep
+	# with the other per-run managers so the wire layer always has a
+	# stable seam to read from when the session is active.
+	assert_not_null(session.taunt_broadcaster)
 
 func test_start_registers_all_party_ids_with_broadcaster():
 	# A kill-by-anyone XP broadcast must fan out to every party id; the
@@ -272,6 +276,9 @@ func test_end_drops_managers_and_unscales_members():
 	assert_null(session.network_sync)
 	assert_null(session.enemy_sync)
 	assert_null(session.run_controller)
+	# Co-op TAUNT relay dropped in lockstep so the wire layer can't
+	# keep firing on a stale broadcaster post-teardown.
+	assert_null(session.taunt_broadcaster)
 	# Scaling removed: effective == real for every member.
 	assert_eq(session.member_for("u1").effective_stats.level, 10)
 	assert_eq(session.member_for("u2").effective_stats.level, 3)

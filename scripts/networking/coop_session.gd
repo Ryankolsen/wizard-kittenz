@@ -80,6 +80,12 @@ var xp_subscriber: CoopXPSubscriber = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
+# Outbound TAUNT relay (PRD #124, co-op follow-up to #128). The local
+# SpellEffectResolver.TAUNT branch will (in a follow-up slice) emit on
+# this broadcaster so the wire layer can fan the cast to remote
+# clients. Same lifetime as the other per-run managers: built in
+# start(), dropped in end() so solo play (no session) is unaffected.
+var taunt_broadcaster: TauntBroadcaster = null
 # Outbound counterpart to network_sync. One gate per local player per
 # match — Player.gd's _physics_process consults this gate each tick to
 # decide whether to fan a position packet over NakamaLobby. Same lifetime
@@ -148,6 +154,7 @@ func start(dungeon: Dungeon, tree: SkillTree = null) -> bool:
 	enemy_sync = EnemyStateSyncManager.new()
 	run_controller = DungeonRunController.new()
 	position_broadcast_gate = PositionBroadcastGate.new()
+	taunt_broadcaster = TauntBroadcaster.new()
 
 	for pid in player_ids:
 		xp_broadcaster.register_player(pid)
@@ -290,3 +297,4 @@ func _drop_managers() -> void:
 	enemy_sync = null
 	run_controller = null
 	position_broadcast_gate = null
+	taunt_broadcaster = null
