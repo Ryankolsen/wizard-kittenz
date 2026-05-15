@@ -105,7 +105,7 @@ func _award_power_up_xp() -> void:
 		return
 	var session := _coop_session()
 	var local_id := _local_player_id()
-	if KillRewardRouter.is_coop_route(session, local_id):
+	if session != null and session.is_routing_ready():
 		var per_player := KillRewardRouter.xp_per_player(
 			POWERUP_XP, session.xp_broadcaster.player_count())
 		session.xp_broadcaster.on_enemy_killed(per_player, local_id)
