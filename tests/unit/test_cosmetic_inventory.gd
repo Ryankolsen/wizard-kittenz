@@ -29,7 +29,7 @@ func test_dict_round_trip():
 func test_legacy_save_no_cosmetic_packs_defaults_empty():
 	var legacy := {
 		"character_name": "Old",
-		"character_class": int(CharacterData.CharacterClass.MAGE),
+		"character_class": int(CharacterData.CharacterClass.WIZARD_KITTEN),
 		"level": 1, "xp": 0,
 		"hp": 8, "max_hp": 8,
 		"attack": 2, "defense": 0, "speed": 50.0,
@@ -107,7 +107,7 @@ func test_kitten_save_data_to_cosmetic_inventory_hydrates_owned_packs():
 func test_kitten_save_data_from_character_captures_cosmetic_inventory():
 	# The save layer captures the inventory's owned_pack_ids into the save's
 	# cosmetic_packs field so future from_dict can rehydrate the same set.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	var inv := CosmeticInventory.new()
 	inv.grant("cosmetic_coat_pack")
 	inv.grant("cosmetic_spell_effects")
@@ -120,7 +120,7 @@ func test_kitten_save_data_from_character_null_inventory_keeps_default():
 	# Call sites that don't pass an inventory keep the field at default
 	# (empty array). Locks the back-compat contract that the new trailing
 	# param is opt-in.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var sd := KittenSaveData.from_character(c, null, null, null, null)
 	assert_eq(sd.cosmetic_packs.size(), 0)
 

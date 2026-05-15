@@ -6,20 +6,20 @@ extends GutTest
 #     FIRST_DUNGEON_CLEAR_GEM_REWARD per dungeon id, with repeat calls a no-op.
 
 func test_level_up_credits_gems():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ledger := CurrencyLedger.new()
 	var levels := ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1), ledger)
 	assert_eq(levels, 1)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), ProgressionSystem.LEVEL_UP_GEM_REWARD)
 
 func test_level_up_does_not_credit_gold():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ledger := CurrencyLedger.new()
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1), ledger)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
 
 func test_multi_level_chain_credits_per_level():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ledger := CurrencyLedger.new()
 	var total := ProgressionSystem.xp_to_next_level(1) \
 		+ ProgressionSystem.xp_to_next_level(2) \
@@ -29,12 +29,12 @@ func test_multi_level_chain_credits_per_level():
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), ProgressionSystem.LEVEL_UP_GEM_REWARD * 3)
 
 func test_null_ledger_is_safe():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var levels := ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(levels, 1, "legacy 2-arg call still works without a ledger")
 
 func test_no_level_up_no_gems():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ledger := CurrencyLedger.new()
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) - 1, ledger)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 0, "XP that does not trigger a level-up pays no Gems")
@@ -79,7 +79,7 @@ func test_record_first_clear_null_ledger_still_marks():
 	assert_false(tracker.record_first_clear("dungeon_1", null), "still no-op on repeat even when ledger was null")
 
 func test_cleared_dungeons_survives_save_round_trip():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var tracker := MetaProgressionTracker.new()
 	var ledger := CurrencyLedger.new()
 	tracker.record_first_clear("dungeon_1", ledger)

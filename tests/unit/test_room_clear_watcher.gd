@@ -248,7 +248,7 @@ func test_end_to_end_boss_room_fires_dungeon_completed():
 # --- PRD #52 room-clear XP -------------------------------------------------
 
 func _make_character(level: int = 1) -> CharacterData:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = level
 	return c
 

@@ -14,23 +14,22 @@ extends RefCounted
 
 # Starter classes are always unlocked. The four-Kitten roster (#117) makes
 # battle/wizard/sleepy kittens starter; chonk_kitten is the gated archetype
-# (see DEFAULT_CONDITIONS). Legacy mage/thief stay in the list so existing
-# saves and the IAP/shop layer keep working until the legacy enum values are
-# removed in a later slice.
+# (see DEFAULT_CONDITIONS).
 const STARTER_CLASSES := [
-	"mage", "thief",
 	"battle_kitten", "wizard_kitten", "sleepy_kitten",
 ]
 
 # Default conditions list for the shipping registry. New entries here unlock
 # new content without touching this file's logic — that's the data-driven
 # acceptance criterion. Listed by id, stat path (resolved by
-# MetaProgressionTracker.get_stat), and threshold (>=).
+# MetaProgressionTracker.get_stat), and threshold (>=). Each Cat-tier unlock
+# gates on max_level_per_class for its matching Kitten archetype.
 const DEFAULT_CONDITIONS: Array = [
 	{"id": "chonk_kitten", "stat": "dungeons_completed", "threshold": 5},
-	{"id": "archmage", "stat": "max_level_per_class.mage", "threshold": 5},
-	{"id": "master_thief", "stat": "max_level_per_class.thief", "threshold": 5},
-	{"id": "shadow_ninja", "stat": "max_level_per_class.ninja", "threshold": 5},
+	{"id": "wizard_cat", "stat": "max_level_per_class.wizard_kitten", "threshold": 5},
+	{"id": "battle_cat", "stat": "max_level_per_class.battle_kitten", "threshold": 5},
+	{"id": "sleepy_cat", "stat": "max_level_per_class.sleepy_kitten", "threshold": 5},
+	{"id": "chonk_cat", "stat": "max_level_per_class.chonk_kitten", "threshold": 5},
 ]
 
 var conditions: Array = []

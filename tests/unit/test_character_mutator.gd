@@ -6,7 +6,7 @@ extends GutTest
 #   - null data is safe throughout
 
 func _make_mage() -> CharacterData:
-	return CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 
 func _make_slime_attacker(attack: int) -> EnemyData:
 	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)

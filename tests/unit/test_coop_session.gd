@@ -41,7 +41,7 @@ func test_construct_solo_party_no_scaling():
 	# the "solo session goes through the same orchestrator as co-op"
 	# invariant — no special-case branch.
 	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
-	var c := _make_character(CharacterData.CharacterClass.MAGE, 5)
+	var c := _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 5)
 	var session := CoopSession.new(lobby, {"u1": c})
 	assert_eq(session.member_count(), 1)
 	assert_eq(session.floor_level, 5, "single-member floor is own level")
@@ -59,8 +59,8 @@ func test_construct_two_player_party_floors_to_lower_level():
 		["u2", "Shadow", "Ninja"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 10),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 3),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 10),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 3),
 	}
 	var session := CoopSession.new(lobby, characters)
 	assert_eq(session.floor_level, 3, "floor pegs to lower level")
@@ -81,7 +81,7 @@ func test_construct_skips_lobby_player_with_no_character_data():
 		["u2", "Ghost", "Mage"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 7),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 7),
 	}
 	var session := CoopSession.new(lobby, characters)
 	assert_eq(session.member_count(), 1, "missing-character player skipped")
@@ -114,7 +114,7 @@ func test_construct_skips_player_with_empty_id():
 	var bad := LobbyPlayer.new()
 	bad.player_id = ""
 	lobby.players.append(bad)
-	var characters := {"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)}
+	var characters := {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 4)}
 	var session := CoopSession.new(lobby, characters)
 	assert_eq(session.member_count(), 1, "empty-id member skipped")
 
@@ -122,7 +122,7 @@ func test_construct_skips_player_with_empty_id():
 
 func test_start_builds_managers_and_emits_signal():
 	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	var emitted := [false]
 	session.session_started.connect(func(): emitted[0] = true)
 
@@ -148,9 +148,9 @@ func test_start_registers_all_party_ids_with_broadcaster():
 		["u3", "C", "Thief"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 3),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 5),
-		"u3": _make_character(CharacterData.CharacterClass.THIEF, 4),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 3),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 5),
+		"u3": _make_character(CharacterData.CharacterClass.BATTLE_KITTEN, 4),
 	}
 	var session := CoopSession.new(lobby, characters)
 	session.start(_make_two_room_dungeon())
@@ -163,7 +163,7 @@ func test_start_xp_summary_subscribes_to_broadcaster():
 	# The summary must accumulate broadcasts that fire after start().
 	# Pins the wire-up between XPBroadcaster and RunXPSummary.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	session.xp_broadcaster.on_enemy_killed(15)
 	assert_eq(session.xp_summary.total_for("u1"), 15)
@@ -171,7 +171,7 @@ func test_start_xp_summary_subscribes_to_broadcaster():
 
 func test_start_returns_false_on_null_dungeon():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_false(session.start(null))
 	assert_false(session.is_active())
 	# Rollback: managers should not be left half-built.
@@ -191,7 +191,7 @@ func test_start_idempotent_when_already_active():
 	# Locks against a UI bug where a "Start Match" button could be tapped
 	# twice and rebuild the managers, dropping the first run's state.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_true(session.start(_make_two_room_dungeon()))
 	var first_broadcaster = session.xp_broadcaster
 	assert_false(session.start(_make_two_room_dungeon()), "second start rejected")
@@ -202,7 +202,7 @@ func test_start_rolls_back_on_dungeon_controller_rejection():
 	# The session must roll back the managers it constructed before that
 	# point so a rejected start doesn't leave dangling references.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	var bad := Dungeon.new()
 	# start_id stays at -1 (default); controller will reject this.
 	assert_false(session.start(bad))
@@ -222,7 +222,7 @@ func test_dungeon_completed_advances_meta_and_flips_completion_flag():
 	var tracker := MetaProgressionTracker.new()
 	var session := CoopSession.new(
 		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		{"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)},
 		tracker,
 	)
 	var completions: Array = []
@@ -239,7 +239,7 @@ func test_dungeon_completed_safe_when_tracker_null():
 	# still complete cleanly. DungeonRunCompletion is null-safe; the
 	# session's wire-up shouldn't add a non-null requirement.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	session.run_controller.mark_room_cleared(1)
 	assert_true(session.was_dungeon_completed(),
@@ -253,8 +253,8 @@ func test_end_drops_managers_and_unscales_members():
 		["u2", "B", "Ninja"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 10),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 3),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 10),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 3),
 	}
 	var session := CoopSession.new(lobby, characters)
 	session.start(_make_two_room_dungeon())
@@ -278,7 +278,7 @@ func test_end_drops_managers_and_unscales_members():
 
 func test_end_idempotent_when_not_active():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_false(session.end(), "end before start returns false")
 	# After a real end(), a second call is also false.
 	session.start(_make_two_room_dungeon())
@@ -290,7 +290,7 @@ func test_end_preserves_lobby_and_members_for_next_run():
 	# preserve the roster so start() can be called again without re-
 	# constructing the whole session.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 4)})
 	assert_true(session.start(_make_two_room_dungeon()))
 	assert_true(session.end())
 	# Lobby + members + floor preserved.
@@ -305,7 +305,7 @@ func test_end_preserves_lobby_and_members_for_next_run():
 
 func test_member_for_unknown_id_returns_null():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_null(session.member_for("ghost"))
 	assert_null(session.member_for(""))
 
@@ -319,9 +319,9 @@ func test_player_ids_preserve_lobby_join_order():
 		["carol", "C", "Thief"],
 	])
 	var characters := {
-		"alice": _make_character(CharacterData.CharacterClass.MAGE, 3),
-		"bob": _make_character(CharacterData.CharacterClass.NINJA, 3),
-		"carol": _make_character(CharacterData.CharacterClass.THIEF, 3),
+		"alice": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 3),
+		"bob": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 3),
+		"carol": _make_character(CharacterData.CharacterClass.BATTLE_KITTEN, 3),
 	}
 	var session := CoopSession.new(lobby, characters)
 	assert_eq(session.player_ids, ["alice", "bob", "carol"])
@@ -339,9 +339,9 @@ func test_end_to_end_three_player_run_summary():
 		["carol", "C", "Thief"],
 	])
 	var characters := {
-		"alice": _make_character(CharacterData.CharacterClass.MAGE, 8),
-		"bob": _make_character(CharacterData.CharacterClass.NINJA, 3),
-		"carol": _make_character(CharacterData.CharacterClass.THIEF, 5),
+		"alice": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 8),
+		"bob": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 3),
+		"carol": _make_character(CharacterData.CharacterClass.BATTLE_KITTEN, 5),
 	}
 	var tracker := MetaProgressionTracker.new()
 	var session := CoopSession.new(lobby, characters, tracker)
@@ -381,8 +381,8 @@ func test_start_builds_xp_router_when_local_player_in_party():
 		["u2", "B", "Ninja"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 1),
 	}
 	var session := CoopSession.new(lobby, characters, null, "u1")
 	assert_null(session.xp_subscriber, "router is null pre-start")
@@ -399,7 +399,7 @@ func test_start_skips_xp_router_when_local_player_id_empty():
 	# skips building it. xp_summary still tallies broadcasts; just no
 	# stats land anywhere.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	assert_null(session.xp_subscriber, "router skipped without local id")
 
@@ -409,7 +409,7 @@ func test_start_skips_xp_router_when_local_id_not_in_party():
 	# not crash. Skip the router rather than building one with a null
 	# member that would silently drop every event.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var characters := {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}
+	var characters := {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}
 	var session := CoopSession.new(lobby, characters, null, "ghost")
 	session.start(_make_two_room_dungeon())
 	assert_null(session.xp_subscriber, "unknown local id => no router")
@@ -424,8 +424,8 @@ func test_xp_broadcast_routes_to_local_member_real_stats_via_session():
 		["u2", "B", "Ninja"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 1),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 1),
 	}
 	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
@@ -450,8 +450,8 @@ func test_xp_broadcast_routes_to_real_stats_not_effective_when_scaled():
 		["u2", "B", "Ninja"],
 	])
 	var characters := {
-		"u1": _make_character(CharacterData.CharacterClass.MAGE, 10),
-		"u2": _make_character(CharacterData.CharacterClass.NINJA, 3),
+		"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 10),
+		"u2": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 3),
 	}
 	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon())
@@ -473,7 +473,7 @@ func test_end_drops_xp_router():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var session := CoopSession.new(
 		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		{"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)},
 		null, "u1")
 	session.start(_make_two_room_dungeon())
 	var bc_before_end := session.xp_broadcaster
@@ -494,7 +494,7 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var session := CoopSession.new(
 		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		{"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)},
 		null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.end()
@@ -512,7 +512,7 @@ func test_dungeon_seed_sync_defaults_null():
 	# main_scene consumer null-checks before reading is_agreed() so this falls
 	# through to DungeonGenerator's randomize sentinel.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_null(session.dungeon_seed_sync,
 		"default null when no seed sync passed")
 
@@ -525,7 +525,7 @@ func test_dungeon_seed_sync_stored_from_constructor():
 	seed_sync.host_mint(4242)
 	var session := CoopSession.new(
 		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		{"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)},
 		null, "u1", seed_sync,
 	)
 	assert_eq(session.dungeon_seed_sync, seed_sync,
@@ -544,7 +544,7 @@ func test_dungeon_seed_sync_survives_end_start_cycle():
 	seed_sync.host_mint(1234)
 	var session := CoopSession.new(
 		lobby,
-		{"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)},
+		{"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)},
 		null, "u1", seed_sync,
 	)
 	session.start(_make_two_room_dungeon())
@@ -561,12 +561,12 @@ func test_position_broadcast_gate_null_pre_start():
 	# Player.gd's _maybe_broadcast_position null-checks this so solo play
 	# leaves the wire untouched.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	assert_null(session.position_broadcast_gate, "gate is null pre-start")
 
 func test_start_constructs_position_broadcast_gate():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	assert_not_null(session.position_broadcast_gate, "gate built on start")
 	assert_false(session.position_broadcast_gate.has_broadcast(),
@@ -577,7 +577,7 @@ func test_end_drops_position_broadcast_gate():
 	# the gate so a stale baseline from the previous run can't suppress
 	# the first broadcast of the next run.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	# Mark a broadcast so a leaked gate would be observably different
 	# from a fresh one.
@@ -590,7 +590,7 @@ func test_position_broadcast_gate_rebuilds_on_next_run():
 	# the new run lands at the new spawn point immediately rather than
 	# being suppressed by the previous run's last-broadcast baseline.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	var first_gate = session.position_broadcast_gate
 	session.end()
@@ -614,8 +614,8 @@ func test_finalize_run_summary_captures_snapshot_and_emits_signal():
 		["bob", "Shadow", "Ninja"],
 	])
 	var characters := {
-		"alice": _make_character(CharacterData.CharacterClass.MAGE, 5),
-		"bob": _make_character(CharacterData.CharacterClass.NINJA, 5),
+		"alice": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 5),
+		"bob": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 5),
 	}
 	var session := CoopSession.new(lobby, characters, null, "alice")
 	session.start(_make_two_room_dungeon())
@@ -652,7 +652,7 @@ func test_finalize_run_summary_idempotent_within_run():
 	# A second call (e.g. duplicate handler invocation) must not double-emit
 	# run_completed nor overwrite the captured snapshot.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
 	session.start(_make_two_room_dungeon())
 	session.xp_broadcaster.on_enemy_killed(10)
 
@@ -676,7 +676,7 @@ func test_finalize_run_summary_snapshot_survives_end():
 	# drops the live xp_summary. The captured fields must outlive the
 	# per-run managers.
 	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 4)}, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 4)}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	session.xp_broadcaster.on_enemy_killed(25)
 	session.finalize_run_summary()
@@ -716,8 +716,8 @@ func test_legacy_run_controller_completion_path_populates_snapshot():
 		["bob", "Shadow", "Ninja"],
 	])
 	var characters := {
-		"alice": _make_character(CharacterData.CharacterClass.MAGE, 5),
-		"bob": _make_character(CharacterData.CharacterClass.NINJA, 5),
+		"alice": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 5),
+		"bob": _make_character(CharacterData.CharacterClass.SLEEPY_KITTEN, 5),
 	}
 	var tracker := MetaProgressionTracker.new()
 	var session := CoopSession.new(lobby, characters, tracker, "alice")
@@ -741,7 +741,7 @@ func test_is_routing_ready_returns_false_when_not_active():
 	# Constructed but not started — must return false so routers take the
 	# solo branch rather than trying to use null managers.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(session.is_routing_ready())
 
@@ -749,7 +749,7 @@ func test_is_routing_ready_returns_false_with_empty_local_player_id():
 	# A session where local_player_id was never set (pre-handshake or
 	# default-constructed) must return false — no local id, no co-op routing.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}, null, "")
 	session.start(_make_two_room_dungeon())
 	assert_true(session.is_active())
 	assert_false(session.is_routing_ready())
@@ -757,14 +757,14 @@ func test_is_routing_ready_returns_false_with_empty_local_player_id():
 func test_is_routing_ready_returns_true_for_active_session_with_local_member():
 	# The canonical "co-op is live and this client is in the party" case.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	assert_true(session.is_routing_ready())
 
 func test_is_routing_ready_returns_false_after_end():
 	# end() deactivates the run — routers must fall back to solo path.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	assert_true(session.is_routing_ready())
 	session.end()
@@ -775,7 +775,7 @@ func test_is_routing_ready_returns_false_when_local_player_not_in_party():
 	# (e.g. a wire-race where local_id arrived before CharacterData).
 	# Must return false — can't route to a member that doesn't exist.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u2")
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)}, null, "u2")
 	session.start(_make_two_room_dungeon())
 	assert_true(session.is_active())
 	assert_null(session.member_for("u2"))

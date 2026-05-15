@@ -25,7 +25,7 @@ static func _force_crit() -> RandomNumberGenerator:
 	return r
 
 func _caster(magic_attack: int, crit_chance: float = 0.0) -> CharacterData:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.magic_attack = magic_attack
 	c.crit_chance = crit_chance
 	return c

@@ -37,7 +37,7 @@ func test_ratio_resets_after_level_up():
 	# The acceptance criterion: "XP bar fills and resets on level-up."
 	# Drive it through ProgressionSystem so the fill ratio reflects the
 	# actual game flow, not just static math.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var l1: int = ProgressionSystem.xp_to_next_level(1)
 	# Right before threshold: bar reads (l1-1)/l1.
 	ProgressionSystem.add_xp(c, l1 - 1)
@@ -53,7 +53,7 @@ func test_ratio_resets_after_level_up():
 
 func test_ratio_carries_remainder_into_new_level():
 	# Overshoot: (threshold + 2) xp at L1 -> level-up + 2 remainder against L2.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) + 2)
 	assert_eq(c.level, 2)
 	assert_eq(c.xp, 2)

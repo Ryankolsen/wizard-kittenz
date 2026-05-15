@@ -3,26 +3,26 @@ extends GutTest
 # Existing select_class tests (kept — guards the legacy compat shim still
 # used by callers that take a CharacterClass enum directly).
 func test_select_class_mage_makes_mage_with_default_name():
-	var c := CharacterCreation.select_class(CharacterData.CharacterClass.MAGE)
-	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE)
+	var c := CharacterCreation.select_class(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.character_name, "Kitten")
 	assert_eq(c.max_hp, 8, "mage default max_hp comes from CharacterData baseline")
 	assert_eq(c.hp, c.max_hp, "new character starts at full hp")
 
 func test_select_class_thief_uses_thief_baseline():
-	var c := CharacterCreation.select_class(CharacterData.CharacterClass.THIEF)
-	assert_eq(c.character_class, CharacterData.CharacterClass.THIEF)
+	var c := CharacterCreation.select_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_eq(c.max_hp, 10)
 
-func test_select_class_ninja_uses_ninja_baseline_and_custom_name():
-	var c := CharacterCreation.select_class(CharacterData.CharacterClass.NINJA, "Shadow")
-	assert_eq(c.character_class, CharacterData.CharacterClass.NINJA)
+func test_select_class_sleepy_uses_sleepy_baseline_and_custom_name():
+	var c := CharacterCreation.select_class(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
+	assert_eq(c.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_eq(c.character_name, "Shadow")
-	assert_eq(c.max_hp, 9)
+	assert_eq(c.max_hp, 10)
 
 func test_select_class_returns_independent_instances():
-	var a := CharacterCreation.select_class(CharacterData.CharacterClass.MAGE)
-	var b := CharacterCreation.select_class(CharacterData.CharacterClass.MAGE)
+	var a := CharacterCreation.select_class(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var b := CharacterCreation.select_class(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_ne(a.get_instance_id(), b.get_instance_id(), "each pick should return a fresh CharacterData")
 	a.take_damage(3)
 	assert_eq(b.hp, b.max_hp, "mutating one pick must not affect another")
@@ -31,12 +31,12 @@ func test_select_class_returns_independent_instances():
 # named class set and a non-empty (silly-pool) name.
 func test_quick_start_returns_thief_with_non_empty_name():
 	var c := QuickStartController.create_for_class("Thief")
-	assert_eq(c.character_class, CharacterData.CharacterClass.THIEF)
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_true(c.character_name.length() > 0, "quick start picks a non-empty silly name")
 
 func test_quick_start_returns_mage_with_non_empty_name():
-	var c := QuickStartController.create_for_class("mage")
-	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE)
+	var c := QuickStartController.create_for_class("wizard_kitten")
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_true(c.character_name.length() > 0)
 
 func test_quick_start_unknown_class_falls_through_to_battle_kitten():
@@ -47,8 +47,8 @@ func test_quick_start_unknown_class_falls_through_to_battle_kitten():
 	assert_true(c.character_name.length() > 0)
 
 func test_quick_start_handles_archmage_string():
-	var c := QuickStartController.create_for_class("archmage")
-	assert_eq(c.character_class, CharacterData.CharacterClass.ARCHMAGE)
+	var c := QuickStartController.create_for_class("wizard_cat")
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_CAT)
 
 # Issue acceptance: NameSuggester surfaces silly names without consecutive
 # duplicates across 10 calls.
@@ -103,7 +103,7 @@ func test_name_suggester_different_seeds_diverge():
 # not reset progression" criterion at the data layer; the future pause
 # menu UI calls apply_identity_edit directly.
 func test_apply_identity_edit_preserves_progression():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Old")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Old")
 	c.xp = 42
 	c.level = 5
 	c.skill_points = 3
@@ -118,7 +118,7 @@ func test_apply_identity_edit_preserves_progression():
 func test_apply_identity_edit_blank_name_is_ignored():
 	# Empty / whitespace name keeps the previous one — prevents the user
 	# from accidentally erasing their kitten's name with the Save button.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	QuickStartController.apply_identity_edit(c, "   ", 2)
 	assert_eq(c.character_name, "Whiskers")
 	assert_eq(c.appearance_index, 2, "appearance still updates even when name is blank")
@@ -132,7 +132,7 @@ func test_apply_identity_edit_handles_null_safely():
 # CharacterData appearance_index round-trips through the save layer so
 # the chosen sprite-sheet index survives a session restart (load contract).
 func test_appearance_index_round_trips_via_save_data():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Pixel")
 	c.appearance_index = 5
 	var save := KittenSaveData.from_character(c)
 	var dict := save.to_dict()
@@ -145,7 +145,7 @@ func test_legacy_save_without_appearance_index_defaults_to_zero():
 	# JSON-shaped projection fields.
 	var legacy := {
 		"character_name": "Old",
-		"character_class": int(CharacterData.CharacterClass.MAGE),
+		"character_class": int(CharacterData.CharacterClass.WIZARD_KITTEN),
 		"level": 1,
 		"xp": 0,
 	}

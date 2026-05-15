@@ -225,15 +225,21 @@ func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> vo
 
 # Per-class tree builder. Each class gets its own factory so unlocks on one
 # class's tree never bleed into another's (independent-trees acceptance
-# criterion from #10). Unknown class falls through to the mage tree as a safe
+# criterion from #10). Kitten/Cat archetypes route to the legacy tree shapes
+# closest to each role: Wizard -> mage tree (magic), Battle -> thief tree
+# (melee crit), Sleepy -> mage tree (magic support), Chonk -> ninja tree
+# (defensive evasion). Same Kitten/Cat pair shares a tree so a tier-2 upgrade
+# preserves unlocks. Unknown class falls through to the mage tree as a safe
 # default — better than returning null and forcing every call site to
 # null-check.
 func _build_tree_for(c: CharacterData) -> SkillTree:
 	match c.character_class:
-		CharacterData.CharacterClass.MAGE: return SkillTree.make_mage_tree()
-		CharacterData.CharacterClass.THIEF: return SkillTree.make_thief_tree()
-		CharacterData.CharacterClass.NINJA: return SkillTree.make_ninja_tree()
-		CharacterData.CharacterClass.ARCHMAGE: return SkillTree.make_mage_tree()
-		CharacterData.CharacterClass.MASTER_THIEF: return SkillTree.make_thief_tree()
-		CharacterData.CharacterClass.SHADOW_NINJA: return SkillTree.make_ninja_tree()
+		CharacterData.CharacterClass.WIZARD_KITTEN: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.WIZARD_CAT: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.BATTLE_KITTEN: return SkillTree.make_thief_tree()
+		CharacterData.CharacterClass.BATTLE_CAT: return SkillTree.make_thief_tree()
+		CharacterData.CharacterClass.SLEEPY_KITTEN: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.SLEEPY_CAT: return SkillTree.make_mage_tree()
+		CharacterData.CharacterClass.CHONK_KITTEN: return SkillTree.make_ninja_tree()
+		CharacterData.CharacterClass.CHONK_CAT: return SkillTree.make_ninja_tree()
 	return SkillTree.make_mage_tree()

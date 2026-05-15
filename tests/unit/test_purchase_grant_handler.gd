@@ -22,23 +22,23 @@ func after_each():
 # --- Issue tests (acceptance criteria) --------------------------------------
 
 func test_class_upgrade_on_matching_class():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var inv := CosmeticInventory.new()
-	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE, c, inv)
+	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT, c, inv)
 	assert_true(ok, "handle returns true on successful upgrade")
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.ARCHMAGE),
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.WIZARD_CAT),
 		"mage promoted to archmage")
 
 func test_class_upgrade_wrong_class_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	var inv := CosmeticInventory.new()
-	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE, c, inv)
+	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT, c, inv)
 	assert_false(ok, "wrong-class upgrade is no-op")
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.NINJA),
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.SLEEPY_KITTEN),
 		"ninja stays ninja")
 
 func test_cosmetic_pack_grant():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var inv := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.COSMETIC_COAT_PACK, c, inv)
 	assert_true(ok, "cosmetic grant returns true on first grant")
@@ -46,14 +46,14 @@ func test_cosmetic_pack_grant():
 		"pack appears in inventory after grant")
 
 func test_unknown_product_returns_false():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var inv := CosmeticInventory.new()
 	assert_false(PurchaseGrantHandler.handle("fake_product_xyz", c, inv))
 
 func test_null_character_is_safe():
 	# Class-upgrade path must null-check before reading character_class.
 	var inv := CosmeticInventory.new()
-	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE, null, inv)
+	var ok := PurchaseGrantHandler.handle(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT, null, inv)
 	assert_false(ok)
 
 # --- Coverage extras --------------------------------------------------------
@@ -64,7 +64,7 @@ func test_cosmetic_pack_replay_returns_false():
 	# semantic no-op (returns false) so the GameState handler skips the
 	# redundant SaveManager.save and the call site can branch off the
 	# return value if it ever wants to fire "fresh-grant VFX" vs "silent".
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var inv := CosmeticInventory.new()
 	assert_true(PurchaseGrantHandler.handle(PurchaseRegistry.COSMETIC_COAT_PACK, c, inv))
 	assert_false(PurchaseGrantHandler.handle(PurchaseRegistry.COSMETIC_COAT_PACK, c, inv),
@@ -74,22 +74,22 @@ func test_cosmetic_pack_replay_returns_false():
 func test_class_upgrade_thief_to_master_thief():
 	# AC: Thief -> Master Thief lands via the same dispatch as Mage -> Archmage.
 	# Pins the parity (every Tier-1 catalog product grants its tier upgrade).
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var inv := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF, c, inv)
+		PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT, c, inv)
 	assert_true(ok, "thief upgrade returns true on the matching source class")
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.MASTER_THIEF),
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.BATTLE_CAT),
 		"thief promoted to master thief")
 
 func test_class_upgrade_ninja_to_shadow_ninja():
 	# AC parity with the thief case: ninja upgrade dispatches end-to-end.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	var inv := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA, c, inv)
+		PurchaseRegistry.UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT, c, inv)
 	assert_true(ok, "ninja upgrade returns true on the matching source class")
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.SHADOW_NINJA),
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.SLEEPY_CAT),
 		"ninja promoted to shadow ninja")
 
 func test_class_unlock_grants_via_paid_inventory():
@@ -97,27 +97,27 @@ func test_class_unlock_grants_via_paid_inventory():
 	# this was a no-op stub. UnlockRegistry consults the paid inventory as an
 	# OR'd path alongside the gameplay condition gates so a paid unlock
 	# bypasses the meta-progression threshold (PRD #26 Tier 3).
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var cos := CosmeticInventory.new()
 	var paid := PaidUnlockInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE, c, cos, paid)
+		PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN, c, cos, paid)
 	assert_true(ok, "class-unlock grants via paid inventory")
-	assert_true(paid.has_unlock("archmage"))
+	assert_true(paid.has_unlock("chonk_kitten"))
 
 func test_class_unlock_without_paid_inventory_is_noop():
 	# Back-compat: legacy call sites that don't pass paid_unlocks get a
 	# safe "no grant landed" return. Replaces the prior "stub always true"
 	# behavior — now the contract is "no inventory => can't grant" so a
 	# legacy caller without a save target doesn't lie about applying.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var cos := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE, c, cos)
+		PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN, c, cos)
 	assert_false(ok, "no paid inventory => no grant landed")
 
 func test_null_cosmetic_inventory_safe_on_cosmetic_grant():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ok := PurchaseGrantHandler.handle(
 		PurchaseRegistry.COSMETIC_COAT_PACK, c, null)
 	assert_false(ok, "missing inventory -> no grant, no crash")
@@ -126,13 +126,13 @@ func test_archmage_buying_mage_upgrade_is_noop():
 	# An Archmage character already passed through this upgrade. Re-purchasing
 	# (e.g. restore-purchases) must not re-upgrade or double-promote.
 	# Defensively this is also "wrong-class" since ARCHMAGE != MAGE.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	c.character_class = CharacterData.CharacterClass.ARCHMAGE
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.character_class = CharacterData.CharacterClass.WIZARD_CAT
 	var inv := CosmeticInventory.new()
 	var ok := PurchaseGrantHandler.handle(
-		PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE, c, inv)
+		PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT, c, inv)
 	assert_false(ok)
-	assert_eq(c.character_class, int(CharacterData.CharacterClass.ARCHMAGE))
+	assert_eq(c.character_class, int(CharacterData.CharacterClass.WIZARD_CAT))
 
 # --- GameState signal-wiring integration ------------------------------------
 
@@ -142,11 +142,11 @@ func test_purchase_succeeded_signal_upgrades_current_character():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers"))
-	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE)
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT)
 	# Signal callbacks fire synchronously in Godot — no await needed.
 	assert_eq(gs.current_character.character_class,
-		int(CharacterData.CharacterClass.ARCHMAGE),
+		int(CharacterData.CharacterClass.WIZARD_CAT),
 		"current_character promoted to Archmage")
 
 func test_purchase_succeeded_signal_persists_save():
@@ -156,8 +156,8 @@ func test_purchase_succeeded_signal_persists_save():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers"))
-	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE)
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT)
 	assert_true(FileAccess.file_exists(TMP_SAVE_PATH),
 		"save file written after grant")
 	var loaded := SaveManager.load(TMP_SAVE_PATH)
@@ -173,7 +173,7 @@ func test_purchase_succeeded_persists_cosmetic_grant():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers"))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers"))
 	bm.purchase_succeeded.emit(PurchaseRegistry.COSMETIC_COAT_PACK)
 	assert_true(gs.cosmetic_inventory.has_pack(PurchaseRegistry.COSMETIC_COAT_PACK),
 		"inventory updated in-memory")
@@ -195,10 +195,10 @@ func test_purchase_succeeded_signal_upgrades_thief_to_master_thief():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.THIEF, "Whiskers"))
-	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF)
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Whiskers"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
 	assert_eq(gs.current_character.character_class,
-		int(CharacterData.CharacterClass.MASTER_THIEF),
+		int(CharacterData.CharacterClass.BATTLE_CAT),
 		"current_character promoted to Master Thief")
 	assert_true(FileAccess.file_exists(TMP_SAVE_PATH),
 		"save file written after grant")
@@ -213,10 +213,10 @@ func test_purchase_succeeded_signal_upgrades_ninja_to_shadow_ninja():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow"))
-	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA)
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow"))
+	bm.purchase_succeeded.emit(PurchaseRegistry.UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT)
 	assert_eq(gs.current_character.character_class,
-		int(CharacterData.CharacterClass.SHADOW_NINJA),
+		int(CharacterData.CharacterClass.SLEEPY_CAT),
 		"current_character promoted to Shadow Ninja")
 
 func test_purchase_succeeded_unknown_product_no_save():
@@ -226,7 +226,7 @@ func test_purchase_succeeded_unknown_product_no_save():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN))
 	bm.purchase_succeeded.emit("totally_unknown_product")
 	assert_false(FileAccess.file_exists(TMP_SAVE_PATH),
 		"no save on unknown product")

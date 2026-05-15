@@ -1,28 +1,22 @@
 class_name ClassTierUpgrade
 extends RefCounted
 
-# Upgrades an existing class to its next-tier variant (Mage -> Archmage). The
+# Upgrades an existing Kitten class to its matching Cat tier (e.g. Battle
+# Kitten -> Battle Cat). The
 # transformation preserves *progression* (level, xp, skill_points,
 # unlocked_skill_ids) — those are the things the player worked for. Stats are
 # recomputed from the upgraded class's per-level baselines so the upgrade
 # actually delivers the "improved base stats" promised in the issue.
 #
 # Stateless: the upgrade is a pure mutation on a CharacterData ref. The mapping
-# of base->tier lives in TIER_MAP so adding a new tier (e.g. Thief -> Master
-# Thief) is a one-line dictionary update — same data-driven seam UnlockRegistry
-# uses for unlock conditions.
+# of base->tier lives in TIER_MAP so adding a new tier is a one-line dictionary
+# update — same data-driven seam UnlockRegistry uses for unlock conditions.
 
 const TIER_MAP: Dictionary = {
 	CharacterData.CharacterClass.BATTLE_KITTEN: CharacterData.CharacterClass.BATTLE_CAT,
 	CharacterData.CharacterClass.WIZARD_KITTEN: CharacterData.CharacterClass.WIZARD_CAT,
 	CharacterData.CharacterClass.SLEEPY_KITTEN: CharacterData.CharacterClass.SLEEPY_CAT,
 	CharacterData.CharacterClass.CHONK_KITTEN: CharacterData.CharacterClass.CHONK_CAT,
-	# Legacy Tier-1 pairs kept until the shop/IAP rewire slice lands.
-	# PurchaseRegistry's UPGRADE_MAGE_ARCHMAGE / UPGRADE_THIEF_MASTER_THIEF /
-	# UPGRADE_NINJA_SHADOW_NINJA products still route through here.
-	CharacterData.CharacterClass.MAGE: CharacterData.CharacterClass.ARCHMAGE,
-	CharacterData.CharacterClass.THIEF: CharacterData.CharacterClass.MASTER_THIEF,
-	CharacterData.CharacterClass.NINJA: CharacterData.CharacterClass.SHADOW_NINJA,
 }
 
 static func has_upgrade(klass: int) -> bool:

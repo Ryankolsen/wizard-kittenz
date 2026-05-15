@@ -20,7 +20,7 @@ func after_each():
 func _make_character() -> CharacterData:
 	var c := CharacterData.new()
 	c.character_name = "Mittens"
-	c.character_class = CharacterData.CharacterClass.MAGE
+	c.character_class = CharacterData.CharacterClass.WIZARD_KITTEN
 	c.level = 3
 	c.max_hp = 20
 	c.hp = 18
@@ -47,7 +47,7 @@ func test_all_fields_round_trip():
 
 	gs.currency_ledger.credit(250, CurrencyLedger.Currency.GOLD)
 	gs.cosmetic_inventory.grant("starter_pack")
-	gs.paid_unlocks.grant("archmage")
+	gs.paid_unlocks.grant("wizard_cat")
 	gs.skill_inventory.grant("fireball")
 	gs.item_inventory.equip(ItemCatalog.find("iron_sword"))
 
@@ -65,7 +65,7 @@ func test_all_fields_round_trip():
 	assert_true(loaded.unlocked_skill_ids.has(first_id),
 		"unlocked_skill_ids should contain the unlocked node")
 	assert_true(loaded.cosmetic_packs.has("starter_pack"))
-	assert_true(loaded.paid_class_unlocks.has("archmage"))
+	assert_true(loaded.paid_class_unlocks.has("wizard_cat"))
 	assert_eq(loaded.gold_balance, 250)
 	assert_true(loaded.skill_unlocks.has("fireball"))
 	var restored_inv := loaded.to_item_inventory()

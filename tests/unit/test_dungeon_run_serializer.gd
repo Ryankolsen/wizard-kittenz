@@ -115,7 +115,7 @@ func test_quit_handler_saves_dungeon_run_state_in_solo():
 	ctrl.seed = 77
 	var c := CharacterData.new()
 	c.character_name = "ResumeTest"
-	c.character_class = CharacterData.CharacterClass.MAGE
+	c.character_class = CharacterData.CharacterClass.WIZARD_KITTEN
 	gs.current_character = c
 	gs.dungeon_run_controller = ctrl
 	assert_true(QuitDungeonHandlerRef.save_and_exit(null),

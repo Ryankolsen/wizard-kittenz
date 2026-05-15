@@ -36,7 +36,7 @@ func _ready() -> void:
 			data = gs.current_character
 			_spell_tree = gs.skill_tree
 	if data == null:
-		data = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+		data = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	# data.speed is now the source of truth (per-class baseline). The @export
 	# stays as an editor-time override for scene-only iteration.
 	if data.speed > 0.0:

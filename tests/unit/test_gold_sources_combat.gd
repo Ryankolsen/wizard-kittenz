@@ -9,7 +9,7 @@ extends GutTest
 # --- helpers --------------------------------------------------------------
 
 func _make_character() -> CharacterData:
-	return CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 
 func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.SLIME) -> Room:
 	var r := Room.make(room_id, Room.TYPE_STANDARD)

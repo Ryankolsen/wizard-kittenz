@@ -11,7 +11,7 @@ var _tree: SkillTree
 var _manager: SkillTreeManager
 
 func _setup(skill_points: int) -> void:
-	_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	_character.skill_points = skill_points
 	_tree = SkillTree.make_mage_tree()
 	_manager = SkillTreeManager.make(_tree, _character)
@@ -110,14 +110,14 @@ func test_unknown_node_id_is_rejected():
 
 func test_progression_awards_skill_point_on_level_up():
 	# Skill points come from leveling: 3 per level-up in the first tier.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.skill_points, 0, "starts with no points")
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2)
 	assert_eq(c.skill_points, 3, "+3 skill points per level-up in tier 1 (L1-10)")
 
 func test_progression_skill_points_accumulate_across_levels():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	# L1->L4 with 3 xp remaining: thresholds 1+2+3 then +3.
 	var total: int = ProgressionSystem.xp_to_next_level(1) \
 		+ ProgressionSystem.xp_to_next_level(2) \
@@ -127,7 +127,7 @@ func test_progression_skill_points_accumulate_across_levels():
 	assert_eq(c.skill_points, 9, "3 levels * 3 points/level in tier 1")
 
 func test_save_layer_preserves_skill_points():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 4
 	var tree := SkillTree.make_mage_tree()
 	SaveManager.save(c, TMP_PATH, tree)
@@ -157,7 +157,7 @@ func test_spell_effect_resolver_damage_hits_first_alive_target():
 	var fireball := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
 	# PRD #85: caster.magic_attack now adds to spell.power. Pin to 0 so the
 	# test stays focused on the "first target only" contract.
-	var caster := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	caster.magic_attack = 0
 	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var e2 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
@@ -170,7 +170,7 @@ func test_spell_effect_resolver_damage_hits_first_alive_target():
 
 func test_spell_effect_resolver_area_hits_all_alive_targets():
 	var nova := Spell.make("frost_nova", "Frost Nova", Spell.EffectKind.AREA, 2, 1.5)
-	var caster := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var e2 := EnemyData.make_new(EnemyData.EnemyKind.BAT)
 	var e1_hp_before := e1.hp

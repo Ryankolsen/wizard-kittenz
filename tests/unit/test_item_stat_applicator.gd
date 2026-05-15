@@ -1,7 +1,7 @@
 extends GutTest
 
 func _base_char() -> CharacterData:
-	return CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Test")
+	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Test")
 
 func test_apply_adds_int_stat_bonus():
 	var inv := ItemInventory.new()

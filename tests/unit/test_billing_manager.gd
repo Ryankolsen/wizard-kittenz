@@ -29,7 +29,7 @@ func test_start_purchase_without_plugin_is_safe():
 	# threw or accessed _plugin without a guard, GUT would surface the
 	# error and fail this test.
 	var bm := get_node("/root/BillingManager")
-	bm.start_purchase(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE)
+	bm.start_purchase(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT)
 	assert_true(true, "start_purchase did not crash without plugin")
 
 func test_purchase_succeeded_signal_exists():

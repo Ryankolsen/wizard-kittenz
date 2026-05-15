@@ -31,34 +31,34 @@ static func items() -> Array[ShopCatalogItem]:
 	var out: Array[ShopCatalogItem] = []
 
 	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE,
-		"Archmage",
-		"Upgrade Mage to Archmage — tier 2 stats and spells.",
+		PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT,
+		"Battle Cat",
+		"Upgrade Battle Kitten to Battle Cat — tier 2 melee stats.",
 		CurrencyLedger.Currency.GEM, 1500,
 		ShopCatalogItem.CATEGORY_CLASS_UPGRADE))
 	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF,
-		"Master Thief",
-		"Upgrade Thief to Master Thief — tier 2 stats and crit bonus.",
+		PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT,
+		"Wizard Cat",
+		"Upgrade Wizard Kitten to Wizard Cat — tier 2 spell power.",
 		CurrencyLedger.Currency.GEM, 1500,
 		ShopCatalogItem.CATEGORY_CLASS_UPGRADE))
 	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA,
-		"Shadow Ninja",
-		"Upgrade Ninja to Shadow Ninja — tier 2 stats and evasion.",
+		PurchaseRegistry.UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT,
+		"Sleepy Cat",
+		"Upgrade Sleepy Kitten to Sleepy Cat — tier 2 healing and regen.",
+		CurrencyLedger.Currency.GEM, 1500,
+		ShopCatalogItem.CATEGORY_CLASS_UPGRADE))
+	out.append(ShopCatalogItem.make(
+		PurchaseRegistry.UPGRADE_CHONK_KITTEN_CHONK_CAT,
+		"Chonk Cat",
+		"Upgrade Chonk Kitten to Chonk Cat — tier 2 HP and defense.",
 		CurrencyLedger.Currency.GEM, 1500,
 		ShopCatalogItem.CATEGORY_CLASS_UPGRADE))
 
 	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.CLASS_UNLOCK_THIEF,
-		"Unlock Thief",
-		"Unlock the Thief class for new characters.",
-		CurrencyLedger.Currency.GEM, 500,
-		ShopCatalogItem.CATEGORY_CLASS_UNLOCK))
-	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.CLASS_UNLOCK_NINJA,
-		"Unlock Ninja",
-		"Unlock the Ninja class for new characters.",
+		PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN,
+		"Unlock Chonk Kitten",
+		"Unlock the Chonk Kitten class for new characters.",
 		CurrencyLedger.Currency.GEM, 500,
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK))
 

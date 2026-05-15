@@ -20,10 +20,10 @@ func test_is_real_level_up_false_when_new_below_old():
 # --- CoopXPSubscriber.level_up signal plumbing (scene-layer trigger source) ----
 
 func _make_member(lvl: int = 1) -> PartyMember:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = lvl
 	c.xp = 0
-	c.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, lvl)
+	c.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, lvl)
 	c.hp = c.max_hp
 	return PartyMember.from_character(c)
 

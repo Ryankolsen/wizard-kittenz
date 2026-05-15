@@ -29,7 +29,7 @@ func test_pause_menu_has_stats_tab_badge_hidden_by_default():
 
 func test_pause_menu_stats_tab_badge_visible_when_points_available():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel")
 	c.skill_points = 3
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
@@ -42,7 +42,7 @@ func test_pause_menu_stats_tab_badge_visible_when_points_available():
 
 func test_pause_menu_stats_tab_badge_hidden_when_no_points():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel")
 	c.skill_points = 0
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
@@ -54,7 +54,7 @@ func test_pause_menu_stats_tab_badge_hidden_when_no_points():
 
 func test_pause_menu_stats_tab_badge_updates_on_change():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel")
 	c.skill_points = 0
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()

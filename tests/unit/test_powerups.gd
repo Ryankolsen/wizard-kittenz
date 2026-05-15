@@ -5,7 +5,7 @@ extends GutTest
 func test_apply_catnip_increases_speed_by_50_percent():
 	# Issue test 1: PowerUpManager.apply("catnip", kitten_stats) increases
 	# kitten_stats.speed by 50%.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var base_speed := c.speed
 	var manager := PowerUpManager.new()
 	var effect := manager.apply("catnip", c)
@@ -16,7 +16,7 @@ func test_apply_catnip_increases_speed_by_50_percent():
 func test_catnip_expires_and_returns_speed_to_base():
 	# Issue test 2: after PowerUpManager.tick(duration) the speed modifier is
 	# removed and speed returns to its base value.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var base_speed := c.speed
 	var manager := PowerUpManager.new()
 	var effect := manager.apply("catnip", c)
@@ -27,7 +27,7 @@ func test_catnip_expires_and_returns_speed_to_base():
 func test_catnip_refresh_resets_remaining_to_full_duration():
 	# Issue test 3: applying catnip while catnip is already active resets the
 	# remaining duration to the full duration (refresh, not stack).
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var base_speed := c.speed
 	var manager := PowerUpManager.new()
 	var first := manager.apply("catnip", c)
@@ -64,7 +64,7 @@ func test_mushroom_emits_random_spell_fired_once_per_2s_interval():
 # --- Coverage extras ---
 
 func test_ale_increases_attack_and_reverts_on_expiry():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)  # attack 4
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)  # attack 4
 	var base_attack := c.attack
 	var manager := PowerUpManager.new()
 	var effect := manager.apply("ale", c)
@@ -75,14 +75,14 @@ func test_ale_increases_attack_and_reverts_on_expiry():
 func test_ale_minimum_one_attack_bonus_at_low_base():
 	# Mage attack 2 * 0.30 = 0.6, rounded = 1; the floor ensures the bonus is
 	# always meaningful even at low base attack.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.attack, 2)
 	var manager := PowerUpManager.new()
 	manager.apply("ale", c)
 	assert_eq(c.attack, 3, "+1 floor applied to small base attack")
 
 func test_unknown_powerup_id_returns_null_no_mutation():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var base_speed := c.speed
 	var base_attack := c.attack
 	var manager := PowerUpManager.new()
@@ -93,7 +93,7 @@ func test_unknown_powerup_id_returns_null_no_mutation():
 	assert_eq(manager.active_count(), 0)
 
 func test_two_distinct_powerups_active_simultaneously():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var manager := PowerUpManager.new()
 	manager.apply("catnip", c)
 	manager.apply("ale", c)
@@ -102,7 +102,7 @@ func test_two_distinct_powerups_active_simultaneously():
 	assert_eq(manager.active_count(), 2, "distinct types coexist")
 
 func test_partial_tick_does_not_expire_long_powerup():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var manager := PowerUpManager.new()
 	manager.apply("ale", c)  # 10s duration
 	manager.tick(5.0)
@@ -152,7 +152,7 @@ func test_powerup_durations_match_spec():
 	assert_eq(MushroomEffect.DURATION, 6.0)
 
 func test_zero_or_negative_tick_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var manager := PowerUpManager.new()
 	var effect := manager.apply("catnip", c)
 	var remaining_before := effect.remaining
@@ -165,11 +165,11 @@ func test_powerup_revert_preserves_concurrent_speed_change():
 	# If something external bumps speed during a buff (e.g., a future second
 	# power-up), removing the catnip bonus should subtract only the delta we
 	# applied — not snap back to the original pre-buff value.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)  # speed 50
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)  # speed 60
 	var manager := PowerUpManager.new()
 	var effect := manager.apply("catnip", c)
-	# Catnip applied +25 (50% of 50). Pretend something else added +10 during
-	# the buff — total speed is now 50 + 25 + 10 = 85.
+	# Catnip applied +30 (50% of 60). Pretend something else added +10 during
+	# the buff — total speed is now 60 + 30 + 10 = 100.
 	c.speed += 10.0
 	manager.tick(effect.duration)
-	assert_almost_eq(c.speed, 60.0, 0.001, "external +10 survives catnip removal")
+	assert_almost_eq(c.speed, 70.0, 0.001, "external +10 survives catnip removal")

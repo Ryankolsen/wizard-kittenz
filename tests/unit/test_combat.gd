@@ -113,7 +113,7 @@ func test_damage_resolver_works_with_enemy_data():
 	# Symmetry check: DamageResolver duck-types over CharacterData and EnemyData.
 	# Player attacks an enemy, then enemy attacks the player — both flow through
 	# the same resolver.
-	var player := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var enemy_hp_before := enemy.hp
 	DamageResolver.apply(player, enemy, _force_hit())
@@ -174,7 +174,7 @@ func test_evasion_is_zero_by_default_on_enemy_data():
 	# to 0.0 so the evasion branch never fires on enemies.
 	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var enemy_hp_before := enemy.hp
-	var player := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	# Force a hit so the test isn't flaky on the 15% miss floor.
 	var rng := _rng_where_first_randf(func(v): return v < 0.85)
 	var dealt := DamageResolver.apply(player, enemy, rng)
@@ -185,7 +185,7 @@ func test_enemy_data_attacker_no_crash():
 	# EnemyData has no dexterity/luck/crit_chance — duck-typed reads
 	# must default to neutral values so the resolver still runs.
 	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var player := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	var player_hp_before := player.hp
 	# Probabilistic miss is acceptable here — we're checking no-crash and
 	# that *eventually* damage lands. Burn through the 15% miss floor.

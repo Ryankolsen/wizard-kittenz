@@ -11,7 +11,7 @@ func after_each():
 func test_save_manager_writes_and_loads_with_identical_level_and_xp():
 	# Issue scenario 1: Core wiring — SaveManager.save writes to disk
 	# and SaveManager.load returns data with identical level and xp.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Mittens")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Mittens")
 	c.level = 4
 	c.xp = 7
 	var err := SaveManager.save(c, TMP_PATH)
@@ -196,7 +196,7 @@ func test_kitten_save_data_from_character_captures_tracker_pending_xp():
 	# The save layer captures the tracker's pending_xp into the save's
 	# offline_xp_earned field so OfflineProgressMerger.merge_xp can fold
 	# it into the server record on reconnect.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	var t := OfflineXPTracker.new()
 	t.record(17)
 	var s := KittenSaveData.from_character(c, null, null, t)
@@ -206,7 +206,7 @@ func test_kitten_save_data_from_character_null_tracker_keeps_default():
 	# Test paths / call sites that don't pass a tracker keep the field
 	# at its default (0). Locks the back-compat contract that the new
 	# trailing param is opt-in.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var s := KittenSaveData.from_character(c, null, null, null)
 	assert_eq(s.offline_xp_earned, 0)
 
@@ -234,7 +234,7 @@ func test_legacy_save_with_revive_tokens_key_loads_cleanly():
 	# no token state should leak onto the loaded save.
 	var legacy := {
 		"character_name": "Old",
-		"character_class": int(CharacterData.CharacterClass.MAGE),
+		"character_class": int(CharacterData.CharacterClass.WIZARD_KITTEN),
 		"level": 1, "xp": 0,
 		"hp": 8, "max_hp": 8,
 		"attack": 2, "defense": 0, "speed": 50.0,
@@ -249,7 +249,7 @@ func test_to_dict_does_not_emit_revive_tokens_key():
 	# Pin the emit side of the contract: even when serializing a kitten,
 	# the dict must not carry `revive_tokens` — otherwise a fresh save
 	# would re-introduce the dead field for a future loader to handle.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var sd := KittenSaveData.from_character(c)
 	assert_false(sd.to_dict().has("revive_tokens"),
 		"to_dict must not emit the removed revive_tokens field")
@@ -283,7 +283,7 @@ func test_save_manager_writes_and_loads_offline_xp_earned():
 	# End-to-end: a tracker with N pending XP round-trips through a
 	# SaveManager.save / load cycle and a fresh tracker hydrated from
 	# the loaded save reads N back.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pebbles")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pebbles")
 	var t := OfflineXPTracker.new()
 	t.record(31)
 	var err := SaveManager.save(c, TMP_PATH, null, null, t)
@@ -299,7 +299,7 @@ func test_sign_out_does_not_delete_local_save_file():
 	# Issue scenario 5: AccountManager.sign_out() does NOT delete the
 	# local save file. Locks the contract that signing out of the
 	# cloud account never erases a player's local kitten.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	SaveManager.save(c, TMP_PATH)
 	assert_true(FileAccess.file_exists(TMP_PATH), "save file exists after write")
 
@@ -553,7 +553,7 @@ func test_sync_end_to_end_with_save_manager_round_trip():
 	# load it back, build a server save at equal level with less XP, sync,
 	# then write the merged result back. Confirms the orchestrator slots
 	# into the SaveManager round-trip without lossy conversions.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Round")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Round")
 	c.level = 5
 	c.xp = 20
 	var t := OfflineXPTracker.new()

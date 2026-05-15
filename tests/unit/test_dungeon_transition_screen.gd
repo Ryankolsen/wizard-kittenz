@@ -23,7 +23,7 @@ func after_each() -> void:
 
 func _install_solo_character() -> void:
 	var gs := get_node("/root/GameState")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN))
 
 func test_on_dungeon_completed_does_not_immediately_reload() -> void:
 	# AC: dungeon loading is deferred until the player dismisses the

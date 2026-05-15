@@ -7,14 +7,14 @@ func after_each():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
 
 func test_add_xp_increments_current_xp():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var levels := ProgressionSystem.add_xp(c, 3)
 	assert_eq(c.xp, 3, "xp accumulates")
 	assert_eq(c.level, 1, "no level-up under threshold")
 	assert_eq(levels, 0, "no levels gained")
 
 func test_add_xp_with_zero_or_negative_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(ProgressionSystem.add_xp(c, 0), 0)
 	assert_eq(c.xp, 0)
 	assert_eq(ProgressionSystem.add_xp(c, -10), 0, "negative xp is rejected, not subtracted")
@@ -52,14 +52,14 @@ func test_stat_points_per_level_scales_every_ten_levels():
 
 func test_level_up_awards_three_points_in_first_tier():
 	# Level 1 -> 2 grants 3 stat points (3 + floor((2-1)/10) = 3).
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2)
 	assert_eq(c.skill_points, 3)
 
 func test_level_up_awards_four_points_in_second_tier():
 	# Level 10 -> 11 grants 4 stat points.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	c.xp = 0
 	c.skill_points = 0
@@ -69,7 +69,7 @@ func test_level_up_awards_four_points_in_second_tier():
 
 func test_level_up_awards_five_points_in_third_tier():
 	# Level 20 -> 21 grants 5 stat points.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 20
 	c.xp = 0
 	c.skill_points = 0
@@ -78,21 +78,21 @@ func test_level_up_awards_five_points_in_third_tier():
 	assert_eq(c.skill_points, 5)
 
 func test_level_up_at_exact_threshold_resets_xp_to_zero():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var levels := ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2, "level advances from 1 to 2")
 	assert_eq(c.xp, 0, "xp resets to remainder (0 here)")
 	assert_eq(levels, 1)
 
 func test_level_up_carries_xp_remainder_into_next_level():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	# Adding (threshold + 2) xp at L1 should level up and leave 2 xp toward L3.
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) + 2)
 	assert_eq(c.level, 2)
 	assert_eq(c.xp, 2, "remainder carries forward")
 
 func test_stat_scaling_increases_max_hp_on_level_up():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var hp_before := c.max_hp
 	assert_eq(hp_before, 8, "mage starts at 8 max_hp")
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
@@ -101,7 +101,7 @@ func test_stat_scaling_increases_max_hp_on_level_up():
 	assert_gt(c.max_hp, hp_before, "stat strictly increases with level")
 
 func test_level_up_heals_by_max_hp_delta_without_overhealing():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.take_damage(5)
 	var hp_before := c.hp
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
@@ -111,7 +111,7 @@ func test_level_up_heals_by_max_hp_delta_without_overhealing():
 	assert_lte(c.hp, c.max_hp, "hp never exceeds max_hp")
 
 func test_no_level_overflow_with_huge_xp_dump():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	# Sum of thresholds 1..3 = 100 + 282 + 519 = 901. Add 904 -> L4 with 3 xp.
 	var total: int = ProgressionSystem.xp_to_next_level(1) \
 		+ ProgressionSystem.xp_to_next_level(2) \
@@ -180,7 +180,7 @@ func test_save_manager_apply_to_restores_character_data():
 
 func test_killing_enemy_awards_xp_via_progression_system():
 	# Simulates the player.gd flow: damage until dead, then award xp_reward.
-	var player := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	var reward := enemy.xp_reward
 	while enemy.is_alive():

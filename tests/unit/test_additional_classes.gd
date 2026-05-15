@@ -2,18 +2,18 @@ extends GutTest
 
 # --- Issue tests ---
 
-func test_factory_thief_has_higher_speed_than_mage():
-	# Issue test 1: Core wiring — CharacterFactory.create_default("Thief")
-	# returns a kitten with higher base speed than create_default("Mage").
-	var thief: CharacterData = CharacterFactory.create_default("Thief")
-	var mage: CharacterData = CharacterFactory.create_default("Mage")
-	assert_gt(thief.speed, mage.speed, "thief outpaces mage from the start")
+func test_factory_battle_has_higher_speed_than_chonk():
+	# Core wiring — CharacterFactory.create_default("battle_kitten")
+	# returns a kitten with higher base speed than create_default("chonk_kitten").
+	var battle: CharacterData = CharacterFactory.create_default("battle_kitten")
+	var chonk: CharacterData = CharacterFactory.create_default("chonk_kitten")
+	assert_gt(battle.speed, chonk.speed, "battle outpaces chonk from the start")
 
-func test_ninja_base_attack_higher_than_mage():
-	# Issue test 2: Ninja base attack > Mage base attack.
-	var ninja: CharacterData = CharacterFactory.create_default("Ninja")
-	var mage: CharacterData = CharacterFactory.create_default("Mage")
-	assert_gt(ninja.attack, mage.attack, "ninja hits harder than mage at level 1")
+func test_battle_base_attack_higher_than_wizard():
+	# Battle Kitten base attack > Wizard Kitten base attack.
+	var battle: CharacterData = CharacterFactory.create_default("battle_kitten")
+	var wizard: CharacterData = CharacterFactory.create_default("wizard_kitten")
+	assert_gt(battle.attack, wizard.attack, "battle hits harder than wizard at level 1")
 
 func test_thief_and_ninja_skill_trees_are_independent():
 	# Issue test 3: unlocking a Thief skill node does not mutate the Ninja
@@ -61,10 +61,10 @@ func test_backstab_deals_more_damage_from_behind():
 
 func test_factory_create_default_is_case_insensitive():
 	# The picker UI passes whatever-case name the user clicks; resolve robustly.
-	var t1: CharacterData = CharacterFactory.create_default("thief")
+	var t1: CharacterData = CharacterFactory.create_default("battle_kitten")
 	var t2: CharacterData = CharacterFactory.create_default("THIEF")
-	assert_eq(t1.character_class, CharacterData.CharacterClass.THIEF)
-	assert_eq(t2.character_class, CharacterData.CharacterClass.THIEF)
+	assert_eq(t1.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(t2.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
 
 func test_factory_unknown_name_falls_back_to_battle_kitten():
 	var c: CharacterData = CharacterFactory.create_default("paladin")
@@ -72,9 +72,9 @@ func test_factory_unknown_name_falls_back_to_battle_kitten():
 		"unknown class name lands on the default Kitten starter")
 
 func test_factory_carries_custom_name():
-	var c: CharacterData = CharacterFactory.create_default("Ninja", "Whiskers")
+	var c: CharacterData = CharacterFactory.create_default("sleepy_kitten", "Whiskers")
 	assert_eq(c.character_name, "Whiskers")
-	assert_eq(c.character_class, CharacterData.CharacterClass.NINJA)
+	assert_eq(c.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 
 func test_thief_tree_progression_is_chained():
 	# Can't unlock smoke_bomb without backstab, can't unlock shadow_step
@@ -116,22 +116,22 @@ func test_thief_tree_has_distinct_effect_kinds():
 func test_classes_have_visually_distinct_base_stats():
 	# Acceptance criterion: each class is distinguishable on the picker.
 	# Burn at least one stat into a difference for every pair.
-	var mage: CharacterData = CharacterFactory.create_default("Mage")
-	var thief: CharacterData = CharacterFactory.create_default("Thief")
-	var ninja: CharacterData = CharacterFactory.create_default("Ninja")
-	# Thief vs Mage: speed and hp.
-	assert_ne(thief.speed, mage.speed)
-	assert_ne(thief.max_hp, mage.max_hp)
-	# Ninja vs Mage: attack.
-	assert_ne(ninja.attack, mage.attack)
-	# Thief vs Ninja: defense (thief tankier on defense baseline).
-	assert_ne(thief.defense, ninja.defense)
+	var wizard: CharacterData = CharacterFactory.create_default("wizard_kitten")
+	var battle: CharacterData = CharacterFactory.create_default("battle_kitten")
+	var chonk: CharacterData = CharacterFactory.create_default("chonk_kitten")
+	# Battle vs Wizard: attack and hp.
+	assert_ne(battle.attack, wizard.attack)
+	assert_ne(battle.max_hp, wizard.max_hp)
+	# Chonk vs Wizard: defense and speed.
+	assert_ne(chonk.defense, wizard.defense)
+	# Battle vs Chonk: speed (chonk slower than battle).
+	assert_ne(battle.speed, chonk.speed)
 
 func test_backstab_zero_attack_deals_no_damage_even_from_behind():
 	# Preserves DamageResolver's invariant: a 0-attack swing is harmless
 	# regardless of facing. Otherwise a turned-away target would eat free
 	# damage from a stat-zeroed debuffed attacker.
-	var attacker := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.attack = 0
 	attacker.facing = Vector2.UP
 	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
@@ -141,7 +141,7 @@ func test_backstab_zero_attack_deals_no_damage_even_from_behind():
 	assert_eq(target.hp, hp_before, "no hp change on zero-attack backstab")
 
 func test_backstab_floor_one_damage_when_defense_exceeds_attack():
-	var attacker := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.attack = 2
 	attacker.facing = Vector2.UP
 	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
@@ -155,7 +155,7 @@ func test_backstab_zero_facing_treated_as_not_behind():
 	# Defensive: a freshly-spawned target with facing == Vector2.ZERO would
 	# trip a divide-by-zero on normalize. Treat it as "front" so the bonus
 	# never accidentally fires on uninitialized state.
-	var attacker := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.facing = Vector2.RIGHT
 	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
 	target.facing = Vector2.ZERO
@@ -164,17 +164,17 @@ func test_backstab_zero_facing_treated_as_not_behind():
 func test_game_state_builds_correct_tree_per_class():
 	# _build_tree_for picks the right factory for each class. Failure mode is
 	# silent (mage tree returned for thief) so an explicit guard is worth it.
-	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var thief := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	GameState.set_character(thief)
 	assert_not_null(GameState.skill_tree.find("backstab"), "thief gets thief tree")
 	assert_null(GameState.skill_tree.find("fireball"), "thief tree has no fireball")
 
-	var ninja := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
-	GameState.set_character(ninja)
-	assert_not_null(GameState.skill_tree.find("shuriken_throw"), "ninja gets ninja tree")
+	var chonk := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
+	GameState.set_character(chonk)
+	assert_not_null(GameState.skill_tree.find("shuriken_throw"), "chonk gets ninja tree")
 	assert_null(GameState.skill_tree.find("backstab"), "ninja tree has no backstab")
 
-	var mage := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var mage := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	GameState.set_character(mage)
 	assert_not_null(GameState.skill_tree.find("fireball"))
 
@@ -183,7 +183,7 @@ func test_game_state_builds_correct_tree_per_class():
 func test_save_layer_round_trips_speed():
 	# speed is a per-class derived stat but still flows through the JSON
 	# blob — guards the picker -> save -> restart -> load loop.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var save_data := KittenSaveData.from_character(c)
 	var restored := KittenSaveData.from_dict(save_data.to_dict())
 	assert_eq(restored.speed, c.speed)

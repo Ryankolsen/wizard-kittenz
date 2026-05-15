@@ -1,16 +1,20 @@
 class_name CharacterData
 extends Resource
 
+# Explicit int values pin BATTLE_KITTEN at 6 and CHONK_CAT at 13. The save
+# migration in KittenSaveData._migrate_character_class uses raw ints 0-5 as
+# the sentinel for legacy MAGE..SHADOW_NINJA values (now removed from the
+# enum). Renumbering would collide legacy save ints with current ones and
+# break the migration on existing player saves.
 enum CharacterClass {
-	MAGE, THIEF, NINJA, ARCHMAGE, MASTER_THIEF, SHADOW_NINJA,
-	BATTLE_KITTEN, WIZARD_KITTEN, SLEEPY_KITTEN, CHONK_KITTEN,
-	BATTLE_CAT, WIZARD_CAT, SLEEPY_CAT, CHONK_CAT,
+	BATTLE_KITTEN = 6, WIZARD_KITTEN = 7, SLEEPY_KITTEN = 8, CHONK_KITTEN = 9,
+	BATTLE_CAT = 10, WIZARD_CAT = 11, SLEEPY_CAT = 12, CHONK_CAT = 13,
 }
 
 const SAVE_PATH := "user://character.tres"
 
 @export var character_name: String = "Kitten"
-@export var character_class: CharacterClass = CharacterClass.MAGE
+@export var character_class: CharacterClass = CharacterClass.BATTLE_KITTEN
 @export var level: int = 1
 @export var xp: int = 0
 @export var hp: int = 10
@@ -43,12 +47,6 @@ var facing: Vector2 = Vector2.DOWN
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10
 	match klass:
-		CharacterClass.MAGE: base = 8
-		CharacterClass.THIEF: base = 10
-		CharacterClass.NINJA: base = 9
-		CharacterClass.ARCHMAGE: base = 12
-		CharacterClass.MASTER_THIEF: base = 14
-		CharacterClass.SHADOW_NINJA: base = 13
 		CharacterClass.WIZARD_KITTEN: base = 8
 		CharacterClass.BATTLE_KITTEN: base = 10
 		CharacterClass.SLEEPY_KITTEN: base = 10
@@ -61,12 +59,6 @@ static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 
 static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 	match klass:
-		CharacterClass.MAGE: return 2
-		CharacterClass.THIEF: return 3
-		CharacterClass.NINJA: return 4
-		CharacterClass.ARCHMAGE: return 4
-		CharacterClass.MASTER_THIEF: return 5
-		CharacterClass.SHADOW_NINJA: return 6
 		CharacterClass.WIZARD_KITTEN: return 2
 		CharacterClass.BATTLE_KITTEN: return 5
 		CharacterClass.SLEEPY_KITTEN: return 2
@@ -79,12 +71,6 @@ static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 
 static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 	match klass:
-		CharacterClass.MAGE: return 0
-		CharacterClass.THIEF: return 1
-		CharacterClass.NINJA: return 0
-		CharacterClass.ARCHMAGE: return 1
-		CharacterClass.MASTER_THIEF: return 2
-		CharacterClass.SHADOW_NINJA: return 1
 		CharacterClass.WIZARD_KITTEN: return 0
 		CharacterClass.BATTLE_KITTEN: return 1
 		CharacterClass.SLEEPY_KITTEN: return 0
@@ -95,20 +81,12 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.CHONK_CAT: return 4
 	return 0
 
-# Per-class movement speed (px/sec). Thief is fastest, Mage slowest, Ninja
-# balanced — matches the issue's "high speed / balanced / low" archetype.
-# Tier-2 classes (Archmage / Master Thief / Shadow Ninja) inherit their base
-# class's identity (Master Thief stays fastest, Shadow Ninja balanced) with
-# a small uplift across the board so the upgrade feels meaningful without
-# warping the per-class archetype.
+# Per-class movement speed (px/sec). Chonk slowest, Battle fastest among
+# Kittens; Cat tier uplifts each archetype while preserving the relative
+# ordering so the upgrade feels meaningful without warping the per-class
+# identity.
 static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 	match klass:
-		CharacterClass.MAGE: return 50.0
-		CharacterClass.THIEF: return 75.0
-		CharacterClass.NINJA: return 60.0
-		CharacterClass.ARCHMAGE: return 55.0
-		CharacterClass.MASTER_THIEF: return 80.0
-		CharacterClass.SHADOW_NINJA: return 65.0
 		CharacterClass.WIZARD_KITTEN: return 60.0
 		CharacterClass.BATTLE_KITTEN: return 65.0
 		CharacterClass.SLEEPY_KITTEN: return 50.0
@@ -120,14 +98,9 @@ static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 	return 60.0
 
 static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
-	# Mages are magic-leaning; thieves are not. Mirrors base_attack_for shape.
+	# Wizard archetype is magic-leaning; Battle/Chonk are not. Mirrors
+	# base_attack_for shape.
 	match klass:
-		CharacterClass.MAGE: return 4
-		CharacterClass.THIEF: return 1
-		CharacterClass.NINJA: return 2
-		CharacterClass.ARCHMAGE: return 6
-		CharacterClass.MASTER_THIEF: return 2
-		CharacterClass.SHADOW_NINJA: return 3
 		CharacterClass.WIZARD_KITTEN: return 5
 		CharacterClass.BATTLE_KITTEN: return 1
 		CharacterClass.SLEEPY_KITTEN: return 3
@@ -141,12 +114,6 @@ static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
 static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 5
 	match klass:
-		CharacterClass.MAGE: base = 10
-		CharacterClass.THIEF: base = 3
-		CharacterClass.NINJA: base = 5
-		CharacterClass.ARCHMAGE: base = 14
-		CharacterClass.MASTER_THIEF: base = 4
-		CharacterClass.SHADOW_NINJA: base = 7
 		CharacterClass.WIZARD_KITTEN: base = 10
 		CharacterClass.BATTLE_KITTEN: base = 4
 		CharacterClass.SLEEPY_KITTEN: base = 10

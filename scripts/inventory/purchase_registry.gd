@@ -17,26 +17,23 @@ const GRANT_CLASS_UNLOCK := "class_unlock"
 const GRANT_GEM_BUNDLE := "gem_bundle"
 const GRANT_SKILL_UNLOCK := "skill_unlock"
 
-# Tier 1 — class tier upgrades. The source class is the one being upgraded;
-# `ClassTierUpgrade.TIER_MAP` owns the upgrade target. Today only Mage ->
-# Archmage is wired in TIER_MAP; the other two product IDs exist so the
-# Play Console catalog can be stood up ahead of the in-engine upgrades.
-const UPGRADE_MAGE_ARCHMAGE := "upgrade_mage_archmage"
-const UPGRADE_THIEF_MASTER_THIEF := "upgrade_thief_master_thief"
-const UPGRADE_NINJA_SHADOW_NINJA := "upgrade_ninja_shadow_ninja"
+# Tier 1 — class tier upgrades (Kitten -> Cat). The source class is the one
+# being upgraded; `ClassTierUpgrade.TIER_MAP` owns the upgrade target.
+const UPGRADE_BATTLE_KITTEN_BATTLE_CAT := "upgrade_battle_kitten_battle_cat"
+const UPGRADE_WIZARD_KITTEN_WIZARD_CAT := "upgrade_wizard_kitten_wizard_cat"
+const UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT := "upgrade_sleepy_kitten_sleepy_cat"
+const UPGRADE_CHONK_KITTEN_CHONK_CAT := "upgrade_chonk_kitten_chonk_cat"
 
 # Tier 2 — cosmetic packs. Owning ids tracked in CosmeticInventory (#29).
 const COSMETIC_COAT_PACK := "cosmetic_coat_pack"
 const COSMETIC_SPELL_EFFECTS := "cosmetic_spell_effects"
 const COSMETIC_DUNGEON_SKINS := "cosmetic_dungeon_skins"
 
-# Tier 3 — class unlock shortcuts. PRD calls out "first unlockable class beyond
-# the base three"; Archmage is the only non-base class in CharacterData today,
-# so it doubles as the placeholder. Earnable via the existing UnlockRegistry
-# gate (`max_level_per_class.mage >= 5`).
-const CLASS_UNLOCK_ARCHMAGE := "class_unlock_archmage"
-const CLASS_UNLOCK_THIEF := "class_unlock_thief"
-const CLASS_UNLOCK_NINJA := "class_unlock_ninja"
+# Tier 3 — class unlock shortcuts. Chonk Kitten is the only gated Kitten
+# (Battle/Wizard/Sleepy are starters), so it's the only paid-shortcut product
+# at this tier. Earnable via the existing UnlockRegistry gate
+# (`dungeons_completed >= 5`).
+const CLASS_UNLOCK_CHONK_KITTEN := "class_unlock_chonk_kitten"
 
 # Tier 4 — Gem bundle consumable IAPs (PRD #53). Real-money product IDs; the
 # grant handler routes each to a CurrencyLedger.credit(Currency.GEM, amount)
@@ -69,9 +66,10 @@ const _SKILL_UNLOCK_TO_SKILL_ID: Dictionary = {
 }
 
 const _CLASS_UPGRADE_TO_SOURCE: Dictionary = {
-	UPGRADE_MAGE_ARCHMAGE: CharacterData.CharacterClass.MAGE,
-	UPGRADE_THIEF_MASTER_THIEF: CharacterData.CharacterClass.THIEF,
-	UPGRADE_NINJA_SHADOW_NINJA: CharacterData.CharacterClass.NINJA,
+	UPGRADE_BATTLE_KITTEN_BATTLE_CAT: CharacterData.CharacterClass.BATTLE_KITTEN,
+	UPGRADE_WIZARD_KITTEN_WIZARD_CAT: CharacterData.CharacterClass.WIZARD_KITTEN,
+	UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT: CharacterData.CharacterClass.SLEEPY_KITTEN,
+	UPGRADE_CHONK_KITTEN_CHONK_CAT: CharacterData.CharacterClass.CHONK_KITTEN,
 }
 
 const _COSMETIC_IDS: Array = [
@@ -81,30 +79,25 @@ const _COSMETIC_IDS: Array = [
 ]
 
 const _CLASS_UNLOCK_IDS: Array = [
-	CLASS_UNLOCK_ARCHMAGE,
-	CLASS_UNLOCK_THIEF,
-	CLASS_UNLOCK_NINJA,
+	CLASS_UNLOCK_CHONK_KITTEN,
 ]
 
 # product_id -> class id string consulted by UnlockRegistry.is_unlocked. The
 # class id matches the lowercase string the unlock condition list keys on
 # (see UnlockRegistry.DEFAULT_CONDITIONS / CharacterFactory.name_from_class).
 const _CLASS_UNLOCK_TO_CLASS_ID: Dictionary = {
-	CLASS_UNLOCK_ARCHMAGE: "archmage",
-	CLASS_UNLOCK_THIEF: "thief",
-	CLASS_UNLOCK_NINJA: "ninja",
+	CLASS_UNLOCK_CHONK_KITTEN: "chonk_kitten",
 }
 
 const ALL_PRODUCT_IDS: Array = [
-	UPGRADE_MAGE_ARCHMAGE,
-	UPGRADE_THIEF_MASTER_THIEF,
-	UPGRADE_NINJA_SHADOW_NINJA,
+	UPGRADE_BATTLE_KITTEN_BATTLE_CAT,
+	UPGRADE_WIZARD_KITTEN_WIZARD_CAT,
+	UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT,
+	UPGRADE_CHONK_KITTEN_CHONK_CAT,
 	COSMETIC_COAT_PACK,
 	COSMETIC_SPELL_EFFECTS,
 	COSMETIC_DUNGEON_SKINS,
-	CLASS_UNLOCK_ARCHMAGE,
-	CLASS_UNLOCK_THIEF,
-	CLASS_UNLOCK_NINJA,
+	CLASS_UNLOCK_CHONK_KITTEN,
 	GEM_BUNDLE_STARTER,
 	GEM_BUNDLE_EXPLORER,
 	GEM_BUNDLE_ADVENTURER,
@@ -150,6 +143,6 @@ static func class_for_product(product_id: String) -> int:
 # Returns the class id string for class-unlock products. Empty string for any
 # other product kind so callers can branch off the empty sentinel without
 # special-casing the lookup. The class id matches the lowercase keys
-# UnlockRegistry's condition list uses (e.g. "archmage").
+# UnlockRegistry's condition list uses (e.g. "chonk_kitten").
 static func class_id_for_unlock(product_id: String) -> String:
 	return String(_CLASS_UNLOCK_TO_CLASS_ID.get(product_id, ""))

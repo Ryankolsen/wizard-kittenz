@@ -25,31 +25,31 @@ func test_compute_floor_empty_array_returns_safe_default():
 func test_scale_stats_reduces_level_10_to_floor_3_baseline():
 	# Issue scenario 2: a level-10 player in a level-3 party gets
 	# stats equivalent to level-3 baseline for that class.
-	var lvl_10 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var lvl_10 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	lvl_10.level = 10
 	lvl_10.max_hp = CharacterData.base_max_hp_for(lvl_10.character_class, 10)
 	lvl_10.hp = lvl_10.max_hp
 
 	var scaled := PartyScaler.scale_stats(lvl_10, 3)
 	assert_eq(scaled.level, 3, "effective level matches floor")
-	assert_eq(scaled.max_hp, CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3),
+	assert_eq(scaled.max_hp, CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3),
 		"max_hp matches per-class level-3 baseline")
-	assert_eq(scaled.attack, CharacterData.base_attack_for(CharacterData.CharacterClass.MAGE, 3))
-	assert_eq(scaled.defense, CharacterData.base_defense_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.attack, CharacterData.base_attack_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3))
+	assert_eq(scaled.defense, CharacterData.base_defense_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3))
 	assert_lt(scaled.max_hp, lvl_10.max_hp, "scaled max_hp is strictly lower than real")
 
 func test_scale_stats_preserves_class_and_name():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	c.level = 8
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 8)
 	c.hp = c.max_hp
 	var scaled := PartyScaler.scale_stats(c, 2)
-	assert_eq(scaled.character_class, CharacterData.CharacterClass.NINJA)
+	assert_eq(scaled.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_eq(scaled.character_name, "Shadow")
 
 func test_scale_stats_preserves_xp_and_skill_points():
 	# Scaling is a stat view, not a progression rollback — xp/sp must carry.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 5
 	c.xp = 11
 	c.skill_points = 3
@@ -59,7 +59,7 @@ func test_scale_stats_preserves_xp_and_skill_points():
 
 func test_scale_stats_floor_player_returns_identical_stats():
 	# Issue scenario 3: scale factor of 1.0 for the floor player.
-	var lvl_3 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "Whisker")
+	var lvl_3 := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Whisker")
 	lvl_3.level = 3
 	lvl_3.max_hp = CharacterData.base_max_hp_for(lvl_3.character_class, 3)
 	lvl_3.hp = lvl_3.max_hp
@@ -73,13 +73,13 @@ func test_scale_stats_floor_player_returns_identical_stats():
 
 func test_scale_stats_below_floor_returns_clone_not_input():
 	# A level-1 player in a level-3 party shouldn't be artificially boosted.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var scaled := PartyScaler.scale_stats(c, 3)
 	assert_eq(scaled.level, c.level, "no upscaling — level stays at 1")
 	assert_ne(scaled, c, "returns a fresh clone, not the input reference")
 
 func test_scale_stats_returns_new_instance_not_mutating_input():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
 	c.hp = c.max_hp
@@ -93,7 +93,7 @@ func test_scale_stats_returns_new_instance_not_mutating_input():
 
 func test_xp_system_award_use_real_level_true_routes_xp_to_real_stats():
 	# Issue scenario 4: scaled session XP applies to real_stats.xp.
-	var real := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var real := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	real.level = 10
 	var pm := PartyMember.from_character(real)
 	pm.apply_scaling(3)
@@ -104,7 +104,7 @@ func test_xp_system_award_use_real_level_true_routes_xp_to_real_stats():
 
 func test_xp_system_award_use_real_level_false_routes_xp_to_effective_stats():
 	# Optional path for any future scaled-XP pool. Today: routes to effective.
-	var real := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var real := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var pm := PartyMember.from_character(real)
 	XPSystem.award(pm, 3, false)
 	assert_eq(pm.effective_stats.xp, 3)
@@ -112,13 +112,13 @@ func test_xp_system_award_use_real_level_false_routes_xp_to_effective_stats():
 
 func test_xp_system_award_defaults_to_real_level():
 	# Default is the safer, expected behavior — real progression always advances.
-	var pm := PartyMember.from_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
+	var pm := PartyMember.from_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN))
 	XPSystem.award(pm, 2)
 	assert_eq(pm.real_stats.xp, 2)
 	assert_eq(pm.effective_stats.xp, 0)
 
 func test_xp_system_award_zero_or_negative_is_noop():
-	var pm := PartyMember.from_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
+	var pm := PartyMember.from_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN))
 	assert_eq(XPSystem.award(pm, 0, true), 0)
 	assert_eq(pm.real_stats.xp, 0)
 	assert_eq(XPSystem.award(pm, -5, true), 0)
@@ -127,14 +127,14 @@ func test_xp_system_award_zero_or_negative_is_noop():
 # --- PartyMember -------------------------------------------------------------
 
 func test_party_member_from_character_starts_real_and_effective_equal():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	var pm := PartyMember.from_character(c)
 	assert_eq(pm.real_stats.level, pm.effective_stats.level)
 	assert_eq(pm.real_stats.max_hp, pm.effective_stats.max_hp)
 	assert_ne(pm.real_stats, pm.effective_stats, "effective is a clone, not the same reference")
 
 func test_party_member_apply_scaling_only_mutates_effective():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 7
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 7)
 	c.hp = c.max_hp
@@ -147,7 +147,7 @@ func test_party_member_apply_scaling_only_mutates_effective():
 
 func test_remove_scaling_restores_effective_to_real():
 	# Issue scenario 5: session-end inverse — drop scaling, restore real stats.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
 	c.hp = c.max_hp
@@ -162,14 +162,14 @@ func test_remove_scaling_restores_effective_to_real():
 # --- HUD format --------------------------------------------------------------
 
 func test_format_hud_level_scaled_session_shows_real_and_effective():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	var pm := PartyMember.from_character(c)
 	pm.apply_scaling(3)
 	assert_eq(PartyScaler.format_hud_level(pm), "Lv.10 (Lv.3)")
 
 func test_format_hud_level_solo_session_shows_single_level():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	var pm := PartyMember.from_character(c)
 	# No scaling applied — both stat snapshots agree.
@@ -180,7 +180,7 @@ func test_format_hud_level_solo_session_shows_single_level():
 # --- clone -------------------------------------------------------------------
 
 func test_clone_copies_all_expanded_stats():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.magic_attack = 7
 	c.magic_points = 5
 	c.max_mp = 5
@@ -210,7 +210,7 @@ func test_clone_copies_all_expanded_stats():
 
 func test_scale_stats_carries_secondary_stats():
 	# Earned crit/evasion/luck survive scaling — they add fun without removing challenge.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.level = 10
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
 	c.hp = c.max_hp
@@ -231,15 +231,15 @@ func test_scale_stats_carries_secondary_stats():
 	assert_eq(scaled.appearance_index, 2, "appearance_index carries through")
 
 func test_scale_stats_floors_combat_resources_to_floor_level():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.level = 10
 	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
 	c.hp = c.max_hp
 	var scaled := PartyScaler.scale_stats(c, 3)
-	assert_eq(scaled.max_hp, CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.max_hp, CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3))
 	assert_eq(scaled.hp, scaled.max_hp, "hp is full at the floor max")
-	assert_eq(scaled.magic_attack, CharacterData.base_magic_attack_for(CharacterData.CharacterClass.MAGE, 3))
-	assert_eq(scaled.max_mp, CharacterData.base_max_mp_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.magic_attack, CharacterData.base_magic_attack_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3))
+	assert_eq(scaled.max_mp, CharacterData.base_max_mp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3))
 	assert_eq(scaled.magic_points, scaled.max_mp, "magic_points is full at the floor max")
 
 # --- end-to-end --------------------------------------------------------------
@@ -248,7 +248,7 @@ func test_full_session_flow_xp_progresses_real_level_after_unscale():
 	# A level-10 mage joins a level-3 party. They earn enough XP to level up
 	# their REAL level. Session ends; remove_scaling drops the scaled view
 	# and the real level is correctly higher than where they started.
-	var real := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var real := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	real.level = 10
 	real.max_hp = CharacterData.base_max_hp_for(real.character_class, 10)
 	real.hp = real.max_hp

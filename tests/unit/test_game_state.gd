@@ -15,14 +15,14 @@ func test_current_character_starts_null():
 
 func test_set_character_persists_data():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	gs.set_character(c)
 	assert_eq(gs.current_character, c)
-	assert_eq(gs.current_character.character_class, CharacterData.CharacterClass.NINJA)
+	assert_eq(gs.current_character.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 
 func test_clear_resets_to_null():
 	var gs := get_node("/root/GameState")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN))
 	gs.clear()
 	assert_null(gs.current_character)
 
@@ -32,7 +32,7 @@ func test_apply_merged_save_hydrates_character():
 	var gs := get_node("/root/GameState")
 	var save := KittenSaveData.new()
 	save.character_name = "Mittens"
-	save.character_class = CharacterData.CharacterClass.THIEF
+	save.character_class = CharacterData.CharacterClass.BATTLE_KITTEN
 	save.level = 5
 	save.xp = 42
 	gs.apply_merged_save(save)

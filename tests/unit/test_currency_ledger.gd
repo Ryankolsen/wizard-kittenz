@@ -51,7 +51,7 @@ func test_signal_does_not_fire_on_failed_debit():
 	assert_signal_not_emitted(ledger, "balance_changed")
 
 func test_save_load_round_trip_preserves_balances():
-	var character := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var character := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var ledger := CurrencyLedger.new()
 	ledger.credit(250, CurrencyLedger.Currency.GOLD)
 	ledger.credit(17, CurrencyLedger.Currency.GEM)

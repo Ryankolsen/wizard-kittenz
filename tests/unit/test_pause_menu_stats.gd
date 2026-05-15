@@ -24,7 +24,7 @@ func test_pause_menu_has_character_submenu():
 
 func test_stats_panel_shows_level():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel")
 	c.level = 7
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
@@ -37,7 +37,7 @@ func test_stats_panel_shows_level():
 
 func test_stats_panel_shows_hp():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = 18
 	c.max_hp = 30
 	gs.set_character(c)
@@ -54,7 +54,7 @@ func test_inventory_tab_has_equipment_panel():
 	# InventoryTab node now carries the EquipmentTabPanel script and
 	# renders Equipped / Bag sections on inventory-tab press.
 	var gs := get_node("/root/GameState")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WARRIOR))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN))
 	gs.item_inventory = ItemInventory.new()
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
@@ -101,7 +101,7 @@ func test_back_returns_to_root_menu():
 
 func test_stats_panel_shows_attack_defense_speed():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.attack = 9
 	c.defense = 4
 	c.speed = 88.0

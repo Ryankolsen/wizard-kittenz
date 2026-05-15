@@ -29,7 +29,7 @@ func _make_two_room_dungeon() -> Dungeon:
 func _make_active_session(local_id: String = "u1") -> CoopSession:
 	# Active session bound to local_id with one party member (L1 Mage).
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = 1
 	c.xp = 0
 	var session := CoopSession.new(lobby, {"u1": c}, null, local_id)
@@ -64,7 +64,7 @@ func test_target_for_solo_returns_character():
 	# `data` field holds real_stats in solo (real == effective), so events
 	# land on the right block via the same CharacterData reference the
 	# HUD reads from.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	assert_eq(CoopRouter.target_for(null, c, "u1"), c)
 
 func test_target_for_coop_returns_effective_stats():
@@ -73,7 +73,7 @@ func test_target_for_coop_returns_effective_stats():
 	# real_stats — but it's still the effective reference, not the input
 	# character.
 	var session := _make_active_session("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var target := CoopRouter.target_for(session, c, "u1")
 	var member := session.member_for("u1")
 	assert_ne(target, c, "co-op route should not return the input character")
@@ -91,7 +91,7 @@ func test_target_for_empty_local_id_returns_character():
 	# member in the party (a tempting "default to head of list" shortcut)
 	# breaks loud.
 	var session := _make_active_session("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	assert_eq(CoopRouter.target_for(session, c, ""), c)
 
 # --- CoopRouter.apply_damage ------------------------------------------------
@@ -100,7 +100,7 @@ func test_apply_damage_solo_hits_character():
 	# Solo path end-to-end: damage lands on the character's hp.
 	# DamageResolver mitigates via target.defense; Mage L1 has defense 0
 	# so a 3-attack lands as 3 damage.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var hp_before := c.hp
 	var attacker := _make_attacker(3)
 	var dealt := CoopRouter.apply_damage(null, attacker, c, "", _rng_force_hit())
@@ -127,7 +127,7 @@ func test_apply_damage_coop_hits_effective_not_real():
 func test_apply_damage_null_attacker_returns_zero():
 	# Null-safe: a future kill source that doesn't pass attacker stats
 	# (e.g. environmental hazard) degrades to no-op.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var hp_before := c.hp
 	assert_eq(CoopRouter.apply_damage(null, null, c, ""), 0)
 	assert_eq(c.hp, hp_before, "null attacker leaves character untouched")
@@ -142,7 +142,7 @@ func test_apply_damage_zero_attack_no_op():
 	# path that lets damage be 0 — defense floor is 1). Pin the routing
 	# pass-through: the router must not paper over the zero with a
 	# 1-damage minimum of its own.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var hp_before := c.hp
 	var attacker := _make_attacker(0)
 	assert_eq(CoopRouter.apply_damage(null, attacker, c, ""), 0)
@@ -153,7 +153,7 @@ func test_apply_damage_defense_mitigates_to_floor_one():
 	# attacker has any positive attack). Pin that the router inherits
 	# the contract: an attack of 1 against a defense-3 target still
 	# lands for 1 damage in solo.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.defense = 3
 	var hp_before := c.hp
 	var attacker := _make_attacker(1)
@@ -181,7 +181,7 @@ func test_apply_damage_floor_player_routes_to_effective_not_real():
 	# identical numbers. The clone is still a separate Resource — damage
 	# to effective_stats must not leak into real_stats.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var member := session.member_for("u1")
@@ -203,13 +203,13 @@ func test_apply_damage_scaled_player_uses_lower_max_hp():
 		["u1", "Big",   "Mage"],
 		["u2", "Small", "Mage"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Big")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Big")
 	c1.level = 10
-	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 10)
+	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 10)
 	c1.hp = c1.max_hp
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Small")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Small")
 	c2.level = 3
-	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
+	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3)
 	c2.hp = c2.max_hp
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon())
@@ -227,7 +227,7 @@ func test_apply_damage_scaled_player_uses_lower_max_hp():
 func test_revive_solo_revives_character():
 	# Solo path end-to-end: sets character.hp to half max_hp. Mage default
 	# max_hp=10 => revive at 5. Free revive (post-#27) — no inventory.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.max_hp = 10
 	c.hp = 0
 	var ok := CoopRouter.revive(null, c, "")
@@ -274,7 +274,7 @@ func test_revive_floor_player_revives_effective_not_real():
 	# Floor player: scale_stats returns a CLONE of real_stats. Revive on
 	# effective_stats must not leak into real_stats.
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var member := session.member_for("u1")
@@ -297,13 +297,13 @@ func test_revive_scaled_player_uses_lower_max_hp():
 		["u1", "Big",   "Mage"],
 		["u2", "Small", "Mage"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Big")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Big")
 	c1.level = 10
-	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 10)
+	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 10)
 	c1.hp = c1.max_hp
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Small")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Small")
 	c2.level = 3
-	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
+	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 3)
 	c2.hp = c2.max_hp
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon())
@@ -321,7 +321,7 @@ func test_revive_scaled_player_uses_lower_max_hp():
 func test_revive_min_one_hp_floor_inherits_through_router():
 	# ReviveSystem's min-1 floor (max_hp=1 must not revive at 0) inherits
 	# through the router unchanged.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.max_hp = 1
 	c.hp = 0
 	var ok := CoopRouter.revive(null, c, "")

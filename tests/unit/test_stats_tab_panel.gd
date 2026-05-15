@@ -6,7 +6,7 @@ extends GutTest
 # "+" spends one point through StatAllocator and refreshes the panel.
 
 func _mage_with_points(points: int) -> CharacterData:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = points
 	return c
 
@@ -139,7 +139,7 @@ func test_pause_menu_stats_panel_uses_stats_tab_panel_script():
 
 func test_pause_menu_open_character_submenu_refreshes_panel():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 4
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()

@@ -568,7 +568,7 @@ func test_run_xp_summary_end_to_end_three_player_run():
 
 # --- CoopXPSubscriber ----------------------------------------------------------
 
-func _make_member(klass: int = CharacterData.CharacterClass.MAGE, lvl: int = 1) -> PartyMember:
+func _make_member(klass: int = CharacterData.CharacterClass.WIZARD_KITTEN, lvl: int = 1) -> PartyMember:
 	var c := CharacterData.make_new(klass, "k")
 	c.level = lvl
 	c.xp = 0
@@ -582,7 +582,7 @@ func test_local_xp_router_routes_local_pid_to_member_real_stats():
 	# "kill-by-anyone awards XP to me" loop on the receiving end.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var router := CoopXPSubscriber.new(bc, "me", member)
 	assert_true(router.is_bound())
 	bc.on_enemy_killed(3)  # under L1 threshold (5) — no level-up yet
@@ -610,7 +610,7 @@ func test_local_xp_router_levels_up_local_member_when_threshold_crossed():
 	# not a raw xp += amount that would skip level-up.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var _r := CoopXPSubscriber.new(bc, "me", member)
 	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1))  # exactly L1->L2 threshold
 	assert_eq(member.real_stats.level, 2, "level up applied")
@@ -623,7 +623,7 @@ func test_local_xp_router_applies_to_real_stats_not_effective_in_scaled_party():
 	# stuck at 3 forever without progress.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 10)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 10)
 	member.apply_scaling(3)
 	var pre_real_xp := member.real_stats.xp
 	var pre_effective_xp := member.effective_stats.xp
@@ -734,7 +734,7 @@ func test_local_xp_router_emits_level_up_when_threshold_crossed():
 	# member.real_stats.level.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var router := CoopXPSubscriber.new(bc, "me", member)
 	var events: Array = []
 	router.level_up.connect(func(old_l, new_l): events.append([old_l, new_l]))
@@ -748,7 +748,7 @@ func test_local_xp_router_no_level_up_emit_when_xp_below_threshold():
 	# on every XP gain would spam token grants for non-milestone events.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var router := CoopXPSubscriber.new(bc, "me", member)
 	var emitted := [false]
 	router.level_up.connect(func(_o, _n): emitted[0] = true)
@@ -762,7 +762,7 @@ func test_local_xp_router_emits_single_level_up_for_multi_level_dump():
 	# doesn't have to slice the dump per-level.
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var router := CoopXPSubscriber.new(bc, "me", member)
 	var events: Array = []
 	router.level_up.connect(func(o, n): events.append([o, n]))
@@ -778,7 +778,7 @@ func test_local_xp_router_does_not_emit_level_up_for_non_local_pid():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	bc.register_player("other")
-	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
 	var router := CoopXPSubscriber.new(bc, "me", member)
 	var emitted := [false]
 	router.level_up.connect(func(_o, _n): emitted[0] = true)
@@ -992,7 +992,7 @@ func _make_active_session_for_apply(local_id: String = "u1") -> CoopSession:
 	# to apply. Tests that need a missing id skip the register and call
 	# apply with their own enemy_id.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = 1
 	c.xp = 0
 	var session := CoopSession.new(lobby, {"u1": c}, null, local_id)
@@ -1011,7 +1011,7 @@ func test_remote_kill_apply_inactive_session_returns_false():
 	# null in that window so a remote packet has nothing to apply
 	# against. Must no-op rather than crash on the null deref.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
+	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")}, null, "u1")
 	assert_false(session.is_active())
 	assert_false(RemoteKillApplier.apply(session, "e1", "u2", 5))
 
@@ -1071,9 +1071,9 @@ func test_remote_kill_apply_fan_out_targets_all_party_members():
 		["u2", "B", "Ninja"],
 		["u3", "C", "Thief"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k")
-	var c3 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "k")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "k")
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2, "u3": c3}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	session.enemy_sync.register_enemy("e1")
@@ -1197,7 +1197,7 @@ func test_remote_kill_apply_levels_local_via_local_xp_router_pipeline():
 	# kill, since both routes share the broadcaster -> CoopXPSubscriber.level_up
 	# edge. Token grants used to drip off this edge; #30 stripped them.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = 4
 	c.xp = 0
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
@@ -1451,9 +1451,9 @@ func test_summary_rows_build_from_active_session_end_to_end():
 		["u2", "Mittens", "Thief"],
 		["u3", "Patches", "Ninja"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
-	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "k2")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "k3")
 	var characters := {"u1": c1, "u2": c2, "u3": c3}
 	var session := CoopSession.new(lobby, characters, null, "u2")
 	session.start(_make_two_room_dungeon_for_apply())
@@ -1698,9 +1698,9 @@ func test_summary_header_build_from_active_session_end_to_end():
 		["u2", "Mittens", "Thief"],
 		["u3", "Patches", "Ninja"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
-	var c3 := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "k3")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "k2")
+	var c3 := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "k3")
 	var characters := {"u1": c1, "u2": c2, "u3": c3}
 	var session := CoopSession.new(lobby, characters, null, "u2")
 	session.start(_make_two_room_dungeon_for_apply())
@@ -1729,7 +1729,7 @@ func test_summary_header_post_completion_visible():
 	# session.was_dungeon_completed() is true and the header surfaces
 	# the "Victory!" flag.
 	var lobby := _make_lobby_for_summary([["u1", "A", "Mage"]])
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	var characters := {"u1": c}
 	var session := CoopSession.new(lobby, characters, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
@@ -1750,8 +1750,8 @@ func test_summary_header_passes_through_post_end_session():
 		["u1", "Whiskers", "Mage"],
 		["u2", "Mittens", "Thief"],
 	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k1")
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "k2")
+	var c1 := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k1")
+	var c2 := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "k2")
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon_for_apply())
 	session.xp_broadcaster.on_enemy_killed(9, "u1")

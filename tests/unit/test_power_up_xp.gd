@@ -6,7 +6,7 @@ extends GutTest
 # Solo applies directly to data via ProgressionSystem.add_xp.
 
 func _make_character(level: int = 1) -> CharacterData:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.level = level
 	return c
 

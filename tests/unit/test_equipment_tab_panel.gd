@@ -13,7 +13,7 @@ func _make_panel() -> EquipmentTabPanel:
 	return p
 
 func _make_char() -> CharacterData:
-	return CharacterData.make_new(CharacterData.CharacterClass.WARRIOR, "Test")
+	return CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 
 func test_refresh_renders_three_slot_rows_when_empty():
 	var inv := ItemInventory.new()

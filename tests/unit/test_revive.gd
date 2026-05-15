@@ -12,14 +12,14 @@ extends GutTest
 # --- ReviveSystem.revive -----------------------------------------------------
 
 func test_revive_sets_hp_to_half_max():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.max_hp = 20
 	c.hp = 0
 	ReviveSystem.revive(c)
 	assert_eq(c.hp, 10, "hp restored to 50% of max_hp")
 
 func test_revive_rounds_half_max_hp():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.max_hp = 9
 	c.hp = 0
 	ReviveSystem.revive(c)
@@ -27,14 +27,14 @@ func test_revive_rounds_half_max_hp():
 
 func test_revive_floors_at_one_hp_minimum():
 	# Degenerate max_hp=1 must not revive at 0 (would loop the death screen).
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.max_hp = 1
 	c.hp = 0
 	ReviveSystem.revive(c)
 	assert_eq(c.hp, 1, "minimum 1 HP after revive even at max_hp=1")
 
 func test_revive_returns_resulting_hp():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.max_hp = 10
 	c.hp = 0
 	assert_eq(ReviveSystem.revive(c), 5, "returns the new hp value")
@@ -46,7 +46,7 @@ func test_revive_handles_null_player():
 # --- CoopRouter.revive — solo branch ----------------------------------
 
 func test_local_revive_router_revive_solo_revives_character():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.max_hp = 10
 	c.hp = 0
 	var ok := CoopRouter.revive(null, c, "")
@@ -60,7 +60,7 @@ func test_local_revive_router_revive_null_character_no_op():
 
 func test_local_revive_router_revive_inherits_min_one_hp_floor():
 	# ReviveSystem's min-1 floor inherits through the router unchanged.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
 	c.max_hp = 1
 	c.hp = 0
 	assert_true(CoopRouter.revive(null, c, ""))

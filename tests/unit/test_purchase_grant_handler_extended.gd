@@ -65,7 +65,7 @@ func test_gem_amount_for_non_bundle_is_zero():
 	# Non-bundle product ids return 0 so a future mis-routing can't accidentally
 	# mint Gems.
 	assert_eq(PurchaseRegistry.gem_amount_for(
-		PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE), 0)
+		PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT), 0)
 	assert_eq(PurchaseRegistry.gem_amount_for("unknown_product"), 0)
 
 func test_distinct_bundles_each_credit_once():
@@ -143,7 +143,7 @@ func test_skill_inventory_round_trip_via_save():
 	# SkillInventory survives the SaveManager.save -> load cycle through
 	# KittenSaveData.skill_unlocks. Same shape as cosmetic_packs.
 	_cleanup_save()
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var inv := SkillInventory.new()
 	inv.grant("fireball")
 	inv.grant("shadowstep")
@@ -172,7 +172,7 @@ func test_purchase_succeeded_signal_credits_gem_bundle():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers"))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers"))
 	bm.purchase_succeeded.emit(PurchaseRegistry.GEM_BUNDLE_STARTER)
 	assert_eq(gs.currency_ledger.balance(CurrencyLedger.Currency.GEM), 100,
 		"signal credits Gems")
@@ -184,7 +184,7 @@ func test_purchase_succeeded_signal_grants_skill_unlock():
 	_cleanup_save()
 	var gs := get_node("/root/GameState")
 	var bm := get_node("/root/BillingManager")
-	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers"))
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers"))
 	bm.purchase_succeeded.emit(PurchaseRegistry.SKILL_UNLOCK_FIREBALL)
 	assert_true(gs.skill_inventory.has_skill("fireball"))
 	var loaded := SaveManager.load(TMP_SAVE_PATH)

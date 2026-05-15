@@ -25,7 +25,7 @@ func after_each():
 
 func test_solo_quit_saves_character():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Pixel")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel")
 	c.xp = 99
 	gs.current_character = c
 	QuitDungeonHandler.save_and_exit(null)
@@ -35,7 +35,7 @@ func test_solo_quit_saves_character():
 
 func test_solo_quit_saves_skill_tree():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	gs.current_character = c
 	var tree := SkillTree.make_mage_tree()
 	var first_id: String = tree.all_nodes()[0].id
@@ -51,7 +51,7 @@ func test_solo_quit_saves_skill_tree():
 # reads it from GameState directly.
 func test_solo_quit_saves_cosmetic_inventory():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	gs.cosmetic_inventory.grant("starter_pack")
 	QuitDungeonHandler.save_and_exit(null)
 	var loaded := SaveManager.load()
@@ -61,7 +61,7 @@ func test_solo_quit_saves_cosmetic_inventory():
 
 func test_solo_quit_saves_currency_ledger():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	gs.currency_ledger.credit(250, CurrencyLedger.Currency.GOLD)
 	QuitDungeonHandler.save_and_exit(null)
 	var loaded := SaveManager.load()
@@ -71,17 +71,17 @@ func test_solo_quit_saves_currency_ledger():
 
 func test_solo_quit_saves_paid_unlocks():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	gs.paid_unlocks.grant("archmage")
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	gs.paid_unlocks.grant("wizard_cat")
 	QuitDungeonHandler.save_and_exit(null)
 	var loaded := SaveManager.load()
 	assert_not_null(loaded)
-	assert_true(loaded.paid_class_unlocks.has("archmage"),
+	assert_true(loaded.paid_class_unlocks.has("wizard_cat"),
 		"paid_unlocks must persist on quit")
 
 func test_solo_quit_saves_item_inventory():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	gs.item_inventory.equip(ItemCatalog.find("iron_sword"))
 	QuitDungeonHandler.save_and_exit(null)
 	var loaded := SaveManager.load()
@@ -92,7 +92,7 @@ func test_solo_quit_saves_item_inventory():
 
 func test_solo_quit_saves_dungeon_run_state():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var controller := DungeonRunController.new()
 	var dungeon := DungeonGenerator.generate(12345)
 	controller.start(dungeon)
@@ -108,7 +108,7 @@ func test_solo_quit_saves_dungeon_run_state():
 
 func test_multiplayer_quit_skips_save():
 	var gs := get_node("/root/GameState")
-	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var session := CoopSession.new()
 	QuitDungeonHandler.save_and_exit(session)
 	assert_false(FileAccess.file_exists(SaveManager.DEFAULT_PATH),
@@ -127,7 +127,7 @@ func test_quit_with_null_character_does_not_crash():
 # test pins that the in-memory state survives the call.
 func test_multiplayer_quit_preserves_character_xp():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.xp = 42
 	c.level = 3
 	gs.current_character = c
@@ -193,7 +193,7 @@ func test_confirm_quit_clears_game_state_character():
 	if gs == null:
 		pending("GameState autoload not present — skipping")
 		return
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "TestKitten")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "TestKitten")
 	gs.current_character = c
 	gs.skill_tree = SkillTree.make_mage_tree()
 	gs.dungeon_run_controller = null

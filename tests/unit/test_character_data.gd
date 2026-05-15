@@ -7,38 +7,38 @@ func after_each():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
 
 func test_make_new_mage_has_expected_defaults():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Whiskers")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	assert_eq(c.character_name, "Whiskers")
-	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE)
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.level, 1)
 	assert_eq(c.xp, 0)
 	assert_eq(c.max_hp, 8, "mage starts with 8 max hp")
 	assert_eq(c.hp, c.max_hp, "new character starts at full hp")
 
-func test_make_new_thief_and_ninja_have_class_specific_hp():
-	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
-	var ninja := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
-	assert_eq(thief.max_hp, 10)
-	assert_eq(ninja.max_hp, 9)
+func test_make_new_battle_and_sleepy_have_class_specific_hp():
+	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_eq(battle.max_hp, 10)
+	assert_eq(sleepy.max_hp, 10)
 
 func test_make_new_sets_class_specific_attack_and_defense():
-	var mage := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
-	var ninja := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
-	assert_eq(mage.attack, 2)
-	assert_eq(mage.defense, 0)
-	assert_eq(thief.attack, 3)
-	assert_eq(thief.defense, 1, "thief carries a defense baseline")
-	assert_eq(ninja.attack, 4, "ninja has the highest base attack")
-	assert_eq(ninja.defense, 0)
+	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_eq(wizard.attack, 2)
+	assert_eq(wizard.defense, 0)
+	assert_eq(battle.attack, 5, "battle has the highest base attack")
+	assert_eq(battle.defense, 1, "battle carries a defense baseline")
+	assert_eq(sleepy.attack, 2)
+	assert_eq(sleepy.defense, 0)
 
 func test_max_hp_scales_with_level():
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 1), 8)
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 2), 10)
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 5), 16)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 1), 8)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 2), 10)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 5), 16)
 
 func test_take_damage_reduces_hp_and_clamps_at_zero():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_eq(c.take_damage(3), 3)
 	assert_eq(c.hp, 7)
 	assert_true(c.is_alive())
@@ -47,7 +47,7 @@ func test_take_damage_reduces_hp_and_clamps_at_zero():
 	assert_false(c.is_alive())
 
 func test_heal_increases_hp_and_clamps_at_max():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	c.take_damage(8)
 	assert_eq(c.hp, 2)
 	assert_eq(c.heal(3), 3)
@@ -56,7 +56,7 @@ func test_heal_increases_hp_and_clamps_at_max():
 	assert_eq(c.hp, c.max_hp)
 
 func test_save_and_load_roundtrips_state():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	c.xp = 42
 	c.take_damage(3)
 	var err := c.save_to(TMP_PATH)
@@ -65,7 +65,7 @@ func test_save_and_load_roundtrips_state():
 	var loaded := CharacterData.load_from(TMP_PATH)
 	assert_not_null(loaded)
 	assert_eq(loaded.character_name, "Shadow")
-	assert_eq(loaded.character_class, CharacterData.CharacterClass.NINJA)
+	assert_eq(loaded.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_eq(loaded.xp, 42)
 	assert_eq(loaded.hp, c.hp)
 	assert_eq(loaded.max_hp, c.max_hp)
@@ -74,7 +74,7 @@ func test_load_from_missing_path_returns_null():
 	assert_null(CharacterData.load_from("user://does_not_exist.tres"))
 
 func test_expanded_stat_set_fields_exist():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_true("magic_attack" in c)
 	assert_true("magic_points" in c)
 	assert_true("max_mp" in c)
@@ -86,7 +86,7 @@ func test_expanded_stat_set_fields_exist():
 	assert_true("regeneration" in c)
 
 func test_expanded_stat_set_field_types():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(typeof(c.evasion), TYPE_FLOAT)
 	assert_eq(typeof(c.crit_chance), TYPE_FLOAT)
 	assert_eq(typeof(c.magic_attack), TYPE_INT)
@@ -98,8 +98,8 @@ func test_expanded_stat_set_field_types():
 	assert_eq(typeof(c.regeneration), TYPE_INT)
 
 func test_make_new_sets_class_specific_magic_defaults():
-	var mage := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
-	var thief := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var mage := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var thief := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_gt(mage.magic_attack, 0, "mage starts with non-zero magic_attack")
 	assert_gt(mage.max_mp, 0, "mage starts with non-zero max_mp")
 	assert_eq(mage.magic_points, mage.max_mp, "new mage starts at full mp")
@@ -108,7 +108,7 @@ func test_make_new_sets_class_specific_magic_defaults():
 
 func test_save_load_roundtrips_expanded_stat_set():
 	var tmp := "user://test_kitten_save_expanded.json"
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	c.magic_attack = 7
 	c.magic_points = 4
 	c.max_mp = 5
@@ -137,42 +137,42 @@ func test_save_load_roundtrips_expanded_stat_set():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
 func test_apply_stat_delta_increases_int_stat():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var before := c.attack
 	c.apply_stat_delta("attack", 3.0)
 	assert_eq(c.attack, before + 3)
 
 func test_apply_stat_delta_decreases_int_stat():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var before := c.attack
 	c.apply_stat_delta("attack", -1.0)
 	assert_eq(c.attack, before - 1)
 
 func test_apply_stat_delta_rounds_float_delta_for_int_stat():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var before := c.attack
 	c.apply_stat_delta("attack", 1.7)
 	assert_eq(c.attack, before + 2, "rounds to nearest, not truncates")
 
 func test_apply_stat_delta_float_stat_stays_float():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.apply_stat_delta("evasion", 0.15)
 	assert_almost_eq(c.evasion, 0.15, 0.001)
 	assert_eq(typeof(c.evasion), TYPE_FLOAT)
 
 func test_apply_stat_delta_empty_name_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var before := c.attack
 	c.apply_stat_delta("", 5.0)
 	assert_eq(c.attack, before)
 
 func test_apply_stat_delta_unknown_name_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.apply_stat_delta("nonexistent_stat", 5.0)
 	assert_true(true, "should not crash on unknown stat")
 
 func test_apply_stat_delta_swap_replaces_bonus():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var base_attack := c.attack
 	c.apply_stat_delta("attack", 3.0)
 	assert_eq(c.attack, base_attack + 3, "old item applied")
@@ -239,7 +239,7 @@ func test_save_load_roundtrips_chonk_kitten():
 func test_pre_prd_save_loads_with_zero_defaults():
 	var old_dict := {
 		"character_name": "Kitten",
-		"character_class": int(CharacterData.CharacterClass.THIEF),
+		"character_class": int(CharacterData.CharacterClass.BATTLE_KITTEN),
 		"level": 3,
 		"xp": 0,
 		"hp": 10,

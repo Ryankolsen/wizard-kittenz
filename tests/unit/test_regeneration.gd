@@ -13,7 +13,7 @@ func _make_player(c: CharacterData) -> Player:
 
 
 func test_regeneration_heals_hp_after_one_second():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = c.max_hp - 5
 	c.regeneration = 2
 	var p := _make_player(c)
@@ -22,7 +22,7 @@ func test_regeneration_heals_hp_after_one_second():
 
 
 func test_regeneration_does_not_overheal():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = c.max_hp - 1
 	c.regeneration = 5
 	var p := _make_player(c)
@@ -31,7 +31,7 @@ func test_regeneration_does_not_overheal():
 
 
 func test_regeneration_does_not_tick_below_one_second():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = c.max_hp - 5
 	c.regeneration = 3
 	var p := _make_player(c)
@@ -44,7 +44,7 @@ func test_regeneration_does_not_tick_below_one_second():
 
 
 func test_regeneration_zero_is_noop():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = c.max_hp - 5
 	c.regeneration = 0
 	var p := _make_player(c)
@@ -53,7 +53,7 @@ func test_regeneration_zero_is_noop():
 
 
 func test_regeneration_does_not_heal_dead_character():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.hp = 0
 	c.regeneration = 5
 	var p := _make_player(c)
@@ -63,7 +63,7 @@ func test_regeneration_does_not_heal_dead_character():
 
 func test_allocating_regeneration_stat_has_in_game_effect():
 	# End-to-end: StatAllocator.allocate -> regeneration > 0 -> tick heals.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 3
 	c.hp = c.max_hp - 4  # Mage max_hp=8; deficit of 4 keeps character alive
 	StatAllocator.allocate(c, {"regeneration": 3})

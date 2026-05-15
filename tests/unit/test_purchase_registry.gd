@@ -4,7 +4,7 @@ extends GutTest
 
 func test_class_upgrade_grant_type():
 	assert_eq(
-		PurchaseRegistry.grant_type_for(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE),
+		PurchaseRegistry.grant_type_for(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT),
 		PurchaseRegistry.GRANT_CLASS_UPGRADE)
 
 func test_all_products_have_grant_type():
@@ -16,8 +16,8 @@ func test_unknown_product_returns_empty():
 	assert_eq(PurchaseRegistry.grant_type_for("fake_product_xyz"), "")
 
 func test_class_for_product_mage_upgrade():
-	var result := PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_MAGE_ARCHMAGE)
-	assert_eq(result, int(CharacterData.CharacterClass.MAGE))
+	var result := PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT)
+	assert_eq(result, int(CharacterData.CharacterClass.WIZARD_KITTEN))
 
 func test_class_for_product_cosmetic_returns_minus_one():
 	assert_eq(PurchaseRegistry.class_for_product(PurchaseRegistry.COSMETIC_COAT_PACK), -1)
@@ -30,11 +30,11 @@ func test_class_upgrade_thief_and_ninja_map_to_source_class():
 	# now route end-to-end (Master Thief / Shadow Ninja landed alongside
 	# Archmage in CharacterData.CharacterClass + TIER_MAP).
 	assert_eq(
-		PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_THIEF_MASTER_THIEF),
-		int(CharacterData.CharacterClass.THIEF))
+		PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT),
+		int(CharacterData.CharacterClass.BATTLE_KITTEN))
 	assert_eq(
-		PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_NINJA_SHADOW_NINJA),
-		int(CharacterData.CharacterClass.NINJA))
+		PurchaseRegistry.class_for_product(PurchaseRegistry.UPGRADE_SLEEPY_KITTEN_SLEEPY_CAT),
+		int(CharacterData.CharacterClass.SLEEPY_KITTEN))
 
 func test_cosmetic_grant_type():
 	for id in [
@@ -48,14 +48,14 @@ func test_cosmetic_grant_type():
 
 func test_class_unlock_grant_type():
 	assert_eq(
-		PurchaseRegistry.grant_type_for(PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE),
+		PurchaseRegistry.grant_type_for(PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN),
 		PurchaseRegistry.GRANT_CLASS_UNLOCK)
 
 func test_class_for_product_class_unlock_returns_minus_one():
 	# class-unlock products carry no CharacterClass — slice 6 routes them via
 	# UnlockRegistry/class id, not by class int.
 	assert_eq(
-		PurchaseRegistry.class_for_product(PurchaseRegistry.CLASS_UNLOCK_ARCHMAGE),
+		PurchaseRegistry.class_for_product(PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN),
 		-1)
 
 func test_class_for_product_unknown_returns_minus_one():

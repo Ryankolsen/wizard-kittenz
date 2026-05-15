@@ -80,9 +80,8 @@ static func _handle_class_upgrade(product_id: String, character: CharacterData) 
 	if int(character.character_class) != source_class:
 		return false
 	if not ClassTierUpgrade.has_upgrade(character.character_class):
-		# Product exists in the catalog (e.g. UPGRADE_THIEF_MASTER_THIEF) but
-		# ClassTierUpgrade.TIER_MAP doesn't yet route it. Surface as no-op so
-		# the shop UI can show a "coming soon" affordance instead of mutating
-		# state. See PurchaseRegistry catalog notes.
+		# Product exists in the catalog but ClassTierUpgrade.TIER_MAP doesn't
+		# route the source class. Surface as no-op so the shop UI can show a
+		# "coming soon" affordance instead of mutating state.
 		return false
 	return ClassTierUpgrade.upgrade(character)

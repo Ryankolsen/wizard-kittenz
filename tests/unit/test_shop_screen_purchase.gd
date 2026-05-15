@@ -96,8 +96,8 @@ func test_buy_class_unlock_grants_paid_unlock():
 	ledger.credit(1000, CurrencyLedger.Currency.GEM)
 	var paid := PaidUnlockInventory.new()
 	var screen := _make_screen(ledger, SkillInventory.new(), paid, _new_billing())
-	screen._on_buy_pressed(PurchaseRegistry.CLASS_UNLOCK_THIEF)
-	assert_true(paid.has_unlock("thief"))
+	screen._on_buy_pressed(PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN)
+	assert_true(paid.has_unlock("battle_kitten"))
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 500)
 
 # After a successful purchase the row's button text flips to "Owned".

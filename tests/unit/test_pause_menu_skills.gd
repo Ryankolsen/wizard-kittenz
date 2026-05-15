@@ -29,7 +29,7 @@ func test_pause_menu_has_skills_panel():
 
 func test_skills_panel_shows_skill_points():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 3
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
@@ -42,7 +42,7 @@ func test_skills_panel_shows_skill_points():
 
 func test_unlock_node_decrements_skill_points():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 2
 	gs.set_character(c)
 	gs.skill_tree = SkillTree.make_mage_tree()
@@ -58,7 +58,7 @@ func test_unlock_node_decrements_skill_points():
 
 func test_unlock_with_no_points_is_noop():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 0
 	gs.set_character(c)
 	gs.skill_tree = SkillTree.make_mage_tree()
@@ -79,7 +79,7 @@ func test_skills_tab_button_exists():
 
 func test_skills_tab_button_switches_to_skills():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
@@ -97,7 +97,7 @@ func test_skills_tab_button_switches_to_skills():
 
 func test_unlocked_skill_label_says_unlocked():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 1
 	gs.set_character(c)
 	gs.skill_tree = SkillTree.make_mage_tree()
@@ -114,7 +114,7 @@ func test_unlocked_skill_label_says_unlocked():
 
 func test_locked_skill_label_says_locked():
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 0
 	gs.set_character(c)
 	gs.skill_tree = SkillTree.make_mage_tree()
@@ -137,7 +137,7 @@ func test_unlock_unknown_id_is_safe():
 	# tree returns false without crashing — protects against UI / save
 	# desync (saved skill ids reference a renamed node).
 	var gs := get_node("/root/GameState")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 5
 	gs.set_character(c)
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
