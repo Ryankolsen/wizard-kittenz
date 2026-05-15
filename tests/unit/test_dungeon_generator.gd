@@ -122,6 +122,24 @@ func test_only_powerup_rooms_have_power_up_type():
 			assert_eq(r.power_up_type, "",
 				"non-power-up room (type=%s) should have empty power_up_type" % r.type)
 
+func test_exactly_one_of_each_powerup_type():
+	# Every dungeon must contain exactly one room per power-up type — no more,
+	# no less. A duplicate means a player gets two of one item and zero of
+	# another; a missing type means they never see it in that run.
+	for s in [1, 2, 3, 7, 42, 100, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var type_counts: Dictionary = {}
+		for r in d.rooms:
+			if r.type == Room.TYPE_POWERUP:
+				type_counts[r.power_up_type] = type_counts.get(r.power_up_type, 0) + 1
+		assert_eq(type_counts.size(), DungeonGenerator.POWER_UP_TYPES.size(),
+			"seed %d: expected %d distinct power-up types, got %d" % [
+				s, DungeonGenerator.POWER_UP_TYPES.size(), type_counts.size()])
+		for t in DungeonGenerator.POWER_UP_TYPES:
+			assert_eq(type_counts.get(t, 0), 1,
+				"seed %d: type '%s' should appear exactly once, got %d" % [
+					s, t, type_counts.get(t, 0)])
+
 func test_only_combat_rooms_have_enemy_kind():
 	var d := DungeonGenerator.generate(42)
 	for r in d.rooms:
