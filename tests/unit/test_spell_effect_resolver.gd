@@ -115,6 +115,27 @@ func test_heal_targets_list_ignored():
 	assert_eq(caster.hp, caster.max_hp - 2)
 	assert_eq(bystander.hp, bystander.max_hp, "targets are not affected by HEAL")
 
+func test_taunt_emits_on_broadcaster_per_enemy():
+	# Co-op TAUNT fan-out: each stamped enemy produces one broadcaster
+	# emission with (caster_id, enemy_id, duration). The broadcaster's
+	# own guards drop empties; this test pins that the resolver routes
+	# the tuple through.
+	var caster := _caster(0)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e1.enemy_id = "r3_e0"
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	e2.enemy_id = "r3_e1"
+	var bc := TauntBroadcaster.new()
+	var captured: Array = []
+	bc.taunt_applied.connect(func(c: String, e: String, d: float):
+		captured.append([c, e, d])
+	)
+	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 2.0)
+	SpellEffectResolver.apply(spell, caster, [e1, e2], null, bc, "u1")
+	assert_eq(captured.size(), 2)
+	assert_eq(captured[0], ["u1", "r3_e0", 2.0])
+	assert_eq(captured[1], ["u1", "r3_e1", 2.0])
+
 func test_taunt_ignores_non_taunt_targets_without_crash():
 	# CharacterData has no taunt_target field — TAUNT should skip it duck-type
 	# style without erroring.

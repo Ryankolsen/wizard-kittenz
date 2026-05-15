@@ -14,7 +14,7 @@ extends RefCounted
 # Returns total HP removed across all targets so callers can drive popups /
 # kill-reward XP awards from a single number.
 
-static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null) -> int:
+static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "") -> int:
 	if spell == null:
 		return 0
 	var effective_power := spell.power + _read_int(caster, "magic_attack", 0)
@@ -55,6 +55,15 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				if "taunt_target" in t and "taunt_remaining" in t:
 					t.taunt_target = caster
 					t.taunt_remaining = spell.cooldown
+					# Co-op fan-out: per-enemy emit. Broadcaster's own
+					# guards (empty caster_id / empty enemy_id / non-
+					# positive duration) drop malformed entries — e.g.
+					# legacy test enemies without enemy_id no-op cleanly.
+					if taunt_broadcaster != null:
+						var eid := ""
+						if "enemy_id" in t:
+							eid = str(t.enemy_id)
+						taunt_broadcaster.on_taunt_applied(caster_id, eid, spell.cooldown)
 	return total
 
 static func _mitigated(effective_power: int, target) -> int:

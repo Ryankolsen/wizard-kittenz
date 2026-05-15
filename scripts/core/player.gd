@@ -123,9 +123,11 @@ func _on_mushroom_spell_fired() -> void:
 	var enemy_data: Array = []
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
+	var bc := _taunt_broadcaster()
+	var caster_id := _local_player_id()
 	for spell in _spell_tree.get_unlocked_spells():
 		if spell.cast(data):
-			SpellEffectResolver.apply(spell, data, enemy_data)
+			SpellEffectResolver.apply(spell, data, enemy_data, null, bc, caster_id)
 			break
 
 # Render-time sway while Ale is active. Visual-only; doesn't affect physics
@@ -205,7 +207,7 @@ func _try_cast_spell() -> void:
 		if not spell.cast(data):
 			continue
 		_play_spell_flash()
-		SpellEffectResolver.apply(spell, data, enemy_data)
+		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id())
 		var awarded := false
 		for n in enemy_nodes:
 			if n.data != null and not n.data.is_alive():
@@ -298,6 +300,12 @@ func _trigger_level_up_effect(new_level: int) -> void:
 	if _level_up_effect == null:
 		return
 	_level_up_effect.play(new_level)
+
+func _taunt_broadcaster() -> TauntBroadcaster:
+	var session := _coop_session()
+	if session == null:
+		return null
+	return session.taunt_broadcaster
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
