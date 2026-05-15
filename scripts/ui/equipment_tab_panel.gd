@@ -45,9 +45,13 @@ func refresh(inventory: ItemInventory, character: CharacterData) -> void:
 # connection lifecycle itself, so a stale instance never holds a
 # reference to a freed inventory.
 func _rebuild() -> void:
+	# queue_free (not free) so a rebuild triggered from a child Button's
+	# pressed signal doesn't free that Button mid-emission — Godot errors
+	# with "Object was freed or unreferenced while a signal is being
+	# emitted from it" on the synchronous free path.
 	for child in get_children():
 		remove_child(child)
-		child.free()
+		child.queue_free()
 	_add_section_label("Equipped")
 	for entry in SLOTS:
 		add_child(_make_slot_row(entry["slot"], entry["label"]))
