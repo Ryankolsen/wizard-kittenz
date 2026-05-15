@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://cwt4raxkn3p7r"]
 
-[ext_resource type="Script" path="res://scripts/touch_controls.gd" id="1_touch_controls"]
-[ext_resource type="Script" path="res://scripts/virtual_joystick.gd" id="2_joystick"]
-[ext_resource type="Script" path="res://scripts/touch_action_button.gd" id="3_action_button"]
+[ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1_touch_controls"]
+[ext_resource type="Script" path="res://scripts/ui/virtual_joystick.gd" id="2_joystick"]
+[ext_resource type="Script" path="res://scripts/ui/touch_action_button.gd" id="3_action_button"]
 
 [node name="TouchControls" type="CanvasLayer"]
 layer = 2

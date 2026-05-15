@@ -5,7 +5,7 @@ extends GutTest
 # a bag list, that pressing equip / unequip mutates ItemInventory, and
 # that CharacterData stats track the bonus delta.
 
-const EquipmentTabPanelScript := preload("res://scripts/equipment_tab_panel.gd")
+const EquipmentTabPanelScript := preload("res://scripts/ui/equipment_tab_panel.gd")
 
 func _make_panel() -> EquipmentTabPanel:
 	var p := EquipmentTabPanel.new()
