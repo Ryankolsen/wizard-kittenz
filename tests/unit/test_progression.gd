@@ -1,5 +1,7 @@
 extends GutTest
 
+const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
+
 const TMP_PATH := "user://test_save.json"
 
 func after_each():
@@ -177,6 +179,97 @@ func test_save_manager_apply_to_restores_character_data():
 	assert_eq(restored.level, original.level)
 	assert_eq(restored.xp, original.xp)
 	assert_eq(restored.max_hp, original.max_hp)
+
+# ---- Level-gated skill auto-unlock (PRD #124 / issue #126) ---------------
+
+func _make_dummy_spell(id: String) -> Spell:
+	return Spell.make(id, id, Spell.EffectKind.DAMAGE, 1, 1.0)
+
+func _make_tree_with_levels(node_levels: Array) -> SkillTree:
+	# Builds a stub tree with one node per entry in node_levels. Node id is
+	# "n_<level>" so tests can assert against deterministic ids.
+	var t := SkillTree.new()
+	for lvl in node_levels:
+		var nid := "n_%d" % int(lvl)
+		t.add_node(SkillNode.make(nid, nid, _make_dummy_spell(nid), [], 1, int(lvl)))
+	return t
+
+func test_skill_unlock_checker_unlocks_level_one_node_for_new_character():
+	# AC1: level-1 character has level_required == 1 nodes unlocked.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var tree := _make_tree_with_levels([1])
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
+	assert_true(tree.is_unlocked("n_1"), "level-1 node unlocked at character creation")
+	assert_eq(newly, ["n_1"], "checker reports newly-unlocked id")
+
+func test_skill_unlock_checker_skips_higher_level_nodes():
+	# A level-3 node stays locked when the character is still at level 1.
+	var tree := _make_tree_with_levels([1, 3])
+	SkillUnlockCheckerRef.auto_unlock_for_level(tree, 1)
+	assert_true(tree.is_unlocked("n_1"))
+	assert_false(tree.is_unlocked("n_3"), "node above current level stays locked")
+
+func test_level_up_via_add_xp_unlocks_threshold_node():
+	# AC2: character at level 2 levels to 3; node at level_required == 3 unlocks.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.level = 2
+	c.xp = 0
+	var tree := _make_tree_with_levels([1, 3])
+	# Pre-stage level-1 unlock as character-creation hook would have done.
+	SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
+	assert_false(tree.is_unlocked("n_3"), "level-3 node still locked at L2")
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(2), null, tree)
+	assert_eq(c.level, 3)
+	assert_true(tree.is_unlocked("n_3"), "level-3 node unlocks on reaching level 3")
+
+func test_level_up_via_add_xp_multi_level_jump_unlocks_all_crossed_thresholds():
+	# AC3: 1 -> 6 in one call unlocks nodes at levels 3 and 5 but not 8.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var tree := _make_tree_with_levels([3, 5, 8])
+	var total := 0
+	for lvl in range(1, 6):
+		total += ProgressionSystem.xp_to_next_level(lvl)
+	ProgressionSystem.add_xp(c, total, null, tree)
+	assert_eq(c.level, 6, "advanced 5 levels in one xp dump")
+	assert_true(tree.is_unlocked("n_3"), "level-3 node unlocked")
+	assert_true(tree.is_unlocked("n_5"), "level-5 node unlocked")
+	assert_false(tree.is_unlocked("n_8"), "level-8 node stays locked")
+
+func test_already_unlocked_node_is_idempotent_on_level_up():
+	# AC: pre-unlocked nodes are not double-processed and no error is raised.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var tree := _make_tree_with_levels([3])
+	tree.unlock("n_3")
+	assert_true(tree.is_unlocked("n_3"))
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(tree, 5)
+	assert_eq(newly, [], "no newly-unlocked ids when everything is already unlocked")
+	assert_true(tree.is_unlocked("n_3"), "still unlocked after no-op pass")
+	# And via the level-up path:
+	c.level = 2
+	c.xp = 0
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(2), null, tree)
+	assert_eq(c.level, 3)
+	assert_true(tree.is_unlocked("n_3"))
+
+func test_skill_points_still_awarded_when_tree_supplied():
+	# Auto-unlock must not regress the unrelated skill-point grant behavior.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sp_before := c.skill_points
+	var tree := _make_tree_with_levels([1, 2])
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1), null, tree)
+	assert_eq(c.level, 2)
+	assert_gt(c.skill_points, sp_before, "skill points still granted alongside auto-unlock")
+
+func test_add_xp_without_tree_is_legacy_compatible():
+	# Existing call sites that don't pass a tree must not regress.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var levels := ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
+	assert_eq(levels, 1)
+	assert_eq(c.level, 2)
+
+func test_skill_unlock_checker_null_tree_is_safe_noop():
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(null, 5)
+	assert_eq(newly, [], "null tree returns empty list, does not crash")
 
 func test_killing_enemy_awards_xp_via_progression_system():
 	# Simulates the player.gd flow: damage until dead, then award xp_reward.

@@ -1,6 +1,11 @@
 class_name ProgressionSystem
 extends RefCounted
 
+# Sibling class_name resolution is load-order-fragile in Godot's project-wide
+# script class table. Preload the helper so this script parses regardless of
+# whether SkillUnlockChecker's class_name has been registered yet.
+const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
+
 # Soft power XP curve: floor(XP_BASE * level^1.5). XP_BASE is the single
 # tuning knob — flip this constant to globally scale early-vs-late pacing
 # without touching the formula.
@@ -20,7 +25,12 @@ static func xp_to_next_level(level: int) -> int:
 # Adds XP to the character, applying any level-ups that the new total triggers.
 # Returns the number of levels gained. Negative or zero amounts are a no-op so
 # kill rewards from a future debuff/penalty system can't drive xp below zero.
-static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null) -> int:
+#
+# Optional `tree` (issue #126): when supplied, level-gated SkillNodes whose
+# `level_required` is now satisfied are auto-unlocked via SkillUnlockChecker
+# after each level threshold. Tests / non-skill-tree code paths can pass null
+# and get the legacy behavior.
+static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null, tree: SkillTree = null) -> int:
 	if amount <= 0:
 		return 0
 	c.xp += amount
@@ -30,6 +40,10 @@ static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null)
 		c.level += 1
 		levels_gained += 1
 		_apply_level_up(c, ledger)
+		# Run the unlock pass after each level so a multi-level XP dump
+		# (e.g. 1 -> 5) unlocks nodes at every threshold crossed, not just
+		# the final level. Idempotent — nodes already unlocked are skipped.
+		SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
 	return levels_gained
 
 # Stat points awarded for reaching `level`. Scales every 10 levels:

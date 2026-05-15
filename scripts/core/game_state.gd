@@ -5,6 +5,7 @@ extends Node
 # script-load order.
 const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
 const SkillInventoryRef = preload("res://scripts/progression/skill_inventory.gd")
+const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -102,6 +103,9 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	current_character = c
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
+	# Top up any level-gated unlocks the save predates (PRD #124 / issue #126).
+	# Idempotent against already-unlocked ids restored from the save.
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level)
 	meta_tracker = save_data.to_tracker()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
@@ -141,6 +145,11 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 func set_character(c: CharacterData) -> void:
 	current_character = c
 	skill_tree = _build_tree_for(c)
+	# Issue #126 AC1: a freshly-created level-1 character enters their first
+	# dungeon with the level_required == 1 node already unlocked. Runs for any
+	# level (tier-2 upgrade paths reuse this entry point) so a character handed
+	# in at level N has every node up through N unlocked.
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, c.level)
 
 func clear() -> void:
 	current_character = null
