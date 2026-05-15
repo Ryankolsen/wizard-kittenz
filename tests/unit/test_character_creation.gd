@@ -39,11 +39,11 @@ func test_quick_start_returns_mage_with_non_empty_name():
 	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE)
 	assert_true(c.character_name.length() > 0)
 
-func test_quick_start_unknown_class_falls_through_to_mage():
-	# CharacterFactory.class_from_name maps unknown -> MAGE; QuickStart
+func test_quick_start_unknown_class_falls_through_to_battle_kitten():
+	# CharacterFactory.class_from_name maps unknown -> BATTLE_KITTEN; QuickStart
 	# inherits that contract so a typo from a UI binding won't crash.
 	var c := QuickStartController.create_for_class("totally-not-a-class")
-	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE)
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_true(c.character_name.length() > 0)
 
 func test_quick_start_handles_archmage_string():

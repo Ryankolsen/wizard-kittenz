@@ -13,6 +13,13 @@ extends RefCounted
 # uses for unlock conditions.
 
 const TIER_MAP: Dictionary = {
+	CharacterData.CharacterClass.BATTLE_KITTEN: CharacterData.CharacterClass.BATTLE_CAT,
+	CharacterData.CharacterClass.WIZARD_KITTEN: CharacterData.CharacterClass.WIZARD_CAT,
+	CharacterData.CharacterClass.SLEEPY_KITTEN: CharacterData.CharacterClass.SLEEPY_CAT,
+	CharacterData.CharacterClass.CHONK_KITTEN: CharacterData.CharacterClass.CHONK_CAT,
+	# Legacy Tier-1 pairs kept until the shop/IAP rewire slice lands.
+	# PurchaseRegistry's UPGRADE_MAGE_ARCHMAGE / UPGRADE_THIEF_MASTER_THIEF /
+	# UPGRADE_NINJA_SHADOW_NINJA products still route through here.
 	CharacterData.CharacterClass.MAGE: CharacterData.CharacterClass.ARCHMAGE,
 	CharacterData.CharacterClass.THIEF: CharacterData.CharacterClass.MASTER_THIEF,
 	CharacterData.CharacterClass.NINJA: CharacterData.CharacterClass.SHADOW_NINJA,

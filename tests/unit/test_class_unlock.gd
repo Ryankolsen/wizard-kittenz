@@ -383,3 +383,58 @@ func test_paid_unlock_bypasses_tier_2_thresholds():
 	paid.grant("shadow_ninja")
 	assert_true(registry.is_unlocked("shadow_ninja", tracker, paid),
 		"paid grant bypasses ninja level threshold")
+
+# --- Kitten -> Cat tier upgrades (#119) -------------------------------------
+
+func test_tier_upgrade_battle_kitten_to_battle_cat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok, "battle_kitten -> battle_cat upgrade succeeds")
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_CAT)
+
+func test_tier_upgrade_wizard_kitten_to_wizard_cat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok)
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_CAT)
+
+func test_tier_upgrade_sleepy_kitten_to_sleepy_cat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok)
+	assert_eq(c.character_class, CharacterData.CharacterClass.SLEEPY_CAT)
+
+func test_tier_upgrade_chonk_kitten_to_chonk_cat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok)
+	assert_eq(c.character_class, CharacterData.CharacterClass.CHONK_CAT)
+
+func test_tier_upgrade_sleepy_kitten_preserves_xp_level_skill_points():
+	# Same preserves-progression contract as the legacy mage->archmage case,
+	# applied to the new Kitten archetype.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2)
+	assert_eq(c.level, 3)
+	assert_eq(c.xp, 2)
+	var preserved_skill_points := c.skill_points
+	var ok: bool = ClassTierUpgrade.upgrade(c)
+	assert_true(ok)
+	assert_eq(c.character_class, CharacterData.CharacterClass.SLEEPY_CAT)
+	assert_eq(c.level, 3, "level preserved across upgrade")
+	assert_eq(c.xp, 2, "xp preserved across upgrade")
+	assert_eq(c.skill_points, preserved_skill_points,
+		"skill_points preserved across upgrade")
+
+func test_cat_classes_have_no_further_upgrade():
+	# Tier-2 Cat classes are the terminal upgrade; has_upgrade returns false
+	# for all four so the shop / progression layer doesn't offer a re-upgrade.
+	for cat_class in [
+		CharacterData.CharacterClass.BATTLE_CAT,
+		CharacterData.CharacterClass.WIZARD_CAT,
+		CharacterData.CharacterClass.SLEEPY_CAT,
+		CharacterData.CharacterClass.CHONK_CAT,
+	]:
+		assert_false(ClassTierUpgrade.has_upgrade(cat_class),
+			"cat class %d has no further upgrade" % cat_class)

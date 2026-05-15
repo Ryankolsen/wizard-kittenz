@@ -66,10 +66,10 @@ func test_factory_create_default_is_case_insensitive():
 	assert_eq(t1.character_class, CharacterData.CharacterClass.THIEF)
 	assert_eq(t2.character_class, CharacterData.CharacterClass.THIEF)
 
-func test_factory_unknown_name_falls_back_to_mage():
+func test_factory_unknown_name_falls_back_to_battle_kitten():
 	var c: CharacterData = CharacterFactory.create_default("paladin")
-	assert_eq(c.character_class, CharacterData.CharacterClass.MAGE,
-		"unknown class name lands on the default starter (mage)")
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_KITTEN,
+		"unknown class name lands on the default Kitten starter")
 
 func test_factory_carries_custom_name():
 	var c: CharacterData = CharacterFactory.create_default("Ninja", "Whiskers")
@@ -187,3 +187,41 @@ func test_save_layer_round_trips_speed():
 	var save_data := KittenSaveData.from_character(c)
 	var restored := KittenSaveData.from_dict(save_data.to_dict())
 	assert_eq(restored.speed, c.speed)
+
+# --- Kitten class factory wiring (#119) ---
+
+func test_factory_creates_wizard_kitten():
+	var c: CharacterData = CharacterFactory.create_default("wizard_kitten")
+	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
+
+func test_factory_creates_battle_kitten():
+	var c: CharacterData = CharacterFactory.create_default("battle_kitten")
+	assert_eq(c.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
+
+func test_factory_creates_chonk_kitten():
+	var c: CharacterData = CharacterFactory.create_default("chonk_kitten")
+	assert_eq(c.character_class, CharacterData.CharacterClass.CHONK_KITTEN)
+
+func test_factory_all_eight_kitten_keys_round_trip():
+	# Each new class id round-trips through class_from_name / name_from_class.
+	var pairs := {
+		"battle_kitten": CharacterData.CharacterClass.BATTLE_KITTEN,
+		"wizard_kitten": CharacterData.CharacterClass.WIZARD_KITTEN,
+		"sleepy_kitten": CharacterData.CharacterClass.SLEEPY_KITTEN,
+		"chonk_kitten": CharacterData.CharacterClass.CHONK_KITTEN,
+		"battle_cat": CharacterData.CharacterClass.BATTLE_CAT,
+		"wizard_cat": CharacterData.CharacterClass.WIZARD_CAT,
+		"sleepy_cat": CharacterData.CharacterClass.SLEEPY_CAT,
+		"chonk_cat": CharacterData.CharacterClass.CHONK_CAT,
+	}
+	for key in pairs:
+		var expected: int = pairs[key]
+		assert_eq(CharacterFactory.class_from_name(key), expected,
+			"class_from_name(%s) -> %d" % [key, expected])
+		assert_eq(CharacterFactory.name_from_class(expected), key,
+			"name_from_class(%d) -> %s" % [expected, key])
+
+func test_factory_chonk_kitten_case_insensitive():
+	# UI bindings may surface uppercase; resolve robustly.
+	var c: CharacterData = CharacterFactory.create_default("CHONK_KITTEN")
+	assert_eq(c.character_class, CharacterData.CharacterClass.CHONK_KITTEN)

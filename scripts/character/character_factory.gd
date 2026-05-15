@@ -7,31 +7,50 @@ extends RefCounted
 # already exposes make_new(klass, name); this layer just resolves the name.
 
 # Class-name -> CharacterClass enum mapping. Lowercase-folded so case mistakes
-# from UI bindings don't bite. Unknown names fall through to MAGE (default
-# starter class) rather than asserting — better UX for an external save with
-# a typo than a crash.
+# from UI bindings don't bite. Unknown names fall through to BATTLE_KITTEN
+# (default starter class for the new Kitten system) rather than asserting —
+# better UX for an external save with a typo than a crash. Old legacy names
+# (mage/thief/ninja and tier-2 variants) are kept so existing saves and the
+# shop/purchase flow keep resolving until the rest of the Kitten migration
+# (#120 save migration, #122 UI) lands.
 static func class_from_name(class_name_str: String) -> int:
 	match class_name_str.to_lower():
+		"battle_kitten": return CharacterData.CharacterClass.BATTLE_KITTEN
+		"wizard_kitten": return CharacterData.CharacterClass.WIZARD_KITTEN
+		"sleepy_kitten": return CharacterData.CharacterClass.SLEEPY_KITTEN
+		"chonk_kitten": return CharacterData.CharacterClass.CHONK_KITTEN
+		"battle_cat": return CharacterData.CharacterClass.BATTLE_CAT
+		"wizard_cat": return CharacterData.CharacterClass.WIZARD_CAT
+		"sleepy_cat": return CharacterData.CharacterClass.SLEEPY_CAT
+		"chonk_cat": return CharacterData.CharacterClass.CHONK_CAT
 		"mage": return CharacterData.CharacterClass.MAGE
 		"thief": return CharacterData.CharacterClass.THIEF
 		"ninja": return CharacterData.CharacterClass.NINJA
 		"archmage": return CharacterData.CharacterClass.ARCHMAGE
 		"master_thief": return CharacterData.CharacterClass.MASTER_THIEF
 		"shadow_ninja": return CharacterData.CharacterClass.SHADOW_NINJA
-	return CharacterData.CharacterClass.MAGE
+	return CharacterData.CharacterClass.BATTLE_KITTEN
 
 # Inverse lookup: enum int -> the lowercase id used by UnlockRegistry /
 # MetaProgressionTracker. Centralising the mapping here keeps the
 # tracker call sites from string-folding their own enum names.
 static func name_from_class(klass: int) -> String:
 	match klass:
+		CharacterData.CharacterClass.BATTLE_KITTEN: return "battle_kitten"
+		CharacterData.CharacterClass.WIZARD_KITTEN: return "wizard_kitten"
+		CharacterData.CharacterClass.SLEEPY_KITTEN: return "sleepy_kitten"
+		CharacterData.CharacterClass.CHONK_KITTEN: return "chonk_kitten"
+		CharacterData.CharacterClass.BATTLE_CAT: return "battle_cat"
+		CharacterData.CharacterClass.WIZARD_CAT: return "wizard_cat"
+		CharacterData.CharacterClass.SLEEPY_CAT: return "sleepy_cat"
+		CharacterData.CharacterClass.CHONK_CAT: return "chonk_cat"
 		CharacterData.CharacterClass.MAGE: return "mage"
 		CharacterData.CharacterClass.THIEF: return "thief"
 		CharacterData.CharacterClass.NINJA: return "ninja"
 		CharacterData.CharacterClass.ARCHMAGE: return "archmage"
 		CharacterData.CharacterClass.MASTER_THIEF: return "master_thief"
 		CharacterData.CharacterClass.SHADOW_NINJA: return "shadow_ninja"
-	return "mage"
+	return "battle_kitten"
 
 static func create_default(class_name_str: String, character_name: String = "Kitten") -> CharacterData:
 	var klass: int = class_from_name(class_name_str)
