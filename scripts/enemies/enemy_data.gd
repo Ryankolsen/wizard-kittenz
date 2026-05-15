@@ -128,4 +128,12 @@ func tick_taunt(dt: float) -> void:
 		taunt_source_id = ""
 
 func is_taunted() -> bool:
-	return taunt_target != null and taunt_remaining > 0.0
+	# Taunt is "active" while the timer is still ticking AND we know who to
+	# redirect to. Local-cast clients stamp taunt_target (CharacterData ref);
+	# receiving co-op clients only know the caster's network player_id via
+	# taunt_source_id (the caster's CharacterData object doesn't exist on the
+	# remote side). Either identity hook is enough to gate AI redirect — the
+	# Enemy node picks the resolver path that matches what's present.
+	if taunt_remaining <= 0.0:
+		return false
+	return taunt_target != null or taunt_source_id != ""

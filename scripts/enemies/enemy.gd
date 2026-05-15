@@ -10,7 +10,11 @@ signal died
 
 var state: int = EnemyAIState.State.IDLE
 var _attack_controller: AttackController
-var _player_ref: Player = null
+# Cached chase target. Widened to Node2D in PRD #124 co-op TAUNT so a
+# RemoteKitten (Node2D) can be the target on a receiving client where the
+# caster has no local Player node. Contact damage gates on `is Player` so a
+# RemoteKitten target produces a pursuit-only state (no damage on touch).
+var _player_ref: Node2D = null
 var _died_emitted: bool = false
 
 const _TEXTURE_BY_KIND := {
@@ -67,11 +71,11 @@ func apply_state_update(distance: float) -> void:
 		_died_emitted = true
 		died.emit()
 
-func _chase(player: Player) -> void:
-	if player == null:
+func _chase(target: Node2D) -> void:
+	if target == null:
 		velocity = Vector2.ZERO
 	else:
-		var dir := (player.global_position - global_position).normalized()
+		var dir := (target.global_position - global_position).normalized()
 		velocity = dir * move_speed
 		if dir != Vector2.ZERO and data != null:
 			data.facing = dir
@@ -80,8 +84,14 @@ func _chase(player: Player) -> void:
 # Contact damage gated by AttackController so a melee-range enemy doesn't
 # drain the player's HP every physics frame. Same cooldown shape as the
 # player's swing — DamageResolver duck-types over both sides.
-func _try_contact_damage(player: Player) -> void:
-	if player == null or player.data == null or not player.data.is_alive():
+func _try_contact_damage(target: Node2D) -> void:
+	# Co-op TAUNT can park us on a RemoteKitten (Node2D, no .data) when the
+	# caster is on another client. Pursue without damaging — the casting
+	# client's own Enemy still resolves contact damage against the caster.
+	if not (target is Player):
+		return
+	var player := target as Player
+	if player.data == null or not player.data.is_alive():
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
@@ -105,13 +115,21 @@ func _try_contact_damage(player: Player) -> void:
 	if dealt == 0 and data != null and data.attack > 0:
 		FloatingText.spawn(player, "Miss")
 
-func _find_player() -> Player:
+func _find_player() -> Node2D:
 	var nodes := get_tree().get_nodes_in_group("player")
 	# Chonk Taunt (PRD #124): an active TAUNT fixates this enemy on the
-	# caster's Player node, bypassing the nearest-player heuristic. Falls
-	# through if the taunt's target no longer has a live Player node in the
-	# group (e.g. the caster died/despawned mid-taunt).
-	var taunted := _select_taunt_target(nodes)
+	# caster's node, bypassing the nearest-player heuristic. Two resolver
+	# paths cover the two identity hooks that may be present:
+	#   1. taunt_target (CharacterData ref) — local-cast clients stamp this
+	#      and the caster is always a local Player node.
+	#   2. taunt_source_id (network player_id) — receive-side stamp from
+	#      RemoteTauntApplier. Caster has no local CharacterData; matching
+	#      node is a RemoteKitten in the "taunt_targets" group.
+	# Falls through if neither path finds a live match (caster despawned).
+	var taunted: Node2D = _select_taunt_target(nodes)
+	if taunted == null:
+		taunted = _select_taunt_target_by_id(
+			get_tree().get_nodes_in_group("taunt_targets"))
 	if taunted != null:
 		_player_ref = taunted
 		return taunted
@@ -129,9 +147,22 @@ func _find_player() -> Player:
 # or null when not taunted / no live match. Pulled out for unit tests so they
 # can drive the selection without a populated scene tree.
 func _select_taunt_target(candidates: Array) -> Player:
-	if data == null or not data.is_taunted():
+	if data == null or not data.is_taunted() or data.taunt_target == null:
 		return null
 	for n in candidates:
 		if n is Player and n.data == data.taunt_target:
+			return n
+	return null
+
+# Picks the taunt-targets-group node whose `player_id` matches the stamped
+# `taunt_source_id`, or null when not taunted / no live match. Used on the
+# receiving co-op client where the caster's CharacterData object doesn't
+# exist locally (so _select_taunt_target's ref-match would always miss) and
+# the caster is rendered as a RemoteKitten instead of a Player node.
+func _select_taunt_target_by_id(candidates: Array) -> Node2D:
+	if data == null or not data.is_taunted() or data.taunt_source_id == "":
+		return null
+	for n in candidates:
+		if n is Node2D and "player_id" in n and n.player_id == data.taunt_source_id:
 			return n
 	return null

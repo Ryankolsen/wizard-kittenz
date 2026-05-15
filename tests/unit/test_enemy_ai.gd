@@ -195,6 +195,85 @@ func test_physics_process_decays_active_taunt():
 		"taunt_target cleared on expiry so AI falls back to default targeting")
 	e.free()
 
+# --- Cross-client TAUNT identity (PRD #124 co-op) ---
+
+func _make_taunt_target_node(id: String) -> Node2D:
+	# Stand-in for RemoteKitten / Player from the "taunt_targets" group — uses
+	# a real Player node so the `player_id` field is script-declared (the
+	# resolver's `"player_id" in n` check requires a declared property).
+	var p := Player.new()
+	p.player_id = id
+	p.add_to_group("taunt_targets")
+	add_child_autofree(p)
+	return p
+
+func test_select_taunt_target_by_id_returns_matching_node():
+	# AC: receive-side TAUNT stamps only taunt_source_id + taunt_remaining
+	# (no CharacterData ref). The id-match path finds the taunt_targets-group
+	# node whose player_id equals the stamped source id.
+	var e := _make_enemy()
+	var caster := _make_taunt_target_node("p_caster")
+	var bystander := _make_taunt_target_node("p_other")
+	e.data.taunt_source_id = "p_caster"
+	e.data.taunt_remaining = 2.0
+	var picked := e._select_taunt_target_by_id([bystander, caster])
+	assert_eq(picked, caster,
+		"id-match picks the node whose player_id == taunt_source_id")
+	e.free()
+
+func test_select_taunt_target_by_id_returns_null_when_source_id_empty():
+	# AC: legacy local-cast path leaves taunt_source_id empty — the id-match
+	# branch must not fire (it would otherwise grab a random group member).
+	var e := _make_enemy()
+	var n := _make_taunt_target_node("p_caster")
+	var caster_data := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "C")
+	e.data.taunt_target = caster_data
+	e.data.taunt_remaining = 2.0
+	# taunt_source_id intentionally left "" — local-cast shape.
+	var picked := e._select_taunt_target_by_id([n])
+	assert_null(picked, "empty source_id -> id-match falls through")
+	e.free()
+
+func test_select_taunt_target_by_id_returns_null_when_no_match():
+	# AC defensive: caster's RemoteKitten despawned mid-taunt -> no live
+	# match -> null so _find_player falls through to nearest-player.
+	var e := _make_enemy()
+	var n := _make_taunt_target_node("someone_else")
+	e.data.taunt_source_id = "p_caster"
+	e.data.taunt_remaining = 2.0
+	var picked := e._select_taunt_target_by_id([n])
+	assert_null(picked, "no node with matching player_id -> null")
+	e.free()
+
+func test_select_taunt_target_by_id_returns_null_when_not_taunted():
+	# AC: timer not running -> is_taunted false -> id-match no-ops.
+	var e := _make_enemy()
+	var n := _make_taunt_target_node("p_caster")
+	e.data.taunt_source_id = "p_caster"
+	# taunt_remaining left at 0 -> not taunted.
+	var picked := e._select_taunt_target_by_id([n])
+	assert_null(picked, "no active taunt timer -> no id-match")
+	e.free()
+
+func test_is_taunted_true_with_only_source_id():
+	# AC: receive-side path stamps source_id + remaining without a
+	# CharacterData ref — is_taunted must gate AI redirect on either hook.
+	var e := _make_enemy()
+	e.data.taunt_source_id = "p_caster"
+	e.data.taunt_remaining = 1.0
+	assert_true(e.data.is_taunted(),
+		"non-empty source_id with live timer counts as taunted")
+	e.free()
+
+func test_is_taunted_false_when_timer_expired_even_with_source_id():
+	# AC: source_id without a live timer is stale data, not an active taunt.
+	var e := _make_enemy()
+	e.data.taunt_source_id = "p_caster"
+	e.data.taunt_remaining = 0.0
+	assert_false(e.data.is_taunted(),
+		"expired timer overrides source_id presence")
+	e.free()
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.

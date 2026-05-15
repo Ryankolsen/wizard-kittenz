@@ -16,6 +16,14 @@ const POWERUP_XP: int = 25
 
 @export var speed: float = 60.0
 @export var data: CharacterData
+# Cross-client identity for this Player (PRD #124 co-op TAUNT). Populated from
+# GameState.local_player_id in _ready when blank; the @export keeps a setter
+# seam open for tests that drive the value without an autoload. Read by
+# Enemy._select_taunt_target_by_id when EnemyData.taunt_source_id is stamped
+# (the receive-side path where the caster's CharacterData object doesn't exist
+# locally). Empty string is the "no co-op identity" sentinel and never matches
+# a stamped source id.
+@export var player_id: String = ""
 
 var _attack_controller: AttackController
 var _hitbox: Area2D
@@ -30,6 +38,9 @@ var _coop_level_up_bound: bool = false
 
 func _ready() -> void:
 	add_to_group("player")
+	add_to_group("taunt_targets")
+	if player_id == "":
+		player_id = _local_player_id()
 	if data == null:
 		var gs := get_node_or_null("/root/GameState")
 		if gs != null and gs.current_character != null:

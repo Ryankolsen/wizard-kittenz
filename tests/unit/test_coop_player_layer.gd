@@ -167,6 +167,20 @@ func test_lobby_updated_signal_triggers_reconcile():
 	assert_eq(layer.remote_kitten_count(), 2,
 		"lobby_updated emission spawned bob without manual reconcile")
 
+func test_remote_kitten_joins_taunt_targets_group():
+	# PRD #124 cross-client TAUNT: a remote caster is rendered as a
+	# RemoteKitten on this client, not a Player node. Enemy._select_taunt
+	# _target_by_id walks the "taunt_targets" group looking for a
+	# player_id match — RemoteKitten must register itself there.
+	var scene: PackedScene = load(REMOTE_KITTEN_PATH)
+	var inst: RemoteKitten = scene.instantiate()
+	inst.player_id = "p_remote"
+	add_child_autofree(inst)
+	assert_true(inst.is_in_group("taunt_targets"),
+		"RemoteKitten._ready must add the node to the taunt_targets group")
+	assert_eq(inst.player_id, "p_remote",
+		"player_id is preserved for the id-match resolver")
+
 func test_remote_kitten_scene_loads():
 	# Smoke: the .tscn parses cleanly, root node is a RemoteKitten with
 	# the placeholder + label children the script expects.
