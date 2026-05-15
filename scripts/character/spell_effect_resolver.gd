@@ -55,6 +55,14 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				if "taunt_target" in t and "taunt_remaining" in t:
 					t.taunt_target = caster
 					t.taunt_remaining = spell.cooldown
+					# Cross-client identity: stamp taunt_source_id so the
+					# receiving client (which has no caster CharacterData
+					# reference) can resolve the taunting player by id.
+					# Duck-typed in case a legacy taunt-capable target ever
+					# lacks the field; empty caster_id is left as-is so a
+					# solo cast doesn't pollute the field with "".
+					if "taunt_source_id" in t and caster_id != "":
+						t.taunt_source_id = caster_id
 					# Co-op fan-out: per-enemy emit. Broadcaster's own
 					# guards (empty caster_id / empty enemy_id / non-
 					# positive duration) drop malformed entries — e.g.

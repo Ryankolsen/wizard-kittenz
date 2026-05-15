@@ -136,6 +136,44 @@ func test_taunt_emits_on_broadcaster_per_enemy():
 	assert_eq(captured[0], ["u1", "r3_e0", 2.0])
 	assert_eq(captured[1], ["u1", "r3_e1", 2.0])
 
+func test_taunt_stamps_source_id_when_caster_id_provided():
+	# Cross-client identity prerequisite for the future RemoteTauntApplier:
+	# the resolver records the casting player's Nakama id on the enemy so a
+	# receiving client (which has no caster CharacterData object) can match
+	# the taunt back to the right player.
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	enemy.enemy_id = "r1_e0"
+	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
+	SpellEffectResolver.apply(spell, caster, [enemy], null, null, "u42")
+	assert_eq(enemy.taunt_source_id, "u42",
+		"taunt_source_id stamped from caster_id for cross-client identity")
+
+func test_taunt_leaves_source_id_unset_in_solo_path():
+	# Solo / pre-handshake path passes empty caster_id; resolver must not
+	# pollute the field with "" when there is no cross-client identity.
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	enemy.taunt_source_id = "previous_caster"
+	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy.taunt_source_id, "previous_caster",
+		"empty caster_id leaves taunt_source_id untouched")
+
+func test_taunt_source_id_clears_on_expiry():
+	# tick_taunt's expiry path must clear taunt_source_id alongside
+	# taunt_target — otherwise the cross-client identity outlives the
+	# taunt window and a stale id leaks into the next taunt cycle.
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
+	SpellEffectResolver.apply(spell, caster, [enemy], null, null, "u42")
+	assert_eq(enemy.taunt_source_id, "u42")
+	enemy.tick_taunt(1.0)
+	assert_eq(enemy.taunt_target, null)
+	assert_eq(enemy.taunt_source_id, "",
+		"taunt_source_id cleared on expiry alongside taunt_target")
+
 func test_taunt_ignores_non_taunt_targets_without_crash():
 	# CharacterData has no taunt_target field — TAUNT should skip it duck-type
 	# style without erroring.

@@ -43,6 +43,16 @@ var facing: Vector2 = Vector2.DOWN
 # override _find_player().
 var taunt_target = null
 var taunt_remaining: float = 0.0
+# Cross-client identity for the TAUNT caster. Stamped by SpellEffectResolver
+# alongside taunt_target when the resolver call site supplies caster_id (the
+# casting player's Nakama id, same id XPBroadcaster registers). The local
+# Enemy node's _select_taunt_target still matches by CharacterData reference
+# (single source of truth on the casting client); this field is the seam the
+# future RemoteTauntApplier reads on the receiving client where the caster's
+# CharacterData object doesn't exist. Empty string means "no cross-client
+# identity recorded" — solo / pre-handshake / unkeyed-test paths leave it
+# unset, and tick_taunt clears it on expiry alongside taunt_target.
+var taunt_source_id: String = ""
 
 static func base_max_hp_for(k: EnemyKind) -> int:
 	match k:
@@ -115,6 +125,7 @@ func tick_taunt(dt: float) -> void:
 	taunt_remaining = maxf(0.0, taunt_remaining - dt)
 	if taunt_remaining <= 0.0:
 		taunt_target = null
+		taunt_source_id = ""
 
 func is_taunted() -> bool:
 	return taunt_target != null and taunt_remaining > 0.0
