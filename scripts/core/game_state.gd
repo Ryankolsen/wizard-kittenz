@@ -186,6 +186,7 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 	if lobby != null:
 		lobby.position_received.connect(_on_position_received)
 		lobby.kill_received.connect(_on_kill_received)
+		lobby.taunt_received.connect(_on_taunt_received)
 		lobby.host_paused.connect(_on_host_paused)
 		lobby.host_unpaused.connect(_on_host_unpaused)
 
@@ -194,6 +195,8 @@ func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 		old.position_received.disconnect(_on_position_received)
 	if old.kill_received.is_connected(_on_kill_received):
 		old.kill_received.disconnect(_on_kill_received)
+	if old.taunt_received.is_connected(_on_taunt_received):
+		old.taunt_received.disconnect(_on_taunt_received)
 	if old.host_paused.is_connected(_on_host_paused):
 		old.host_paused.disconnect(_on_host_paused)
 	if old.host_unpaused.is_connected(_on_host_unpaused):
@@ -231,6 +234,17 @@ func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> vo
 	if not RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value):
 		return
 	RemoteEnemyDespawner.despawn(get_tree(), enemy_id)
+
+# Inbound TAUNT bridge — wire packet → RemoteTauntApplier (data side).
+# The applier walks the "enemies" group and stamps taunt_source_id +
+# taunt_remaining on the matching local Enemy so the future
+# Enemy._select_taunt_target lookup-by-id branch has identity to match
+# against. NOT stamped: taunt_target (CharacterData reference the
+# receiving client doesn't have — that's the next slice). Solo / pre-
+# scene-add paths are silent no-ops via RemoteTauntApplier's null-tree
+# guard.
+func _on_taunt_received(caster_id: String, enemy_id: String, duration: float) -> void:
+	RemoteTauntApplier.apply(get_tree(), caster_id, enemy_id, duration)
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's

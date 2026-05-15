@@ -38,6 +38,15 @@ const OP_REQUEST_TRANSITION: int = 9
 # (including the host's self-echo) apply the seed via dungeon_seed_sync and
 # drive their local transition() chain.
 const OP_DUNGEON_TRANSITION_START: int = 10
+# In-match TAUNT broadcast (PRD #124, co-op follow-up to #128). Payload:
+# {"enemy_id": String, "duration": float}. caster_id is taken from the
+# socket presence (not the payload) so a client can't spoof another
+# player's taunt — same anti-spoofing model as OP_POSITION / OP_KILL.
+# Inbound packets route through RemoteTauntApplier on the receiving side:
+# the SceneTree group walk finds the local Enemy and stamps
+# data.taunt_source_id + data.taunt_remaining so the future AI lookup-by-
+# id branch can redirect.
+const OP_TAUNT: int = 11
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -82,6 +91,12 @@ signal transition_requested_received()
 # drives the local transition() chain so every client reloads into the
 # same next dungeon. Issue #99 AC2.
 signal dungeon_transition_received(seed: int)
+# In-match TAUNT event from a remote player. GameState routes this into
+# RemoteTauntApplier.apply when a session is active. Decoupled via signal
+# for the same reason as kill_received — keeps NakamaLobby testable
+# without a live CoopSession. caster_id is the sender presence, not from
+# the payload (anti-spoofing).
+signal taunt_received(caster_id: String, enemy_id: String, duration: float)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -197,6 +212,25 @@ func send_kill_async(enemy_id: String, _killer_id: String, xp_value: int) -> voi
 		return
 	var payload := {"enemy_id": enemy_id, "xp": xp_value}
 	await _socket.send_match_state_async(_match_id, OP_KILL, JSON.stringify(payload))
+
+# Broadcasts a local TAUNT to every match participant. Empty enemy_id is a
+# defensive no-op — without an addressable enemy on the receiver the
+# packet is undeliverable (RemoteTauntApplier would reject it anyway, but
+# gating on the send side saves bandwidth and matches the OP_KILL pattern).
+# Non-positive duration is also dropped at the send side, mirroring
+# TauntBroadcaster.on_taunt_applied's own guard. caster_id is intentionally
+# NOT in the payload — Nakama tags every packet with the sender presence,
+# so the receiving side reads caster_id off the socket envelope (same
+# anti-spoofing model as OP_POSITION / OP_KILL).
+func send_taunt_async(enemy_id: String, duration: float) -> void:
+	if enemy_id == "":
+		return
+	if duration <= 0.0:
+		return
+	if _socket == null or _match_id == "":
+		return
+	var payload := {"enemy_id": enemy_id, "duration": duration}
+	await _socket.send_match_state_async(_match_id, OP_TAUNT, JSON.stringify(payload))
 
 # Returns true iff the local player is the lobby host. Host gate for the
 # OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
@@ -349,16 +383,19 @@ func apply_leaves(presences: Array) -> void:
 	lobby_updated.emit(lobby_state)
 
 # Routes a decoded match-state message to the appropriate LobbyState mutation
-# or in-match signal emission. OP_POSITION and OP_KILL intentionally bypass
-# the lobby_state == null guard — the lobby UI may already have torn down
-# LobbyState on match start, but in-match packets keep flowing for the
-# duration of the match.
+# or in-match signal emission. OP_POSITION, OP_KILL, and OP_TAUNT
+# intentionally bypass the lobby_state == null guard — the lobby UI may
+# already have torn down LobbyState on match start, but in-match packets
+# keep flowing for the duration of the match.
 func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	if op_code == OP_POSITION:
 		_route_position(sender_id, data)
 		return
 	if op_code == OP_KILL:
 		_route_kill(sender_id, data)
+		return
+	if op_code == OP_TAUNT:
+		_route_taunt(sender_id, data)
 		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
@@ -442,6 +479,30 @@ func _route_kill(sender_id: String, data: Dictionary) -> void:
 		return
 	var xp_value: int = int(data.get("xp", 0))
 	kill_received.emit(enemy_id, sender_id, xp_value)
+
+# Decodes the OP_TAUNT payload and emits taunt_received. Self-echoes
+# (sender_id == local_player_id) and empty sender_id are dropped here
+# rather than relying on RemoteTauntApplier's downstream guard: an echo
+# of the local cast would re-stamp the local enemy with an empty
+# taunt_target (cross-client identity model), which the local resolver
+# already wrote correctly. Empty enemy_id is dropped because
+# RemoteTauntApplier rejects it anyway — same shape as the OP_KILL
+# routing guard. Non-positive duration is also dropped (a cleared taunt
+# isn't a wire event; tick_taunt drives expiry locally).
+func _route_taunt(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not data.has("enemy_id"):
+		return
+	var enemy_id: String = String(data.get("enemy_id", ""))
+	if enemy_id == "":
+		return
+	if not data.has("duration"):
+		return
+	var duration: float = float(data.get("duration", 0.0))
+	if duration <= 0.0:
+		return
+	taunt_received.emit(sender_id, enemy_id, duration)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client
