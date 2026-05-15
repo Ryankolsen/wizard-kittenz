@@ -36,6 +36,13 @@ enum EnemyKind { SLIME, BAT, RAT }
 # Last move direction. Read by ThiefAbilities.backstab to detect attacks from
 # behind (attacker.facing roughly aligned with target.facing).
 var facing: Vector2 = Vector2.DOWN
+# TAUNT spell state (PRD #124 / issue #128). When non-null, the AI should
+# treat taunt_target as the focused target instead of the nearest player; the
+# effect decays via tick_taunt(dt) each physics frame and clears once
+# taunt_remaining reaches 0. Pure-data — Enemy node code reads these to
+# override _find_player().
+var taunt_target = null
+var taunt_remaining: float = 0.0
 
 static func base_max_hp_for(k: EnemyKind) -> int:
 	match k:
@@ -98,3 +105,16 @@ func take_damage(amount: int) -> int:
 	var dealt := mini(amount, hp)
 	hp -= dealt
 	return dealt
+
+# Decay the active TAUNT timer and clear taunt_target when it expires. Called
+# from the Enemy node each physics frame; pure-data so tests can drive it
+# directly without a SceneTree.
+func tick_taunt(dt: float) -> void:
+	if taunt_remaining <= 0.0:
+		return
+	taunt_remaining = maxf(0.0, taunt_remaining - dt)
+	if taunt_remaining <= 0.0:
+		taunt_target = null
+
+func is_taunted() -> bool:
+	return taunt_target != null and taunt_remaining > 0.0

@@ -37,6 +37,24 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			# (+power attack for `cooldown` seconds, refresh on re-cast). The
 			# kind classification is enough to mark it as a distinct effect.
 			pass
+		Spell.EffectKind.HEAL:
+			# Self-heal: amount = spell.power + caster.magic_attack, clamped
+			# at max_hp by CharacterData.heal(). Crit is intentionally NOT
+			# rolled — keeps heal output deterministic for stat tuning. The
+			# `targets` list is ignored; party-wide heal is a future variant.
+			if caster != null and caster.has_method("heal"):
+				var heal_amount := spell.power + _read_int(caster, "magic_attack", 0)
+				total += int(caster.heal(heal_amount))
+		Spell.EffectKind.TAUNT:
+			# Redirects each target enemy's AI to fixate on the caster for
+			# spell.cooldown seconds. Targets without the taunt fields (e.g.
+			# CharacterData) are skipped duck-type style.
+			for t in targets:
+				if t == null:
+					continue
+				if "taunt_target" in t and "taunt_remaining" in t:
+					t.taunt_target = caster
+					t.taunt_remaining = spell.cooldown
 	return total
 
 static func _mitigated(effective_power: int, target) -> int:
