@@ -39,10 +39,10 @@ const APPEARANCE_MAX: int = 7
 @onready var _multi_status_label: Label = $MultiMenu/VBox/StatusLabel
 @onready var _multi_back_button: Button = $MultiMenu/VBox/BackButton
 
-@onready var _qs_battle_button: Button = $QuickStart/VBox/Buttons/BattleKittenButton
-@onready var _qs_wizard_button: Button = $QuickStart/VBox/Buttons/WizardKittenButton
-@onready var _qs_sleepy_button: Button = $QuickStart/VBox/Buttons/SleepyKittenButton
-@onready var _qs_chonk_button: Button = $QuickStart/VBox/Buttons/ChonkKittenButton
+@onready var _qs_battle_button: Button = $QuickStart/VBox/Buttons/BattleKittenGroup/BattleKittenButton
+@onready var _qs_wizard_button: Button = $QuickStart/VBox/Buttons/WizardKittenGroup/WizardKittenButton
+@onready var _qs_sleepy_button: Button = $QuickStart/VBox/Buttons/SleepyKittenGroup/SleepyKittenButton
+@onready var _qs_chonk_button: Button = $QuickStart/VBox/Buttons/ChonkKittenGroup/ChonkKittenButton
 @onready var _qs_back_button: Button = $QuickStart/VBox/BackButton
 
 @onready var _custom_name_edit: LineEdit = $Customize/VBox/NameRow/NameEdit
@@ -50,10 +50,10 @@ const APPEARANCE_MAX: int = 7
 @onready var _custom_appearance_label: Label = $Customize/VBox/AppearanceRow/AppearanceLabel
 @onready var _custom_appearance_prev: Button = $Customize/VBox/AppearanceRow/PrevButton
 @onready var _custom_appearance_next: Button = $Customize/VBox/AppearanceRow/NextButton
-@onready var _custom_battle_button: Button = $Customize/VBox/Buttons/BattleKittenButton
-@onready var _custom_wizard_button: Button = $Customize/VBox/Buttons/WizardKittenButton
-@onready var _custom_sleepy_button: Button = $Customize/VBox/Buttons/SleepyKittenButton
-@onready var _custom_chonk_button: Button = $Customize/VBox/Buttons/ChonkKittenButton
+@onready var _custom_battle_button: Button = $Customize/VBox/Buttons/BattleKittenGroup/BattleKittenButton
+@onready var _custom_wizard_button: Button = $Customize/VBox/Buttons/WizardKittenGroup/WizardKittenButton
+@onready var _custom_sleepy_button: Button = $Customize/VBox/Buttons/SleepyKittenGroup/SleepyKittenButton
+@onready var _custom_chonk_button: Button = $Customize/VBox/Buttons/ChonkKittenGroup/ChonkKittenButton
 @onready var _custom_back_button: Button = $Customize/VBox/BackButton
 
 var _suggester: NameSuggester = NameSuggester.new()
