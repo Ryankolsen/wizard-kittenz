@@ -64,7 +64,10 @@ func get_unlocked_spells() -> Array:
 static func make_battle_kitten_tree() -> SkillTree:
 	var t := SkillTree.new()
 	var paw_smash := Spell.make("paw_smash", "Paw Smash", Spell.EffectKind.DAMAGE, 3, 0.8)
-	var hissy_fit := Spell.make("hissy_fit", "Hissy Fit", Spell.EffectKind.DAMAGE, 5, 1.5)
+	# Hissy Fit (issue #129): self-damage cast cost. The 2 HP bite is small
+	# enough that Battle Kitten can still afford to chain it for the burst
+	# damage payoff; tuning happens in playtest.
+	var hissy_fit := Spell.make("hissy_fit", "Hissy Fit", Spell.EffectKind.DAMAGE, 5, 1.5, 2)
 	var fur_missile := Spell.make("fur_missile", "Fur Missile", Spell.EffectKind.DAMAGE, 7, 1.8)
 	var cat_nap := Spell.make("cat_nap", "Cat Nap", Spell.EffectKind.AREA, 6, 3.0)
 	var feral_frenzy := Spell.make("feral_frenzy", "Feral Frenzy", Spell.EffectKind.AREA, 10, 5.0)

@@ -102,3 +102,36 @@ func test_spell_base_cooldown_captured_on_make():
 	var spell := Spell.make("s", "S", Spell.EffectKind.DAMAGE, 1, 0.8)
 	assert_eq(spell.base_cooldown, 0.8)
 	assert_eq(spell.cooldown, 0.8)
+
+# Issue #129: hp_cost cast-cost mechanic.
+
+func test_hp_cost_deducts_from_caster_at_cast_time():
+	var spell := Spell.make("hf", "Hissy Fit", Spell.EffectKind.DAMAGE, 5, 1.0, 2)
+	var caster := _caster(0)
+	caster.max_hp = 10
+	caster.hp = 10
+	assert_true(spell.cast(caster), "cast succeeds when hp > hp_cost")
+	assert_eq(caster.hp, 8, "hp_cost(2) deducted from caster.hp(10) -> 8")
+
+func test_hp_cost_blocks_cast_when_would_zero_caster():
+	var spell := Spell.make("hf", "Hissy Fit", Spell.EffectKind.DAMAGE, 5, 1.0, 2)
+	var caster := _caster(0)
+	caster.max_hp = 10
+	caster.hp = 2
+	assert_false(spell.cast(caster), "cast blocked when caster.hp <= hp_cost")
+	assert_eq(caster.hp, 2, "blocked cast leaves hp untouched")
+	assert_true(spell.is_ready(), "blocked cast does not consume cooldown")
+
+func test_zero_hp_cost_is_no_op_on_caster_hp():
+	var spell := Spell.make("plain", "Plain", Spell.EffectKind.DAMAGE, 3, 1.0)
+	var caster := _caster(0)
+	caster.max_hp = 10
+	caster.hp = 10
+	assert_true(spell.cast(caster))
+	assert_eq(caster.hp, 10, "hp_cost defaults to 0 — no deduction")
+
+func test_hissy_fit_has_hp_cost():
+	var tree := SkillTree.make_battle_kitten_tree()
+	var node := tree.find("hissy_fit")
+	assert_not_null(node, "battle kitten tree has hissy_fit node")
+	assert_gt(node.spell.hp_cost, 0, "hissy_fit spell carries a non-zero hp_cost")

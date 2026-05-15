@@ -124,7 +124,7 @@ func _on_mushroom_spell_fired() -> void:
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
 	for spell in _spell_tree.get_unlocked_spells():
-		if spell.cast():
+		if spell.cast(data):
 			SpellEffectResolver.apply(spell, data, enemy_data)
 			break
 
@@ -202,7 +202,7 @@ func _try_cast_spell() -> void:
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
 	for spell in _spell_tree.get_unlocked_spells():
-		if not spell.cast():
+		if not spell.cast(data):
 			continue
 		_play_spell_flash()
 		SpellEffectResolver.apply(spell, data, enemy_data)
