@@ -1,6 +1,12 @@
 class_name CoopSession
 extends RefCounted
 
+# Sibling class_name resolution is load-order-fragile in Godot 4.x —
+# a newly-added class_name in the same package may not be visible to
+# this script's parse step depending on which file the engine touches
+# first. Preload sidesteps the registry lookup entirely.
+const TauntSyncOutboundBridgeRef = preload("res://scripts/networking/taunt_sync_outbound_bridge.gd")
+
 # Per-match orchestrator. Owns the lifetime of the per-run managers
 # (XPBroadcaster, RunXPSummary, NetworkSyncManager, EnemyStateSyncManager,
 # DungeonRunController) and the per-member scaling state. The recurring
@@ -86,6 +92,16 @@ var run_controller: DungeonRunController = null
 # clients. Same lifetime as the other per-run managers: built in
 # start(), dropped in end() so solo play (no session) is unaffected.
 var taunt_broadcaster: TauntBroadcaster = null
+# Outbound TAUNT wire bridge. Subscribes to taunt_broadcaster.taunt_applied
+# on start() (when a NakamaLobby is supplied) and routes each emission
+# through lobby.send_taunt_async so a local Chonk's TAUNT cast lands on
+# every remote client's RemoteTauntApplier. Same lifetime as the other
+# per-run managers: built in start(), unbound + dropped in
+# _drop_managers() so a back-to-lobby flow doesn't leak the signal
+# connection or keep broadcasting after end(). Null on solo / test
+# paths that call start() without a lobby (the broadcaster still
+# fan-outs locally; the wire half just stays dark).
+var taunt_outbound_bridge = null
 # Outbound counterpart to network_sync. One gate per local player per
 # match — Player.gd's _physics_process consults this gate each tick to
 # decide whether to fan a position packet over NakamaLobby. Same lifetime
@@ -140,7 +156,7 @@ func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker:
 #     mis-constructed session)
 # Rolls back manager construction on a failed run_controller.start so a
 # rejected dungeon doesn't leave half-built sync managers around.
-func start(dungeon: Dungeon, tree: SkillTree = null) -> bool:
+func start(dungeon: Dungeon, tree: SkillTree = null, lobby_ref = null) -> bool:
 	if _active:
 		return false
 	if dungeon == null:
@@ -155,6 +171,13 @@ func start(dungeon: Dungeon, tree: SkillTree = null) -> bool:
 	run_controller = DungeonRunController.new()
 	position_broadcast_gate = PositionBroadcastGate.new()
 	taunt_broadcaster = TauntBroadcaster.new()
+	# Outbound TAUNT bridge: only built when a lobby ref is threaded in.
+	# Solo / test paths (lobby_ref == null) leave the wire half dark; the
+	# broadcaster still fan-outs locally so the SpellEffectResolver path
+	# is unaffected. Mirrors the xp_subscriber gate (built only when
+	# local_player_id resolves to a real party member).
+	if lobby_ref != null:
+		taunt_outbound_bridge = TauntSyncOutboundBridgeRef.new(taunt_broadcaster, lobby_ref)
 
 	for pid in player_ids:
 		xp_broadcaster.register_player(pid)
@@ -290,6 +313,8 @@ func _drop_managers() -> void:
 		xp_summary.unbind(xp_broadcaster)
 	if xp_subscriber != null:
 		xp_subscriber.unbind()
+	if taunt_outbound_bridge != null:
+		taunt_outbound_bridge.unbind()
 	xp_broadcaster = null
 	xp_summary = null
 	xp_subscriber = null
@@ -298,3 +323,4 @@ func _drop_managers() -> void:
 	run_controller = null
 	position_broadcast_gate = null
 	taunt_broadcaster = null
+	taunt_outbound_bridge = null

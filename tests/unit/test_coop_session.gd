@@ -141,6 +141,25 @@ func test_start_builds_managers_and_emits_signal():
 	# with the other per-run managers so the wire layer always has a
 	# stable seam to read from when the session is active.
 	assert_not_null(session.taunt_broadcaster)
+	# Outbound bridge stays null when start() is called without a lobby
+	# ref (solo / test path) — the local broadcaster fan-out is still
+	# usable for unit tests, but no wire packets are sent.
+	assert_null(session.taunt_outbound_bridge,
+		"outbound bridge null on lobby-less start")
+
+func test_start_builds_taunt_outbound_bridge_when_lobby_supplied():
+	# When a NakamaLobby is threaded into start(), the session owns a
+	# TauntSyncOutboundBridge bound to its own taunt_broadcaster so a
+	# local resolver-emit lands on the lobby's send_taunt_async. Closes
+	# the last gap in the cross-client TAUNT loop.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 1)})
+	var fake_lobby := NakamaLobby.new()
+	assert_true(session.start(_make_two_room_dungeon(), null, fake_lobby))
+	assert_not_null(session.taunt_outbound_bridge,
+		"bridge built when lobby ref supplied")
+	assert_true(session.taunt_outbound_bridge.is_bound(),
+		"bridge subscribed to broadcaster on construction")
 
 func test_start_registers_all_party_ids_with_broadcaster():
 	# A kill-by-anyone XP broadcast must fan out to every party id; the
@@ -279,6 +298,9 @@ func test_end_drops_managers_and_unscales_members():
 	# Co-op TAUNT relay dropped in lockstep so the wire layer can't
 	# keep firing on a stale broadcaster post-teardown.
 	assert_null(session.taunt_broadcaster)
+	# Outbound bridge dropped alongside the broadcaster so a leftover
+	# signal connection can't keep fanning packets after end().
+	assert_null(session.taunt_outbound_bridge)
 	# Scaling removed: effective == real for every member.
 	assert_eq(session.member_for("u1").effective_stats.level, 10)
 	assert_eq(session.member_for("u2").effective_stats.level, 3)
