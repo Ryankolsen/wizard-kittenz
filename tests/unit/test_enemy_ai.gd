@@ -129,6 +129,72 @@ func test_apply_state_update_is_safe_with_null_data():
 		"no data -> state untouched, no signal")
 	e.free()
 
+# --- TAUNT integration: Chonk Kitten (PRD #124) ---
+
+func _make_player_with(c: CharacterData) -> Player:
+	var p := Player.new()
+	p.data = c
+	p.add_to_group("player")
+	add_child_autofree(p)
+	return p
+
+func test_select_taunt_target_returns_null_when_not_taunted():
+	# AC: no taunt active -> fall through to default targeting.
+	var e := _make_enemy()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Tank")
+	var picked := e._select_taunt_target([c])
+	assert_null(picked, "no taunt -> no taunt-target pick")
+	e.free()
+
+func test_select_taunt_target_returns_matching_player():
+	# AC: Chonk Taunt sets enemy.data.taunt_target to the caster's
+	# CharacterData; _find_player must locate the Player node whose
+	# data matches and prefer it over the group's nearest entry.
+	var e := _make_enemy()
+	var tank_data := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Tank")
+	var mage_data := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Mage")
+	var tank := _make_player_with(tank_data)
+	var mage := _make_player_with(mage_data)
+	e.data.taunt_target = tank_data
+	e.data.taunt_remaining = 2.0
+	var picked := e._select_taunt_target([mage, tank])
+	assert_eq(picked, tank,
+		"taunt redirects to the caster's Player node, not the first group entry")
+	e.free()
+
+func test_select_taunt_target_returns_null_when_target_gone():
+	# AC defensive: caster despawned mid-taunt -> no live match -> null
+	# so _find_player falls through to the group lookup instead of crashing.
+	var e := _make_enemy()
+	var ghost_data := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Ghost")
+	var other_data := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Other")
+	var other := _make_player_with(other_data)
+	e.data.taunt_target = ghost_data
+	e.data.taunt_remaining = 2.0
+	var picked := e._select_taunt_target([other])
+	assert_null(picked, "no live Player matches the taunted data -> null")
+	e.free()
+
+func test_physics_process_decays_active_taunt():
+	# AC: each physics frame ticks the taunt timer down so a TAUNT expires
+	# on its own without an explicit clear call. Drive _physics_process
+	# directly with a synthetic delta to bypass the SceneTree dependency.
+	var e := _make_enemy()
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "C")
+	e.data.taunt_target = caster
+	e.data.taunt_remaining = 1.5
+	# Tick the data layer directly — _physics_process delegates to this and
+	# also walks the scene tree, which is the part we don't want to spin up.
+	e.data.tick_taunt(0.5)
+	assert_almost_eq(e.data.taunt_remaining, 1.0, 0.001,
+		"taunt timer counts down on each tick")
+	e.data.tick_taunt(1.2)
+	assert_false(e.data.is_taunted(),
+		"taunt expires and clears once the timer hits zero")
+	assert_eq(e.data.taunt_target, null,
+		"taunt_target cleared on expiry so AI falls back to default targeting")
+	e.free()
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.

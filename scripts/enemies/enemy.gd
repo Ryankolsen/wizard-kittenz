@@ -30,9 +30,12 @@ func _ready() -> void:
 		var path: String = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
 		sprite.texture = load(path)
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if data == null:
 		return
+	# Decay any active TAUNT before resolving target so an expired taunt this
+	# frame falls through to the default group-based lookup.
+	data.tick_taunt(delta)
 	var player := _find_player()
 	var distance := INF
 	if player != null:
@@ -103,13 +106,32 @@ func _try_contact_damage(player: Player) -> void:
 		FloatingText.spawn(player, "Miss")
 
 func _find_player() -> Player:
+	var nodes := get_tree().get_nodes_in_group("player")
+	# Chonk Taunt (PRD #124): an active TAUNT fixates this enemy on the
+	# caster's Player node, bypassing the nearest-player heuristic. Falls
+	# through if the taunt's target no longer has a live Player node in the
+	# group (e.g. the caster died/despawned mid-taunt).
+	var taunted := _select_taunt_target(nodes)
+	if taunted != null:
+		_player_ref = taunted
+		return taunted
 	if _player_ref != null and is_instance_valid(_player_ref):
 		return _player_ref
-	var nodes := get_tree().get_nodes_in_group("player")
 	if nodes.is_empty():
 		return null
 	var p := nodes[0]
 	if p is Player:
 		_player_ref = p
 		return p
+	return null
+
+# Picks the Player node whose CharacterData matches the active taunt target,
+# or null when not taunted / no live match. Pulled out for unit tests so they
+# can drive the selection without a populated scene tree.
+func _select_taunt_target(candidates: Array) -> Player:
+	if data == null or not data.is_taunted():
+		return null
+	for n in candidates:
+		if n is Player and n.data == data.taunt_target:
+			return n
 	return null
