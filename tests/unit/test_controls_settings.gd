@@ -5,7 +5,7 @@ extends GutTest
 # SettingsSubmenu, the OptionButton wiring, and the TouchControls
 # apply_layout behavior.
 
-const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
+const ControlsSettings := preload("res://scripts/core/controls_settings_manager.gd")
 const TEST_PATH := "user://test_controls.json"
 
 func after_each():

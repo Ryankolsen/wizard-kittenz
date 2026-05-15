@@ -1,6 +1,6 @@
 extends GutTest
 
-const AudioSettings := preload("res://scripts/audio_settings_manager.gd")
+const AudioSettings := preload("res://scripts/core/audio_settings_manager.gd")
 
 # Settings submenu — Audio sliders (PRD #42 / #49). Pins the
 # AudioSettings contract (linear→dB apply, JSON round-trip,

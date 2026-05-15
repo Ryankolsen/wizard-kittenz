@@ -11,7 +11,7 @@ extends CanvasLayer
 # .tscn ships the left-hand layout (joystick on the left); right-hand
 # mirrors the two clusters around the viewport's horizontal center.
 
-const ControlsSettings := preload("res://scripts/controls_settings_manager.gd")
+const ControlsSettings := preload("res://scripts/core/controls_settings_manager.gd")
 
 @export var force_visible: bool = false
 

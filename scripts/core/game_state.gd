@@ -5,7 +5,7 @@ extends Node
 # script-load order.
 const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
 const SkillInventoryRef = preload("res://scripts/skill_inventory.gd")
-const ItemStatApplicatorRef = preload("res://scripts/item_stat_applicator.gd")
+const ItemStatApplicatorRef = preload("res://scripts/character/item_stat_applicator.gd")
 
 signal save_synced(merged: KittenSaveData)
 
