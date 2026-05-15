@@ -13,12 +13,14 @@ var cost: int = 1
 var prerequisite_ids: Array = []
 var unlocked: bool = false
 var spell: Spell = null
+var level_required: int = 1
 
-static func make(n_id: String, name: String, spell_ref: Spell, prereqs: Array = [], cost_val: int = 1) -> SkillNode:
+static func make(n_id: String, name: String, spell_ref: Spell, prereqs: Array = [], cost_val: int = 1, level_req: int = 1) -> SkillNode:
 	var n := SkillNode.new()
 	n.id = n_id
 	n.display_name = name
 	n.spell = spell_ref
 	n.prerequisite_ids = prereqs.duplicate()
 	n.cost = cost_val
+	n.level_required = level_req
 	return n
