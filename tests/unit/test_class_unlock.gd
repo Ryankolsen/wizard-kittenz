@@ -6,36 +6,62 @@ func after_each():
 	if FileAccess.file_exists(TMP_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
 
-# --- Issue tests (4 acceptance scenarios) ---
+# --- Issue #121 tests (Chonk Kitten unlock gate) ---
 
-func test_ninja_locked_until_threshold():
-	# Issue test 1: is_unlocked("ninja") is false until dungeons_completed
-	# reaches 5, then flips to true.
+func test_chonk_kitten_locked_until_threshold():
+	# Issue #121 test 1+3: is_unlocked("chonk_kitten") is false until
+	# dungeons_completed reaches 5, then flips true. Same shape as the
+	# old ninja gate; the gameplay condition swaps from a starter-class
+	# unlock to the tier-2 Kitten archetype.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
-	assert_false(registry.is_unlocked("ninja", tracker),
-		"ninja locked at start (dungeons_completed = 0)")
+	assert_false(registry.is_unlocked("chonk_kitten", tracker),
+		"chonk_kitten locked at start (dungeons_completed = 0)")
 	for _i in range(4):
 		tracker.record_dungeon_complete()
-	assert_eq(tracker.dungeons_completed, 4)
-	assert_false(registry.is_unlocked("ninja", tracker),
+	assert_false(registry.is_unlocked("chonk_kitten", tracker),
 		"still locked at 4/5 dungeons")
 	tracker.record_dungeon_complete()
-	assert_eq(tracker.dungeons_completed, 5)
-	assert_true(registry.is_unlocked("ninja", tracker),
+	assert_true(registry.is_unlocked("chonk_kitten", tracker),
 		"unlocks at exactly 5 dungeons (>= threshold)")
 
-func test_check_all_returns_newly_unlocked_ids():
-	# Issue test 2: check_all(tracker) returns a list containing "ninja" once
-	# the condition is met.
+func test_three_base_kittens_unlocked_immediately():
+	# Issue #121 test 2: battle/wizard/sleepy kittens are starter classes
+	# in the new four-class roster — no gating, no tracker progression.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
-	assert_false(registry.check_all(tracker).has("ninja"))
+	assert_true(registry.is_unlocked("battle_kitten", tracker))
+	assert_true(registry.is_unlocked("wizard_kitten", tracker))
+	assert_true(registry.is_unlocked("sleepy_kitten", tracker))
+
+func test_check_all_surfaces_chonk_kitten_at_threshold():
+	# Issue #121 test 4: after the threshold is hit, the registry's
+	# unlock projection includes chonk_kitten (so the screen layer can
+	# fire the "new class available!" toast).
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	assert_false(registry.check_all(tracker).has("chonk_kitten"))
 	for _i in range(5):
 		tracker.record_dungeon_complete()
-	var unlocked := registry.check_all(tracker)
-	assert_true(unlocked.has("ninja"),
-		"check_all surfaces ninja after the threshold is hit")
+	assert_true(registry.check_all(tracker).has("chonk_kitten"),
+		"check_all surfaces chonk_kitten after the threshold is hit")
+
+func test_ninja_no_longer_in_default_registry():
+	# Issue #121 test 5: ninja is no longer a registered unlock key; the
+	# old gate has been replaced by chonk_kitten. is_unlocked falls
+	# through to "no condition matched" and returns false at any
+	# tracker state.
+	var registry := UnlockRegistry.make_default()
+	var tracker := MetaProgressionTracker.new()
+	for _i in range(50):
+		tracker.record_dungeon_complete()
+	assert_false(registry.is_unlocked("ninja", tracker),
+		"ninja key not registered, returns false even past old threshold")
+	for cond in registry.conditions:
+		assert_ne(String(cond.get("id", "")).to_lower(), "ninja",
+			"no ninja entry in default conditions")
+
+# --- Pre-existing tier-2 tests ---
 
 func test_tier_upgrade_preserves_xp_and_level():
 	# Issue test 3: upgrading Mage to Archmage retains xp and level.
@@ -204,7 +230,7 @@ func test_newly_unlocked_diff():
 	for _i in range(5):
 		tracker.record_dungeon_complete()
 	var new_ids := registry.newly_unlocked(prev, tracker)
-	assert_true(new_ids.has("ninja"))
+	assert_true(new_ids.has("chonk_kitten"))
 	# A second call with the latest snapshot finds nothing new.
 	var again := registry.newly_unlocked(registry.check_all(tracker), tracker)
 	assert_eq(again.size(), 0, "no further transitions when already current")

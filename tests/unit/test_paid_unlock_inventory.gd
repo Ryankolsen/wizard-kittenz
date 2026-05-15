@@ -200,9 +200,9 @@ func test_check_all_surfaces_paid_unlocks():
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
 	var paid := PaidUnlockInventory.new()
-	paid.grant("ninja")
+	paid.grant("chonk_kitten")
 	var unlocked := registry.check_all(tracker, paid)
-	assert_true(unlocked.has("ninja"), "ninja surfaces via paid path")
+	assert_true(unlocked.has("chonk_kitten"), "chonk_kitten surfaces via paid path")
 	assert_false(unlocked.has("archmage"), "archmage still locked")
 
 func test_newly_unlocked_surfaces_paid_grant_transition():

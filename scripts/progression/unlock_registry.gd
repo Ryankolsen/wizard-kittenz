@@ -12,14 +12,22 @@ extends RefCounted
 # for starter classes that shouldn't appear gated. Stored in the registry as
 # a list of strings rather than full conditions.
 
-const STARTER_CLASSES := ["mage", "thief"]
+# Starter classes are always unlocked. The four-Kitten roster (#117) makes
+# battle/wizard/sleepy kittens starter; chonk_kitten is the gated archetype
+# (see DEFAULT_CONDITIONS). Legacy mage/thief stay in the list so existing
+# saves and the IAP/shop layer keep working until the legacy enum values are
+# removed in a later slice.
+const STARTER_CLASSES := [
+	"mage", "thief",
+	"battle_kitten", "wizard_kitten", "sleepy_kitten",
+]
 
 # Default conditions list for the shipping registry. New entries here unlock
 # new content without touching this file's logic — that's the data-driven
 # acceptance criterion. Listed by id, stat path (resolved by
 # MetaProgressionTracker.get_stat), and threshold (>=).
 const DEFAULT_CONDITIONS: Array = [
-	{"id": "ninja", "stat": "dungeons_completed", "threshold": 5},
+	{"id": "chonk_kitten", "stat": "dungeons_completed", "threshold": 5},
 	{"id": "archmage", "stat": "max_level_per_class.mage", "threshold": 5},
 	{"id": "master_thief", "stat": "max_level_per_class.thief", "threshold": 5},
 	{"id": "shadow_ninja", "stat": "max_level_per_class.ninja", "threshold": 5},
