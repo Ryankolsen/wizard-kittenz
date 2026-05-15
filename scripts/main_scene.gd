@@ -42,9 +42,34 @@ func _ready() -> void:
 	# walk-through fires _on_dungeon_completed and drives the transition.
 	_run_controller.boss_room_cleared.connect(_on_boss_room_cleared)
 	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
+	# Issue #99: rising-edge dedup for dungeon transitions. The exit-door
+	# walk-through now requests the transition through the controller's
+	# idempotent gate; this handler fans the request out to either the
+	# solo path (drive transition() locally) or the co-op path (host mints
+	# + broadcasts a new seed; peer sends a request packet to the host).
+	_run_controller.dungeon_transition_requested.connect(_on_dungeon_transition_requested)
+
+	_connect_lobby_signals()
 
 	_setup_rooms()
 	_spawn_exit_door()
+
+# Co-op wire bridge — subscribes main_scene to the lobby's #99 signals so a
+# remote boss-clear opens the local exit door, a host mint broadcasts the
+# new dungeon seed to all clients, and the host receives peer transition
+# requests. is_connected guards make the subscriptions idempotent across
+# scene reloads (the lobby instance survives reload via GameState).
+func _connect_lobby_signals() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.lobby == null:
+		return
+	var lobby: NakamaLobby = gs.lobby
+	if not lobby.boss_cleared_received.is_connected(_on_boss_cleared_received):
+		lobby.boss_cleared_received.connect(_on_boss_cleared_received)
+	if not lobby.transition_requested_received.is_connected(_on_transition_requested_received):
+		lobby.transition_requested_received.connect(_on_transition_requested_received)
+	if not lobby.dungeon_transition_received.is_connected(_on_dungeon_transition_received):
+		lobby.dungeon_transition_received.connect(_on_dungeon_transition_received)
 
 # Computes the spatial layout from the active dungeon graph and paints the
 # full multi-room tilemap (rooms + corridors + walls). The layout is cached
@@ -187,13 +212,82 @@ func _spawn_exit_door() -> void:
 func _on_boss_room_cleared() -> void:
 	if _exit_door != null:
 		_exit_door.open()
+	# Issue #99 AC1: in co-op, the host fans the boss-clear edge to every
+	# peer so all clients open their door simultaneously. Non-host clients
+	# silently no-op via lobby.send_boss_cleared_async's is_local_host
+	# gate — only the host should ever observe boss_room_cleared first
+	# (host-authoritative enemy_sync), but the gate keeps the contract
+	# explicit.
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null and gs.lobby != null:
+		gs.lobby.send_boss_cleared_async()
 
-# Player walked through the now-open exit door. Drives the existing
-# transition chain: pause-menu stat allocation -> Continue -> finalize +
-# reload. Functionally identical to the legacy boss-clear handler so the
-# stat-allocation flow (PRD #52 / #61) and finalize seam are unchanged.
+# Inbound co-op boss-clear: a peer opens its local exit door when the host's
+# OP_BOSS_CLEARED packet arrives. ExitDoor.open is idempotent so the host's
+# self-echo (it also calls open() locally via _on_boss_room_cleared) is
+# harmless.
+func _on_boss_cleared_received() -> void:
+	if _exit_door != null:
+		_exit_door.open()
+
+# Player walked through the now-open exit door. Routes through the
+# controller's idempotent dungeon_transition_requested gate so duplicate
+# walk-throughs (in co-op, two players hitting the door at once) collapse
+# to a single transition. Solo path also passes through this gate — first
+# call wins, signal handler drives transition().
 func _on_player_exited_dungeon() -> void:
+	_run_controller.request_dungeon_transition()
+
+# Fans the gated transition request to the right side. Solo / no-co-op:
+# drive transition() directly (existing pause-menu / reload chain). Co-op
+# host: reset + mint a new dungeon seed, broadcast OP_DUNGEON_TRANSITION_START
+# to every client (the host's self-echo loops back through
+# _on_dungeon_transition_received which is what actually drives the local
+# reload). Co-op peer: send OP_REQUEST_TRANSITION to ask the host to mint.
+func _on_dungeon_transition_requested() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	var lobby: NakamaLobby = gs.lobby if gs != null else null
+	if lobby == null or lobby.lobby_state == null:
+		_on_dungeon_completed()
+		return
+	if lobby.is_local_host():
+		var seed_sync: DungeonSeedSync = _seed_sync_for(gs)
+		if seed_sync == null:
+			_on_dungeon_completed()
+			return
+		if seed_sync.is_agreed():
+			seed_sync.reset()
+		var next_seed := seed_sync.host_mint()
+		lobby.send_dungeon_transition_async(next_seed)
+	else:
+		lobby.send_request_transition_async()
+
+# Inbound co-op host request from a peer who walked through the exit. Only
+# routed to the host by NakamaLobby._route_request_transition. The host
+# pipes the request through its own controller gate, which collapses
+# duplicates (two peers walking through together → one mint).
+func _on_transition_requested_received() -> void:
+	if _run_controller != null:
+		_run_controller.request_dungeon_transition()
+
+# Inbound new-dungeon seed from the host. Applies the seed to the lobby's
+# DungeonSeedSync (idempotent — the host's own self-echo is a no-op since
+# the host already minted) and drives the local transition() chain to
+# reload into the new dungeon.
+func _on_dungeon_transition_received(seed: int) -> void:
+	var gs := get_node_or_null("/root/GameState")
+	var seed_sync: DungeonSeedSync = _seed_sync_for(gs)
+	if seed_sync != null:
+		if seed_sync.is_agreed() and seed_sync.current_seed() != seed:
+			seed_sync.reset()
+		if not seed_sync.is_agreed():
+			seed_sync.apply_remote_seed(seed)
 	_on_dungeon_completed()
+
+func _seed_sync_for(gs) -> DungeonSeedSync:
+	if gs == null or gs.coop_session == null:
+		return null
+	return gs.coop_session.dungeon_seed_sync
 
 func _on_dungeon_completed() -> void:
 	# PRD #52 / #61: the boss-cleared edge no longer reloads directly.

@@ -22,6 +22,22 @@ const OP_KILL: int = 5
 # overlays the local player's screen. OP_HOST_PAUSE freezes every client.
 const OP_HOST_PAUSE: int = 6
 const OP_HOST_UNPAUSE: int = 7
+# Host-only boss-cleared broadcast (#99 AC1). Empty payload — sender presence
+# is checked against the lobby host so a non-host packet is dropped. Drives
+# every client's ExitDoor.open via the GameState/main_scene bridge.
+const OP_BOSS_CLEARED: int = 8
+# Any-client "I just walked through the exit door" notice (#99 AC2). Empty
+# payload — only the host acts on this packet; non-host receivers ignore it.
+# The host responds by minting a fresh dungeon seed and broadcasting
+# OP_DUNGEON_TRANSITION_START. Multiple incoming requests collapse to a
+# single mint via DungeonRunController.request_dungeon_transition's
+# idempotent gate (#99 AC3).
+const OP_REQUEST_TRANSITION: int = 9
+# Host-only "load this seed as the next dungeon" broadcast (#99 AC2/AC3).
+# Payload: {"seed": int}. Sender presence checked against host. All clients
+# (including the host's self-echo) apply the seed via dungeon_seed_sync and
+# drive their local transition() chain.
+const OP_DUNGEON_TRANSITION_START: int = 10
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -52,6 +68,20 @@ signal kill_received(enemy_id: String, killer_id: String, xp_value: int)
 # pause press.
 signal host_paused()
 signal host_unpaused()
+# Host's OP_BOSS_CLEARED packet rose-edged. Bridged in GameState to
+# main_scene which calls ExitDoor.open on every client. Issue #99 AC1.
+signal boss_cleared_received()
+# Any-peer's OP_REQUEST_TRANSITION packet received. Only meaningful on the
+# host; non-host receivers ignore it (the host is the only one that mints
+# new dungeon seeds). Bridged to main_scene which calls
+# DungeonRunController.request_dungeon_transition — idempotent so duplicate
+# packets from multiple peers collapse to one mint+broadcast (#99 AC3).
+signal transition_requested_received()
+# Host's OP_DUNGEON_TRANSITION_START packet — carries the new dungeon seed.
+# Bridged to main_scene which applies the seed to dungeon_seed_sync and
+# drives the local transition() chain so every client reloads into the
+# same next dungeon. Issue #99 AC2.
+signal dungeon_transition_received(seed: int)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -206,6 +236,45 @@ func send_host_unpause_async() -> void:
 		return
 	await _socket.send_match_state_async(_match_id, OP_HOST_UNPAUSE, "{}")
 
+# Host-only: broadcasts the boss-cleared edge. Non-host callers are silent
+# no-ops (matches the OP_HOST_PAUSE / OP_KILL send-side gate). Locally
+# emits boss_cleared_received before the wire send so the host's own
+# ExitDoor opens through the same code path remote clients use, even if
+# the socket round-trip lags.
+func send_boss_cleared_async() -> void:
+	if not is_local_host():
+		return
+	boss_cleared_received.emit()
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_BOSS_CLEARED, "{}")
+
+# Any-client: requests the host mint a new dungeon seed and broadcast the
+# transition. Used by peers when they walk through the open exit door —
+# the host is the only authority that mints seeds so peers must round-trip
+# through the wire. Host callers can call this too; the receive-side
+# routing self-emits transition_requested_received so the same code path
+# fires for everyone. _route_request_transition gates on host receiver so
+# non-host receivers ignore the packet.
+func send_request_transition_async() -> void:
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_REQUEST_TRANSITION, "{}")
+
+# Host-only: broadcasts the new dungeon seed to every client. The local
+# self-emit of dungeon_transition_received is what drives the host's own
+# transition chain (apply seed + reload), matching the
+# send_host_pause_async pattern.
+func send_dungeon_transition_async(seed: int) -> void:
+	if not is_local_host():
+		return
+	if seed < 0:
+		return
+	dungeon_transition_received.emit(seed)
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_DUNGEON_TRANSITION_START, JSON.stringify({"seed": seed}))
+
 func request_start_async() -> bool:
 	if lobby_state == null or not lobby_state.can_start():
 		return false
@@ -296,6 +365,15 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 		return
 	if op_code == OP_HOST_UNPAUSE:
 		_route_host_pause(sender_id, false)
+		return
+	if op_code == OP_BOSS_CLEARED:
+		_route_boss_cleared(sender_id)
+		return
+	if op_code == OP_REQUEST_TRANSITION:
+		_route_request_transition(sender_id)
+		return
+	if op_code == OP_DUNGEON_TRANSITION_START:
+		_route_dungeon_transition(sender_id, data)
 		return
 	if lobby_state == null:
 		return
@@ -388,6 +466,50 @@ func _route_host_pause(sender_id: String, paused: bool) -> void:
 		host_paused.emit()
 	else:
 		host_unpaused.emit()
+
+# Routes an OP_BOSS_CLEARED packet. Authority check: sender must match the
+# lobby's current host. Self-echo (host's own packet looping back through
+# the socket) re-emits boss_cleared_received — ExitDoor.open is idempotent
+# so the duplicate is harmless. No edge gate here (unlike host-pause)
+# because the boss can only be killed once per dungeon and the controller's
+# mark_room_cleared rising-edge already gates the SEND side.
+func _route_boss_cleared(sender_id: String) -> void:
+	if sender_id == "" or lobby_state == null:
+		return
+	var h := lobby_state.host()
+	if h == null or h.player_id != sender_id:
+		return
+	boss_cleared_received.emit()
+
+# Routes an OP_REQUEST_TRANSITION packet. Only the host acts on this; non-
+# host receivers drop it silently because the host is the sole minting
+# authority. Empty sender_id is dropped (defensive). Idempotency lives
+# downstream in DungeonRunController.request_dungeon_transition so multiple
+# peers' simultaneous walk-throughs collapse to one mint.
+func _route_request_transition(sender_id: String) -> void:
+	if sender_id == "":
+		return
+	if not is_local_host():
+		return
+	transition_requested_received.emit()
+
+# Routes an OP_DUNGEON_TRANSITION_START packet. Sender must be the host.
+# Missing or negative seed is dropped (defensive against payload corruption
+# / legacy clients). All clients (including host self-echo) forward the
+# seed via dungeon_transition_received; the seed-sync apply downstream is
+# itself idempotent so the self-echo is harmless.
+func _route_dungeon_transition(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or lobby_state == null:
+		return
+	var h := lobby_state.host()
+	if h == null or h.player_id != sender_id:
+		return
+	if not data.has("seed"):
+		return
+	var seed: int = int(data.get("seed", -1))
+	if seed < 0:
+		return
+	dungeon_transition_received.emit(seed)
 
 # --- Socket signal handlers ---------------------------------------------------
 

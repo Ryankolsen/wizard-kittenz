@@ -43,6 +43,15 @@ signal boss_room_cleared()
 # boss-cleared edge, the scene layer listens for this signal to open the
 # stat-allocation screen before the reload.
 signal dungeon_transitioned()
+# Fires exactly once per run when any source (the local player walking through
+# the exit door, or — in co-op — a peer's OP_REQUEST_TRANSITION wire packet
+# routed via the lobby) calls request_dungeon_transition. Distinct from
+# dungeon_transitioned (which is the imperative scene-layer "go reload now"
+# edge): this signal is the dedup point. Issue #99 AC3: two players walking
+# through the exit simultaneously must produce exactly one new dungeon. The
+# scene layer subscribes once and fans out the action (host: mint new seed
+# and broadcast; peer: send request packet to host).
+signal dungeon_transition_requested()
 
 var dungeon: Dungeon = null
 var current_room_id: int = -1
@@ -54,6 +63,11 @@ var _cleared: Dictionary = {}
 # -1 means "no seed recorded yet" — DungeonGenerator's randomize-on-negative
 # sentinel, which matches the solo / no-coop default.
 var seed: int = -1
+# Sticky once true — gates dungeon_transition_requested.emit so a duplicate
+# request (host walks through exit at the same moment as a peer's incoming
+# OP_REQUEST_TRANSITION packet) doesn't double-broadcast a new dungeon seed.
+# Reset by start() so the next run can request its own transition.
+var _transition_requested: bool = false
 
 func start(d: Dungeon) -> bool:
 	if d == null or d.start_id < 0:
@@ -61,6 +75,7 @@ func start(d: Dungeon) -> bool:
 	dungeon = d
 	current_room_id = d.start_id
 	_cleared = {}
+	_transition_requested = false
 	return true
 
 func current_room() -> Room:
@@ -127,3 +142,16 @@ func is_dungeon_complete() -> bool:
 # for actually reloading after the signal's listeners have run.
 func transition() -> void:
 	dungeon_transitioned.emit()
+
+# Idempotent rising-edge dedup for "go to next dungeon" requests. The scene
+# layer calls this from every source that wants a transition: the local
+# player's exit-door walk-through, and (in co-op) the lobby's
+# transition_requested_received signal that surfaces a peer's OP_REQUEST_TRANSITION.
+# Returns true on the first call (signal fires), false on every subsequent
+# call (signal suppressed). Issue #99 AC3.
+func request_dungeon_transition() -> bool:
+	if _transition_requested:
+		return false
+	_transition_requested = true
+	dungeon_transition_requested.emit()
+	return true

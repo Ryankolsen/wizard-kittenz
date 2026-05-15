@@ -334,6 +334,39 @@ func test_full_run_through_branching_dungeon():
 	assert_true(c.is_dungeon_complete())
 	assert_signal_emit_count(c, "dungeon_completed", 1)
 
+# --- request_dungeon_transition (#99 AC3) -----------------------------------
+
+func test_request_dungeon_transition_fires_signal_once():
+	# Rising-edge dedup gate. Issue #99 AC3: two players walking through the
+	# exit simultaneously must produce exactly one new dungeon. Both call
+	# request_dungeon_transition (one locally, one via the lobby's
+	# transition_requested_received bridge); the second call returns false
+	# and the signal fires exactly once.
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	assert_true(c.request_dungeon_transition(),
+		"first request rises the edge")
+	assert_false(c.request_dungeon_transition(),
+		"second request is a no-op")
+	assert_signal_emit_count(c, "dungeon_transition_requested", 1)
+
+func test_request_dungeon_transition_resets_on_fresh_start():
+	# A new run (start with a fresh dungeon) must allow a fresh transition
+	# request — otherwise the second dungeon could never transition to a
+	# third.
+	var d1 := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	c.start(d1)
+	c.request_dungeon_transition()
+	var d2 := _make_linear_dungeon()
+	c.start(d2)
+	watch_signals(c)
+	assert_true(c.request_dungeon_transition(),
+		"fresh start clears the gate")
+	assert_signal_emit_count(c, "dungeon_transition_requested", 1)
+
 func test_double_clear_is_idempotent():
 	# Issue #97 AC: double-clear on the same room is a no-op — the
 	# room_cleared signal fires exactly once. RoomClearWatcher relies on
