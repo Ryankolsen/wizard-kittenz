@@ -292,7 +292,7 @@ func to_paid_unlock_inventory() -> PaidUnlockInventory:
 	return inv
 
 func to_skill_inventory():
-	var SkillInventoryClass = load("res://scripts/skill_inventory.gd")
+	var SkillInventoryClass = load("res://scripts/progression/skill_inventory.gd")
 	var inv = SkillInventoryClass.new()
 	inv.owned_skill_ids = skill_unlocks.duplicate()
 	return inv

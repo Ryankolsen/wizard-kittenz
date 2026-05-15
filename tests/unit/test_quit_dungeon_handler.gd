@@ -3,7 +3,7 @@ extends GutTest
 # Preloaded constant rather than the class_name reference — same Godot
 # 4 class-name-resolution trap noted in #44/#49: sibling script loads
 # don't always settle class_name before a test parses against it.
-const QuitDungeonHandler := preload("res://scripts/quit_dungeon_handler.gd")
+const QuitDungeonHandler := preload("res://scripts/dungeon/quit_dungeon_handler.gd")
 
 # Quit-Dungeon flow (#45, PRD #42). Two surfaces:
 #  1. QuitDungeonHandler — pure save-vs-skip branch, no scene tree.

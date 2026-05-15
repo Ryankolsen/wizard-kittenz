@@ -34,7 +34,7 @@ static func from_dict(d: Dictionary):
 	# yet in the global registry — so `SkillInventory.new()` here would fail
 	# to compile. load() resolves at runtime, by which point the registry is
 	# fully populated (and returns the same already-loaded script).
-	var script = load("res://scripts/skill_inventory.gd")
+	var script = load("res://scripts/progression/skill_inventory.gd")
 	var inv = script.new()
 	var ids = d.get("owned_skill_ids", [])
 	if ids is Array:
