@@ -163,20 +163,21 @@ func test_backstab_zero_facing_treated_as_not_behind():
 
 func test_game_state_builds_correct_tree_per_class():
 	# _build_tree_for picks the right factory for each class. Failure mode is
-	# silent (mage tree returned for thief) so an explicit guard is worth it.
-	var thief := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
-	GameState.set_character(thief)
-	assert_not_null(GameState.skill_tree.find("backstab"), "thief gets thief tree")
-	assert_null(GameState.skill_tree.find("fireball"), "thief tree has no fireball")
+	# silent (wrong tree returned) so an explicit guard is worth it.
+	# Updated for #127: each Kitten archetype has its own factory.
+	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	GameState.set_character(battle)
+	assert_not_null(GameState.skill_tree.find("paw_smash"), "battle kitten gets battle tree")
+	assert_null(GameState.skill_tree.find("hairball_hex"), "battle tree has no wizard nodes")
 
 	var chonk := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
 	GameState.set_character(chonk)
-	assert_not_null(GameState.skill_tree.find("shuriken_throw"), "chonk gets ninja tree")
-	assert_null(GameState.skill_tree.find("backstab"), "ninja tree has no backstab")
+	assert_not_null(GameState.skill_tree.find("chonk_taunt"), "chonk kitten gets chonk tree")
+	assert_null(GameState.skill_tree.find("paw_smash"), "chonk tree has no battle nodes")
 
-	var mage := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
-	GameState.set_character(mage)
-	assert_not_null(GameState.skill_tree.find("fireball"))
+	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	GameState.set_character(wizard)
+	assert_not_null(GameState.skill_tree.find("hairball_hex"))
 
 	GameState.clear()
 

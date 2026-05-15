@@ -56,11 +56,71 @@ func get_unlocked_spells() -> Array:
 			out.append(n.spell)
 	return out
 
-# Mage tree per #9: Fireball (base) -> Frost Nova (req Fireball) ->
-# Arcane Surge (req Frost Nova). EffectKind values diverge so each spell is a
-# distinct combat behavior (single-target damage / area / self-buff).
-# Cooldowns scale with power: 0.8s / 1.5s / 4.0s. Costs are 1 skill point each
-# while skill_points come from level-ups; tune once #8 + playtest data lands.
+# Per-class skill trees (PRD #124 / issue #127). Each tree has exactly 5 nodes
+# gated solely by level_required (1/3/5/8/12) — no prerequisite chains. Power
+# and cooldown values are placeholders to be tuned during playtest. Cat-tier
+# classes share their Kitten counterpart's tree (see GameState._build_tree_for)
+# so a tier-2 upgrade preserves unlocks.
+static func make_battle_kitten_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var paw_smash := Spell.make("paw_smash", "Paw Smash", Spell.EffectKind.DAMAGE, 3, 0.8)
+	var hissy_fit := Spell.make("hissy_fit", "Hissy Fit", Spell.EffectKind.DAMAGE, 5, 1.5)
+	var fur_missile := Spell.make("fur_missile", "Fur Missile", Spell.EffectKind.DAMAGE, 7, 1.8)
+	var cat_nap := Spell.make("cat_nap", "Cat Nap", Spell.EffectKind.AREA, 6, 3.0)
+	var feral_frenzy := Spell.make("feral_frenzy", "Feral Frenzy", Spell.EffectKind.AREA, 10, 5.0)
+	t.add_node(SkillNode.make("paw_smash", "Paw Smash", paw_smash, [], 1, 1))
+	t.add_node(SkillNode.make("hissy_fit", "Hissy Fit", hissy_fit, [], 1, 3))
+	t.add_node(SkillNode.make("fur_missile", "Fur Missile", fur_missile, [], 1, 5))
+	t.add_node(SkillNode.make("cat_nap", "Cat Nap", cat_nap, [], 1, 8))
+	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12))
+	return t
+
+static func make_wizard_kitten_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var hairball_hex := Spell.make("hairball_hex", "Hairball Hex", Spell.EffectKind.DAMAGE, 3, 0.8)
+	var catnip_curse := Spell.make("catnip_curse", "Catnip Curse", Spell.EffectKind.BUFF, 4, 3.0)
+	var whisker_bolt := Spell.make("whisker_bolt", "Whisker Bolt", Spell.EffectKind.DAMAGE, 6, 1.2)
+	var litter_storm := Spell.make("litter_storm", "Litter Storm", Spell.EffectKind.AREA, 5, 2.5)
+	var arcane_purr := Spell.make("arcane_purr", "Arcane Purr", Spell.EffectKind.DAMAGE, 10, 4.0)
+	t.add_node(SkillNode.make("hairball_hex", "Hairball Hex", hairball_hex, [], 1, 1))
+	t.add_node(SkillNode.make("catnip_curse", "Catnip Curse", catnip_curse, [], 1, 3))
+	t.add_node(SkillNode.make("whisker_bolt", "Whisker Bolt", whisker_bolt, [], 1, 5))
+	t.add_node(SkillNode.make("litter_storm", "Litter Storm", litter_storm, [], 1, 8))
+	t.add_node(SkillNode.make("arcane_purr", "Arcane Purr", arcane_purr, [], 1, 12))
+	return t
+
+static func make_sleepy_kitten_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.HEAL, 3, 1.5)
+	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.HEAL, 5, 2.5)
+	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.BUFF, 4, 4.0)
+	var dream_bubble := Spell.make("dream_bubble", "Dream Bubble", Spell.EffectKind.HEAL, 7, 3.5)
+	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.HEAL, 12, 6.0)
+	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1))
+	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 3))
+	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 5))
+	t.add_node(SkillNode.make("dream_bubble", "Dream Bubble", dream_bubble, [], 1, 8))
+	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12))
+	return t
+
+static func make_chonk_kitten_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var chonk_taunt := Spell.make("chonk_taunt", "Chonk Taunt", Spell.EffectKind.TAUNT, 0, 5.0)
+	var belly_flop := Spell.make("belly_flop", "Belly Flop", Spell.EffectKind.AREA, 4, 2.5)
+	var sit_on_it := Spell.make("sit_on_it", "Sit On It", Spell.EffectKind.DAMAGE, 7, 1.5)
+	var hairball_horrors := Spell.make("hairball_horrors", "Hairball Horrors", Spell.EffectKind.AREA, 6, 3.5)
+	var maximum_chonk := Spell.make("maximum_chonk", "Maximum Chonk", Spell.EffectKind.BUFF, 8, 6.0)
+	t.add_node(SkillNode.make("chonk_taunt", "Chonk Taunt", chonk_taunt, [], 1, 1))
+	t.add_node(SkillNode.make("belly_flop", "Belly Flop", belly_flop, [], 1, 3))
+	t.add_node(SkillNode.make("sit_on_it", "Sit On It", sit_on_it, [], 1, 5))
+	t.add_node(SkillNode.make("hairball_horrors", "Hairball Horrors", hairball_horrors, [], 1, 8))
+	t.add_node(SkillNode.make("maximum_chonk", "Maximum Chonk", maximum_chonk, [], 1, 12))
+	return t
+
+# DEPRECATED — pre-PRD-#124 archetype-shaped trees. Retained only so legacy
+# tests / save migration shims still resolve `find("fireball")` etc. New code
+# should call the per-Kitten factories above; GameState._build_tree_for routes
+# all 8 class values to those.
 static func make_mage_tree() -> SkillTree:
 	var t := SkillTree.new()
 	var fireball := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
