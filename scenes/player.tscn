@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3 uid="uid://b8wk1tn3p2yqa"]
 
 [ext_resource type="Script" path="res://scripts/core/player.gd" id="1_player"]
-[ext_resource type="Script" path="res://scripts/level_up_effect.gd" id="2_level_up_effect"]
+[ext_resource type="Script" path="res://scripts/core/level_up_effect.gd" id="2_level_up_effect"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(12, 12)
