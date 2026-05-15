@@ -146,8 +146,6 @@ func _setup_rooms() -> void:
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	var power_up_scene := load(POWER_UP_SCENE_PATH)
-	print("[main_scene] _setup_rooms: total rooms=%d  _dungeon_layout=%s" % [
-		_run_controller.dungeon.rooms.size(), str(_dungeon_layout)])
 	for room in _run_controller.dungeon.rooms:
 		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
 		if data != null and not _run_controller.is_room_cleared(room.id):
@@ -169,7 +167,7 @@ func _setup_rooms() -> void:
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
 		_watchers.append(watcher)
 	var pu_rooms := _run_controller.dungeon.rooms.filter(func(r): return r.type == Room.TYPE_POWERUP)
-	print("[main_scene] power-up rooms found (type=powerup): %d" % pu_rooms.size())
+
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
