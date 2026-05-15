@@ -1,7 +1,11 @@
 class_name CharacterData
 extends Resource
 
-enum CharacterClass { MAGE, THIEF, NINJA, ARCHMAGE, MASTER_THIEF, SHADOW_NINJA }
+enum CharacterClass {
+	MAGE, THIEF, NINJA, ARCHMAGE, MASTER_THIEF, SHADOW_NINJA,
+	BATTLE_KITTEN, WIZARD_KITTEN, SLEEPY_KITTEN, CHONK_KITTEN,
+	BATTLE_CAT, WIZARD_CAT, SLEEPY_CAT, CHONK_CAT,
+}
 
 const SAVE_PATH := "user://character.tres"
 
@@ -45,6 +49,14 @@ static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.ARCHMAGE: base = 12
 		CharacterClass.MASTER_THIEF: base = 14
 		CharacterClass.SHADOW_NINJA: base = 13
+		CharacterClass.WIZARD_KITTEN: base = 8
+		CharacterClass.BATTLE_KITTEN: base = 10
+		CharacterClass.SLEEPY_KITTEN: base = 10
+		CharacterClass.CHONK_KITTEN: base = 14
+		CharacterClass.WIZARD_CAT: base = 10
+		CharacterClass.BATTLE_CAT: base = 12
+		CharacterClass.SLEEPY_CAT: base = 12
+		CharacterClass.CHONK_CAT: base = 16
 	return base + (lvl - 1) * 2
 
 static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
@@ -55,6 +67,14 @@ static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.ARCHMAGE: return 4
 		CharacterClass.MASTER_THIEF: return 5
 		CharacterClass.SHADOW_NINJA: return 6
+		CharacterClass.WIZARD_KITTEN: return 2
+		CharacterClass.BATTLE_KITTEN: return 5
+		CharacterClass.SLEEPY_KITTEN: return 2
+		CharacterClass.CHONK_KITTEN: return 3
+		CharacterClass.WIZARD_CAT: return 3
+		CharacterClass.BATTLE_CAT: return 7
+		CharacterClass.SLEEPY_CAT: return 3
+		CharacterClass.CHONK_CAT: return 4
 	return 2
 
 static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
@@ -65,6 +85,14 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.ARCHMAGE: return 1
 		CharacterClass.MASTER_THIEF: return 2
 		CharacterClass.SHADOW_NINJA: return 1
+		CharacterClass.WIZARD_KITTEN: return 0
+		CharacterClass.BATTLE_KITTEN: return 1
+		CharacterClass.SLEEPY_KITTEN: return 0
+		CharacterClass.CHONK_KITTEN: return 3
+		CharacterClass.WIZARD_CAT: return 1
+		CharacterClass.BATTLE_CAT: return 2
+		CharacterClass.SLEEPY_CAT: return 1
+		CharacterClass.CHONK_CAT: return 4
 	return 0
 
 # Per-class movement speed (px/sec). Thief is fastest, Mage slowest, Ninja
@@ -81,6 +109,14 @@ static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 		CharacterClass.ARCHMAGE: return 55.0
 		CharacterClass.MASTER_THIEF: return 80.0
 		CharacterClass.SHADOW_NINJA: return 65.0
+		CharacterClass.WIZARD_KITTEN: return 60.0
+		CharacterClass.BATTLE_KITTEN: return 65.0
+		CharacterClass.SLEEPY_KITTEN: return 50.0
+		CharacterClass.CHONK_KITTEN: return 45.0
+		CharacterClass.WIZARD_CAT: return 65.0
+		CharacterClass.BATTLE_CAT: return 70.0
+		CharacterClass.SLEEPY_CAT: return 55.0
+		CharacterClass.CHONK_CAT: return 50.0
 	return 60.0
 
 static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
@@ -92,6 +128,14 @@ static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.ARCHMAGE: return 6
 		CharacterClass.MASTER_THIEF: return 2
 		CharacterClass.SHADOW_NINJA: return 3
+		CharacterClass.WIZARD_KITTEN: return 5
+		CharacterClass.BATTLE_KITTEN: return 1
+		CharacterClass.SLEEPY_KITTEN: return 3
+		CharacterClass.CHONK_KITTEN: return 1
+		CharacterClass.WIZARD_CAT: return 7
+		CharacterClass.BATTLE_CAT: return 2
+		CharacterClass.SLEEPY_CAT: return 4
+		CharacterClass.CHONK_CAT: return 2
 	return 2
 
 static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
@@ -103,7 +147,27 @@ static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.ARCHMAGE: base = 14
 		CharacterClass.MASTER_THIEF: base = 4
 		CharacterClass.SHADOW_NINJA: base = 7
+		CharacterClass.WIZARD_KITTEN: base = 10
+		CharacterClass.BATTLE_KITTEN: base = 4
+		CharacterClass.SLEEPY_KITTEN: base = 10
+		CharacterClass.CHONK_KITTEN: base = 4
+		CharacterClass.WIZARD_CAT: base = 14
+		CharacterClass.BATTLE_CAT: base = 6
+		CharacterClass.SLEEPY_CAT: base = 14
+		CharacterClass.CHONK_CAT: base = 6
 	return base + (lvl - 1) * 2
+
+static func base_regeneration_for(klass: CharacterClass, _lvl: int) -> int:
+	match klass:
+		CharacterClass.WIZARD_KITTEN: return 0
+		CharacterClass.BATTLE_KITTEN: return 0
+		CharacterClass.SLEEPY_KITTEN: return 3
+		CharacterClass.CHONK_KITTEN: return 1
+		CharacterClass.WIZARD_CAT: return 0
+		CharacterClass.BATTLE_CAT: return 0
+		CharacterClass.SLEEPY_CAT: return 4
+		CharacterClass.CHONK_CAT: return 2
+	return 0
 
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
 	var c := CharacterData.new()
@@ -121,6 +185,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	var mp_max := base_max_mp_for(klass, 1)
 	c.max_mp = mp_max
 	c.magic_points = mp_max
+	c.regeneration = base_regeneration_for(klass, 1)
 	return c
 
 func apply_stat_delta(stat_name: String, delta: float) -> void:
