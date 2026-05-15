@@ -90,11 +90,7 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	# user opening the app twenty times doesn't rewrite the save file twenty
 	# times for no reason.
 	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory):
-		SaveManager.save(
-			current_character, SaveManager.DEFAULT_PATH,
-			skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
-			{}, currency_ledger, skill_inventory, item_inventory
-		)
+		SaveManager.save_from_state()
 
 func _try_load_save() -> void:
 	var save_data := SaveManager.load()
@@ -139,11 +135,7 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	# the "since last sync" window resets to zero on both stores.
 	merged.offline_xp_earned = 0
 	apply_merged_save(merged)
-	SaveManager.save(
-		current_character, SaveManager.DEFAULT_PATH,
-		skill_tree, meta_tracker, offline_xp_tracker, cosmetic_inventory, paid_unlocks,
-		{}, currency_ledger, skill_inventory, item_inventory
-	)
+	SaveManager.save_from_state()
 	await NakamaService.upload_save_async(p_session, merged.to_dict())
 	save_synced.emit(merged)
 

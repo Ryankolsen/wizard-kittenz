@@ -179,6 +179,12 @@ func test_purchase_succeeded_persists_cosmetic_grant():
 	assert_not_null(loaded)
 	assert_true(loaded.cosmetic_packs.has(PurchaseRegistry.COSMETIC_COAT_PACK),
 		"cosmetic pack persisted via SaveManager.save")
+	# Issue #113: post-purchase save now routes through save_from_state(), so
+	# the snapshot must include every GameState-owned field — assert
+	# skill_inventory hydrates (was previously the silent gap on Player.gd's
+	# kill-save calls).
+	assert_not_null(loaded.to_skill_inventory(),
+		"skill_inventory persisted via save_from_state")
 
 func test_purchase_succeeded_signal_upgrades_thief_to_master_thief():
 	# AC parity with the mage->archmage signal path: BillingManager fires

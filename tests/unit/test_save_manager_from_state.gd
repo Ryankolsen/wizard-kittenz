@@ -93,6 +93,20 @@ func test_null_dungeon_run_controller_serializes_empty_run_state():
 	assert_true(loaded.dungeon_run_state.is_empty(),
 		"empty dict expected when no controller is active")
 
+func test_skill_inventory_is_persisted():
+	# Issue #113: Player.gd kill-save call sites previously passed null for
+	# skill_inventory, dropping unlocked skills on every kill. save_from_state()
+	# reads it from GameState directly — assert the round trip.
+	var gs := get_node("/root/GameState")
+	gs.current_character = _make_character()
+	gs.skill_inventory.grant("fireball")
+	var err: Error = SaveManager.save_from_state()
+	assert_eq(err, OK)
+	var loaded := SaveManager.load()
+	assert_not_null(loaded)
+	assert_true(loaded.skill_unlocks.has("fireball"),
+		"skill_inventory should be persisted by save_from_state")
+
 func test_null_skill_inventory_does_not_crash():
 	var gs := get_node("/root/GameState")
 	gs.current_character = _make_character()
