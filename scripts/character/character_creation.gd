@@ -39,9 +39,10 @@ const APPEARANCE_MAX: int = 7
 @onready var _multi_status_label: Label = $MultiMenu/VBox/StatusLabel
 @onready var _multi_back_button: Button = $MultiMenu/VBox/BackButton
 
-@onready var _qs_mage_button: Button = $QuickStart/VBox/Buttons/MageButton
-@onready var _qs_thief_button: Button = $QuickStart/VBox/Buttons/ThiefButton
-@onready var _qs_ninja_button: Button = $QuickStart/VBox/Buttons/NinjaButton
+@onready var _qs_battle_button: Button = $QuickStart/VBox/Buttons/BattleKittenButton
+@onready var _qs_wizard_button: Button = $QuickStart/VBox/Buttons/WizardKittenButton
+@onready var _qs_sleepy_button: Button = $QuickStart/VBox/Buttons/SleepyKittenButton
+@onready var _qs_chonk_button: Button = $QuickStart/VBox/Buttons/ChonkKittenButton
 @onready var _qs_back_button: Button = $QuickStart/VBox/BackButton
 
 @onready var _custom_name_edit: LineEdit = $Customize/VBox/NameRow/NameEdit
@@ -49,9 +50,10 @@ const APPEARANCE_MAX: int = 7
 @onready var _custom_appearance_label: Label = $Customize/VBox/AppearanceRow/AppearanceLabel
 @onready var _custom_appearance_prev: Button = $Customize/VBox/AppearanceRow/PrevButton
 @onready var _custom_appearance_next: Button = $Customize/VBox/AppearanceRow/NextButton
-@onready var _custom_mage_button: Button = $Customize/VBox/Buttons/MageButton
-@onready var _custom_thief_button: Button = $Customize/VBox/Buttons/ThiefButton
-@onready var _custom_ninja_button: Button = $Customize/VBox/Buttons/NinjaButton
+@onready var _custom_battle_button: Button = $Customize/VBox/Buttons/BattleKittenButton
+@onready var _custom_wizard_button: Button = $Customize/VBox/Buttons/WizardKittenButton
+@onready var _custom_sleepy_button: Button = $Customize/VBox/Buttons/SleepyKittenButton
+@onready var _custom_chonk_button: Button = $Customize/VBox/Buttons/ChonkKittenButton
 @onready var _custom_back_button: Button = $Customize/VBox/BackButton
 
 var _suggester: NameSuggester = NameSuggester.new()
@@ -73,29 +75,31 @@ func _ready() -> void:
 	_multi_join_button.pressed.connect(_on_join_room_pressed)
 	_multi_back_button.pressed.connect(_show_main_menu)
 
-	_qs_mage_button.pressed.connect(_on_quick_start_class.bind("mage"))
-	_qs_thief_button.pressed.connect(_on_quick_start_class.bind("thief"))
-	_qs_ninja_button.pressed.connect(_on_quick_start_class.bind("ninja"))
+	_qs_battle_button.pressed.connect(_on_quick_start_class.bind("battle_kitten"))
+	_qs_wizard_button.pressed.connect(_on_quick_start_class.bind("wizard_kitten"))
+	_qs_sleepy_button.pressed.connect(_on_quick_start_class.bind("sleepy_kitten"))
+	_qs_chonk_button.pressed.connect(_on_quick_start_class.bind("chonk_kitten"))
 	_qs_back_button.pressed.connect(_show_main_menu)
 
 	_custom_random_name_button.pressed.connect(_on_random_name)
 	_custom_appearance_prev.pressed.connect(_on_appearance_prev)
 	_custom_appearance_next.pressed.connect(_on_appearance_next)
-	_custom_mage_button.pressed.connect(_on_customize_class.bind("mage"))
-	_custom_thief_button.pressed.connect(_on_customize_class.bind("thief"))
-	_custom_ninja_button.pressed.connect(_on_customize_class.bind("ninja"))
+	_custom_battle_button.pressed.connect(_on_customize_class.bind("battle_kitten"))
+	_custom_wizard_button.pressed.connect(_on_customize_class.bind("wizard_kitten"))
+	_custom_sleepy_button.pressed.connect(_on_customize_class.bind("sleepy_kitten"))
+	_custom_chonk_button.pressed.connect(_on_customize_class.bind("chonk_kitten"))
 	_custom_back_button.pressed.connect(_show_main_menu)
 
 	_apply_unlock_gates()
 	_show_main_menu()
 
 func _apply_unlock_gates() -> void:
-	# Ninja is gated on dungeons_completed >= 5 by default; gate both the
-	# Quick Start and Customize ninja buttons so the picker is consistent.
-	var ninja_unlocked: bool = GameState.unlock_registry.is_unlocked(
-		"ninja", GameState.meta_tracker, GameState.paid_unlocks)
-	_qs_ninja_button.disabled = not ninja_unlocked
-	_custom_ninja_button.disabled = not ninja_unlocked
+	# Chonk Kitten is gated on dungeons_completed >= 5 by default; gate both the
+	# Quick Start and Customize chonk buttons so the picker is consistent.
+	var chonk_unlocked: bool = GameState.unlock_registry.is_unlocked(
+		"chonk_kitten", GameState.meta_tracker, GameState.paid_unlocks)
+	_qs_chonk_button.disabled = not chonk_unlocked
+	_custom_chonk_button.disabled = not chonk_unlocked
 
 func _show_main_menu() -> void:
 	_main_menu.visible = true
@@ -180,8 +184,8 @@ func _finalize(data: CharacterData) -> void:
 func _ensure_character_for_multiplayer() -> CharacterData:
 	if GameState.current_character != null:
 		return GameState.current_character
-	# Quick-start as Mage for multiplayer if no character exists
-	var data := QuickStartController.create_for_class("mage")
+	# Quick-start as Battle Kitten for multiplayer if no character exists
+	var data := QuickStartController.create_for_class("battle_kitten")
 	GameState.set_character(data)
 	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
 	return data

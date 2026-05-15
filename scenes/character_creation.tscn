@@ -72,17 +72,41 @@ layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="MageButton" type="Button" parent="QuickStart/VBox/Buttons"]
+[node name="BattleKittenButton" type="Button" parent="QuickStart/VBox/Buttons"]
 layout_mode = 2
-text = "Mage"
+text = "Battle Kitten"
 
-[node name="ThiefButton" type="Button" parent="QuickStart/VBox/Buttons"]
+[node name="Subtitle" type="Label" parent="QuickStart/VBox/Buttons/BattleKittenButton"]
 layout_mode = 2
-text = "Thief"
+text = "Melee Damage"
+horizontal_alignment = 1
 
-[node name="NinjaButton" type="Button" parent="QuickStart/VBox/Buttons"]
+[node name="WizardKittenButton" type="Button" parent="QuickStart/VBox/Buttons"]
 layout_mode = 2
-text = "Ninja"
+text = "Wizard Kitten"
+
+[node name="Subtitle" type="Label" parent="QuickStart/VBox/Buttons/WizardKittenButton"]
+layout_mode = 2
+text = "Attack Mage"
+horizontal_alignment = 1
+
+[node name="SleepyKittenButton" type="Button" parent="QuickStart/VBox/Buttons"]
+layout_mode = 2
+text = "Sleepy Kitten"
+
+[node name="Subtitle" type="Label" parent="QuickStart/VBox/Buttons/SleepyKittenButton"]
+layout_mode = 2
+text = "Healer"
+horizontal_alignment = 1
+
+[node name="ChonkKittenButton" type="Button" parent="QuickStart/VBox/Buttons"]
+layout_mode = 2
+text = "Chonk Kitten"
+
+[node name="Subtitle" type="Label" parent="QuickStart/VBox/Buttons/ChonkKittenButton"]
+layout_mode = 2
+text = "Tank"
+horizontal_alignment = 1
 
 [node name="BackButton" type="Button" parent="QuickStart/VBox"]
 layout_mode = 2
@@ -150,17 +174,41 @@ layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="MageButton" type="Button" parent="Customize/VBox/Buttons"]
+[node name="BattleKittenButton" type="Button" parent="Customize/VBox/Buttons"]
 layout_mode = 2
-text = "Mage"
+text = "Battle Kitten"
 
-[node name="ThiefButton" type="Button" parent="Customize/VBox/Buttons"]
+[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/BattleKittenButton"]
 layout_mode = 2
-text = "Thief"
+text = "Melee Damage"
+horizontal_alignment = 1
 
-[node name="NinjaButton" type="Button" parent="Customize/VBox/Buttons"]
+[node name="WizardKittenButton" type="Button" parent="Customize/VBox/Buttons"]
 layout_mode = 2
-text = "Ninja"
+text = "Wizard Kitten"
+
+[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/WizardKittenButton"]
+layout_mode = 2
+text = "Attack Mage"
+horizontal_alignment = 1
+
+[node name="SleepyKittenButton" type="Button" parent="Customize/VBox/Buttons"]
+layout_mode = 2
+text = "Sleepy Kitten"
+
+[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/SleepyKittenButton"]
+layout_mode = 2
+text = "Healer"
+horizontal_alignment = 1
+
+[node name="ChonkKittenButton" type="Button" parent="Customize/VBox/Buttons"]
+layout_mode = 2
+text = "Chonk Kitten"
+
+[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/ChonkKittenButton"]
+layout_mode = 2
+text = "Tank"
+horizontal_alignment = 1
 
 [node name="BackButton" type="Button" parent="Customize/VBox"]
 layout_mode = 2

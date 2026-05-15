@@ -161,3 +161,122 @@ func test_apply_to_writes_appearance_index_back_to_character():
 	var c := CharacterData.new()
 	s.apply_to(c)
 	assert_eq(c.appearance_index, 3)
+
+# --- Issue #122: four-class Kitten picker ---
+
+const _SUBTITLES := {
+	"BattleKittenButton": "Melee Damage",
+	"WizardKittenButton": "Attack Mage",
+	"SleepyKittenButton": "Healer",
+	"ChonkKittenButton": "Tank",
+}
+
+const _BUTTON_TO_CLASS := {
+	"BattleKittenButton": CharacterData.CharacterClass.BATTLE_KITTEN,
+	"WizardKittenButton": CharacterData.CharacterClass.WIZARD_KITTEN,
+	"SleepyKittenButton": CharacterData.CharacterClass.SLEEPY_KITTEN,
+	"ChonkKittenButton": CharacterData.CharacterClass.CHONK_KITTEN,
+}
+
+func _instantiate_creation_scene() -> Node:
+	# Pre-clear current_character so _ready's save-exists probe doesn't
+	# leak state between tests (and so the QuickStart panel isn't gated
+	# behind the overwrite-confirm dialog mid-test).
+	GameState.current_character = null
+	GameState.meta_tracker = MetaProgressionTracker.new()
+	GameState.unlock_registry = UnlockRegistry.make_default()
+	var scene = load("res://scenes/character_creation.tscn").instantiate()
+	add_child_autofree(scene)
+	return scene
+
+func test_quick_start_panel_has_four_kitten_buttons():
+	var scene := _instantiate_creation_scene()
+	for btn_name in _BUTTON_TO_CLASS.keys():
+		var btn := scene.find_child(btn_name, true, false) as Button
+		assert_not_null(btn, "QuickStart must contain %s" % btn_name)
+
+func test_customize_panel_has_four_kitten_buttons():
+	var scene := _instantiate_creation_scene()
+	# find_child returns the first match; verify both panels contain the
+	# button by counting via get_node on the explicit path.
+	for btn_name in _BUTTON_TO_CLASS.keys():
+		var btn := scene.get_node("Customize/VBox/Buttons/%s" % btn_name) as Button
+		assert_not_null(btn, "Customize must contain %s" % btn_name)
+
+func test_each_quick_start_button_has_correct_subtitle():
+	var scene := _instantiate_creation_scene()
+	for btn_name in _SUBTITLES.keys():
+		var btn := scene.get_node("QuickStart/VBox/Buttons/%s" % btn_name) as Button
+		var subtitle := btn.find_child("Subtitle", false, false) as Label
+		assert_not_null(subtitle, "%s should have a child Subtitle Label" % btn_name)
+		assert_eq(subtitle.text, _SUBTITLES[btn_name])
+
+func test_each_customize_button_has_correct_subtitle():
+	var scene := _instantiate_creation_scene()
+	for btn_name in _SUBTITLES.keys():
+		var btn := scene.get_node("Customize/VBox/Buttons/%s" % btn_name) as Button
+		var subtitle := btn.find_child("Subtitle", false, false) as Label
+		assert_not_null(subtitle, "%s should have a child Subtitle Label" % btn_name)
+		assert_eq(subtitle.text, _SUBTITLES[btn_name])
+
+func test_quick_start_battle_kitten_button_creates_battle_kitten():
+	# Core wiring AC: pressing Battle Kitten in QuickStart yields a
+	# CharacterData with character_class == BATTLE_KITTEN. We intercept
+	# at GameState.current_character so the press doesn't have to actually
+	# change scenes.
+	var scene := _instantiate_creation_scene()
+	var btn := scene.get_node("QuickStart/VBox/Buttons/BattleKittenButton") as Button
+	btn.pressed.emit()
+	assert_not_null(GameState.current_character)
+	assert_eq(GameState.current_character.character_class,
+		CharacterData.CharacterClass.BATTLE_KITTEN)
+
+func test_all_four_quick_start_buttons_select_correct_class():
+	for btn_name in _BUTTON_TO_CLASS.keys():
+		var scene := _instantiate_creation_scene()
+		var btn := scene.get_node("QuickStart/VBox/Buttons/%s" % btn_name) as Button
+		btn.pressed.emit()
+		assert_eq(GameState.current_character.character_class,
+			_BUTTON_TO_CLASS[btn_name],
+			"QuickStart %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
+
+func test_all_four_customize_buttons_select_correct_class():
+	for btn_name in _BUTTON_TO_CLASS.keys():
+		var scene := _instantiate_creation_scene()
+		var btn := scene.get_node("Customize/VBox/Buttons/%s" % btn_name) as Button
+		btn.pressed.emit()
+		assert_eq(GameState.current_character.character_class,
+			_BUTTON_TO_CLASS[btn_name],
+			"Customize %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
+
+func test_chonk_kitten_disabled_at_zero_dungeons():
+	var scene := _instantiate_creation_scene()
+	var qs_chonk := scene.get_node("QuickStart/VBox/Buttons/ChonkKittenButton") as Button
+	var custom_chonk := scene.get_node("Customize/VBox/Buttons/ChonkKittenButton") as Button
+	assert_true(qs_chonk.disabled, "Chonk Kitten gated until threshold met")
+	assert_true(custom_chonk.disabled, "Chonk Kitten gated until threshold met")
+
+func test_chonk_kitten_enabled_after_threshold():
+	GameState.current_character = null
+	GameState.meta_tracker = MetaProgressionTracker.new()
+	GameState.meta_tracker.dungeons_completed = 5
+	GameState.unlock_registry = UnlockRegistry.make_default()
+	var scene = load("res://scenes/character_creation.tscn").instantiate()
+	add_child_autofree(scene)
+	var qs_chonk := scene.get_node("QuickStart/VBox/Buttons/ChonkKittenButton") as Button
+	var custom_chonk := scene.get_node("Customize/VBox/Buttons/ChonkKittenButton") as Button
+	assert_false(qs_chonk.disabled, "Chonk Kitten unlocked once threshold met")
+	assert_false(custom_chonk.disabled, "Chonk Kitten unlocked once threshold met")
+
+func test_multiplayer_fallback_defaults_to_battle_kitten():
+	var scene = _instantiate_creation_scene()
+	var data = scene._ensure_character_for_multiplayer()
+	assert_eq(data.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(GameState.current_character.character_class,
+		CharacterData.CharacterClass.BATTLE_KITTEN)
+
+func test_no_legacy_class_buttons_remain():
+	var scene := _instantiate_creation_scene()
+	for legacy in ["MageButton", "ThiefButton", "NinjaButton"]:
+		assert_null(scene.find_child(legacy, true, false),
+			"Legacy %s must be removed from the picker" % legacy)
