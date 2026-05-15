@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://co0pse2e6l2u0"]
 
-[ext_resource type="Script" path="res://scripts/exit_door.gd" id="1_exit_door"]
+[ext_resource type="Script" path="res://scripts/dungeon/exit_door.gd" id="1_exit_door"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_door_block"]
 size = Vector2(16, 16)

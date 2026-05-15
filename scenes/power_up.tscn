@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://b5wkp7mzn9xqa"]
 
-[ext_resource type="Script" path="res://scripts/power_up_pickup.gd" id="1_powerup"]
+[ext_resource type="Script" path="res://scripts/dungeon/power_up_pickup.gd" id="1_powerup"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_powerup"]
 size = Vector2(10, 10)
