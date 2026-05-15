@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://b9exitdoor1xqz"]
+[gd_scene format=3 uid="uid://co0pse2e6l2u0"]
 
 [ext_resource type="Script" path="res://scripts/exit_door.gd" id="1_exit_door"]
 

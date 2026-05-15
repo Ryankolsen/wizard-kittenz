@@ -16,6 +16,7 @@ extends Node2D
 
 const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
+const POWER_UP_SCENE_PATH := "res://scenes/power_up.tscn"
 
 var _run_controller: DungeonRunController = null
 var _watchers: Array[RoomClearWatcher] = []
@@ -144,6 +145,7 @@ func _setup_rooms() -> void:
 		_run_controller.dungeon, _dungeon_layout, _coop_session())
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
+	var power_up_scene := load(POWER_UP_SCENE_PATH)
 	for room in _run_controller.dungeon.rooms:
 		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
 		if data != null and not _run_controller.is_room_cleared(room.id):
@@ -152,6 +154,12 @@ func _setup_rooms() -> void:
 			enemy.position = data.spawn_position
 			enemy.died.connect(_on_enemy_died.bind(enemy))
 			add_child(enemy)
+		var pu_type := RoomSpawnPlanner.plan_powerup(room)
+		if pu_type != "" and _dungeon_layout != null and not _run_controller.is_room_cleared(room.id):
+			var pickup: PowerUpPickup = power_up_scene.instantiate()
+			pickup.power_up_type = pu_type
+			pickup.position = _dungeon_layout.room_center_world(room.id)
+			add_child(pickup)
 		var watcher := RoomClearWatcher.new()
 		# Pass the local character + session so the watcher fires PRD #52
 		# room-clear XP through the right path: solo adds XP to the local
