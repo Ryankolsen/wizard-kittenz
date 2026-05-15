@@ -119,11 +119,11 @@ func test_main_scene_solo_path_does_not_crash_with_null_session():
 		"solo path still installs a run controller")
 
 func test_main_scene_reload_keeps_active_session():
-	# Scene reload after advance_to (_on_next_room_requested calls
-	# get_tree().reload_current_scene()) re-runs main_scene._ready.
-	# session.start is idempotent — a second call returns false without
-	# clobbering the existing managers. Pin that the wire's idempotency
-	# survives the reload pattern.
+	# Scene reload (e.g. the post-dungeon-completed reload in
+	# _finalize_and_reload, or a future quit/resume cycle) re-runs
+	# main_scene._ready. session.start is idempotent — a second call
+	# returns false without clobbering the existing managers. Pin that
+	# the wire's idempotency survives the reload pattern.
 	var session := _make_coop_session()
 	_install_session(session)
 

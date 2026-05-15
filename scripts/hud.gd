@@ -1,17 +1,15 @@
 class_name HUD
 extends CanvasLayer
 
-signal next_room_requested
-
-# Single-room HUD orchestrator. Polls each frame:
+# Dungeon-run HUD orchestrator. Polls each frame:
 # - HP bar reads player.data.hp/max_hp
-# - Room Clear banner shows when the initial enemy count drops to zero
 # - You Died panel shows when player.data.hp <= 0; Restart reloads the scene
 #
-# Polling (vs. signal subscription) keeps the wiring trivial — the HUD
-# doesn't need to find every enemy at startup, just count the "enemies"
-# group each frame. Future iterations can switch to signals when the
-# enemy count grows large enough to make per-frame counting wasteful.
+# Polling (vs. signal subscription) keeps the wiring trivial. The legacy
+# per-room "Room Clear → Next Room" banner was removed in #97 once the
+# dungeon became a single connected map — progression is now driven by
+# physically walking through rooms (and, post-#98, the boss-room exit
+# door), not by an in-HUD button.
 
 const HP_BAR_WIDTH: float = 96.0
 const MP_BAR_WIDTH: float = 96.0
@@ -21,14 +19,9 @@ var _player: Player = null
 var _hp_fill: ColorRect
 var _mp_fill: ColorRect
 var _xp_fill: ColorRect
-var _room_clear: Control
 var _you_died: Control
 var _death_prompt: Label
 var _revive_btn: Button
-var _initial_enemies: int = 0
-var _room_cleared: bool = false
-var _next_room_btn: Button
-var _room_clear_pause_btn: Button
 var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
@@ -43,15 +36,9 @@ func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
 	_mp_fill = $StatsPanel/VBox/MPBar/Fill
 	_xp_fill = $StatsPanel/VBox/XPBar/Fill
-	_room_clear = $RoomClear
-	_next_room_btn = $RoomClear/NextRoom
-	_next_room_btn.pressed.connect(_on_next_room_pressed)
-	_room_clear_pause_btn = $RoomClear/RoomClearPause
-	_room_clear_pause_btn.pressed.connect(_on_pause_pressed)
 	_you_died = $YouDied
 	_death_prompt = $YouDied/Panel/VBox/Prompt
 	_revive_btn = $YouDied/Panel/VBox/Revive
-	_room_clear.visible = false
 	_you_died.visible = false
 	_revive_btn.pressed.connect(_on_revive_pressed)
 	var give_up: Button = $YouDied/Panel/VBox/GiveUp
@@ -61,10 +48,6 @@ func _ready() -> void:
 	_stat_points_badge = $StatPointsBadge
 	_player = _find_player()
 	_bind_player_item_drop()
-	# Defer enemy count by one frame — main.tscn's enemy children may not
-	# have run _ready() yet (and therefore haven't joined the "enemies"
-	# group) when the HUD's _ready fires.
-	call_deferred("_init_enemy_count")
 	# Host-pause overlay (#43). Eagerly instanced so a remote host-pause
 	# packet that arrives before the player presses their own pause button
 	# still has a surface to render the "Host has paused" banner on. The
@@ -76,15 +59,11 @@ func _spawn_host_pause_overlay() -> void:
 	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
 	add_child(overlay)
 
-func _init_enemy_count() -> void:
-	_initial_enemies = _count_enemies()
-
 func _process(_dt: float) -> void:
 	_update_hp_bar()
 	_update_mp_bar()
 	_update_xp_bar()
 	_update_stat_points_badge()
-	_check_room_clear()
 	_check_player_dead()
 
 # Polls player.data.skill_points each frame and toggles the badge. Same
@@ -243,25 +222,6 @@ func _local_effective_level() -> int:
 		return -1
 	return member.effective_stats.level
 
-func _check_room_clear() -> void:
-	if _room_cleared or _initial_enemies <= 0:
-		return
-	if _count_enemies() == 0:
-		_room_cleared = true
-		_room_clear.visible = true
-		_room_clear_pause_btn.visible = true
-
-# Called by the scene orchestrator when DungeonRunController.room_cleared fires.
-# Shows the banner and the "Next Room" button so the player can advance.
-func show_next_room_prompt() -> void:
-	_room_cleared = true
-	_room_clear.visible = true
-	_next_room_btn.visible = true
-	_room_clear_pause_btn.visible = true
-
-func _on_next_room_pressed() -> void:
-	next_room_requested.emit()
-
 func _check_player_dead() -> void:
 	if _player == null or _player.data == null:
 		return
@@ -331,9 +291,6 @@ func open_pause_menu_for_transition() -> CanvasLayer:
 	var pm := _ensure_pause_menu()
 	pm.open_for_dungeon_transition()
 	return pm
-
-func _count_enemies() -> int:
-	return get_tree().get_nodes_in_group("enemies").size()
 
 func _find_player() -> Player:
 	var nodes := get_tree().get_nodes_in_group("player")

@@ -8,8 +8,6 @@ extends Node2D
 #   - Creates a RoomClearWatcher per combat room up-front so kills in any room
 #     fire mark_room_cleared without a scene reload.
 #   - Wires each Enemy.died -> the matching watcher's notify_death.
-#   - Listens for room_cleared -> shows the "Next Room" prompt on the HUD.
-#   - Advances to the next room (via advance_to + scene reload) on button press.
 #   - Handles dungeon_completed (boss killed): calls DungeonRunCompletion,
 #     clears run state, and reloads for a new dungeon.
 #
@@ -36,11 +34,8 @@ func _ready() -> void:
 
 	_paint_dungeon()
 
-	# Connect before _setup_rooms so auto-clear rooms get the signal.
-	_run_controller.room_cleared.connect(_on_room_cleared)
 	_run_controller.dungeon_completed.connect(_on_dungeon_completed)
 	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
-	_hud.next_room_requested.connect(_on_next_room_requested)
 
 	_setup_rooms()
 
@@ -104,10 +99,10 @@ func _dungeon_seed_for(gs) -> int:
 # room's kills independently. Start / power-up rooms get a watcher that
 # auto-clears immediately (no enemy instantiated).
 #
-# Already-cleared rooms (from a resumed run or a scene reload after
-# advance_to) skip enemy instantiation so the player doesn't re-fight a room
-# they've already finished. The watcher is still created so room_cleared
-# refires on auto-clear and the controller's _cleared flag is consistent.
+# Already-cleared rooms (from a resumed run via the save/restore path)
+# skip enemy instantiation so the player doesn't re-fight a room they've
+# already finished. The watcher is still created so room_cleared refires
+# on auto-clear and the controller's _cleared flag is consistent.
 func _setup_rooms() -> void:
 	if _run_controller == null or _run_controller.dungeon == null:
 		return
@@ -159,55 +154,6 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	# room_id -> watcher map for the small per-dungeon room count.
 	for watcher in _watchers:
 		watcher.notify_death(enemy.data.enemy_id)
-
-func _on_room_cleared(_room_id: int) -> void:
-	# is_dungeon_complete() is already true when this fires for the boss room
-	# (_cleared[boss_id] is set before room_cleared.emit). Let dungeon_completed
-	# handle that case; show the button for every other cleared room.
-	if _run_controller.is_dungeon_complete():
-		return
-	_hud.show_next_room_prompt()
-
-func _on_next_room_requested() -> void:
-	var next_id := _next_room_toward_boss()
-	if next_id < 0:
-		return
-	_run_controller.advance_to(next_id)
-	get_tree().reload_current_scene()
-
-# Returns the id of the best next room to advance to: the first connection
-# from which the boss is reachable (BFS). Skips dead-end branches so the
-# player never ends up in a non-boss leaf room. Falls back to connections[0]
-# only if every branch leads nowhere — which a valid spanning-tree dungeon
-# prevents by construction.
-func _next_room_toward_boss() -> int:
-	var room := _run_controller.current_room()
-	if room == null or room.connections.is_empty():
-		return -1
-	var boss_id := _run_controller.dungeon.boss_id
-	for conn_id in room.connections:
-		if conn_id == boss_id or _can_reach(conn_id, boss_id):
-			return conn_id
-	return room.connections[0]
-
-func _can_reach(from_id: int, target_id: int) -> bool:
-	var dungeon := _run_controller.dungeon
-	var visited := {}
-	var queue := [from_id]
-	while not queue.is_empty():
-		var id: int = queue.pop_front()
-		if id == target_id:
-			return true
-		if visited.has(id):
-			continue
-		visited[id] = true
-		var r := dungeon.get_room(id)
-		if r == null:
-			continue
-		for next_id in r.connections:
-			if not visited.has(next_id):
-				queue.append(next_id)
-	return false
 
 func _on_dungeon_completed() -> void:
 	# PRD #52 / #61: the boss-cleared edge no longer reloads directly.

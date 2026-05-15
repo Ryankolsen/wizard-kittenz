@@ -22,15 +22,14 @@ extends RefCounted
 # they require explicit clearing via mark_room_cleared(room_id) when the
 # room's last enemy dies.
 #
-# Connection rule: advance_to(target) only succeeds when (a) target is in
-# current_room().connections and (b) current_room is cleared. Edges are
-# directed (Dungeon's BFS / Room.connections semantics) so a room with an
-# inbound connection can't be backtracked-into through this API; the
-# spawn layer is free to add a separate "go back to previous" affordance
-# if design wants one.
+# As of issue #97 the controller no longer drives room-to-room
+# progression: the player walks freely between all rooms on the
+# single connected map produced by DungeonLayoutEngine. `current_room_id`
+# stays at `start_id` for the run's duration and exists only so the
+# serializer can persist save state shape. The advance_to / can_advance_to
+# /advanced_to API was removed alongside the HUD's "Next Room" button.
 
 signal room_cleared(room_id: int)
-signal advanced_to(room_id: int)
 signal dungeon_completed()
 # Fires when the orchestrator decides to advance from this dungeon into a
 # new one. Distinct from dungeon_completed (which is the boss-cleared edge):
@@ -57,7 +56,6 @@ func start(d: Dungeon) -> bool:
 	dungeon = d
 	current_room_id = d.start_id
 	_cleared = {}
-	advanced_to.emit(current_room_id)
 	return true
 
 func current_room() -> Room:
@@ -97,27 +95,6 @@ func mark_room_cleared(room_id: int) -> bool:
 	room_cleared.emit(room_id)
 	if room_id == dungeon.boss_id:
 		dungeon_completed.emit()
-	return true
-
-# Gate for advance_to. Caller can use this to enable / disable a "next room"
-# button before the actual transition.
-func can_advance_to(target_room_id: int) -> bool:
-	if dungeon == null:
-		return false
-	var current := current_room()
-	if current == null:
-		return false
-	if not is_room_cleared(current_room_id):
-		return false
-	if not current.connections.has(target_room_id):
-		return false
-	return dungeon.get_room(target_room_id) != null
-
-func advance_to(target_room_id: int) -> bool:
-	if not can_advance_to(target_room_id):
-		return false
-	current_room_id = target_room_id
-	advanced_to.emit(current_room_id)
 	return true
 
 # Explicitly-cleared room ids in insertion order. Used by DungeonRunSerializer

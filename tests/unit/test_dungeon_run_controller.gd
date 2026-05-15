@@ -6,8 +6,8 @@ extends GutTest
 # tested independently in test_dungeon_generator.gd.
 
 func _make_linear_dungeon() -> Dungeon:
-	# start(0) -> standard(1) -> boss(2). Linear so connection semantics are
-	# unambiguous in advance_to tests.
+	# start(0) -> standard(1) -> boss(2). Linear so a clear order is
+	# unambiguous when driving mark_room_cleared end-to-end.
 	var d := Dungeon.new()
 	var s := Room.make(0, Room.TYPE_START)
 	var n := Room.make(1, Room.TYPE_STANDARD)
@@ -79,12 +79,23 @@ func test_start_resets_cleared_state():
 	c.start(d2)
 	assert_false(c.is_room_cleared(1), "fresh start drops prior cleared flags")
 
-func test_start_emits_advanced_to_for_start_room():
-	var d := _make_linear_dungeon()
+# --- advance_to removed (issue #97) ----------------------------------------
+
+func test_advance_to_method_removed():
+	# Issue #97: progression is no longer controller-driven. The player
+	# walks freely across the persistent multi-room map; the
+	# advance_to / can_advance_to / advanced_to API was removed alongside
+	# the HUD "Next Room" button.
 	var c := DungeonRunController.new()
-	watch_signals(c)
-	c.start(d)
-	assert_signal_emitted_with_parameters(c, "advanced_to", [0])
+	assert_false(c.has_method("advance_to"),
+		"advance_to must be removed in #97")
+	assert_false(c.has_method("can_advance_to"),
+		"can_advance_to must be removed in #97")
+
+func test_advanced_to_signal_removed():
+	var c := DungeonRunController.new()
+	assert_false(c.has_signal("advanced_to"),
+		"advanced_to signal must be removed in #97")
 
 # --- current_room -----------------------------------------------------------
 
@@ -92,14 +103,15 @@ func test_current_room_null_before_start():
 	var c := DungeonRunController.new()
 	assert_null(c.current_room())
 
-func test_current_room_after_advance():
+func test_current_room_is_start_after_start():
+	# Without advance_to, current_room stays at the dungeon's start_id
+	# for the run's duration. Serializer is the only writer that can
+	# move it (resume path), via direct assignment.
 	var d := _make_linear_dungeon()
 	var c := DungeonRunController.new()
 	c.start(d)
-	c.mark_room_cleared(0)  # start has no enemy but mark anyway for symmetry
-	c.advance_to(1)
-	assert_eq(c.current_room().id, 1)
-	assert_eq(c.current_room().type, Room.TYPE_STANDARD)
+	assert_eq(c.current_room().id, 0)
+	assert_eq(c.current_room().type, Room.TYPE_START)
 
 # --- is_room_cleared --------------------------------------------------------
 
@@ -217,78 +229,6 @@ func test_mark_room_cleared_repeat_boss_does_not_re_emit_completed():
 	c.mark_room_cleared(2)
 	assert_signal_emit_count(c, "dungeon_completed", 1)
 
-# --- can_advance_to ---------------------------------------------------------
-
-func test_can_advance_to_connected_room_when_cleared():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	# start has enemy_kind == -1 -> auto-cleared, so we can advance to 1.
-	assert_true(c.can_advance_to(1))
-
-func test_can_advance_to_blocks_when_current_uncleared():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	c.advance_to(1)
-	# Standing in room 1 (standard, uncleared). Cannot advance to boss
-	# until the standard room's enemy is killed.
-	assert_false(c.can_advance_to(2), "uncleared current room blocks advance")
-
-func test_can_advance_to_unlocks_after_clear():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	c.advance_to(1)
-	c.mark_room_cleared(1)
-	assert_true(c.can_advance_to(2))
-
-func test_can_advance_to_non_connected_room_returns_false():
-	# Branching graph: standing in start (id 0), connections are [1, 2].
-	# Trying to skip directly to boss (3) must fail.
-	var d := _make_branching_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	assert_false(c.can_advance_to(3), "non-listed connection rejected")
-
-func test_can_advance_to_unknown_room_returns_false():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	assert_false(c.can_advance_to(999))
-
-func test_can_advance_to_before_start_returns_false():
-	var c := DungeonRunController.new()
-	assert_false(c.can_advance_to(0))
-
-# --- advance_to -------------------------------------------------------------
-
-func test_advance_to_updates_current_room_id():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	assert_true(c.advance_to(1))
-	assert_eq(c.current_room_id, 1)
-
-func test_advance_to_emits_advanced_to_signal():
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	watch_signals(c)
-	c.start(d)
-	c.advance_to(1)
-	# Two emissions total: one from start(), one from advance_to(1).
-	assert_signal_emit_count(c, "advanced_to", 2)
-
-func test_advance_to_failure_does_not_change_room():
-	# Trying to skip past an uncleared room returns false and leaves
-	# current_room_id where it was — no partial state transition.
-	var d := _make_linear_dungeon()
-	var c := DungeonRunController.new()
-	c.start(d)
-	c.advance_to(1)
-	assert_false(c.advance_to(2), "uncleared standard room blocks advance")
-	assert_eq(c.current_room_id, 1, "room id unchanged after failed advance")
-
 # --- is_dungeon_complete ----------------------------------------------------
 
 func test_is_dungeon_complete_false_until_boss_cleared():
@@ -320,7 +260,6 @@ func test_transition_emits_dungeon_transitioned_signal():
 	var c := DungeonRunController.new()
 	watch_signals(c)
 	c.start(d)
-	c.advance_to(1)
 	c.mark_room_cleared(1)
 	c.transition()
 	assert_signal_emitted(c, "dungeon_transitioned")
@@ -350,31 +289,30 @@ func test_transition_does_not_emit_dungeon_completed():
 
 # --- end-to-end happy path --------------------------------------------------
 
-func test_full_run_through_branching_dungeon_via_powerup():
-	# start(0 auto) -> powerup(2 auto) -> boss(3 explicit). The path that
-	# avoids the standard combat room. Drives the controller through the
-	# whole state machine and asserts the dungeon_completed signal lands
-	# at the right moment.
+func test_full_run_through_branching_dungeon():
+	# Drives the controller through a complete run on the branching graph:
+	# the player walks the persistent map freely (no advance_to gating)
+	# and only mark_room_cleared events drive state. Asserts that
+	# dungeon_completed fires exactly once on the boss-clear edge.
 	var d := _make_branching_dungeon()
 	var c := DungeonRunController.new()
 	watch_signals(c)
 	assert_true(c.start(d))
-	assert_true(c.advance_to(2), "advance start -> powerup")
-	assert_true(c.advance_to(3), "advance powerup -> boss")
+	c.mark_room_cleared(1)
 	assert_signal_not_emitted(c, "dungeon_completed")
 	c.mark_room_cleared(3)
 	assert_true(c.is_dungeon_complete())
 	assert_signal_emit_count(c, "dungeon_completed", 1)
 
-func test_full_run_through_branching_dungeon_via_combat():
-	# Alternate path: start(0) -> standard(1, kill) -> boss(3, kill). Combat
-	# room blocks advance until cleared.
-	var d := _make_branching_dungeon()
+func test_double_clear_is_idempotent():
+	# Issue #97 AC: double-clear on the same room is a no-op — the
+	# room_cleared signal fires exactly once. RoomClearWatcher relies on
+	# this idempotency since its notify_death path can race with a
+	# remote-kill arriving from the same enemy.
+	var d := _make_linear_dungeon()
 	var c := DungeonRunController.new()
+	watch_signals(c)
 	c.start(d)
-	c.advance_to(1)
-	assert_false(c.advance_to(3), "combat room blocks before clear")
-	c.mark_room_cleared(1)
-	assert_true(c.advance_to(3))
-	c.mark_room_cleared(3)
-	assert_true(c.is_dungeon_complete())
+	c.mark_room_cleared(2)
+	c.mark_room_cleared(2)
+	assert_signal_emit_count(c, "room_cleared", 1)

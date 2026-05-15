@@ -66,15 +66,16 @@ func test_serializer_preserves_current_room_id():
 	var dungeon := DungeonGenerator.generate(55)
 	var ctrl := DungeonRunController.new()
 	ctrl.start(dungeon)
-	# Advance into the first connection out of start so current_room_id is
-	# not just start_id. Mark start cleared first (auto-clear handles it for
-	# TYPE_START, but we want the explicit advance path).
+	# Snap current_room_id to a non-start id so the round-trip's "resume
+	# where you left off" branch is exercised. Post-#97 the controller no
+	# longer exposes advance_to; the serializer assigns current_room_id
+	# directly on restore, so writing it directly here mirrors that path.
 	var first := dungeon.get_room(dungeon.start_id)
 	if first.connections.is_empty():
 		pending("dungeon graph had no connections — unexpected for seed 55")
 		return
 	var target: int = first.connections[0]
-	assert_true(ctrl.advance_to(target), "advance_to(first connection) must succeed")
+	ctrl.current_room_id = target
 	var state := DungeonRunSerializer.serialize(ctrl, 55)
 	var ctrl2 := DungeonRunSerializer.deserialize(state)
 	assert_eq(ctrl2.current_room_id, target,
