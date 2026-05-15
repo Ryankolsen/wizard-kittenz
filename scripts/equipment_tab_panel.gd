@@ -143,15 +143,13 @@ func _on_equip_pressed(item_id: String) -> void:
 	var item: ItemData = _find_bag_item(item_id)
 	if item == null:
 		return
-	# Subtract the displaced item's bonus before swap so the new bonus
-	# replaces (not stacks on top of) the old. ItemInventory.equip moves
-	# the displaced item into the bag. Mirrors HUD._on_loot_choice_made.
 	var prev: ItemData = _inventory.equipped_in(item.slot)
-	if prev != null:
-		_apply_stat_delta(prev, -1.0)
+	if prev != null and _character != null:
+		_character.apply_stat_delta(prev.stat_name, -prev.stat_bonus)
 	_inventory.remove_from_bag(item_id)
 	_inventory.equip(item)
-	_apply_stat_delta(item, 1.0)
+	if _character != null:
+		_character.apply_stat_delta(item.stat_name, item.stat_bonus)
 	_expanded.clear()
 	_rebuild()
 
@@ -161,18 +159,11 @@ func _on_unequip_pressed(slot: int) -> void:
 	var item: ItemData = _inventory.equipped_in(slot)
 	if item == null:
 		return
-	_apply_stat_delta(item, -1.0)
+	if _character != null:
+		_character.apply_stat_delta(item.stat_name, -item.stat_bonus)
 	_inventory.unequip(slot)
 	_expanded.clear()
 	_rebuild()
-
-func _apply_stat_delta(item: ItemData, sign: float) -> void:
-	if _character == null or item == null or item.stat_name == "":
-		return
-	var cur: Variant = _character.get(item.stat_name)
-	if cur == null:
-		return
-	_character.set(item.stat_name, cur + sign * item.stat_bonus)
 
 func _find_bag_item(item_id: String) -> ItemData:
 	if _inventory == null:

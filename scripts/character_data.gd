@@ -123,6 +123,17 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.magic_points = mp_max
 	return c
 
+func apply_stat_delta(stat_name: String, delta: float) -> void:
+	if stat_name == "":
+		return
+	var cur: Variant = get(stat_name)
+	if cur == null:
+		return
+	if cur is int:
+		set(stat_name, cur + roundi(delta))
+	else:
+		set(stat_name, cur + delta)
+
 func is_alive() -> bool:
 	return hp > 0
 

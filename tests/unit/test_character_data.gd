@@ -136,6 +136,50 @@ func test_save_load_roundtrips_expanded_stat_set():
 	if FileAccess.file_exists(tmp):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
+func test_apply_stat_delta_increases_int_stat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var before := c.attack
+	c.apply_stat_delta("attack", 3.0)
+	assert_eq(c.attack, before + 3)
+
+func test_apply_stat_delta_decreases_int_stat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var before := c.attack
+	c.apply_stat_delta("attack", -1.0)
+	assert_eq(c.attack, before - 1)
+
+func test_apply_stat_delta_rounds_float_delta_for_int_stat():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var before := c.attack
+	c.apply_stat_delta("attack", 1.7)
+	assert_eq(c.attack, before + 2, "rounds to nearest, not truncates")
+
+func test_apply_stat_delta_float_stat_stays_float():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	c.apply_stat_delta("evasion", 0.15)
+	assert_almost_eq(c.evasion, 0.15, 0.001)
+	assert_eq(typeof(c.evasion), TYPE_FLOAT)
+
+func test_apply_stat_delta_empty_name_is_noop():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var before := c.attack
+	c.apply_stat_delta("", 5.0)
+	assert_eq(c.attack, before)
+
+func test_apply_stat_delta_unknown_name_is_noop():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	c.apply_stat_delta("nonexistent_stat", 5.0)
+	assert_true(true, "should not crash on unknown stat")
+
+func test_apply_stat_delta_swap_replaces_bonus():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	var base_attack := c.attack
+	c.apply_stat_delta("attack", 3.0)
+	assert_eq(c.attack, base_attack + 3, "old item applied")
+	c.apply_stat_delta("attack", -3.0)
+	c.apply_stat_delta("attack", 5.0)
+	assert_eq(c.attack, base_attack + 5, "swap removes old bonus and applies new")
+
 func test_pre_prd_save_loads_with_zero_defaults():
 	var old_dict := {
 		"character_name": "Kitten",

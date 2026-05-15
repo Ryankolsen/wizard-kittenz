@@ -335,18 +335,11 @@ func _on_loot_choice_made(item: ItemData, equip: bool) -> void:
 		return
 	var inventory: ItemInventory = gs.item_inventory
 	if equip:
-		# Subtract the displaced item's bonus before swap so the new
-		# bonus replaces (not stacks on top of) the old. ItemInventory.equip
-		# moves the displaced item into the bag.
 		var prev: ItemData = inventory.equipped_in(item.slot)
-		if prev != null and prev.stat_name != "" and _player != null and _player.data != null:
-			var cur: Variant = _player.data.get(prev.stat_name)
-			if cur != null:
-				_player.data.set(prev.stat_name, cur - prev.stat_bonus)
+		if prev != null and _player != null and _player.data != null:
+			_player.data.apply_stat_delta(prev.stat_name, -prev.stat_bonus)
 		inventory.equip(item)
-		if _player != null and _player.data != null and item.stat_name != "":
-			var cur2: Variant = _player.data.get(item.stat_name)
-			if cur2 != null:
-				_player.data.set(item.stat_name, cur2 + item.stat_bonus)
+		if _player != null and _player.data != null:
+			_player.data.apply_stat_delta(item.stat_name, item.stat_bonus)
 	else:
 		inventory.add_to_bag(item)
