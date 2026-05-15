@@ -177,6 +177,73 @@ func test_format_hud_level_solo_session_shows_single_level():
 
 # --- end-to-end --------------------------------------------------------------
 
+# --- clone -------------------------------------------------------------------
+
+func test_clone_copies_all_expanded_stats():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	c.magic_attack = 7
+	c.magic_points = 5
+	c.max_mp = 5
+	c.magic_resistance = 3
+	c.dexterity = 4
+	c.evasion = 0.25
+	c.crit_chance = 0.15
+	c.luck = 2
+	c.regeneration = 1
+	c.appearance_index = 3
+	c.facing = Vector2.LEFT
+	var d := c.clone()
+	assert_ne(d, c, "clone is a fresh instance")
+	assert_eq(d.magic_attack, 7)
+	assert_eq(d.magic_points, 5)
+	assert_eq(d.max_mp, 5)
+	assert_eq(d.magic_resistance, 3)
+	assert_eq(d.dexterity, 4)
+	assert_eq(d.evasion, 0.25)
+	assert_eq(d.crit_chance, 0.15)
+	assert_eq(d.luck, 2)
+	assert_eq(d.regeneration, 1)
+	assert_eq(d.appearance_index, 3)
+	assert_eq(d.facing, Vector2.LEFT)
+
+# --- scale_stats expanded stats ----------------------------------------------
+
+func test_scale_stats_carries_secondary_stats():
+	# Earned crit/evasion/luck survive scaling — they add fun without removing challenge.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA)
+	c.level = 10
+	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
+	c.hp = c.max_hp
+	c.crit_chance = 0.3
+	c.evasion = 0.2
+	c.luck = 5
+	c.dexterity = 4
+	c.magic_resistance = 3
+	c.regeneration = 2
+	c.appearance_index = 2
+	var scaled := PartyScaler.scale_stats(c, 3)
+	assert_eq(scaled.crit_chance, 0.3, "crit_chance carries through")
+	assert_eq(scaled.evasion, 0.2, "evasion carries through")
+	assert_eq(scaled.luck, 5, "luck carries through")
+	assert_eq(scaled.dexterity, 4, "dexterity carries through")
+	assert_eq(scaled.magic_resistance, 3, "magic_resistance carries through")
+	assert_eq(scaled.regeneration, 2, "regeneration carries through")
+	assert_eq(scaled.appearance_index, 2, "appearance_index carries through")
+
+func test_scale_stats_floors_combat_resources_to_floor_level():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE)
+	c.level = 10
+	c.max_hp = CharacterData.base_max_hp_for(c.character_class, 10)
+	c.hp = c.max_hp
+	var scaled := PartyScaler.scale_stats(c, 3)
+	assert_eq(scaled.max_hp, CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.hp, scaled.max_hp, "hp is full at the floor max")
+	assert_eq(scaled.magic_attack, CharacterData.base_magic_attack_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.max_mp, CharacterData.base_max_mp_for(CharacterData.CharacterClass.MAGE, 3))
+	assert_eq(scaled.magic_points, scaled.max_mp, "magic_points is full at the floor max")
+
+# --- end-to-end --------------------------------------------------------------
+
 func test_full_session_flow_xp_progresses_real_level_after_unscale():
 	# A level-10 mage joins a level-3 party. They earn enough XP to level up
 	# their REAL level. Session ends; remove_scaling drops the scaled view

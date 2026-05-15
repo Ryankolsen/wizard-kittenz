@@ -14,28 +14,30 @@ static func compute_floor(levels: Array) -> int:
 			floor_level = lvl
 	return floor_level
 
-# Returns a NEW CharacterData with stats matching the floor level for the
-# same class. xp / skill_points / character_name carry over so a scaled
-# session doesn't cosmetically reset the player. If the input is at or
-# below the floor (the floor player itself), the returned clone has stats
-# identical to the input — scale factor 1.0, no spurious downgrades.
+# Returns a NEW CharacterData scaled to the floor level. Base combat resources
+# (hp, attack, defense, speed, magic_attack, max_mp) are set to the floor-level
+# class baseline. Earned secondary stats (crit_chance, evasion, luck, etc.) carry
+# through — they add fun without removing challenge. xp / skill_points /
+# character_name also carry so scaling isn't a progression rollback. If the input
+# is at or below the floor, returns a plain clone — no spurious downgrades.
 static func scale_stats(stats: CharacterData, floor_level: int) -> CharacterData:
 	if stats == null:
 		return null
 	if stats.level <= floor_level:
-		return clone_stats(stats)
-	var c := CharacterData.new()
-	c.character_name = stats.character_name
-	c.character_class = stats.character_class
+		return stats.clone()
+	# Clone-then-override: carry earned secondary stats (crit, evasion, luck,
+	# etc.) but stomp base combat resources with floor-level values so the
+	# session is challenging even for high-level players.
+	var c := stats.clone()
 	c.level = floor_level
-	c.xp = stats.xp
 	c.max_hp = CharacterData.base_max_hp_for(stats.character_class, floor_level)
 	c.hp = c.max_hp
 	c.attack = CharacterData.base_attack_for(stats.character_class, floor_level)
 	c.defense = CharacterData.base_defense_for(stats.character_class, floor_level)
 	c.speed = CharacterData.base_speed_for(stats.character_class, floor_level)
-	c.skill_points = stats.skill_points
-	c.facing = stats.facing
+	c.magic_attack = CharacterData.base_magic_attack_for(stats.character_class, floor_level)
+	c.max_mp = CharacterData.base_max_mp_for(stats.character_class, floor_level)
+	c.magic_points = c.max_mp
 	return c
 
 # Restores effective_stats to mirror real_stats. Inverse of applying
@@ -54,16 +56,4 @@ static func format_hud_level(player) -> String:
 # without reaching for Resource.duplicate() (which doesn't preserve
 # non-@export'd fields like `facing`).
 static func clone_stats(stats: CharacterData) -> CharacterData:
-	var c := CharacterData.new()
-	c.character_name = stats.character_name
-	c.character_class = stats.character_class
-	c.level = stats.level
-	c.xp = stats.xp
-	c.hp = stats.hp
-	c.max_hp = stats.max_hp
-	c.attack = stats.attack
-	c.defense = stats.defense
-	c.speed = stats.speed
-	c.skill_points = stats.skill_points
-	c.facing = stats.facing
-	return c
+	return stats.clone()

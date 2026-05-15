@@ -147,6 +147,31 @@ func heal(amount: int) -> int:
 	hp += healed
 	return healed
 
+func clone() -> CharacterData:
+	var c := CharacterData.new()
+	c.character_name = character_name
+	c.character_class = character_class
+	c.level = level
+	c.xp = xp
+	c.hp = hp
+	c.max_hp = max_hp
+	c.attack = attack
+	c.defense = defense
+	c.speed = speed
+	c.skill_points = skill_points
+	c.magic_attack = magic_attack
+	c.magic_points = magic_points
+	c.max_mp = max_mp
+	c.magic_resistance = magic_resistance
+	c.dexterity = dexterity
+	c.evasion = evasion
+	c.crit_chance = crit_chance
+	c.luck = luck
+	c.regeneration = regeneration
+	c.appearance_index = appearance_index
+	c.facing = facing
+	return c
+
 func save_to(path: String = SAVE_PATH) -> Error:
 	return ResourceSaver.save(self, path)
 
