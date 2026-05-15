@@ -340,12 +340,7 @@ func cancel_quit_confirm_dialog() -> void:
 # from a paused tree but the destination scene shouldn't inherit the
 # paused flag.
 func confirm_quit_dungeon() -> void:
-	var c := _current_character()
-	var tree := _current_skill_tree()
-	var session := _current_coop_session()
-	var run_ctrl := _current_run_controller()
-	var run_seed := run_ctrl.seed if run_ctrl != null else -1
-	QuitHandler.save_and_exit(c, session, SaveManager.DEFAULT_PATH, tree, run_ctrl, run_seed)
+	QuitHandler.save_and_exit(_current_coop_session())
 	get_tree().paused = false
 	var gs := get_node_or_null("/root/GameState")
 	if gs != null:
@@ -359,12 +354,6 @@ func _current_coop_session() -> CoopSession:
 	if gs == null:
 		return null
 	return gs.coop_session
-
-func _current_run_controller() -> DungeonRunController:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.dungeon_run_controller
 
 # Reads the persisted audio settings and pushes them into the slider
 # values. Also applies them to AudioServer so the live volume matches

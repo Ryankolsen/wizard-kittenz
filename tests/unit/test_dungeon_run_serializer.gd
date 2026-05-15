@@ -108,7 +108,7 @@ func test_kitten_save_data_dungeon_state_survives_json_round_trip():
 # save_and_exit, reads the save back via SaveManager.load, and asserts the
 # state field is populated.
 func test_quit_handler_saves_dungeon_run_state_in_solo():
-	var path := "user://test_quit_run_state.json"
+	var gs := get_node("/root/GameState")
 	var dungeon := DungeonGenerator.generate(77)
 	var ctrl := DungeonRunController.new()
 	ctrl.start(dungeon)
@@ -116,31 +116,37 @@ func test_quit_handler_saves_dungeon_run_state_in_solo():
 	var c := CharacterData.new()
 	c.character_name = "ResumeTest"
 	c.character_class = CharacterData.CharacterClass.MAGE
-	assert_true(QuitDungeonHandlerRef.save_and_exit(c, null, path, null, ctrl, 77),
+	gs.current_character = c
+	gs.dungeon_run_controller = ctrl
+	assert_true(QuitDungeonHandlerRef.save_and_exit(null),
 		"solo save_and_exit must return true")
-	var loaded := SaveManager.load(path)
+	var loaded := SaveManager.load()
 	assert_not_null(loaded, "save file must be readable")
 	assert_eq(int(loaded.dungeon_run_state.get("seed", -1)), 77,
 		"saved dungeon_run_state must carry the run's seed")
 	# Clean up the test artifact so reruns don't leak.
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+	gs.clear()
 
 # Multiplayer path must NOT write a save — the run state stays in-memory only.
 # Pre-populates a save file at the test path, calls the multiplayer branch
 # (session != null), and asserts the file is untouched.
 func test_quit_handler_multiplayer_does_not_persist_run_state():
-	var path := "user://test_quit_run_state_mp.json"
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var gs := get_node("/root/GameState")
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
 	var c := CharacterData.new()
 	c.character_name = "MPTest"
+	gs.current_character = c
 	var session := CoopSession.new()
 	var dungeon := DungeonGenerator.generate(88)
 	var ctrl := DungeonRunController.new()
 	ctrl.start(dungeon)
 	ctrl.seed = 88
-	assert_true(QuitDungeonHandlerRef.save_and_exit(c, session, path, null, ctrl, 88),
+	gs.dungeon_run_controller = ctrl
+	assert_true(QuitDungeonHandlerRef.save_and_exit(session),
 		"multiplayer save_and_exit must return true")
-	assert_false(FileAccess.file_exists(path),
+	assert_false(FileAccess.file_exists(SaveManager.DEFAULT_PATH),
 		"multiplayer branch must not write a save file")
+	gs.clear()

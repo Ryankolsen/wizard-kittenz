@@ -1,17 +1,16 @@
 class_name QuitDungeonHandler
 extends RefCounted
 
-# class_name resolution for sibling scripts is unreliable at script-parse
-# time (see notes in pause_menu / audio_settings_manager commits). Preload
-# the serializer to keep the QuitDungeon save path independent of load
-# order.
-const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
-
 # Quit Dungeon exit logic (PRD #42, #45). Pulled out of PauseMenu so the
 # save-vs-skip branch is exercised by unit tests without a scene tree.
 #
-# Solo path  (session == null): writes a save via SaveManager so the
-# player can resume next launch.
+# Solo path  (session == null): writes a save via SaveManager.save_from_state()
+# so the player can resume next launch. save_from_state() reads every field
+# (character, skill tree, cosmetic / paid / item / skill inventories, currency
+# ledger, and the in-flight dungeon run state) directly from GameState — this
+# closes the previous data gap where cosmetic/currency/unlocks/item state was
+# dropped on quit because the handler passed nulls for them (PRD #111).
+#
 # Multiplayer (session != null): no save written — the run's XP and loot
 # already live on GameState.current_character in memory; the multiplayer
 # leave is treated as "step out of the party," not "persist this run to
@@ -26,17 +25,11 @@ const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_seria
 # a null character (defensive — the caller wouldn't otherwise know to
 # skip the scene change).
 
-static func save_and_exit(c: CharacterData, session: CoopSession, path: String = SaveManager.DEFAULT_PATH, tree: SkillTree = null, run_controller: DungeonRunController = null, seed: int = -1) -> bool:
-	if c == null:
+static func save_and_exit(session: CoopSession) -> bool:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs == null or gs.current_character == null:
 		return false
 	if session != null:
 		return true
-	# Capture the in-flight dungeon run so the next launch resumes at the same
-	# room with the same cleared-room state (PRD #42 / #46). When no run is in
-	# flight (run_controller == null) the saved state is an empty dict, which
-	# main_scene treats as "start a fresh dungeon" on resume.
-	var run_state: Dictionary = {}
-	if run_controller != null:
-		run_state = DungeonRunSerializerRef.serialize(run_controller, seed)
-	SaveManager.save(c, path, tree, null, null, null, null, run_state)
+	SaveManager.save_from_state()
 	return true
