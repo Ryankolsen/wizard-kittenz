@@ -69,6 +69,11 @@ horizontal_alignment = 1
 text = "Character"
 theme_override_font_sizes/font_size = 24
 
+[node name="ClassLabel" type="Label" parent="Center/CharacterSubmenu/VBox"]
+horizontal_alignment = 1
+text = ""
+theme_override_font_sizes/font_size = 14
+
 [node name="TabBar" type="HBoxContainer" parent="Center/CharacterSubmenu/VBox"]
 alignment = 1
 theme_override_constants/separation = 4

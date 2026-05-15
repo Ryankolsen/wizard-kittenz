@@ -99,6 +99,17 @@ func test_back_returns_to_root_menu():
 	assert_not_null(main, "PauseMenu must expose a MainMenu container so Back can re-show it")
 	assert_true(main.visible, "MainMenu must be visible again after Back")
 
+func test_class_label_shows_character_class():
+	var gs := get_node("/root/GameState")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Pixel"))
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open_character_submenu()
+	var label = scene.find_child("ClassLabel", true, false) as Label
+	assert_not_null(label, "CharacterSubmenu must have a ClassLabel node")
+	assert_eq(label.text, "Wizard kitten", "ClassLabel must show the character class name")
+	gs.clear()
+
 func test_stats_panel_shows_attack_defense_speed():
 	var gs := get_node("/root/GameState")
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)

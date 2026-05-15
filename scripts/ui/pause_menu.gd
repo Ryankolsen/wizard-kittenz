@@ -397,6 +397,17 @@ func _refresh_character_stats() -> void:
 	if panel == null:
 		return
 	panel.refresh(_current_character())
+	_refresh_class_label(_current_character())
+
+func _refresh_class_label(character: CharacterData) -> void:
+	var label := find_child("ClassLabel", true, false) as Label
+	if label == null:
+		return
+	if character == null:
+		label.text = ""
+		return
+	var raw: String = CharacterData.CharacterClass.keys()[CharacterData.CharacterClass.values().find(character.character_class)]
+	label.text = raw.replace("_", " ").to_lower().capitalize()
 
 func _current_character() -> CharacterData:
 	var gs := get_node_or_null("/root/GameState")
