@@ -124,7 +124,7 @@ func test_no_level_overflow_with_huge_xp_dump():
 	assert_gte(c.xp, 0, "xp never goes negative")
 
 func test_kitten_save_data_round_trips_via_dict():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Shadow")
 	c.level = 3
 	c.xp = 7
 	c.take_damage(2)
@@ -132,7 +132,7 @@ func test_kitten_save_data_round_trips_via_dict():
 	var dict := save_data.to_dict()
 	var restored := KittenSaveData.from_dict(dict)
 	assert_eq(restored.character_name, "Shadow")
-	assert_eq(restored.character_class, int(CharacterData.CharacterClass.NINJA))
+	assert_eq(restored.character_class, int(CharacterData.CharacterClass.BATTLE_KITTEN))
 	assert_eq(restored.level, 3)
 	assert_eq(restored.xp, 7)
 	assert_eq(restored.hp, c.hp)
@@ -141,7 +141,7 @@ func test_kitten_save_data_round_trips_via_dict():
 	assert_eq(restored.defense, c.defense)
 
 func test_save_manager_round_trip_preserves_level_and_xp():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.THIEF, "Whiskers")
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Whiskers")
 	# L1->L2 (100) + L2->L3 (282) leaves 2 xp at L3 after adding 384.
 	var total: int = ProgressionSystem.xp_to_next_level(1) \
 		+ ProgressionSystem.xp_to_next_level(2) + 2
@@ -155,7 +155,7 @@ func test_save_manager_round_trip_preserves_level_and_xp():
 	var loaded := SaveManager.load(TMP_PATH)
 	assert_not_null(loaded)
 	assert_eq(loaded.character_name, "Whiskers")
-	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.THIEF))
+	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.BATTLE_KITTEN))
 	assert_eq(loaded.level, 3, "saved level survives round-trip")
 	assert_eq(loaded.xp, 2, "saved xp survives round-trip")
 	assert_eq(loaded.max_hp, c.max_hp)
@@ -165,7 +165,7 @@ func test_save_manager_load_missing_returns_null():
 	assert_null(SaveManager.load("user://does_not_exist.json"))
 
 func test_save_manager_apply_to_restores_character_data():
-	var original := CharacterData.make_new(CharacterData.CharacterClass.NINJA, "Shadow")
+	var original := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Shadow")
 	ProgressionSystem.add_xp(original, 12)
 	SaveManager.save(original, TMP_PATH)
 

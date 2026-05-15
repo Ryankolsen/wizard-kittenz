@@ -201,7 +201,7 @@ func to_dict() -> Dictionary:
 static func from_dict(d: Dictionary) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = String(d.get("character_name", "Kitten"))
-	s.character_class = int(d.get("character_class", 0))
+	s.character_class = _migrate_character_class(int(d.get("character_class", 0)))
 	s.appearance_index = int(d.get("appearance_index", 0))
 	s.level = int(d.get("level", 1))
 	s.xp = int(d.get("xp", 0))
@@ -308,6 +308,23 @@ func to_item_inventory() -> ItemInventory:
 		if item2 != null:
 			inv.add_to_bag(item2)
 	return inv
+
+# Maps legacy CharacterClass enum ints (0-5: MAGE/THIEF/NINJA/ARCHMAGE/
+# MASTER_THIEF/SHADOW_NINJA) to the closest Kitten-system archetype so saves
+# written before PRD #117 load cleanly. New enum values (6-13) pass through.
+# Unknown values fall back to BATTLE_KITTEN to match CharacterFactory's
+# default and keep loads non-fatal.
+static func _migrate_character_class(raw: int) -> int:
+	match raw:
+		0: return CharacterData.CharacterClass.WIZARD_KITTEN  # MAGE
+		1: return CharacterData.CharacterClass.BATTLE_KITTEN  # THIEF
+		2: return CharacterData.CharacterClass.BATTLE_KITTEN  # NINJA
+		3: return CharacterData.CharacterClass.WIZARD_CAT     # ARCHMAGE
+		4: return CharacterData.CharacterClass.BATTLE_CAT     # MASTER_THIEF
+		5: return CharacterData.CharacterClass.BATTLE_CAT     # SHADOW_NINJA
+	if raw >= int(CharacterData.CharacterClass.BATTLE_KITTEN) and raw <= int(CharacterData.CharacterClass.CHONK_CAT):
+		return raw
+	return CharacterData.CharacterClass.BATTLE_KITTEN
 
 func to_currency_ledger() -> CurrencyLedger:
 	var ledger := CurrencyLedger.new()

@@ -162,8 +162,10 @@ func test_purchase_succeeded_signal_persists_save():
 		"save file written after grant")
 	var loaded := SaveManager.load(TMP_SAVE_PATH)
 	assert_not_null(loaded)
-	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.ARCHMAGE),
-		"upgraded class persisted to disk")
+	# KittenSaveData.from_dict migrates legacy ARCHMAGE (3) -> WIZARD_CAT
+	# on load (issue #120), so the on-disk value re-emerges as the new tier.
+	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.WIZARD_CAT),
+		"upgraded class persisted to disk (migrated)")
 
 func test_purchase_succeeded_persists_cosmetic_grant():
 	# SaveManager.save must thread cosmetic_inventory through into
@@ -202,8 +204,10 @@ func test_purchase_succeeded_signal_upgrades_thief_to_master_thief():
 		"save file written after grant")
 	var loaded := SaveManager.load(TMP_SAVE_PATH)
 	assert_not_null(loaded)
-	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.MASTER_THIEF),
-		"upgraded class persisted to disk")
+	# KittenSaveData.from_dict migrates legacy MASTER_THIEF (4) -> BATTLE_CAT
+	# on load (issue #120), so the on-disk value re-emerges as the new tier.
+	assert_eq(loaded.character_class, int(CharacterData.CharacterClass.BATTLE_CAT),
+		"upgraded class persisted to disk (migrated)")
 
 func test_purchase_succeeded_signal_upgrades_ninja_to_shadow_ninja():
 	_cleanup_save()
