@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://b8wk1tn3p2yqa" path="res://scenes/player.tscn" id="1_player_scene"]
 [ext_resource type="PackedScene" uid="uid://b9hud2k7r3xqz" path="res://scenes/hud.tscn" id="4_hud_scene"]
 [ext_resource type="PackedScene" uid="uid://cwt4q9xkn3p7r" path="res://scenes/touch_controls.tscn" id="5_touch_controls"]
-[ext_resource type="Script" path="res://scripts/coop_player_layer.gd" id="6_coop_player_layer"]
+[ext_resource type="Script" path="res://scripts/networking/coop_player_layer.gd" id="6_coop_player_layer"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("0_main_scene")

@@ -37,8 +37,8 @@ var _transition_mode: bool = false
 const AudioSettings := preload("res://scripts/core/audio_settings_manager.gd")
 const ControlsSettings := preload("res://scripts/core/controls_settings_manager.gd")
 const QuitHandler := preload("res://scripts/dungeon/quit_dungeon_handler.gd")
-const StatsTabPanelScript := preload("res://scripts/stats_tab_panel.gd")
-const EquipmentTabPanelScript := preload("res://scripts/equipment_tab_panel.gd")
+const StatsTabPanelScript := preload("res://scripts/ui/stats_tab_panel.gd")
+const EquipmentTabPanelScript := preload("res://scripts/ui/equipment_tab_panel.gd")
 
 func _ready() -> void:
 	visible = false
