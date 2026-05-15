@@ -650,3 +650,29 @@ func test_game_state_remote_kill_duplicate_packet_does_not_re_despawn():
 		"apply_death returned false (never registered) — despawn gated, node survives")
 	GameState.set_lobby(null)
 	_restore_game_state()
+
+# --- route_kill: skill_tree auto-unlock threading (issue #124 follow-up) ----
+
+func test_route_kill_solo_threads_tree_to_unlock_pass():
+	# AC: passing a SkillTree lets a level-up triggered by the kill auto-
+	# unlock newly-eligible SkillNodes. catnip_curse (level_required=3) is
+	# locked at level 2; a kill that vaults the character to level 3 must
+	# flip it without a save/load round-trip.
+	var c := _make_character(2)
+	var tree := SkillTree.make_wizard_kitten_tree()
+	assert_false(tree.is_unlocked("catnip_curse"), "locked at L2 pre-kill")
+	var xp_needed := ProgressionSystem.xp_to_next_level(2)
+	var enemy := _make_enemy(xp_needed)
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, tree)
+	assert_eq(c.level, 3, "L2->L3 on threshold XP")
+	assert_true(tree.is_unlocked("catnip_curse"),
+		"level 3 node auto-unlocks via threaded tree")
+
+func test_route_kill_null_tree_legacy_behavior():
+	# Omitting the tree (legacy / pre-wiring callers) leaves the kill
+	# flow producing XP and levels exactly as before.
+	var c := _make_character(2)
+	var xp_needed := ProgressionSystem.xp_to_next_level(2)
+	var enemy := _make_enemy(xp_needed)
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null)
+	assert_eq(c.level, 3, "level still advances without a tree")

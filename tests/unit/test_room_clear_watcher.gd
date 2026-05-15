@@ -364,3 +364,36 @@ func test_end_to_end_powerup_room_auto_advance_path():
 	w.watch(room, controller)
 	assert_true(w.is_cleared())
 	assert_true(controller.is_room_cleared(2))
+
+# --- skill_tree auto-unlock threading (issue #124 follow-up) ----------------
+
+func test_room_clear_solo_threads_tree_to_unlock_pass():
+	# A room-clear that crosses a level threshold must auto-unlock the new
+	# SkillNode immediately rather than waiting for a save/load cycle.
+	# Pin a character one XP shy of L3 so a single ROOM_CLEAR_XP payout
+	# vaults them across the threshold.
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var c := _make_character(2)
+	c.xp = ProgressionSystem.xp_to_next_level(2) - RoomClearWatcher.ROOM_CLEAR_XP
+	var tree := SkillTree.make_wizard_kitten_tree()
+	assert_false(tree.is_unlocked("catnip_curse"), "locked at L2 pre-clear")
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c, null, null, tree)
+	w.notify_death("r3_e0")
+	assert_eq(c.level, 3, "room clear vaulted L2->L3")
+	assert_true(tree.is_unlocked("catnip_curse"),
+		"level 3 node auto-unlocks via threaded tree")
+
+func test_room_clear_solo_null_tree_legacy_behavior():
+	# Omitting the tree (test / pre-wiring callers) still pays out the
+	# room-clear XP — only the auto-unlock pass is skipped.
+	var room := _make_standard_room(3)
+	var controller := _make_controller_for(room)
+	var c := _make_character(1)
+	var xp_before := c.xp
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller, c, null, null, null)
+	w.notify_death("r3_e0")
+	assert_eq(c.xp - xp_before, RoomClearWatcher.ROOM_CLEAR_XP,
+		"XP still awarded without a tree")

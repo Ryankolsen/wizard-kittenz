@@ -164,7 +164,7 @@ func _setup_rooms() -> void:
 		# Pass the local character + session so the watcher fires PRD #52
 		# room-clear XP through the right path: solo adds XP to the local
 		# character, co-op fans through the party-split broadcaster.
-		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
+		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
 		_watchers.append(watcher)
 	var pu_rooms := _run_controller.dungeon.rooms.filter(func(r): return r.type == Room.TYPE_POWERUP)
 
@@ -186,6 +186,12 @@ func _currency_ledger() -> CurrencyLedger:
 	if gs == null:
 		return null
 	return gs.currency_ledger
+
+func _local_skill_tree() -> SkillTree:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.skill_tree
 
 func _on_enemy_died(enemy: Enemy) -> void:
 	if enemy == null or enemy.data == null:

@@ -39,7 +39,8 @@ static func route_kill(
 	xp_tracker: OfflineXPTracker = null,
 	lobby: NakamaLobby = null,
 	ledger: CurrencyLedger = null,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator = null,
+	tree: SkillTree = null
 ) -> ItemData:
 	if data == null or enemy_data == null:
 		return null
@@ -97,7 +98,11 @@ static func route_kill(
 	# Solo path — apply XP locally and tally into the offline tracker.
 	# Passing the ledger threads the LEVEL_UP_GEM_REWARD credit through any
 	# level-ups that this kill triggers (PRD #53 / issue #67).
-	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger)
+	# Issue #126 follow-up: threading `tree` lets a mid-run kill that
+	# crosses a level threshold auto-unlock newly-eligible SkillNodes
+	# immediately, rather than waiting for a save/load cycle to run
+	# the unlock pass via GameState.set_character.
+	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger, tree)
 	if xp_tracker != null:
 		xp_tracker.record(enemy_data.xp_reward)
 	return item_drop

@@ -110,7 +110,7 @@ func _award_power_up_xp() -> void:
 			POWERUP_XP, session.xp_broadcaster.player_count())
 		session.xp_broadcaster.on_enemy_killed(per_player, local_id)
 		return
-	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger())
+	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger(), _spell_tree)
 
 # Mushroom power-up integration: every 2 seconds while active, cast the first
 # ready unlocked spell against any enemies overlapping the swing-radius
@@ -265,7 +265,9 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_local_player_id(),
 		_offline_xp_tracker(),
 		_lobby(),
-		_currency_ledger()
+		_currency_ledger(),
+		null,
+		_spell_tree
 	)
 	if item_drop != null:
 		item_dropped.emit(item_drop)

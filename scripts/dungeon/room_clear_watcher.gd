@@ -62,6 +62,7 @@ var _cleared: bool = false
 var _character: CharacterData = null
 var _session: CoopSession = null
 var _ledger: CurrencyLedger = null
+var _tree: SkillTree = null
 
 # Begins watching a room. Returns true on success, false on null
 # inputs. Reads expected enemy_ids from RoomSpawnPlanner so the
@@ -75,7 +76,7 @@ var _ledger: CurrencyLedger = null
 # co-op callers pass `session` (the watcher routes through the
 # party-split broadcaster). Tests / pre-spawn-layer paths can omit
 # both — the watcher still tracks the cleared edge but pays no XP.
-func watch(room: Room, c: DungeonRunController, character: CharacterData = null, session: CoopSession = null, ledger: CurrencyLedger = null) -> bool:
+func watch(room: Room, c: DungeonRunController, character: CharacterData = null, session: CoopSession = null, ledger: CurrencyLedger = null, tree: SkillTree = null) -> bool:
 	if room == null or c == null:
 		return false
 	room_id = room.id
@@ -83,6 +84,7 @@ func watch(room: Room, c: DungeonRunController, character: CharacterData = null,
 	_character = character
 	_session = session
 	_ledger = ledger
+	_tree = tree
 	_expected.clear()
 	_cleared = false
 	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
@@ -134,7 +136,10 @@ func _award_room_clear_xp() -> void:
 		_session.xp_broadcaster.on_enemy_killed(per_player, "")
 		return
 	if _character != null:
-		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP, _ledger)
+		# Issue #126 follow-up: threading `_tree` so a room-clear
+		# level-up immediately auto-unlocks newly-eligible SkillNodes
+		# rather than deferring until the next set_character pass.
+		ProgressionSystem.add_xp(_character, ROOM_CLEAR_XP, _ledger, _tree)
 
 # PRD #53 room-clear Gold bonus. Credited directly to the local
 # CurrencyLedger on the last expected death of a combat room. Same
