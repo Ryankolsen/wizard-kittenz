@@ -15,12 +15,14 @@ extends Node2D
 # auto-clear immediately on construction.
 
 const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
+const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
 
 var _run_controller: DungeonRunController = null
 var _watchers: Array[RoomClearWatcher] = []
 var _hud: HUD = null
 var _dungeon_layout: DungeonLayout = null
 var _spawn_planner: RoomSpawnPlanner = null
+var _exit_door: ExitDoor = null
 
 func _ready() -> void:
 	_hud = $HUD
@@ -34,10 +36,15 @@ func _ready() -> void:
 
 	_paint_dungeon()
 
-	_run_controller.dungeon_completed.connect(_on_dungeon_completed)
+	# Issue #98: dungeon completion is now defined by walking through the
+	# ExitDoor, not by killing the boss. The boss-clear edge only opens the
+	# door (via boss_room_cleared -> _exit_door.open); the player's actual
+	# walk-through fires _on_dungeon_completed and drives the transition.
+	_run_controller.boss_room_cleared.connect(_on_boss_room_cleared)
 	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
 
 	_setup_rooms()
+	_spawn_exit_door()
 
 # Computes the spatial layout from the active dungeon graph and paints the
 # full multi-room tilemap (rooms + corridors + walls). The layout is cached
@@ -154,6 +161,39 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	# room_id -> watcher map for the small per-dungeon room count.
 	for watcher in _watchers:
 		watcher.notify_death(enemy.data.enemy_id)
+
+# Spawns the ExitDoor scene at the boss room's world center. The door starts
+# locked; boss_room_cleared (wired in _ready) drives the transition to open.
+# Already-cleared boss rooms (resumed run) open the door immediately so the
+# player isn't blocked from a run they've effectively finished.
+func _spawn_exit_door() -> void:
+	if _run_controller == null or _run_controller.dungeon == null:
+		return
+	if _dungeon_layout == null:
+		return
+	var boss_id: int = _run_controller.dungeon.boss_id
+	if boss_id < 0:
+		return
+	var scene := load(EXIT_DOOR_SCENE_PATH)
+	if scene == null:
+		return
+	_exit_door = scene.instantiate()
+	_exit_door.position = _dungeon_layout.room_center_world(boss_id)
+	_exit_door.player_exited_dungeon.connect(_on_player_exited_dungeon)
+	add_child(_exit_door)
+	if _run_controller.is_room_cleared(boss_id):
+		_exit_door.open()
+
+func _on_boss_room_cleared() -> void:
+	if _exit_door != null:
+		_exit_door.open()
+
+# Player walked through the now-open exit door. Drives the existing
+# transition chain: pause-menu stat allocation -> Continue -> finalize +
+# reload. Functionally identical to the legacy boss-clear handler so the
+# stat-allocation flow (PRD #52 / #61) and finalize seam are unchanged.
+func _on_player_exited_dungeon() -> void:
+	_on_dungeon_completed()
 
 func _on_dungeon_completed() -> void:
 	# PRD #52 / #61: the boss-cleared edge no longer reloads directly.

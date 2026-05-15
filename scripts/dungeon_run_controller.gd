@@ -31,6 +31,11 @@ extends RefCounted
 
 signal room_cleared(room_id: int)
 signal dungeon_completed()
+# Fires when the boss room is marked cleared — distinct from dungeon_completed
+# so the scene layer can react to "boss is down" (open the ExitDoor) without
+# entangling with the run-end / meta-bump path that dungeon_completed drives.
+# Issue #98: ExitDoor binds to this edge to transition locked -> open.
+signal boss_room_cleared()
 # Fires when the orchestrator decides to advance from this dungeon into a
 # new one. Distinct from dungeon_completed (which is the boss-cleared edge):
 # transitioned is the deliberate "load the next dungeon" call, not the
@@ -94,6 +99,7 @@ func mark_room_cleared(room_id: int) -> bool:
 	_cleared[room_id] = true
 	room_cleared.emit(room_id)
 	if room_id == dungeon.boss_id:
+		boss_room_cleared.emit()
 		dungeon_completed.emit()
 	return true
 

@@ -217,6 +217,36 @@ func test_mark_room_cleared_non_boss_does_not_emit_completed():
 	c.mark_room_cleared(1)
 	assert_signal_not_emitted(c, "dungeon_completed")
 
+func test_mark_room_cleared_boss_emits_boss_room_cleared():
+	# Issue #98: boss-room clear emits boss_room_cleared in addition to
+	# dungeon_completed. The scene layer (ExitDoor) listens to this edge to
+	# transition from locked -> open without coupling to the run-end /
+	# meta-bump path that dungeon_completed drives.
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.mark_room_cleared(2)
+	assert_signal_emitted(c, "boss_room_cleared")
+	assert_signal_emit_count(c, "boss_room_cleared", 1)
+
+func test_mark_room_cleared_non_boss_does_not_emit_boss_room_cleared():
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.mark_room_cleared(1)
+	assert_signal_not_emitted(c, "boss_room_cleared")
+
+func test_mark_room_cleared_repeat_boss_does_not_re_emit_boss_room_cleared():
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	watch_signals(c)
+	c.start(d)
+	c.mark_room_cleared(2)
+	c.mark_room_cleared(2)
+	assert_signal_emit_count(c, "boss_room_cleared", 1)
+
 func test_mark_room_cleared_repeat_boss_does_not_re_emit_completed():
 	# Idempotency on the terminal edge — the orchestrator's
 	# DungeonRunCompletion.complete() must fire exactly once even if the
