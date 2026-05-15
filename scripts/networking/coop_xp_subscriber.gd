@@ -1,4 +1,4 @@
-class_name LocalXPRouter
+class_name CoopXPSubscriber
 extends RefCounted
 
 # Per-client XP routing subscriber. Subscribes to an XPBroadcaster's
@@ -6,7 +6,13 @@ extends RefCounted
 # amount to a target PartyMember via XPSystem.award. Closes the
 # "kill-by-anyone awards XP to all players" loop on the receiving end.
 #
-# Why a separate router (vs. tallying inside XPBroadcaster, or as an
+# Named "Subscriber" (vs. CoopRouter, which is its sibling for damage
+# and revive) because this module has a stateful lifecycle: it
+# constructs around a broadcaster, holds a signal connection, and
+# requires unbind() on teardown. CoopRouter is a stateless static
+# class — naming makes the distinction obvious.
+#
+# Why a separate module (vs. tallying inside XPBroadcaster, or as an
 # inline lambda on Player.gd):
 #   - XPBroadcaster's job is fan-out: it emits one xp_awarded per
 #     registered player per kill. Every client receives every emission.
@@ -15,25 +21,23 @@ extends RefCounted
 #     pay for routing they don't need).
 #   - As an inline subscriber on Player.gd, the filter rule + the
 #     XPSystem.award call would be hidden inside the scene-tree node,
-#     untestable in isolation. The router is RefCounted + pure data
-#     so a unit test pins the filter contract without booting a scene.
-#   - Same shape as RunXPSummary (also a per-broadcaster subscriber):
-#     bind / unbind / idempotent / null-safe. Future "per-class XP
-#     bonus" or "guild XP cut" routing rules slot in as siblings.
+#     untestable in isolation. This subscriber is RefCounted + pure
+#     data so a unit test pins the filter contract without booting a
+#     scene.
 #
-# Note: the router applies XP to real_stats (use_real_level=true), so
-# a level-10 player scaled down to floor 3 still progresses toward
-# their actual level-11 even though their effective_stats stays scaled.
-# This is the rule from #18 PartyScaling AC#3 ("XP earned applies to
-# the player's real level"); pinning it here keeps the rule explicit
-# at the routing seam rather than hidden behind an XPSystem default.
+# Note: applies XP to real_stats (use_real_level=true), so a level-10
+# player scaled down to floor 3 still progresses toward their actual
+# level-11 even though their effective_stats stays scaled. This is the
+# rule from #18 PartyScaling AC#3 ("XP earned applies to the player's
+# real level"); pinning it here keeps the rule explicit at the routing
+# seam rather than hidden behind an XPSystem default.
 
 # Emitted post-XPSystem.award when the local member's real_stats.level
-# advanced. Lets a sibling subscriber (future "level-up VFX", milestone
-# unlock detector) react to level-up edges without having to read the
-# member level itself before/after each broadcast. Not emitted on flat
-# XP gain (no level change). The (old, new) shape lets a multi-level
-# dump report the full range so a subscriber can iterate intermediate
+# advanced. Lets a sibling subscriber (level-up VFX, milestone unlock
+# detector) react to level-up edges without having to read the member
+# level itself before/after each broadcast. Not emitted on flat XP gain
+# (no level change). The (old, new) shape lets a multi-level dump
+# report the full range so a subscriber can iterate intermediate
 # levels in one emission.
 signal level_up(old_level: int, new_level: int)
 
@@ -53,8 +57,8 @@ func _init(broadcaster: XPBroadcaster = null, player_id: String = "", member: Pa
 #   - already bound to this same broadcaster (idempotent — re-binding
 #     would double-subscribe and double-apply XP on every event)
 # Re-binding to a *different* broadcaster transparently unbinds the
-# old one first so the router can be reused across runs without the
-# caller having to remember the unbind step.
+# old one first so the subscriber can be reused across runs without
+# the caller having to remember the unbind step.
 func bind(broadcaster: XPBroadcaster, player_id: String, member: PartyMember) -> bool:
 	if broadcaster == null or player_id == "" or member == null:
 		return false
@@ -70,8 +74,8 @@ func bind(broadcaster: XPBroadcaster, player_id: String, member: PartyMember) ->
 
 # Disconnects from the bound broadcaster and clears the routing state.
 # Returns true on a successful unbind, false on no-op (not currently
-# bound). Called by the orchestrator on session end so a stale router
-# doesn't keep applying XP after the session is torn down.
+# bound). Called by the orchestrator on session end so a stale
+# subscriber doesn't keep applying XP after the session is torn down.
 func unbind() -> bool:
 	if _broadcaster == null:
 		return false
@@ -88,7 +92,7 @@ func is_bound() -> bool:
 func _on_xp_awarded(player_id: String, amount: int) -> void:
 	# Filter: only the local player's emission lands on the local
 	# member's stats. Every other party member's emission is handled
-	# by their own client's router.
+	# by their own client's subscriber.
 	if player_id != local_player_id:
 		return
 	if local_member == null:

@@ -15,7 +15,7 @@ extends RefCounted
 #      packet gating; a rising-edge erase (true) is the gate for firing
 #      the rest of this method.
 #   2. session.xp_broadcaster.on_enemy_killed(xp_value, killer_id) —
-#      fans out the XP locally. Each client's LocalXPRouter (filtered
+#      fans out the XP locally. Each client's CoopXPSubscriber (filtered
 #      by its own player_id) picks its emission and applies the amount
 #      to its member.real_stats. So a remote-killer kill still awards
 #      XP to my local member — the AC#3 "a kill by any player awards
@@ -27,7 +27,7 @@ extends RefCounted
 #     registry mark; the wire layer reads from the broadcaster's
 #     emissions or hooks into the kill flow to ship a packet)
 #   - RemoteKillApplier is the INBOUND seam (wire packet -> registry
-#     mark + broadcast; the local LocalXPRouter applies the XP)
+#     mark + broadcast; the local CoopXPSubscriber applies the XP)
 # Both use the same registry (session.enemy_sync) and the same
 # broadcaster (session.xp_broadcaster), so a host's local-kill flow
 # and a remote-receive flow converge on the same idempotent state.

@@ -108,13 +108,13 @@ func test_route_kill_coop_does_not_record_offline_xp():
 	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	# 4 XP keeps the kitten at L1 (L1->L2 needs 5) so the post-call xp
-	# read is the raw amount routed by LocalXPRouter, not a level-up
+	# read is the raw amount routed by CoopXPSubscriber, not a level-up
 	# remainder.
 	var enemy := _make_enemy(4)
 	var t := OfflineXPTracker.new()
 	KillRewardRouter.route_kill(c, enemy, session, "u1", t)
 	assert_eq(t.pending_xp, 0, "co-op kill does not touch offline tracker")
-	assert_eq(c.xp, 4, "router still applied XP locally via LocalXPRouter")
+	assert_eq(c.xp, 4, "router still applied XP locally via CoopXPSubscriber")
 
 func test_route_kill_coop_inactive_session_records_offline_xp():
 	# An end()'d session falls through to the solo branch (broadcaster
@@ -146,7 +146,7 @@ func test_route_kill_solo_accumulates_across_kills():
 func test_route_kill_coop_broadcasts_xp_to_all_party_members():
 	# The killer's call broadcasts XP via session.xp_broadcaster, fanning
 	# out to every party member. The local CharacterData is NOT mutated
-	# directly here — the LocalXPRouter on this client (constructed by
+	# directly here — the CoopXPSubscriber on this client (constructed by
 	# the session when it knows the local id) bounces the broadcast back
 	# to member.real_stats === Player.data.
 	#
@@ -230,7 +230,7 @@ func test_route_kill_coop_two_player_wire_send_uses_split():
 	assert_eq(lobby.sent_kills[0][2], 5, "wire xp carries per-player share, not raw reward")
 
 func test_route_kill_coop_does_not_apply_xp_directly():
-	# Without a wired LocalXPRouter the broadcast still fans out but no
+	# Without a wired CoopXPSubscriber the broadcast still fans out but no
 	# local member.real_stats receives it. The killer's data must NOT be
 	# mutated by route_kill itself — only the broadcaster's emission can
 	# route XP. Pins the contract that the co-op branch is pure broadcast,
@@ -426,7 +426,7 @@ func test_route_kill_coop_with_lobby_still_records_local_state():
 	# Pin all three side effects at once so a future refactor that drops
 	# one (e.g. "just send, the receiver will fan out") fails loudly.
 	# 4 XP keeps the kitten at L1 (L1->L2 needs 5) so the post-call xp
-	# read is the raw amount routed by LocalXPRouter, not a level-up
+	# read is the raw amount routed by CoopXPSubscriber, not a level-up
 	# remainder of zero.
 	var lobby_state := _make_lobby([["u1", "A", "Mage"]])
 	var c := _make_character(1)
@@ -438,7 +438,7 @@ func test_route_kill_coop_with_lobby_still_records_local_state():
 	var lobby := _RecordingLobby.new()
 	KillRewardRouter.route_kill(c, enemy, session, "u1", null, lobby)
 	assert_false(session.enemy_sync.is_alive("r3_e0"), "enemy_sync.apply_death fired")
-	assert_eq(c.xp, 4, "xp_broadcaster fanned out + LocalXPRouter applied")
+	assert_eq(c.xp, 4, "xp_broadcaster fanned out + CoopXPSubscriber applied")
 	assert_eq(lobby.sent_kills.size(), 1, "wire packet sent")
 
 # --- GameState wiring -------------------------------------------------------
@@ -493,7 +493,7 @@ func test_game_state_set_lobby_routes_kill_received_to_remote_applier():
 	# RemoteKillApplier.apply. Closes the inbound side of AC#3: a kill
 	# packet from another client lands here, removes the enemy from the
 	# local registry, and fans XP through the local broadcaster so this
-	# client's LocalXPRouter applies XP to its member.real_stats.
+	# client's CoopXPSubscriber applies XP to its member.real_stats.
 	_snapshot_game_state()
 	var lobby_state := _make_lobby([
 		["u1", "A", "Mage"],
@@ -510,11 +510,11 @@ func test_game_state_set_lobby_routes_kill_received_to_remote_applier():
 	GameState.set_lobby(lobby)
 	# Simulate a kill packet from u2 arriving via the wire. 4 XP keeps
 	# the kitten at L1 (L1->L2 needs 5) so the post-call xp read is the
-	# raw amount routed by LocalXPRouter, not a level-up remainder.
+	# raw amount routed by CoopXPSubscriber, not a level-up remainder.
 	lobby.apply_state(NakamaLobby.OP_KILL, "u2", {"enemy_id": "r3_e0", "xp": 4})
 	assert_false(session.enemy_sync.is_alive("r3_e0"),
 		"remote packet removed enemy from local registry")
-	# The broadcaster fanned XP to both players; u1's LocalXPRouter
+	# The broadcaster fanned XP to both players; u1's CoopXPSubscriber
 	# applied it to c.xp.
 	assert_eq(c.xp, 4, "remote kill awarded XP locally via broadcaster + router")
 	GameState.set_lobby(null)

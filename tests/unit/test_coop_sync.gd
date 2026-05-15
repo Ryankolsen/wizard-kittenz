@@ -566,7 +566,7 @@ func test_run_xp_summary_end_to_end_three_player_run():
 	assert_eq(summary.grand_total(), 99)
 	assert_eq(summary.player_count(), 3)
 
-# --- LocalXPRouter ----------------------------------------------------------
+# --- CoopXPSubscriber ----------------------------------------------------------
 
 func _make_member(klass: int = CharacterData.CharacterClass.MAGE, lvl: int = 1) -> PartyMember:
 	var c := CharacterData.make_new(klass, "k")
@@ -583,7 +583,7 @@ func test_local_xp_router_routes_local_pid_to_member_real_stats():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	assert_true(router.is_bound())
 	bc.on_enemy_killed(3)  # under L1 threshold (5) — no level-up yet
 	assert_eq(member.real_stats.xp, 3, "XP applied to real_stats")
@@ -597,7 +597,7 @@ func test_local_xp_router_filters_non_local_pid():
 	bc.register_player("me")
 	bc.register_player("other")
 	var member := _make_member()
-	var _r := LocalXPRouter.new(bc, "me", member)
+	var _r := CoopXPSubscriber.new(bc, "me", member)
 	# Hand-fire to the "other" id only; broadcaster.on_enemy_killed
 	# would also fire to "me", which we don't want for this test.
 	bc.xp_awarded.emit("other", 100)
@@ -611,7 +611,7 @@ func test_local_xp_router_levels_up_local_member_when_threshold_crossed():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var _r := LocalXPRouter.new(bc, "me", member)
+	var _r := CoopXPSubscriber.new(bc, "me", member)
 	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1))  # exactly L1->L2 threshold
 	assert_eq(member.real_stats.level, 2, "level up applied")
 
@@ -627,7 +627,7 @@ func test_local_xp_router_applies_to_real_stats_not_effective_in_scaled_party():
 	member.apply_scaling(3)
 	var pre_real_xp := member.real_stats.xp
 	var pre_effective_xp := member.effective_stats.xp
-	var _r := LocalXPRouter.new(bc, "me", member)
+	var _r := CoopXPSubscriber.new(bc, "me", member)
 	bc.on_enemy_killed(3)
 	assert_eq(member.real_stats.xp, pre_real_xp + 3, "real_stats.xp advanced")
 	assert_eq(member.effective_stats.xp, pre_effective_xp, "effective_stats untouched")
@@ -639,7 +639,7 @@ func test_local_xp_router_bind_is_idempotent_on_same_broadcaster():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member()
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_true(router.bind(bc, "me", member), "first bind connects")
 	assert_false(router.bind(bc, "me", member), "second bind to same bc rejected")
 	bc.on_enemy_killed(3)
@@ -654,7 +654,7 @@ func test_local_xp_router_bind_to_different_broadcaster_unbinds_old():
 	var bc2 := XPBroadcaster.new()
 	bc2.register_player("me")
 	var member := _make_member()
-	var router := LocalXPRouter.new(bc1, "me", member)
+	var router := CoopXPSubscriber.new(bc1, "me", member)
 	assert_true(router.bind(bc2, "me", member), "rebind to bc2 succeeds")
 	bc1.on_enemy_killed(50)
 	assert_eq(member.real_stats.xp, 0, "old broadcaster no longer routes")
@@ -662,7 +662,7 @@ func test_local_xp_router_bind_to_different_broadcaster_unbinds_old():
 	assert_eq(member.real_stats.xp, 3, "new broadcaster routes")
 
 func test_local_xp_router_bind_rejects_null_broadcaster():
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_false(router.bind(null, "me", _make_member()))
 	assert_false(router.is_bound())
 
@@ -671,7 +671,7 @@ func test_local_xp_router_bind_rejects_empty_player_id():
 	# match (empty pid is the default) or never match. Either is wrong.
 	# Reject at bind so the caller surfaces the bad wire-up.
 	var bc := XPBroadcaster.new()
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_false(router.bind(bc, "", _make_member()))
 	assert_false(router.is_bound())
 
@@ -680,7 +680,7 @@ func test_local_xp_router_bind_rejects_null_member():
 	# caller doesn't end up with an "active" router that silently drops
 	# every event.
 	var bc := XPBroadcaster.new()
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_false(router.bind(bc, "me", null))
 	assert_false(router.is_bound())
 
@@ -690,7 +690,7 @@ func test_local_xp_router_unbind_stops_routing():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member()
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	bc.on_enemy_killed(3)
 	assert_eq(member.real_stats.xp, 3)
 	assert_true(router.unbind())
@@ -699,14 +699,14 @@ func test_local_xp_router_unbind_stops_routing():
 	assert_eq(member.real_stats.xp, 3, "post-unbind broadcast ignored")
 
 func test_local_xp_router_unbind_idempotent_when_not_bound():
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_false(router.unbind(), "no-op returns false")
 
 func test_local_xp_router_init_without_args_starts_unbound():
 	# Default-constructed router (test / pre-handshake) is inert. Apps
 	# that don't yet have a broadcaster + local id can hold a reference
 	# without it firing.
-	var router := LocalXPRouter.new()
+	var router := CoopXPSubscriber.new()
 	assert_false(router.is_bound())
 	assert_eq(router.local_player_id, "")
 	assert_null(router.local_member)
@@ -721,12 +721,12 @@ func test_local_xp_router_filters_emission_to_other_in_full_broadcast():
 	bc.register_player("bob")
 	bc.register_player("carol")
 	var alice := _make_member()
-	var _r := LocalXPRouter.new(bc, "alice", alice)
+	var _r := CoopXPSubscriber.new(bc, "alice", alice)
 	bc.on_enemy_killed(3)  # broadcast fires xp_awarded for all three
 	# Only the alice emission landed on alice's real_stats — not 3x amount.
 	assert_eq(alice.real_stats.xp, 3, "XP applied exactly once, not per-fanout")
 
-# --- LocalXPRouter.level_up signal ------------------------------------------
+# --- CoopXPSubscriber.level_up signal ------------------------------------------
 
 func test_local_xp_router_emits_level_up_when_threshold_crossed():
 	# An XP award that crosses a level threshold emits level_up(old, new).
@@ -735,7 +735,7 @@ func test_local_xp_router_emits_level_up_when_threshold_crossed():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	var events: Array = []
 	router.level_up.connect(func(old_l, new_l): events.append([old_l, new_l]))
 	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1))  # exactly L1->L2 threshold
@@ -749,7 +749,7 @@ func test_local_xp_router_no_level_up_emit_when_xp_below_threshold():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	var emitted := [false]
 	router.level_up.connect(func(_o, _n): emitted[0] = true)
 	bc.on_enemy_killed(3)  # under L1->L2 threshold (5)
@@ -763,7 +763,7 @@ func test_local_xp_router_emits_single_level_up_for_multi_level_dump():
 	var bc := XPBroadcaster.new()
 	bc.register_player("me")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	var events: Array = []
 	router.level_up.connect(func(o, n): events.append([o, n]))
 	bc.on_enemy_killed(10000)  # force several levels in one shot
@@ -779,7 +779,7 @@ func test_local_xp_router_does_not_emit_level_up_for_non_local_pid():
 	bc.register_player("me")
 	bc.register_player("other")
 	var member := _make_member(CharacterData.CharacterClass.MAGE, 1)
-	var router := LocalXPRouter.new(bc, "me", member)
+	var router := CoopXPSubscriber.new(bc, "me", member)
 	var emitted := [false]
 	router.level_up.connect(func(_o, _n): emitted[0] = true)
 	bc.xp_awarded.emit("other", 10000)  # would-be level dump for remote
@@ -1040,7 +1040,7 @@ func test_remote_kill_apply_empty_enemy_id_returns_false():
 func test_remote_kill_apply_rising_edge_returns_true():
 	# Core wiring: a fresh wire packet for a registered enemy returns
 	# true (rising edge), removes the enemy from the registry, and
-	# fires the local broadcaster so the LocalXPRouter applies the
+	# fires the local broadcaster so the CoopXPSubscriber applies the
 	# XP to my member's real_stats.
 	var session := _make_active_session_for_apply("u1")
 	assert_true(session.enemy_sync.is_alive("e1"))
@@ -1050,7 +1050,7 @@ func test_remote_kill_apply_rising_edge_returns_true():
 
 func test_remote_kill_apply_fires_broadcaster():
 	# The remote-side broadcast lands on every registered player's
-	# xp_awarded emission. The local LocalXPRouter picks its own pid
+	# xp_awarded emission. The local CoopXPSubscriber picks its own pid
 	# and applies the amount; this test pins that the broadcaster
 	# itself fired with the correct amount and killer.
 	var session := _make_active_session_for_apply("u1")
@@ -1087,7 +1087,7 @@ func test_remote_kill_apply_fan_out_targets_all_party_members():
 
 func test_remote_kill_apply_routes_xp_to_local_member_via_router():
 	# Full receive-side shape: wire packet -> apply -> broadcast ->
-	# LocalXPRouter (constructed by CoopSession.start with local_id="u1")
+	# CoopXPSubscriber (constructed by CoopSession.start with local_id="u1")
 	# -> XPSystem.award -> member.real_stats. Pins that a remote-killer
 	# kill ends up on this client's own CharacterData.xp.
 	var session := _make_active_session_for_apply("u1")
@@ -1132,7 +1132,7 @@ func test_remote_kill_apply_does_not_double_fire_with_local_kill():
 	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.RAT)
 	enemy_data.enemy_id = "e1"
 	enemy_data.xp_reward = 3
-	# Local kill first: applies XP via LocalXPRouter (3) and erases e1.
+	# Local kill first: applies XP via CoopXPSubscriber (3) and erases e1.
 	KillRewardRouter.route_kill(local.real_stats, enemy_data, session, "u1")
 	assert_eq(local.real_stats.xp, 3, "local kill applied XP once")
 	assert_false(session.enemy_sync.is_alive("e1"), "registry erased by local kill")
@@ -1180,7 +1180,7 @@ func test_remote_kill_apply_empty_killer_id_still_broadcasts():
 
 func test_remote_kill_apply_levels_up_local_member_through_router():
 	# End-to-end: a remote-killer kill arrives via wire, RemoteKillApplier
-	# fires the broadcaster, LocalXPRouter applies the XP, and the local
+	# fires the broadcaster, CoopXPSubscriber applies the XP, and the local
 	# member levels up. Closes the AC#3 loop end-to-end on the receiving
 	# side: a kill by ANY player levels me up if I cross my threshold.
 	# (xp_to_next_level(1) = 5, so 5 XP exactly crosses L1->L2.)
@@ -1192,9 +1192,9 @@ func test_remote_kill_apply_levels_up_local_member_through_router():
 
 func test_remote_kill_apply_levels_local_via_local_xp_router_pipeline():
 	# A remote-killer kill that crosses the local member's level threshold
-	# advances the level via the LocalXPRouter pipeline. Pins that the
+	# advances the level via the CoopXPSubscriber pipeline. Pins that the
 	# wire-layer receive path shares the same XP+level pipe as a local
-	# kill, since both routes share the broadcaster -> LocalXPRouter.level_up
+	# kill, since both routes share the broadcaster -> CoopXPSubscriber.level_up
 	# edge. Token grants used to drip off this edge; #30 stripped them.
 	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
@@ -1996,369 +1996,3 @@ func test_position_broadcast_gate_typical_per_tick_pattern():
 	# that breaks the rate limit is loud.
 	assert_between(sent, 14, 16, "rate-limit holds across 60Hz ticks")
 
-# --- LocalDamageRouter ------------------------------------------------------
-
-func _make_attacker(attack: int) -> EnemyData:
-	# Minimal enemy attacker for damage routing tests. DamageResolver only
-	# reads `attack: int` off the attacker_stats; defense/hp on the attacker
-	# are irrelevant for incoming-damage-to-player flows.
-	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	e.attack = attack
-	return e
-
-# PRD #85: DamageResolver gates damage behind HitResolver (15% miss floor).
-# These routing tests need a deterministic hit, so we hand apply_damage a
-# pre-seeded rng whose first randf is below 0.85 (forces hit). crit and
-# evasion are 0/0.0 here, so the hit roll is the only rng consumer.
-func _rng_force_hit() -> RandomNumberGenerator:
-	var rng := RandomNumberGenerator.new()
-	for s in range(1, 100000):
-		rng.seed = s
-		if rng.randf() < 0.85:
-			rng.seed = s
-			return rng
-	return rng
-
-func test_local_damage_router_target_for_solo_returns_character():
-	# Solo path: target_for returns the input character itself.
-	# Player.gd's `data` field holds real_stats in solo (real ==
-	# effective), so damage lands on the right block via the same
-	# CharacterData reference the HUD reads from.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	assert_eq(LocalDamageRouter.target_for(null, c, "u1"), c)
-
-func test_local_damage_router_target_for_coop_returns_effective_stats():
-	# Co-op happy path: target_for returns the local member's
-	# effective_stats. Floor player (level <= floor) gets a clone
-	# whose stats match real_stats — but it's still the effective
-	# reference, not the input character. A future change that
-	# made target_for return real_stats in the floor case would
-	# silently route damage past the scaled view; this test pins it.
-	var session := _make_active_session_for_apply("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var target := LocalDamageRouter.target_for(session, c, "u1")
-	var member := session.member_for("u1")
-	assert_ne(target, c, "co-op route should not return the input character")
-	assert_eq(target, member.effective_stats, "co-op route returns effective_stats")
-
-func test_local_damage_router_target_for_null_character_returns_null():
-	# Null-safe: a caller with no character (test path / pre-spawn)
-	# gets null back rather than a crash. apply_damage uses this to
-	# short-circuit to 0.
-	assert_eq(LocalDamageRouter.target_for(null, null, "u1"), null)
-
-func test_local_damage_router_target_for_empty_local_id_returns_character():
-	# Active session but empty local id => solo branch => character.
-	# Pinned so a refactor that made the empty-id case return the
-	# first member in the party (a tempting "default to head of
-	# list" shortcut) breaks loud.
-	var session := _make_active_session_for_apply("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	assert_eq(LocalDamageRouter.target_for(session, c, ""), c)
-
-func test_local_damage_router_apply_damage_solo_hits_character():
-	# Solo path end-to-end: damage lands on the character's hp.
-	# DamageResolver mitigates via target.defense; Mage L1 has
-	# defense 0 so a 3-attack lands as 3 damage.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var hp_before := c.hp
-	var attacker := _make_attacker(3)
-	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "", _rng_force_hit())
-	assert_eq(dealt, 3)
-	assert_eq(c.hp, hp_before - 3, "solo damage hits character.hp directly")
-
-func test_local_damage_router_apply_damage_coop_hits_effective_not_real():
-	# The whole point of the helper: in co-op, damage hits effective_stats
-	# and leaves real_stats untouched. PartyMember.from_character makes
-	# real_stats == input character (by reference) and effective_stats =
-	# clone, so a damage call that mutates real_stats would visibly
-	# reduce the input character's hp too. Pin both sides: real_stats
-	# unchanged, effective_stats reduced.
-	var session := _make_active_session_for_apply("u1")
-	var member := session.member_for("u1")
-	var c := member.real_stats
-	var real_hp_before := c.hp
-	var eff_hp_before := member.effective_stats.hp
-	var attacker := _make_attacker(3)
-	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
-	assert_eq(dealt, 3)
-	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op")
-	assert_eq(member.effective_stats.hp, eff_hp_before - 3, "effective_stats.hp reduced")
-
-func test_local_damage_router_apply_damage_null_attacker_returns_zero():
-	# Null-safe: a future kill source that doesn't pass the attacker
-	# stats (e.g. environmental hazard with no attacker entity)
-	# degrades to no-op rather than crashing on the null deref.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var hp_before := c.hp
-	assert_eq(LocalDamageRouter.apply_damage(null, null, c, ""), 0)
-	assert_eq(c.hp, hp_before, "null attacker leaves character untouched")
-
-func test_local_damage_router_apply_damage_null_character_returns_zero():
-	# Null-safe: pre-spawn / test path with no character data. Must
-	# not crash on the null deref via target_for.
-	var attacker := _make_attacker(3)
-	assert_eq(LocalDamageRouter.apply_damage(null, attacker, null, ""), 0)
-
-func test_local_damage_router_apply_damage_zero_attack_no_op():
-	# DamageResolver returns 0 when attacker.attack <= 0 (it's the
-	# only path that lets damage be 0 — defense floor is 1). Pin
-	# the routing pass-through: the helper must not paper over the
-	# zero with a 1-damage minimum of its own.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var hp_before := c.hp
-	var attacker := _make_attacker(0)
-	assert_eq(LocalDamageRouter.apply_damage(null, attacker, c, ""), 0)
-	assert_eq(c.hp, hp_before)
-
-func test_local_damage_router_apply_damage_defense_mitigates_to_floor_one():
-	# DamageResolver's defense floor is 1 (no zero-damage hits when
-	# attacker has any positive attack). Pin that the routing helper
-	# inherits the contract: an attack of 1 against a defense-3
-	# target still lands for 1 damage in solo.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	c.defense = 3
-	var hp_before := c.hp
-	var attacker := _make_attacker(1)
-	var dealt := LocalDamageRouter.apply_damage(null, attacker, c, "", _rng_force_hit())
-	assert_eq(dealt, 1, "defense floor of 1")
-	assert_eq(c.hp, hp_before - 1)
-
-func test_local_damage_router_apply_damage_after_end_routes_to_character():
-	# Post-end() session: end() restores scaling (real == effective)
-	# and drops managers. A late-arriving damage event must route to
-	# the character (the solo target) so it lands on real_stats — the
-	# right block once scaling is gone.
-	var session := _make_active_session_for_apply("u1")
-	var member := session.member_for("u1")
-	var c := member.real_stats
-	session.end()
-	var hp_before := c.hp
-	var attacker := _make_attacker(2)
-	var dealt := LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
-	assert_eq(dealt, 2, "post-end damage still applies, routed to character")
-	assert_eq(c.hp, hp_before - 2)
-
-func test_local_damage_router_floor_player_routes_to_effective_not_real():
-	# Floor player: scale_stats returns a CLONE of real_stats with
-	# identical numbers. The clone is still a separate Resource —
-	# damage to effective_stats must not leak into real_stats. Pin
-	# this so a future "skip cloning when stats == floor stats"
-	# optimization (returning the input by reference for the floor
-	# case) breaks loud — that would silently mutate real_stats on
-	# every floor-player hit.
-	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	# Both at L1 — local is the floor player, no scaling reduction.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
-	session.start(_make_two_room_dungeon_for_apply())
-	var member := session.member_for("u1")
-	# Sanity: floor player => real stats and effective stats agree on level.
-	assert_eq(member.real_stats.level, member.effective_stats.level)
-	# But they're separate references.
-	assert_ne(member.real_stats, member.effective_stats,
-		"PartyScaler.clone_stats produces a separate reference even at floor")
-	var real_hp_before := c.hp
-	var attacker := _make_attacker(2)
-	LocalDamageRouter.apply_damage(session, attacker, c, "u1", _rng_force_hit())
-	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched")
-	assert_eq(member.effective_stats.hp, member.effective_stats.max_hp - 2,
-		"floor-player effective_stats took the hit")
-
-func test_local_damage_router_scaled_player_uses_lower_max_hp():
-	# Scaled player end-to-end: a L10 player in a party with a L3
-	# floor-mate has effective_stats.max_hp set to the L3 baseline
-	# (8 for Mage). real_stats.max_hp stays at the L10 baseline (26
-	# for Mage). Damage routes to the smaller pool — pin both sides
-	# of the asymmetry so a future scaling refactor that swapped
-	# the two would visibly break.
-	var lobby := _make_lobby_for_apply([
-		["u1", "Big",   "Mage"],
-		["u2", "Small", "Mage"],
-	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Big")
-	c1.level = 10
-	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 10)
-	c1.hp = c1.max_hp
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Small")
-	c2.level = 3
-	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
-	c2.hp = c2.max_hp
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
-	session.start(_make_two_room_dungeon_for_apply())
-	var member := session.member_for("u1")
-	# Mage L10: max_hp = 8 + 9*2 = 26. L3 (floor): 8 + 2*2 = 12.
-	assert_eq(c1.max_hp, 26, "real_stats max_hp at L10")
-	assert_eq(member.effective_stats.max_hp, 12, "effective_stats max_hp at floor L3")
-	var attacker := _make_attacker(5)
-	LocalDamageRouter.apply_damage(session, attacker, c1, "u1", _rng_force_hit())
-	assert_eq(c1.hp, 26, "real_stats hp untouched")
-	assert_eq(member.effective_stats.hp, 7, "effective_stats took 5 dmg from 12")
-
-# --- LocalReviveRouter ------------------------------------------------------
-
-func test_local_revive_router_target_for_solo_returns_character():
-	# Solo path: target_for returns the input character itself.
-	# Player.gd's `data` field holds real_stats in solo, so the
-	# revive lands on the right block via the same CharacterData
-	# reference the HUD reads from.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	assert_eq(LocalReviveRouter.target_for(null, c, "u1"), c)
-
-func test_local_revive_router_target_for_coop_returns_effective_stats():
-	# Co-op happy path: target_for returns the local member's
-	# effective_stats, NOT the input character. Symmetric with
-	# LocalDamageRouter.target_for: damage hit effective_stats so
-	# the revive must restore HP on the same block.
-	var session := _make_active_session_for_apply("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var target := LocalReviveRouter.target_for(session, c, "u1")
-	var member := session.member_for("u1")
-	assert_ne(target, c, "co-op route should not return the input character")
-	assert_eq(target, member.effective_stats, "co-op route returns effective_stats")
-
-func test_local_revive_router_target_for_null_character_returns_null():
-	# Null-safe: a caller with no character (test path / pre-spawn)
-	# gets null back rather than a crash. revive() uses this to
-	# short-circuit to false.
-	assert_eq(LocalReviveRouter.target_for(null, null, "u1"), null)
-
-func test_local_revive_router_target_for_empty_local_id_returns_character():
-	# Active session but empty local id => solo branch => character.
-	# Pinned so a refactor that made the empty-id case return the
-	# first member in the party (a tempting "default to head of
-	# list" shortcut) breaks loud — that would silently revive the
-	# wrong member's effective_stats on a pre-handshake death.
-	var session := _make_active_session_for_apply("u1")
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	assert_eq(LocalReviveRouter.target_for(session, c, ""), c)
-
-func test_local_revive_router_revive_solo_revives_character():
-	# Solo path end-to-end: sets character.hp to half max_hp. Mage default
-	# max_hp=10 => revive at 5. Free revive (post-#27) — no inventory.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	c.max_hp = 10
-	c.hp = 0
-	var ok := LocalReviveRouter.revive(null, c, "")
-	assert_true(ok)
-	assert_eq(c.hp, 5, "character.hp restored to 50% of max_hp")
-
-func test_local_revive_router_revive_coop_revives_effective_not_real():
-	# The whole point of the helper: in co-op, revive lands on
-	# effective_stats and leaves real_stats untouched. PartyMember.
-	# from_character makes real_stats == input character (by
-	# reference), so a revive that mutated real_stats would visibly
-	# halve the input character's hp too — losing the persistent
-	# character's full-HP shape across session.end()'s remove_scaling.
-	# Pin both sides: real_stats untouched, effective_stats restored.
-	var session := _make_active_session_for_apply("u1")
-	var member := session.member_for("u1")
-	var c := member.real_stats
-	# Simulate the death state: damage routed to effective_stats has
-	# zeroed it; real_stats stays at full because LocalDamageRouter
-	# never touches it in co-op.
-	member.effective_stats.hp = 0
-	var real_hp_before := c.hp
-	var ok := LocalReviveRouter.revive(session, c, "u1")
-	assert_true(ok)
-	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op revive")
-	# Mage L1 effective_stats.max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
-	assert_eq(member.effective_stats.hp, 4, "effective_stats.hp restored to 50%")
-
-func test_local_revive_router_revive_null_character_no_op():
-	# Null-safe: pre-spawn / test path with no character data. Must
-	# not crash on the null deref via target_for; returns false so
-	# the caller's death-screen branch can stay a single uncondition-
-	# al call site.
-	assert_false(LocalReviveRouter.revive(null, null, ""))
-
-func test_local_revive_router_after_end_revives_character():
-	# Post-end() session: end() restored scaling (real == effective)
-	# and dropped managers. A revive that fires from the death-
-	# screen during the same teardown frame must route to character
-	# (the solo target) so it lands on real_stats — the right block
-	# once scaling is gone.
-	var session := _make_active_session_for_apply("u1")
-	var member := session.member_for("u1")
-	var c := member.real_stats
-	c.hp = 0
-	session.end()
-	var ok := LocalReviveRouter.revive(session, c, "u1")
-	assert_true(ok)
-	# Mage L1 max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
-	assert_eq(c.hp, 4, "post-end revive lands on character (real_stats)")
-
-func test_local_revive_router_floor_player_revives_effective_not_real():
-	# Floor player: scale_stats returns a CLONE of real_stats with
-	# identical numbers. The clone is still a separate Resource —
-	# revive on effective_stats must not leak into real_stats.
-	# Symmetric pin to LocalDamageRouter's floor-player test: a
-	# future "skip cloning when stats match the floor" optimization
-	# (returning the input by reference) would silently revive
-	# real_stats on every floor-player death.
-	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	# Both at L1 — local is the floor player, no scaling reduction.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	var session := CoopSession.new(lobby, {"u1": c}, null, "u1")
-	session.start(_make_two_room_dungeon_for_apply())
-	var member := session.member_for("u1")
-	# Sanity: floor player => real and effective agree on max_hp.
-	assert_eq(member.real_stats.max_hp, member.effective_stats.max_hp)
-	assert_ne(member.real_stats, member.effective_stats,
-		"PartyScaler.clone_stats produces a separate reference even at floor")
-	member.effective_stats.hp = 0
-	var real_hp_before := c.hp
-	LocalReviveRouter.revive(session, c, "u1")
-	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched on revive")
-	# Mage L1 max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
-	assert_eq(member.effective_stats.hp, 4,
-		"floor-player effective_stats restored to half max")
-
-func test_local_revive_router_scaled_player_uses_lower_max_hp_for_revive():
-	# Scaled player end-to-end: a L10 player in a party with a L3
-	# floor-mate has effective_stats.max_hp = L3 baseline (12 for
-	# Mage). Revive routes to effective_stats so the revive HP is
-	# half of 12 = 6, NOT half of the unscaled 26 = 13. Pin both
-	# sides — a refactor that routed revive through real_stats
-	# would revive past the scaled HUD's max, the bar would pin to
-	# full + the player would have phantom HP that disappears as
-	# soon as the next damage tick clamps effective_stats.hp back
-	# inside its own max.
-	var lobby := _make_lobby_for_apply([
-		["u1", "Big",   "Mage"],
-		["u2", "Small", "Mage"],
-	])
-	var c1 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Big")
-	c1.level = 10
-	c1.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 10)
-	c1.hp = c1.max_hp
-	var c2 := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "Small")
-	c2.level = 3
-	c2.max_hp = CharacterData.base_max_hp_for(CharacterData.CharacterClass.MAGE, 3)
-	c2.hp = c2.max_hp
-	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
-	session.start(_make_two_room_dungeon_for_apply())
-	var member := session.member_for("u1")
-	# Mage L10: max_hp = 26. Floor L3: max_hp = 12.
-	assert_eq(c1.max_hp, 26)
-	assert_eq(member.effective_stats.max_hp, 12)
-	member.effective_stats.hp = 0
-	var ok := LocalReviveRouter.revive(session, c1, "u1")
-	assert_true(ok)
-	assert_eq(c1.hp, 26, "real_stats hp untouched")
-	# round(12 * 0.5) = 6, above the minimum-1 floor.
-	assert_eq(member.effective_stats.hp, 6,
-		"effective_stats revived to half of scaled max_hp (12), NOT half of real (26)")
-
-func test_local_revive_router_minimum_one_hp_floor_inherits_through_router():
-	# ReviveSystem's min-1 floor (max_hp=1 must not revive at 0)
-	# inherits through the router unchanged. Pin so a future router
-	# refactor that re-implemented the half-max math locally doesn't
-	# drop the floor — the death-screen would loop on a max_hp=1
-	# debuff target.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
-	c.max_hp = 1
-	c.hp = 0
-	var ok := LocalReviveRouter.revive(null, c, "")
-	assert_true(ok)
-	assert_eq(c.hp, 1, "min-1 floor survives the router pass-through")

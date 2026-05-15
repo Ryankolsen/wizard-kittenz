@@ -370,11 +370,11 @@ func test_end_to_end_three_player_run_summary():
 	assert_eq(session.member_for("bob").effective_stats.level, 3)
 	assert_eq(session.member_for("carol").effective_stats.level, 5, "unscaled")
 
-# --- LocalXPRouter wiring --------------------------------------------------
+# --- CoopXPSubscriber wiring --------------------------------------------------
 
 func test_start_builds_xp_router_when_local_player_in_party():
 	# A session constructed with a local_player_id matching one of the
-	# party builds a LocalXPRouter on start so the kill-by-anyone
+	# party builds a CoopXPSubscriber on start so the kill-by-anyone
 	# broadcast lands on this client's PartyMember.real_stats.
 	var lobby := _make_lobby([
 		["u1", "A", "Mage"],
@@ -385,13 +385,13 @@ func test_start_builds_xp_router_when_local_player_in_party():
 		"u2": _make_character(CharacterData.CharacterClass.NINJA, 1),
 	}
 	var session := CoopSession.new(lobby, characters, null, "u1")
-	assert_null(session.xp_router, "router is null pre-start")
+	assert_null(session.xp_subscriber, "router is null pre-start")
 	session.start(_make_two_room_dungeon())
-	assert_not_null(session.xp_router, "router built on start")
-	assert_true(session.xp_router.is_bound())
-	assert_eq(session.xp_router.local_player_id, "u1")
+	assert_not_null(session.xp_subscriber, "router built on start")
+	assert_true(session.xp_subscriber.is_bound())
+	assert_eq(session.xp_subscriber.local_player_id, "u1")
 	# The router is bound to *this client's* member, not a remote one.
-	assert_eq(session.xp_router.local_member, session.member_for("u1"))
+	assert_eq(session.xp_subscriber.local_member, session.member_for("u1"))
 
 func test_start_skips_xp_router_when_local_player_id_empty():
 	# Default-constructed (test / pre-handshake) session has no local
@@ -401,7 +401,7 @@ func test_start_skips_xp_router_when_local_player_id_empty():
 	var lobby := _make_lobby([["u1", "A", "Mage"]])
 	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)})
 	session.start(_make_two_room_dungeon())
-	assert_null(session.xp_router, "router skipped without local id")
+	assert_null(session.xp_subscriber, "router skipped without local id")
 
 func test_start_skips_xp_router_when_local_id_not_in_party():
 	# Defensive: a session constructed with a local_player_id not present
@@ -412,11 +412,11 @@ func test_start_skips_xp_router_when_local_id_not_in_party():
 	var characters := {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}
 	var session := CoopSession.new(lobby, characters, null, "ghost")
 	session.start(_make_two_room_dungeon())
-	assert_null(session.xp_router, "unknown local id => no router")
+	assert_null(session.xp_subscriber, "unknown local id => no router")
 
 func test_xp_broadcast_routes_to_local_member_real_stats_via_session():
 	# End-to-end through the session: a kill broadcast routes XP to the
-	# local PartyMember.real_stats via the wired-up LocalXPRouter. Pins
+	# local PartyMember.real_stats via the wired-up CoopXPSubscriber. Pins
 	# that the orchestrator wiring (broadcaster + router) actually
 	# lands XP on the local character without any extra plumbing.
 	var lobby := _make_lobby([
@@ -478,9 +478,9 @@ func test_end_drops_xp_router():
 	session.start(_make_two_room_dungeon())
 	var bc_before_end := session.xp_broadcaster
 	var member := session.member_for("u1")
-	assert_not_null(session.xp_router)
+	assert_not_null(session.xp_subscriber)
 	session.end()
-	assert_null(session.xp_router, "router dropped on end")
+	assert_null(session.xp_subscriber, "router dropped on end")
 	# A late broadcast on the (still-held) old broadcaster should not
 	# mutate the member's stats — router unbound means the subscriber
 	# is gone.
@@ -499,7 +499,7 @@ func test_xp_router_rebuilds_on_next_run_after_end():
 	session.start(_make_two_room_dungeon())
 	session.end()
 	session.start(_make_two_room_dungeon())
-	assert_not_null(session.xp_router)
+	assert_not_null(session.xp_subscriber)
 	# New router bound to the new broadcaster.
 	session.xp_broadcaster.on_enemy_killed(3)
 	assert_eq(session.member_for("u1").real_stats.xp, 3,

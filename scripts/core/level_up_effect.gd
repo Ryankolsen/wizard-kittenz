@@ -5,7 +5,7 @@ extends Node2D
 # Lives as a child of Player so the burst follows the character. The
 # trigger source is the scene layer: solo callers level-diff the local
 # CharacterData around ProgressionSystem.add_xp; co-op callers connect
-# to LocalXPRouter.level_up on the active session's router.
+# to CoopXPSubscriber.level_up on the active session's subscriber.
 #
 # Pure predicate (is_real_level_up) extracted as a static so the "should
 # fire" rule is unit-testable without booting a scene. Same shape as

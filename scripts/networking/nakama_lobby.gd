@@ -13,7 +13,7 @@ const OP_POSITION: int = 4
 # can't spoof another player's kill credit. Inbound packets route through
 # RemoteKillApplier on the receiving side: enemy_sync.apply_death gates
 # duplicates idempotently and xp_broadcaster.on_enemy_killed fans XP to
-# every party member's LocalXPRouter.
+# every party member's CoopXPSubscriber.
 const OP_KILL: int = 5
 # Host-initiated pause / unpause broadcast. Empty payload — the sender
 # presence on the receiving side is checked against the lobby host so only

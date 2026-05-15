@@ -17,7 +17,7 @@ func test_is_real_level_up_false_when_new_below_old():
 	# regression that lowered level should never play a celebratory burst.
 	assert_false(LevelUpEffect.is_real_level_up(5, 3))
 
-# --- LocalXPRouter.level_up signal plumbing (scene-layer trigger source) ----
+# --- CoopXPSubscriber.level_up signal plumbing (scene-layer trigger source) ----
 
 func _make_member(lvl: int = 1) -> PartyMember:
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
@@ -41,12 +41,12 @@ class _Capture extends RefCounted:
 
 func test_local_xp_router_level_up_fires_on_threshold_cross():
 	# Core wiring: when an XP broadcast pushes the local member across a
-	# level threshold, LocalXPRouter emits level_up(old, new). This is the
+	# level threshold, CoopXPSubscriber emits level_up(old, new). This is the
 	# co-op trigger source for the level-up effect.
 	var bc := XPBroadcaster.new()
 	bc.register_player("p1")
 	var member := _make_member(1)
-	var router := LocalXPRouter.new(bc, "p1", member)
+	var router := CoopXPSubscriber.new(bc, "p1", member)
 	var capture := _Capture.new()
 	router.level_up.connect(capture.on_level_up)
 	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1), "p1")
@@ -60,7 +60,7 @@ func test_local_xp_router_level_up_carries_old_and_new_level():
 	var bc := XPBroadcaster.new()
 	bc.register_player("p1")
 	var member := _make_member(1)
-	var router := LocalXPRouter.new(bc, "p1", member)
+	var router := CoopXPSubscriber.new(bc, "p1", member)
 	var capture := _Capture.new()
 	router.level_up.connect(capture.on_level_up)
 	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1), "p1")
@@ -73,7 +73,7 @@ func test_local_xp_router_no_signal_on_sub_threshold_gain():
 	var bc := XPBroadcaster.new()
 	bc.register_player("p1")
 	var member := _make_member(1)
-	var router := LocalXPRouter.new(bc, "p1", member)
+	var router := CoopXPSubscriber.new(bc, "p1", member)
 	var capture := _Capture.new()
 	router.level_up.connect(capture.on_level_up)
 	bc.on_enemy_killed(1, "p1")  # tiny amount, no level-up

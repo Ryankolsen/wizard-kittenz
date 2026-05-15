@@ -80,7 +80,7 @@ func _physics_process(delta: float) -> void:
 		_try_cast_spell()
 
 # Emit `died` exactly once when hp first reaches zero. The death-screen
-# revive button calls LocalReviveRouter.revive, which sets hp back above
+# revive button calls CoopRouter.revive, which sets hp back above
 # zero — _died_emitted resets nowhere, but a successful revive simply
 # means data.is_alive() goes true again so this branch is skipped.
 func _check_died() -> void:
@@ -256,7 +256,7 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 	# Solo: route_kill mutates data.level via ProgressionSystem.add_xp, so
 	# a before/after diff is the level-up edge. Co-op: route_kill broadcasts
 	# via xp_broadcaster; data.level on the Player is untouched and the
-	# level-up edge arrives via LocalXPRouter.level_up (wired in _ready).
+	# level-up edge arrives via CoopXPSubscriber.level_up (wired in _ready).
 	var old_level := data.level
 	var item_drop := KillRewardRouter.route_kill(
 		data,
@@ -282,10 +282,10 @@ func _bind_coop_level_up() -> void:
 	if _coop_level_up_bound:
 		return
 	var session := _coop_session()
-	if session == null or session.xp_router == null:
+	if session == null or session.xp_subscriber == null:
 		return
-	if not session.xp_router.level_up.is_connected(_on_coop_level_up):
-		session.xp_router.level_up.connect(_on_coop_level_up)
+	if not session.xp_subscriber.level_up.is_connected(_on_coop_level_up):
+		session.xp_subscriber.level_up.connect(_on_coop_level_up)
 	_coop_level_up_bound = true
 
 func _on_coop_level_up(old_level: int, new_level: int) -> void:

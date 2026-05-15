@@ -4,7 +4,7 @@ extends GutTest
 #
 # - ReviveSystem.revive(player) is the only entry point. No try_consume_revive,
 #   no inventory dependency.
-# - LocalReviveRouter.revive(session, character, local_player_id) routes the
+# - CoopRouter.revive(session, character, local_player_id) routes the
 #   half-max revive to the right CharacterData block (real_stats solo, the
 #   local member's effective_stats in co-op).
 # - HUD.death_screen_state() takes no args and always permits revive.
@@ -43,27 +43,27 @@ func test_revive_handles_null_player():
 	# Defensive: a pre-spawn / test path with no player must not crash.
 	assert_eq(ReviveSystem.revive(null), 0)
 
-# --- LocalReviveRouter.revive — solo branch ----------------------------------
+# --- CoopRouter.revive — solo branch ----------------------------------
 
 func test_local_revive_router_revive_solo_revives_character():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.max_hp = 10
 	c.hp = 0
-	var ok := LocalReviveRouter.revive(null, c, "")
+	var ok := CoopRouter.revive(null, c, "")
 	assert_true(ok)
 	assert_eq(c.hp, 5, "character.hp restored to 50% of max_hp")
 
 func test_local_revive_router_revive_null_character_no_op():
 	# Null-safe: pre-spawn / test path. Returns false without crashing so the
 	# caller's death-screen branch can stay an unconditional call site.
-	assert_false(LocalReviveRouter.revive(null, null, ""))
+	assert_false(CoopRouter.revive(null, null, ""))
 
 func test_local_revive_router_revive_inherits_min_one_hp_floor():
 	# ReviveSystem's min-1 floor inherits through the router unchanged.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")
 	c.max_hp = 1
 	c.hp = 0
-	assert_true(LocalReviveRouter.revive(null, c, ""))
+	assert_true(CoopRouter.revive(null, c, ""))
 	assert_eq(c.hp, 1, "min-1 floor survives the router pass-through")
 
 # --- HUD.death_screen_state — simplified free-revive contract ---------------

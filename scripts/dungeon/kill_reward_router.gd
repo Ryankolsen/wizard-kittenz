@@ -15,7 +15,7 @@ extends RefCounted
 # Co-op path (session.is_routing_ready()):
 #   - Broadcasts XP via session.xp_broadcaster.on_enemy_killed. Every
 #     party member gets an xp_awarded(player_id, amount) emission;
-#     the LocalXPRouter on each client filters by its own player_id
+#     the CoopXPSubscriber on each client filters by its own player_id
 #     and applies the amount to its member.real_stats.
 #   - Marks the enemy dead in the per-session EnemyStateSyncManager
 #     registry so the local kill detection and the wire layer's

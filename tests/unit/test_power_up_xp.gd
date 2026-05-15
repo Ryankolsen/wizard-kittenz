@@ -107,7 +107,7 @@ func test_coop_single_player_keeps_full_powerup_xp():
 	var p := _make_player_with_data(c)
 	var xp_before := c.xp
 	p.collect_power_up(PowerUpEffect.TYPE_CATNIP)
-	# The LocalXPRouter wired by session.start routes the per-player
+	# The CoopXPSubscriber wired by session.start routes the per-player
 	# emission to c.real_stats.
 	assert_eq(c.xp - xp_before, Player.POWERUP_XP,
 		"1-player coop keeps full reward")

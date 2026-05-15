@@ -7,7 +7,7 @@ extends GutTest
 #
 # Sibling to test_hud_xp_bar.gd: where xp_bar_label closed #18 AC#4 by
 # wiring the scaled "Lv.10 (Lv.3)" label, hp_bar_label closes the HP
-# routing display gap noted in a591f9e — once LocalDamageRouter wires up
+# routing display gap noted in a591f9e — once CoopRouter wires up
 # at the call site, damage will route to effective_stats.hp; the HUD must
 # read from the same place or the bar will visibly desync from the actual
 # fighting HP.

@@ -139,7 +139,7 @@ static func hp_bar_ratio(hp: int, max_hp: int, effective_hp: int = -1, effective
 # bar already signals scaling via "Lv.X (Lv.Y)" so the HP bar doesn't
 # repeat that — it just renders the active fighting HP. Closes the HP-
 # routing display gap noted in a591f9e: damage routes to effective_stats
-# when LocalDamageRouter wires up at the call site, and this label reads
+# when CoopRouter wires up at the call site, and this label reads
 # the same effective_stats so the bar tracks the actual damage flow.
 static func hp_bar_label(hp: int, max_hp: int, effective_hp: int = -1, effective_max: int = -1) -> String:
 	if effective_max <= 0 or effective_hp < 0:
@@ -259,7 +259,7 @@ func _on_revive_pressed() -> void:
 	if gs != null:
 		session = gs.coop_session
 		pid = gs.local_player_id
-	if LocalReviveRouter.revive(session, _player.data, pid):
+	if CoopRouter.revive(session, _player.data, pid):
 		_you_died.visible = false
 
 func _on_give_up_pressed() -> void:

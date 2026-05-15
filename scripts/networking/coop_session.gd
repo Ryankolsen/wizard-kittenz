@@ -57,12 +57,12 @@ var members: Array[PartyMember] = []
 var player_ids: Array[String] = []
 var floor_level: int = 1
 var meta_tracker: MetaProgressionTracker = null
-# This client's player_id within the lobby. Drives the LocalXPRouter
+# This client's player_id within the lobby. Drives the CoopXPSubscriber
 # subscription so an xp_awarded(local_player_id, amount) emission lands
 # on this client's PartyMember.real_stats. Empty on a default-
 # constructed (test / pre-handshake) session — start() simply skips
-# building the router in that case (no local id => nothing to filter
-# on => no-op subscription).
+# building the subscriber in that case (no local id => nothing to
+# filter on => no-op subscription).
 var local_player_id: String = ""
 # Borrowed reference to the per-match agreed dungeon seed. Owned by NakamaLobby
 # (one sync per lobby instance, reset() between matches). The lobby's start
@@ -76,7 +76,7 @@ var dungeon_seed_sync: DungeonSeedSync = null
 # so a caller can null-check `xp_broadcaster` to ask "is the run live?".
 var xp_broadcaster: XPBroadcaster = null
 var xp_summary: RunXPSummary = null
-var xp_router: LocalXPRouter = null
+var xp_subscriber: CoopXPSubscriber = null
 var network_sync: NetworkSyncManager = null
 var enemy_sync: EnemyStateSyncManager = null
 var run_controller: DungeonRunController = null
@@ -155,13 +155,13 @@ func start(dungeon: Dungeon) -> bool:
 	# Wire the local-routing subscriber only when this session knows
 	# which player_id is local AND that player is in the party. A
 	# default-constructed session (test / pre-handshake) skips the
-	# router; xp_summary still tallies, but no XP lands on any
+	# subscriber; xp_summary still tallies, but no XP lands on any
 	# member.real_stats until the session is reconstructed with a
 	# local id. Same shape as the network/enemy sync managers — the
 	# wire is built but only fires when the inputs are present.
 	var local_member := member_for(local_player_id)
 	if local_member != null:
-		xp_router = LocalXPRouter.new(xp_broadcaster, local_player_id, local_member)
+		xp_subscriber = CoopXPSubscriber.new(xp_broadcaster, local_player_id, local_member)
 
 	if not run_controller.start(dungeon):
 		_drop_managers()
@@ -276,11 +276,11 @@ func _on_dungeon_completed() -> void:
 func _drop_managers() -> void:
 	if xp_summary != null and xp_broadcaster != null:
 		xp_summary.unbind(xp_broadcaster)
-	if xp_router != null:
-		xp_router.unbind()
+	if xp_subscriber != null:
+		xp_subscriber.unbind()
 	xp_broadcaster = null
 	xp_summary = null
-	xp_router = null
+	xp_subscriber = null
 	network_sync = null
 	enemy_sync = null
 	run_controller = null

@@ -211,7 +211,7 @@ func _on_position_received(player_id: String, position: Vector2, timestamp: floa
 # Inbound kill bridge — wire packet → RemoteKillApplier (data side) +
 # RemoteEnemyDespawner (scene side). apply_death's idempotent gate rejects
 # duplicate packets; xp_broadcaster fans XP to every party member's
-# LocalXPRouter (the local player picks its own emission and applies to
+# CoopXPSubscriber (the local player picks its own emission and applies to
 # member.real_stats). Solo path / pre-session (coop_session == null) is a
 # silent no-op via RemoteKillApplier's own null-check.
 #

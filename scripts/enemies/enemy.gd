@@ -83,7 +83,18 @@ func _try_contact_damage(player: Player) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
-	var dealt := DamageResolver.apply(data, player.data)
+	# PRD #116: route incoming damage through CoopRouter so that in a
+	# co-op session the hit lands on the local member's effective_stats
+	# (the scaled HP pool the HUD reads) rather than real_stats. Solo
+	# path (null session) is a single null-check no-op that falls
+	# through to DamageResolver against player.data directly.
+	var session: CoopSession = null
+	var pid := ""
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		session = gs.coop_session
+		pid = gs.local_player_id
+	var dealt := CoopRouter.apply_damage(session, data, player.data, pid)
 	# PRD #85 / issue #91: enemy-on-player misses surface a floating
 	# "Miss" near the player. Player evasion is the dominant contributor
 	# at the player side — same indicator covers HitResolver miss and
