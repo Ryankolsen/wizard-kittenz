@@ -146,6 +146,8 @@ func _setup_rooms() -> void:
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	var power_up_scene := load(POWER_UP_SCENE_PATH)
+	print("[main_scene] _setup_rooms: total rooms=%d  _dungeon_layout=%s" % [
+		_run_controller.dungeon.rooms.size(), str(_dungeon_layout)])
 	for room in _run_controller.dungeon.rooms:
 		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
 		if data != null and not _run_controller.is_room_cleared(room.id):
@@ -155,7 +157,7 @@ func _setup_rooms() -> void:
 			enemy.died.connect(_on_enemy_died.bind(enemy))
 			add_child(enemy)
 		var pu_type := RoomSpawnPlanner.plan_powerup(room)
-		if pu_type != "" and _dungeon_layout != null and not _run_controller.is_room_cleared(room.id):
+		if pu_type != "" and _dungeon_layout != null and not _run_controller.cleared_ids().has(room.id):
 			var pickup: PowerUpPickup = power_up_scene.instantiate()
 			pickup.power_up_type = pu_type
 			pickup.position = _dungeon_layout.room_center_world(room.id)
@@ -166,6 +168,8 @@ func _setup_rooms() -> void:
 		# character, co-op fans through the party-split broadcaster.
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger())
 		_watchers.append(watcher)
+	var pu_rooms := _run_controller.dungeon.rooms.filter(func(r): return r.type == Room.TYPE_POWERUP)
+	print("[main_scene] power-up rooms found (type=powerup): %d" % pu_rooms.size())
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")

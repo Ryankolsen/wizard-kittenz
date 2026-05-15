@@ -734,3 +734,49 @@ func test_legacy_run_controller_completion_path_populates_snapshot():
 		"legacy path also populates snapshot")
 	assert_eq(session.last_run_summary_header.get("grand_total_xp"), 22,
 		"11 XP * 2 members")
+
+# --- is_routing_ready() predicate -------------------------------------------
+
+func test_is_routing_ready_returns_false_when_not_active():
+	# Constructed but not started — must return false so routers take the
+	# solo branch rather than trying to use null managers.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	assert_false(session.is_active())
+	assert_false(session.is_routing_ready())
+
+func test_is_routing_ready_returns_false_with_empty_local_player_id():
+	# A session where local_player_id was never set (pre-handshake or
+	# default-constructed) must return false — no local id, no co-op routing.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "")
+	session.start(_make_two_room_dungeon())
+	assert_true(session.is_active())
+	assert_false(session.is_routing_ready())
+
+func test_is_routing_ready_returns_true_for_active_session_with_local_member():
+	# The canonical "co-op is live and this client is in the party" case.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	assert_true(session.is_routing_ready())
+
+func test_is_routing_ready_returns_false_after_end():
+	# end() deactivates the run — routers must fall back to solo path.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u1")
+	session.start(_make_two_room_dungeon())
+	assert_true(session.is_routing_ready())
+	session.end()
+	assert_false(session.is_routing_ready())
+
+func test_is_routing_ready_returns_false_when_local_player_not_in_party():
+	# local_player_id is set but the player isn't in the party roster
+	# (e.g. a wire-race where local_id arrived before CharacterData).
+	# Must return false — can't route to a member that doesn't exist.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var session := CoopSession.new(lobby, {"u1": _make_character(CharacterData.CharacterClass.MAGE, 1)}, null, "u2")
+	session.start(_make_two_room_dungeon())
+	assert_true(session.is_active())
+	assert_null(session.member_for("u2"))
+	assert_false(session.is_routing_ready())

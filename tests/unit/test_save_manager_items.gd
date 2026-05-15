@@ -4,7 +4,7 @@ extends GutTest
 # equipped items and bag contents through SaveManager.save / SaveManager.load,
 # and verifies stat rehydration via ItemStatApplicator after load.
 
-const ItemStatApplicatorRef = preload("res://scripts/item_stat_applicator.gd")
+const ItemStatApplicatorRef = preload("res://scripts/character/item_stat_applicator.gd")
 
 const TMP_PATH := "user://test_save_items.json"
 

@@ -12,8 +12,7 @@ extends RefCounted
 #   - Tallies the kill's xp_reward into the offline counter so the sync
 #     orchestrator can fold it into the server record on reconnect.
 #
-# Co-op path (session.is_active() AND broadcaster non-null AND
-# local_player_id non-empty):
+# Co-op path (session.is_routing_ready()):
 #   - Broadcasts XP via session.xp_broadcaster.on_enemy_killed. Every
 #     party member gets an xp_awarded(player_id, amount) emission;
 #     the LocalXPRouter on each client filters by its own player_id
@@ -31,20 +30,6 @@ extends RefCounted
 # Null-safe across the board: null data / enemy_data / session / empty
 # local_player_id all degrade to a no-op. Lets test paths and pre-
 # handshake co-op paths share the helper without crashing.
-
-# Whether the "co-op active" branch should fire. Pulled out as a
-# static so a test can pin the predicate without exercising the
-# whole reward path.
-static func is_coop_route(session: CoopSession, local_player_id: String) -> bool:
-	if session == null:
-		return false
-	if not session.is_active():
-		return false
-	if session.xp_broadcaster == null:
-		return false
-	if local_player_id == "":
-		return false
-	return true
 
 static func route_kill(
 	data: CharacterData,
@@ -83,7 +68,7 @@ static func route_kill(
 	# item, luck<=0, or EPIC-tier drops all pass through untouched inside
 	# bump_item — no extra gating needed here.
 	item_drop = LuckRewardModifier.bump_item(item_drop, data.luck, rng)
-	if is_coop_route(session, local_player_id):
+	if session != null and session.is_routing_ready():
 		# Party XP split: each member receives floor(xp_reward / party_size)
 		# rather than the full reward. Both the local broadcast and the wire
 		# packet carry the per-player amount, so the receiver's RemoteKillApplier

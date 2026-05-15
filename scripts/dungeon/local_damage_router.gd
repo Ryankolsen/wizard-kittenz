@@ -33,10 +33,8 @@ extends RefCounted
 #     static so a unit test pins the routing contract without booting
 #     a scene.
 #   - Same shape as KillRewardRouter (the OUTBOUND seam for kills):
-#     RefCounted, all-static, is_coop_route predicate + main routing
-#     method. Both helpers branch on the same gates (session non-null
-#     + active + local_player_id non-empty + member found), so a
-#     refactor of one stays in lockstep with the other.
+#     RefCounted, all-static, delegates to session.is_routing_ready()
+#     for the co-op gate so the predicate is defined once.
 #
 # What this does NOT do:
 #   - Touch the scene tree. The Player node's _check_died / died-signal
@@ -55,21 +53,6 @@ extends RefCounted
 #     that client's concern. The local router only cares about the
 #     local member.
 
-# Whether the "co-op active" branch should fire. Pulled out as a static
-# so a test can pin the predicate without exercising the whole damage
-# path. A session that exists but isn't active (constructed but start()
-# not yet called, or already end()ed) takes the solo branch.
-static func is_coop_route(session: CoopSession, local_player_id: String) -> bool:
-	if session == null:
-		return false
-	if not session.is_active():
-		return false
-	if local_player_id == "":
-		return false
-	if session.member_for(local_player_id) == null:
-		return false
-	return true
-
 # Returns the CharacterData block that damage should land on. Pure
 # branching; does NOT mutate state. Solo path returns the input
 # character (real_stats). Co-op path returns the local member's
@@ -80,7 +63,7 @@ static func is_coop_route(session: CoopSession, local_player_id: String) -> bool
 static func target_for(session: CoopSession, character: CharacterData, local_player_id: String) -> CharacterData:
 	if character == null:
 		return null
-	if not is_coop_route(session, local_player_id):
+	if session == null or not session.is_routing_ready():
 		return character
 	var member := session.member_for(local_player_id)
 	if member == null or member.effective_stats == null:

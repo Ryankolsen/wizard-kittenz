@@ -5,7 +5,7 @@ extends RefCounted
 # time (see notes in pause_menu / audio_settings_manager commits). Preload
 # the serializer to keep the QuitDungeon save path independent of load
 # order.
-const DungeonRunSerializerRef = preload("res://scripts/dungeon_run_serializer.gd")
+const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
 
 # Quit Dungeon exit logic (PRD #42, #45). Pulled out of PauseMenu so the
 # save-vs-skip branch is exercised by unit tests without a scene tree.

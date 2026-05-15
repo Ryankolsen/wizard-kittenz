@@ -2019,49 +2019,6 @@ func _rng_force_hit() -> RandomNumberGenerator:
 			return rng
 	return rng
 
-func test_local_damage_router_is_coop_route_null_session():
-	# Solo path predicate: no session means solo, period.
-	assert_false(LocalDamageRouter.is_coop_route(null, "u1"))
-
-func test_local_damage_router_is_coop_route_inactive_session():
-	# Constructed but not started => solo branch. The broadcaster /
-	# enemy_sync are null in that window so routing through them
-	# would no-op anyway, but the explicit gate makes the contract
-	# clearer and matches KillRewardRouter's predicate shape.
-	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
-	assert_false(session.is_active())
-	assert_false(LocalDamageRouter.is_coop_route(session, "u1"))
-
-func test_local_damage_router_is_coop_route_empty_local_id():
-	# Active session but no local id (pre-handshake / fresh-install).
-	# Without an id we can't pick a member, so fall back to the solo
-	# branch — Player.gd's `data` field still holds real_stats, which
-	# is the right target on the solo path anyway.
-	var session := _make_active_session_for_apply("")
-	assert_true(session.is_active())
-	assert_false(LocalDamageRouter.is_coop_route(session, ""))
-
-func test_local_damage_router_is_coop_route_local_id_not_in_party():
-	# Active session, local id set, but the id doesn't match any
-	# member (defensive against a wire-payload race where the local
-	# id was set before the lobby roster propagated). Solo branch.
-	var session := _make_active_session_for_apply("u1")
-	assert_false(LocalDamageRouter.is_coop_route(session, "u2"))
-
-func test_local_damage_router_is_coop_route_active_with_member():
-	# Happy path: active session + local id in party => co-op route.
-	var session := _make_active_session_for_apply("u1")
-	assert_true(LocalDamageRouter.is_coop_route(session, "u1"))
-
-func test_local_damage_router_is_coop_route_after_end():
-	# Post-end() session => solo branch. A late incoming damage event
-	# (an enemy attack tick that fired during the same frame as
-	# session.end) must not try to route through dropped managers.
-	var session := _make_active_session_for_apply("u1")
-	session.end()
-	assert_false(LocalDamageRouter.is_coop_route(session, "u1"))
-
 func test_local_damage_router_target_for_solo_returns_character():
 	# Solo path: target_for returns the input character itself.
 	# Player.gd's `data` field holds real_stats in solo (real ==
@@ -2239,49 +2196,6 @@ func test_local_damage_router_scaled_player_uses_lower_max_hp():
 	assert_eq(member.effective_stats.hp, 7, "effective_stats took 5 dmg from 12")
 
 # --- LocalReviveRouter ------------------------------------------------------
-
-func test_local_revive_router_is_coop_route_null_session():
-	# Solo path predicate: no session means solo, period.
-	assert_false(LocalReviveRouter.is_coop_route(null, "u1"))
-
-func test_local_revive_router_is_coop_route_inactive_session():
-	# Constructed but not started => solo branch. The session's per-run
-	# managers (xp_broadcaster, etc.) are null in that window. The gate
-	# matches LocalDamageRouter.is_coop_route exactly so a refactor of
-	# one stays in lockstep with the other.
-	var lobby := _make_lobby_for_apply([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": CharacterData.make_new(CharacterData.CharacterClass.MAGE, "k")}, null, "u1")
-	assert_false(session.is_active())
-	assert_false(LocalReviveRouter.is_coop_route(session, "u1"))
-
-func test_local_revive_router_is_coop_route_empty_local_id():
-	# Active session but no local id (pre-handshake / fresh-install).
-	# Without an id we can't pick a member, so fall back to the solo
-	# branch — death screen revives the bare character which holds
-	# real_stats in solo.
-	var session := _make_active_session_for_apply("")
-	assert_true(session.is_active())
-	assert_false(LocalReviveRouter.is_coop_route(session, ""))
-
-func test_local_revive_router_is_coop_route_local_id_not_in_party():
-	# Active session, local id set, but the id doesn't match any
-	# member (defensive against a wire-payload race where the local
-	# id was set before the lobby roster propagated). Solo branch.
-	var session := _make_active_session_for_apply("u1")
-	assert_false(LocalReviveRouter.is_coop_route(session, "u2"))
-
-func test_local_revive_router_is_coop_route_active_with_member():
-	# Happy path: active session + local id in party => co-op route.
-	var session := _make_active_session_for_apply("u1")
-	assert_true(LocalReviveRouter.is_coop_route(session, "u1"))
-
-func test_local_revive_router_is_coop_route_after_end():
-	# Post-end() session => solo branch. A late-arriving revive
-	# (death screen confirmed mid-session-teardown frame) must not
-	# try to route through dropped managers.
-	var session := _make_active_session_for_apply("u1")
-	session.end()
-	assert_false(LocalReviveRouter.is_coop_route(session, "u1"))
 
 func test_local_revive_router_target_for_solo_returns_character():
 	# Solo path: target_for returns the input character itself.

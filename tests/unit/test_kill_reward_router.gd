@@ -45,36 +45,6 @@ func _make_two_room_dungeon() -> Dungeon:
 	d.boss_id = 1
 	return d
 
-# --- is_coop_route predicate ------------------------------------------------
-
-func test_is_coop_route_null_session_returns_false():
-	# A solo kill has no session — must take the solo branch.
-	assert_false(KillRewardRouter.is_coop_route(null, "u1"))
-
-func test_is_coop_route_inactive_session_returns_false():
-	# Constructed but not started — broadcaster is null. Solo branch
-	# fires so the kill still grants XP locally.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
-	assert_false(session.is_active())
-	assert_false(KillRewardRouter.is_coop_route(session, "u1"))
-
-func test_is_coop_route_empty_local_id_returns_false():
-	# A pre-handshake session where the local player_id hasn't been
-	# resolved yet. Solo branch fires so the kill still grants XP
-	# locally rather than being silently dropped.
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
-	session.start(_make_two_room_dungeon())
-	assert_true(session.is_active())
-	assert_false(KillRewardRouter.is_coop_route(session, ""))
-
-func test_is_coop_route_active_session_with_local_id_returns_true():
-	var lobby := _make_lobby([["u1", "A", "Mage"]])
-	var session := CoopSession.new(lobby, {"u1": _make_character(1)}, null, "u1")
-	session.start(_make_two_room_dungeon())
-	assert_true(KillRewardRouter.is_coop_route(session, "u1"))
-
 # --- route_kill: null safety ------------------------------------------------
 
 func test_route_kill_null_character_data_is_no_op():

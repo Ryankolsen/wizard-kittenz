@@ -5,8 +5,8 @@ extends GutTest
 # serialize / deserialize halves end-to-end against a real generated
 # Dungeon.
 
-const DungeonRunSerializer = preload("res://scripts/dungeon_run_serializer.gd")
-const QuitDungeonHandlerRef = preload("res://scripts/quit_dungeon_handler.gd")
+const DungeonRunSerializer = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
+const QuitDungeonHandlerRef = preload("res://scripts/dungeon/quit_dungeon_handler.gd")
 
 func test_kitten_save_data_to_dict_includes_dungeon_run_state():
 	var s := KittenSaveData.new()

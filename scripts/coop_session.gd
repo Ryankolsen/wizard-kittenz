@@ -191,6 +191,21 @@ func end() -> bool:
 func is_active() -> bool:
 	return _active
 
+# Single canonical gate for "should this client route through co-op?".
+# All routers call this instead of implementing their own predicate.
+# Three conditions: the run is live, this client has a known player_id,
+# and that player_id is actually in the party (member_for finds them).
+# Note: xp_broadcaster non-null is implied by _active — start() builds
+# it and end() clears it, so is_active() subsumes that check.
+func is_routing_ready() -> bool:
+	if not _active:
+		return false
+	if local_player_id == "":
+		return false
+	if member_for(local_player_id) == null:
+		return false
+	return true
+
 func member_for(player_id: String) -> PartyMember:
 	var idx := player_ids.find(player_id)
 	if idx < 0:
