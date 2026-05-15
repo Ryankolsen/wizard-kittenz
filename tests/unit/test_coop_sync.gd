@@ -726,6 +726,35 @@ func test_local_xp_router_filters_emission_to_other_in_full_broadcast():
 	# Only the alice emission landed on alice's real_stats — not 3x amount.
 	assert_eq(alice.real_stats.xp, 3, "XP applied exactly once, not per-fanout")
 
+# --- CoopXPSubscriber: skill tree auto-unlock threading (#124 follow-up) -------
+
+func test_local_xp_router_threads_tree_to_auto_unlock_on_level_up():
+	# AC: a co-op level-up routed through CoopXPSubscriber flips a level-
+	# gated SkillNode immediately, matching the solo (route_kill) path.
+	# catnip_curse (level_required=3) starts locked at L2 and unlocks when
+	# the broadcaster fans enough XP to vault L2->L3.
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 2)
+	var tree := SkillTree.make_wizard_kitten_tree()
+	assert_false(tree.is_unlocked("catnip_curse"), "locked at L2 pre-broadcast")
+	var _r := CoopXPSubscriber.new(bc, "me", member, tree)
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(2))
+	assert_eq(member.real_stats.level, 3, "L2->L3 on threshold XP")
+	assert_true(tree.is_unlocked("catnip_curse"),
+		"level 3 node auto-unlocks via threaded tree on co-op level-up")
+
+func test_local_xp_router_null_tree_legacy_path():
+	# Omitting the tree (default-constructed subscriber, legacy tests)
+	# keeps the prior behavior — XP applies, level advances, but no
+	# unlock pass runs (tree is null, the checker no-ops safely).
+	var bc := XPBroadcaster.new()
+	bc.register_player("me")
+	var member := _make_member(CharacterData.CharacterClass.WIZARD_KITTEN, 2)
+	var _r := CoopXPSubscriber.new(bc, "me", member)
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(2))
+	assert_eq(member.real_stats.level, 3, "level still advances without a tree")
+
 # --- CoopXPSubscriber.level_up signal ------------------------------------------
 
 func test_local_xp_router_emits_level_up_when_threshold_crossed():

@@ -403,6 +403,23 @@ func test_start_skips_xp_router_when_local_player_id_empty():
 	session.start(_make_two_room_dungeon())
 	assert_null(session.xp_subscriber, "router skipped without local id")
 
+func test_start_threads_skill_tree_into_xp_subscriber():
+	# AC (#124 follow-up): the trailing optional `tree` param on start()
+	# is forwarded to the CoopXPSubscriber so a co-op level-up auto-
+	# unlocks newly-eligible nodes via the SkillUnlockChecker path —
+	# matching the solo route. Verified end-to-end by broadcasting XP
+	# that vaults the local member's real_stats across a level
+	# threshold and checking that the threaded tree's gated node flipped.
+	var lobby := _make_lobby([["u1", "A", "Mage"]])
+	var characters := {"u1": _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 2)}
+	var session := CoopSession.new(lobby, characters, null, "u1")
+	var tree := SkillTree.make_wizard_kitten_tree()
+	assert_false(tree.is_unlocked("catnip_curse"), "locked at L2 pre-start")
+	session.start(_make_two_room_dungeon(), tree)
+	session.xp_broadcaster.on_enemy_killed(ProgressionSystem.xp_to_next_level(2))
+	assert_true(tree.is_unlocked("catnip_curse"),
+		"co-op level-up auto-unlocked the threaded tree's L3 node")
+
 func test_start_skips_xp_router_when_local_id_not_in_party():
 	# Defensive: a session constructed with a local_player_id not present
 	# in the lobby (e.g. wire-payload race, save-restore mismatch) should

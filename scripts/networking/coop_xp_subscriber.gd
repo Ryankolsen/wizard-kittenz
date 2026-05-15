@@ -44,10 +44,14 @@ signal level_up(old_level: int, new_level: int)
 var local_player_id: String = ""
 var local_member: PartyMember = null
 var _broadcaster: XPBroadcaster = null
+# Optional skill tree threaded through to XPSystem.award so a co-op
+# level-up auto-unlocks newly-eligible nodes immediately, matching the
+# solo path. Null preserves legacy behavior (XP applies, no unlock pass).
+var _tree: SkillTree = null
 
-func _init(broadcaster: XPBroadcaster = null, player_id: String = "", member: PartyMember = null) -> void:
+func _init(broadcaster: XPBroadcaster = null, player_id: String = "", member: PartyMember = null, tree: SkillTree = null) -> void:
 	if broadcaster != null:
-		bind(broadcaster, player_id, member)
+		bind(broadcaster, player_id, member, tree)
 
 # Connects to the broadcaster's xp_awarded signal. Returns true on a
 # fresh bind, false on:
@@ -59,7 +63,7 @@ func _init(broadcaster: XPBroadcaster = null, player_id: String = "", member: Pa
 # Re-binding to a *different* broadcaster transparently unbinds the
 # old one first so the subscriber can be reused across runs without
 # the caller having to remember the unbind step.
-func bind(broadcaster: XPBroadcaster, player_id: String, member: PartyMember) -> bool:
+func bind(broadcaster: XPBroadcaster, player_id: String, member: PartyMember, tree: SkillTree = null) -> bool:
 	if broadcaster == null or player_id == "" or member == null:
 		return false
 	if _broadcaster == broadcaster:
@@ -69,6 +73,7 @@ func bind(broadcaster: XPBroadcaster, player_id: String, member: PartyMember) ->
 	_broadcaster = broadcaster
 	local_player_id = player_id
 	local_member = member
+	_tree = tree
 	_broadcaster.xp_awarded.connect(_on_xp_awarded)
 	return true
 
@@ -84,6 +89,7 @@ func unbind() -> bool:
 	_broadcaster = null
 	local_player_id = ""
 	local_member = null
+	_tree = null
 	return true
 
 func is_bound() -> bool:
@@ -102,7 +108,7 @@ func _on_xp_awarded(player_id: String, amount: int) -> void:
 	# use_real_level=true: scaled effective_stats stay scaled; XP
 	# advances real_stats only. (#18 AC#3)
 	var old_level := local_member.real_stats.level
-	XPSystem.award(local_member, amount, true)
+	XPSystem.award(local_member, amount, true, _tree)
 	var new_level := local_member.real_stats.level
 	if new_level > old_level:
 		level_up.emit(old_level, new_level)

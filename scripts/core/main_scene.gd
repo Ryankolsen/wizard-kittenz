@@ -111,7 +111,7 @@ func _start_new_dungeon(gs) -> void:
 		# Idempotent — a second start() returns false (scene reload after
 		# advance_to keeps the session managers across rooms).
 		if gs.coop_session != null:
-			gs.coop_session.start(dungeon)
+			gs.coop_session.start(dungeon, _local_skill_tree())
 
 # Co-op clients converge on the host's minted seed via DungeonSeedSync, so all
 # party members generate identical room graphs. Solo path / no agreed seed

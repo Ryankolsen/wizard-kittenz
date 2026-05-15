@@ -134,7 +134,7 @@ func _init(lobby_state: LobbyState = null, characters: Dictionary = {}, tracker:
 #     mis-constructed session)
 # Rolls back manager construction on a failed run_controller.start so a
 # rejected dungeon doesn't leave half-built sync managers around.
-func start(dungeon: Dungeon) -> bool:
+func start(dungeon: Dungeon, tree: SkillTree = null) -> bool:
 	if _active:
 		return false
 	if dungeon == null:
@@ -161,7 +161,12 @@ func start(dungeon: Dungeon) -> bool:
 	# wire is built but only fires when the inputs are present.
 	var local_member := member_for(local_player_id)
 	if local_member != null:
-		xp_subscriber = CoopXPSubscriber.new(xp_broadcaster, local_player_id, local_member)
+		# Optional `tree` is threaded into CoopXPSubscriber so a co-op
+		# level-up auto-unlocks newly-eligible nodes via the same
+		# SkillUnlockChecker path used by the solo route. Null tree
+		# (legacy callers / test sessions) preserves the prior behavior —
+		# XP still applies, no unlock pass.
+		xp_subscriber = CoopXPSubscriber.new(xp_broadcaster, local_player_id, local_member, tree)
 
 	if not run_controller.start(dungeon):
 		_drop_managers()
