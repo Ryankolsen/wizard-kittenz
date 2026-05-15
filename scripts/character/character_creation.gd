@@ -50,10 +50,7 @@ const APPEARANCE_MAX: int = 7
 @onready var _custom_appearance_label: Label = $Customize/VBox/AppearanceRow/AppearanceLabel
 @onready var _custom_appearance_prev: Button = $Customize/VBox/AppearanceRow/PrevButton
 @onready var _custom_appearance_next: Button = $Customize/VBox/AppearanceRow/NextButton
-@onready var _custom_battle_button: Button = $Customize/VBox/Buttons/BattleKittenGroup/BattleKittenButton
-@onready var _custom_wizard_button: Button = $Customize/VBox/Buttons/WizardKittenGroup/WizardKittenButton
-@onready var _custom_sleepy_button: Button = $Customize/VBox/Buttons/SleepyKittenGroup/SleepyKittenButton
-@onready var _custom_chonk_button: Button = $Customize/VBox/Buttons/ChonkKittenGroup/ChonkKittenButton
+@onready var _custom_save_button: Button = $Customize/VBox/SaveButton
 @onready var _custom_back_button: Button = $Customize/VBox/BackButton
 
 var _suggester: NameSuggester = NameSuggester.new()
@@ -65,7 +62,7 @@ func _ready() -> void:
 	_resume_button.visible = _save_exists
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_quick_start_button.pressed.connect(_on_quick_start_pressed)
-	_customize_button.pressed.connect(_show_customize)
+	_customize_button.pressed.connect(_on_customize_pressed)
 	_multiplayer_button.pressed.connect(_show_multi_menu)
 	_shop_button.pressed.connect(_show_shop)
 	_overwrite_confirm_button.pressed.connect(_on_overwrite_confirmed)
@@ -84,22 +81,16 @@ func _ready() -> void:
 	_custom_random_name_button.pressed.connect(_on_random_name)
 	_custom_appearance_prev.pressed.connect(_on_appearance_prev)
 	_custom_appearance_next.pressed.connect(_on_appearance_next)
-	_custom_battle_button.pressed.connect(_on_customize_class.bind("battle_kitten"))
-	_custom_wizard_button.pressed.connect(_on_customize_class.bind("wizard_kitten"))
-	_custom_sleepy_button.pressed.connect(_on_customize_class.bind("sleepy_kitten"))
-	_custom_chonk_button.pressed.connect(_on_customize_class.bind("chonk_kitten"))
+	_custom_save_button.pressed.connect(_on_customize_save)
 	_custom_back_button.pressed.connect(_show_main_menu)
 
 	_apply_unlock_gates()
 	_show_main_menu()
 
 func _apply_unlock_gates() -> void:
-	# Chonk Kitten is gated on dungeons_completed >= 5 by default; gate both the
-	# Quick Start and Customize chonk buttons so the picker is consistent.
 	var chonk_unlocked: bool = GameState.unlock_registry.is_unlocked(
 		"chonk_kitten", GameState.meta_tracker, GameState.paid_unlocks)
 	_qs_chonk_button.disabled = not chonk_unlocked
-	_custom_chonk_button.disabled = not chonk_unlocked
 
 func _show_main_menu() -> void:
 	_main_menu.visible = true
@@ -121,6 +112,9 @@ func _on_quick_start_pressed() -> void:
 		_overwrite_confirm_panel.visible = true
 	else:
 		_show_quick_start()
+
+func _on_customize_pressed() -> void:
+	_show_customize()
 
 func _on_overwrite_confirmed() -> void:
 	_overwrite_confirm_panel.visible = false
@@ -149,15 +143,21 @@ func _show_customize() -> void:
 		_custom_name_edit.text = _suggester.get_random_name()
 	_refresh_appearance_label()
 
-func _on_quick_start_class(class_name_str: String) -> void:
-	var data := QuickStartController.create_for_class(class_name_str)
-	_finalize(data)
-
-func _on_customize_class(class_name_str: String) -> void:
+func _on_customize_save() -> void:
 	var typed := _custom_name_edit.text.strip_edges()
 	var n := typed if typed != "" else _suggester.get_random_name()
-	var data := CharacterFactory.create_default(class_name_str, n)
-	data.appearance_index = _current_appearance
+	if GameState.current_character != null:
+		QuickStartController.apply_identity_edit(GameState.current_character, n, _current_appearance)
+		SaveManager.save(GameState.current_character, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
+	else:
+		var data := CharacterFactory.create_default("battle_kitten", n)
+		data.appearance_index = _current_appearance
+		_finalize(data)
+		return
+	_show_main_menu()
+
+func _on_quick_start_class(class_name_str: String) -> void:
+	var data := QuickStartController.create_for_class(class_name_str)
 	_finalize(data)
 
 func _on_random_name() -> void:

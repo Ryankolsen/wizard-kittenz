@@ -37,7 +37,7 @@ text = "Resume"
 
 [node name="QuickStartButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2
-text = "Quick Start"
+text = "Start"
 
 [node name="CustomizeButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2
@@ -176,63 +176,9 @@ horizontal_alignment = 1
 layout_mode = 2
 text = ">"
 
-[node name="ClassLabel" type="Label" parent="Customize/VBox"]
+[node name="SaveButton" type="Button" parent="Customize/VBox"]
 layout_mode = 2
-text = "Class:"
-horizontal_alignment = 1
-
-[node name="Buttons" type="HBoxContainer" parent="Customize/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 8
-alignment = 1
-
-[node name="BattleKittenGroup" type="VBoxContainer" parent="Customize/VBox/Buttons"]
-layout_mode = 2
-
-[node name="BattleKittenButton" type="Button" parent="Customize/VBox/Buttons/BattleKittenGroup"]
-layout_mode = 2
-text = "Battle Kitten"
-
-[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/BattleKittenGroup"]
-layout_mode = 2
-text = "Melee Damage"
-horizontal_alignment = 1
-
-[node name="WizardKittenGroup" type="VBoxContainer" parent="Customize/VBox/Buttons"]
-layout_mode = 2
-
-[node name="WizardKittenButton" type="Button" parent="Customize/VBox/Buttons/WizardKittenGroup"]
-layout_mode = 2
-text = "Wizard Kitten"
-
-[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/WizardKittenGroup"]
-layout_mode = 2
-text = "Attack Mage"
-horizontal_alignment = 1
-
-[node name="SleepyKittenGroup" type="VBoxContainer" parent="Customize/VBox/Buttons"]
-layout_mode = 2
-
-[node name="SleepyKittenButton" type="Button" parent="Customize/VBox/Buttons/SleepyKittenGroup"]
-layout_mode = 2
-text = "Sleepy Kitten"
-
-[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/SleepyKittenGroup"]
-layout_mode = 2
-text = "Healer"
-horizontal_alignment = 1
-
-[node name="ChonkKittenGroup" type="VBoxContainer" parent="Customize/VBox/Buttons"]
-layout_mode = 2
-
-[node name="ChonkKittenButton" type="Button" parent="Customize/VBox/Buttons/ChonkKittenGroup"]
-layout_mode = 2
-text = "Chonk Kitten"
-
-[node name="Subtitle" type="Label" parent="Customize/VBox/Buttons/ChonkKittenGroup"]
-layout_mode = 2
-text = "Tank"
-horizontal_alignment = 1
+text = "Save"
 
 [node name="BackButton" type="Button" parent="Customize/VBox"]
 layout_mode = 2

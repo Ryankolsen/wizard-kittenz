@@ -202,13 +202,10 @@ func _btn_path(panel: String, btn_name: String) -> String:
 	var group := btn_name.replace("Button", "Group")
 	return "%s/VBox/Buttons/%s/%s" % [panel, group, btn_name]
 
-func test_customize_panel_has_four_kitten_buttons():
+func test_customize_panel_has_save_button():
 	var scene := _instantiate_creation_scene()
-	# find_child returns the first match; verify both panels contain the
-	# button by counting via get_node on the explicit path.
-	for btn_name in _BUTTON_TO_CLASS.keys():
-		var btn := scene.get_node(_btn_path("Customize", btn_name)) as Button
-		assert_not_null(btn, "Customize must contain %s" % btn_name)
+	var btn := scene.find_child("SaveButton", true, false) as Button
+	assert_not_null(btn, "Customize panel must have a Save button")
 
 func test_each_quick_start_button_has_correct_subtitle():
 	var scene := _instantiate_creation_scene()
@@ -219,14 +216,6 @@ func test_each_quick_start_button_has_correct_subtitle():
 		assert_not_null(subtitle, "%s should have a sibling Subtitle Label" % btn_name)
 		assert_eq(subtitle.text, _SUBTITLES[btn_name])
 
-func test_each_customize_button_has_correct_subtitle():
-	var scene := _instantiate_creation_scene()
-	for btn_name in _SUBTITLES.keys():
-		var group_path := _btn_path("Customize", btn_name).get_base_dir()
-		var group := scene.get_node(group_path)
-		var subtitle := group.find_child("Subtitle", false, false) as Label
-		assert_not_null(subtitle, "%s should have a sibling Subtitle Label" % btn_name)
-		assert_eq(subtitle.text, _SUBTITLES[btn_name])
 
 func test_quick_start_battle_kitten_button_creates_battle_kitten():
 	# Core wiring AC: pressing Battle Kitten in QuickStart yields a
@@ -249,21 +238,11 @@ func test_all_four_quick_start_buttons_select_correct_class():
 			_BUTTON_TO_CLASS[btn_name],
 			"QuickStart %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
 
-func test_all_four_customize_buttons_select_correct_class():
-	for btn_name in _BUTTON_TO_CLASS.keys():
-		var scene := _instantiate_creation_scene()
-		var btn := scene.get_node(_btn_path("Customize", btn_name)) as Button
-		btn.pressed.emit()
-		assert_eq(GameState.current_character.character_class,
-			_BUTTON_TO_CLASS[btn_name],
-			"Customize %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
 
 func test_chonk_kitten_disabled_at_zero_dungeons():
 	var scene := _instantiate_creation_scene()
 	var qs_chonk := scene.get_node(_btn_path("QuickStart", "ChonkKittenButton")) as Button
-	var custom_chonk := scene.get_node(_btn_path("Customize", "ChonkKittenButton")) as Button
 	assert_true(qs_chonk.disabled, "Chonk Kitten gated until threshold met")
-	assert_true(custom_chonk.disabled, "Chonk Kitten gated until threshold met")
 
 func test_chonk_kitten_enabled_after_threshold():
 	GameState.current_character = null
@@ -273,9 +252,7 @@ func test_chonk_kitten_enabled_after_threshold():
 	var scene = load("res://scenes/character_creation.tscn").instantiate()
 	add_child_autofree(scene)
 	var qs_chonk := scene.get_node(_btn_path("QuickStart", "ChonkKittenButton")) as Button
-	var custom_chonk := scene.get_node(_btn_path("Customize", "ChonkKittenButton")) as Button
 	assert_false(qs_chonk.disabled, "Chonk Kitten unlocked once threshold met")
-	assert_false(custom_chonk.disabled, "Chonk Kitten unlocked once threshold met")
 
 func test_multiplayer_fallback_defaults_to_battle_kitten():
 	var scene = _instantiate_creation_scene()
@@ -289,3 +266,34 @@ func test_no_legacy_class_buttons_remain():
 	for legacy in ["MageButton", "ThiefButton", "NinjaButton"]:
 		assert_null(scene.find_child(legacy, true, false),
 			"Legacy %s must be removed from the picker" % legacy)
+
+func test_customize_class_buttons_removed():
+	var scene := _instantiate_creation_scene()
+	for btn_name in _BUTTON_TO_CLASS.keys():
+		var btn := scene.find_child(btn_name, true, false) as Button
+		# Class buttons still exist in QuickStart, but Customize should not have them
+		# via the explicit Customize path
+		var customize_path := _btn_path("Customize", btn_name)
+		assert_null(scene.get_node_or_null(customize_path),
+			"Customize panel must not contain class button %s" % btn_name)
+
+func test_customize_save_updates_existing_character_name():
+	var scene := _instantiate_creation_scene()
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.WIZARD_KITTEN, "Old Name")
+	var name_edit := scene.get_node("Customize/VBox/NameRow/NameEdit") as LineEdit
+	name_edit.text = "New Name"
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	save_btn.pressed.emit()
+	assert_eq(GameState.current_character.character_name, "New Name")
+
+func test_customize_save_returns_to_main_menu():
+	var scene := _instantiate_creation_scene()
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.BATTLE_KITTEN, "Kitten")
+	scene.get_node("Customize").visible = true
+	scene.get_node("MainMenu").visible = false
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	save_btn.pressed.emit()
+	assert_true(scene.get_node("MainMenu").visible, "Save must return to main menu")
+
