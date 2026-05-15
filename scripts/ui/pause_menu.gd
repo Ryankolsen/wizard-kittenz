@@ -223,22 +223,6 @@ func open_skills_panel() -> void:
 	_show_skills_tab()
 	_refresh_skills_panel()
 
-# Spend one skill point to unlock node_id, via SkillTreeManager so the
-# can_unlock gate (prereqs + points + already-unlocked) is shared with
-# the rest of the codebase. Returns true on success. Refreshes the
-# panel on success so the SkillPointsLabel and per-node state reflect
-# the new world immediately.
-func try_unlock_skill(node_id: String) -> bool:
-	var c := _current_character()
-	var tree := _current_skill_tree()
-	if c == null or tree == null:
-		return false
-	var manager := SkillTreeManager.make(tree, c)
-	var ok := manager.unlock(node_id)
-	if ok:
-		_refresh_skills_panel()
-	return ok
-
 func close_character_submenu() -> void:
 	_show_main_menu()
 
@@ -485,27 +469,21 @@ func _refresh_skills_panel() -> void:
 	for n in tree.all_nodes():
 		list.add_child(_make_skill_row(n, manager))
 
-func _make_skill_row(node: SkillNode, manager: SkillTreeManager) -> HBoxContainer:
+func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "SkillRow_%s" % node.id
 	var label := Label.new()
 	label.name = "SkillRowLabel_%s" % node.id
-	# Status suffix is the visually-distinct marker between locked and
-	# unlocked nodes the acceptance criterion calls for. A future polish
-	# pass can swap in icons / color tints, but the text contract is what
-	# the tests pin.
-	var status := "Unlocked" if node.unlocked else "Locked"
-	label.text = "%s — %s" % [node.display_name, status]
+	# Per #130: locked rows advertise the level required to auto-unlock the
+	# node — skills are no longer purchased with skill points. Unlocked
+	# rows keep the "Unlocked" status suffix so existing visual contracts
+	# (and tests / future polish) still have a stable token to read.
+	if node.unlocked:
+		label.text = "%s — Unlocked" % node.display_name
+	else:
+		label.text = "%s — Unlocks at level %d" % [node.display_name, node.level_required]
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
-	if not node.unlocked:
-		var btn := Button.new()
-		btn.name = "UnlockButton_%s" % node.id
-		btn.text = "Unlock (%d pt)" % node.cost
-		btn.disabled = manager == null or not manager.can_unlock(node.id)
-		var node_id := node.id
-		btn.pressed.connect(func(): try_unlock_skill(node_id))
-		row.add_child(btn)
 	return row
 
 func _on_resume_pressed() -> void:
