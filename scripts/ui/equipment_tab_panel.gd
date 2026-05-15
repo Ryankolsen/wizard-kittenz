@@ -145,11 +145,11 @@ func _on_equip_pressed(item_id: String) -> void:
 		return
 	var prev: ItemData = _inventory.equipped_in(item.slot)
 	if prev != null and _character != null:
-		_character.apply_stat_delta(prev.stat_name, -prev.stat_bonus)
+		CharacterMutator.new(_character).apply_stat_delta(prev.stat_name, -prev.stat_bonus)
 	_inventory.remove_from_bag(item_id)
 	_inventory.equip(item)
 	if _character != null:
-		_character.apply_stat_delta(item.stat_name, item.stat_bonus)
+		CharacterMutator.new(_character).apply_stat_delta(item.stat_name, item.stat_bonus)
 	_expanded.clear()
 	_rebuild()
 
@@ -160,7 +160,7 @@ func _on_unequip_pressed(slot: int) -> void:
 	if item == null:
 		return
 	if _character != null:
-		_character.apply_stat_delta(item.stat_name, -item.stat_bonus)
+		CharacterMutator.new(_character).apply_stat_delta(item.stat_name, -item.stat_bonus)
 	_inventory.unequip(slot)
 	_expanded.clear()
 	_rebuild()

@@ -47,7 +47,7 @@ static func apply_damage(session: CoopSession, attacker_stats, character: Charac
 	var target := target_for(session, character, local_player_id)
 	if target == null:
 		return 0
-	return DamageResolver.apply(attacker_stats, target, rng)
+	return CharacterMutator.new(target).apply_damage(attacker_stats, rng)
 
 # Revives the routed target at half max_hp. Returns true on success;
 # false (with no mutation) when character is null (pre-spawn / test
@@ -59,5 +59,5 @@ static func revive(session: CoopSession, character: CharacterData, local_player_
 	var target := target_for(session, character, local_player_id)
 	if target == null:
 		return false
-	ReviveSystem.revive(target)
+	CharacterMutator.new(target).revive()
 	return true

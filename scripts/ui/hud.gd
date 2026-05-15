@@ -337,9 +337,9 @@ func _on_loot_choice_made(item: ItemData, equip: bool) -> void:
 	if equip:
 		var prev: ItemData = inventory.equipped_in(item.slot)
 		if prev != null and _player != null and _player.data != null:
-			_player.data.apply_stat_delta(prev.stat_name, -prev.stat_bonus)
+			CharacterMutator.new(_player.data).apply_stat_delta(prev.stat_name, -prev.stat_bonus)
 		inventory.equip(item)
 		if _player != null and _player.data != null:
-			_player.data.apply_stat_delta(item.stat_name, item.stat_bonus)
+			CharacterMutator.new(_player.data).apply_stat_delta(item.stat_name, item.stat_bonus)
 	else:
 		inventory.add_to_bag(item)
