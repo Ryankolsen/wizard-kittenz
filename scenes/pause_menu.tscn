@@ -94,7 +94,7 @@ text = "Skills"
 text = "Inventory"
 
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
-custom_minimum_size = Vector2(0, 140)
+custom_minimum_size = Vector2(0, 100)
 size_flags_vertical = 0
 horizontal_scroll_mode = 0
 

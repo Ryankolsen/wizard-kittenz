@@ -62,7 +62,7 @@ func test_inventory_tab_has_equipment_panel():
 	var inv_btn := scene.find_child("InventoryTabButton", true, false) as Button
 	assert_not_null(inv_btn)
 	inv_btn.pressed.emit()
-	var tab := scene.find_child("InventoryTab", true, false)
+	var tab: Node = scene.find_child("InventoryTab", true, false)
 	assert_not_null(tab, "InventoryTab node must exist")
 	var section := scene.find_child("Section_Equipped", true, false) as Label
 	assert_not_null(section, "Equipment panel must render an Equipped section")
@@ -107,8 +107,22 @@ func test_class_label_shows_character_class():
 	scene.open_character_submenu()
 	var label = scene.find_child("ClassLabel", true, false) as Label
 	assert_not_null(label, "CharacterSubmenu must have a ClassLabel node")
-	assert_eq(label.text, "Wizard kitten", "ClassLabel must show the character class name")
+	assert_eq(label.text, "Wizard Kitten", "ClassLabel must show the character class name")
 	gs.clear()
+
+# Regression: the 480x270 viewport clips the CharacterSubmenu panel when
+# TabScroll.custom_minimum_size.y is too large. The panel's combined minimum
+# height must leave at least 20px for centering margin inside the 270px viewport.
+# This test fails if TabScroll minimum height is raised back above 110px.
+func test_tab_scroll_min_height_fits_in_270px_viewport():
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	var tab_scroll := scene.find_child("TabScroll", true, false) as ScrollContainer
+	assert_not_null(tab_scroll, "CharacterSubmenu must have a TabScroll node")
+	# 110px keeps the full panel (title + class + tabs + scroll + back + margins)
+	# under 270px. Raising this will push the Back button off-screen.
+	assert_lte(tab_scroll.custom_minimum_size.y, 110.0,
+		"TabScroll min height must be <= 110 to fit the panel in the 270px viewport")
 
 func test_stats_panel_shows_attack_defense_speed():
 	var gs := get_node("/root/GameState")
