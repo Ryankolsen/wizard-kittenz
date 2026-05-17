@@ -199,7 +199,12 @@ func _try_attack() -> void:
 			if dealt == 0 and data != null and data.attack > 0:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
-				FloatingText.spawn(node, str(dealt), Color(1.0, 0.2, 0.2))
+				var ft := FloatingText.new()
+				var scene_root := node.get_parent()
+				if scene_root != null:
+					scene_root.add_child(ft)
+					ft.global_position = node.global_position
+					ft.set_text(str(dealt), Color(1.0, 0.2, 0.2))
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
