@@ -299,10 +299,16 @@ func _meta_tracker() -> MetaProgressionTracker:
 func _award_kill_xp(enemy_data: EnemyData) -> void:
 	if data == null or enemy_data == null:
 		return
+	# Bind before route_kill so the co-op level_up signal (which fires
+	# synchronously inside xp_broadcaster.on_enemy_killed) is already
+	# connected when it emits. Binding after route_kill caused the first
+	# level-up in a session to silently miss the effect.
+	if not _coop_level_up_bound:
+		_bind_coop_level_up()
 	# Solo: route_kill mutates data.level via ProgressionSystem.add_xp, so
 	# a before/after diff is the level-up edge. Co-op: route_kill broadcasts
 	# via xp_broadcaster; data.level on the Player is untouched and the
-	# level-up edge arrives via CoopXPSubscriber.level_up (wired in _ready).
+	# level-up edge arrives via CoopXPSubscriber.level_up (wired above).
 	var old_level := data.level
 	var item_drop := KillRewardRouter.route_kill(
 		data,
@@ -319,12 +325,6 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		item_dropped.emit(item_drop)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
-	# Co-op router may have been built after _ready (session.start() runs
-	# after the player spawns). Re-attempt binding here so the first kill
-	# that triggers a session-start path still picks up subsequent level
-	# events.
-	if not _coop_level_up_bound:
-		_bind_coop_level_up()
 
 func _bind_coop_level_up() -> void:
 	if _coop_level_up_bound:

@@ -79,6 +79,21 @@ func test_local_xp_router_no_signal_on_sub_threshold_gain():
 	bc.on_enemy_killed(1, "p1")  # tiny amount, no level-up
 	assert_false(capture.fired)
 
+func test_level_up_missed_when_bound_after_xp_broadcast():
+	# Regression: player.gd used to call _bind_coop_level_up() AFTER
+	# route_kill(). Because level_up fires synchronously inside
+	# on_enemy_killed, the first kill that caused a level-up would emit
+	# the signal before any handler was connected — silently dropping the
+	# effect. The fix moves the binding call before route_kill().
+	var bc := XPBroadcaster.new()
+	bc.register_player("p1")
+	var member := _make_member(1)
+	var router := CoopXPSubscriber.new(bc, "p1", member)
+	var capture := _Capture.new()
+	bc.on_enemy_killed(ProgressionSystem.xp_to_next_level(1), "p1")  # fires level_up here
+	router.level_up.connect(capture.on_level_up)                      # too late
+	assert_false(capture.fired, "binding after broadcast misses the synchronous signal")
+
 # --- LevelUpEffect.play() emits triggered signal ---------------------------
 
 class _LevelCapture extends RefCounted:
