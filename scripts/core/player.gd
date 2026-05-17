@@ -198,6 +198,10 @@ func _try_attack() -> void:
 			# for zero-attack contact cases.
 			if dealt == 0 and data != null and data.attack > 0:
 				FloatingText.spawn(node, "Miss")
+			elif dealt > 0:
+				FloatingText.spawn(node, str(dealt), Color(1.0, 0.2, 0.2))
+				(node as Enemy).flash_hit()
+				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
 				_award_kill_xp(node.data)
 				_record_meta_progress()
@@ -368,9 +372,14 @@ func _currency_ledger() -> CurrencyLedger:
 func _play_attack_flash() -> void:
 	if _visual == null:
 		return
+	var swing := 1.0 if data == null or data.facing.x >= 0.0 else -1.0
 	var tween := create_tween()
-	tween.tween_property(_visual, "scale", Vector2(1.4, 1.4), 0.08)
-	tween.tween_property(_visual, "scale", Vector2(1.0, 1.0), 0.12)
+	tween.tween_property(_visual, "rotation", -0.2 * swing, 0.05)\
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_visual, "rotation", 0.3 * swing, 0.06)\
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(_visual, "rotation", 0.0, 0.1)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _play_spell_flash() -> void:
 	if _visual == null:

@@ -115,6 +115,14 @@ func _try_contact_damage(target: Node2D) -> void:
 	if dealt == 0 and data != null and data.attack > 0:
 		FloatingText.spawn(player, "Miss")
 
+func flash_hit() -> void:
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		return
+	var tween := create_tween()
+	tween.tween_property(sprite, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.0)
+	tween.tween_property(sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
+
 func _find_player() -> Node2D:
 	var nodes := get_tree().get_nodes_in_group("player")
 	# Chonk Taunt (PRD #124): an active TAUNT fixates this enemy on the
