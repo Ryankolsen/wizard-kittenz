@@ -59,6 +59,7 @@ text = "Quit Dungeon"
 
 [node name="CharacterSubmenu" type="PanelContainer" parent="Center"]
 visible = false
+custom_minimum_size = Vector2(420, 0)
 theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
 
 [node name="VBox" type="VBoxContainer" parent="Center/CharacterSubmenu"]
