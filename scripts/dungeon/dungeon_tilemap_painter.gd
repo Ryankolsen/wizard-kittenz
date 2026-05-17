@@ -18,8 +18,8 @@ extends RefCounted
 
 const FLOOR_TEXTURE_PATH := "res://assets/sprites/floor.png"
 const TILE_SIZE := 16
-const ROOM_TILES := 8
-const CORRIDOR_TILES := 3
+const ROOM_TILES := 12
+const CORRIDOR_TILES := 5
 
 const SOURCE_FLOOR := 0
 const SOURCE_START := 1

@@ -10,8 +10,8 @@ extends RefCounted
 # (ROOM_TILES * TILE_SIZE, CORRIDOR_TILES * TILE_SIZE). Duplicated here so the
 # data layer can answer world-position queries without importing the painter.
 # Keep these in sync with the painter — both layers consume the same map.
-const ROOM_SIZE_PX: int = 128
-const CORRIDOR_WIDTH_PX: int = 48
+const ROOM_SIZE_PX: int = 192
+const CORRIDOR_WIDTH_PX: int = 80
 
 var room_positions: Dictionary = {}
 var corridors: Array = []
