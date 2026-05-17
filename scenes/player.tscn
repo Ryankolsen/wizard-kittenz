@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://b8wk1tn3p2yqa"]
+[gd_scene load_steps=7 format=3 uid="uid://b8wk1tn3p2yqa"]
 
 [ext_resource type="Script" path="res://scripts/core/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/core/level_up_effect.gd" id="2_level_up_effect"]
@@ -8,6 +8,17 @@ size = Vector2(20, 20)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
 size = Vector2(32, 32)
+
+[sub_resource type="Gradient" id="Gradient_spell_light"]
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_spell_light"]
+gradient = SubResource("Gradient_spell_light")
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1.0, 0.5)
+width = 128
+height = 128
 
 [node name="Player" type="CharacterBody2D"]
 script = ExtResource("1_player")
@@ -27,6 +38,12 @@ shape = SubResource("RectangleShape2D_hitbox")
 [node name="Camera2D" type="Camera2D" parent="."]
 position_smoothing_enabled = true
 position_smoothing_speed = 5.0
+
+[node name="SpellLight" type="PointLight2D" parent="."]
+texture = SubResource("GradientTexture2D_spell_light")
+texture_scale = 3.0
+energy = 0.0
+color = Color(0.4, 0.6, 1.0, 1.0)
 
 [node name="LevelUpEffect" type="Node2D" parent="."]
 script = ExtResource("2_level_up_effect")

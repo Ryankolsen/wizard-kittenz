@@ -35,6 +35,7 @@ var _wobble_time: float = 0.0
 var _regen_accum: float = 0.0
 var _died_emitted: bool = false
 var _level_up_effect: LevelUpEffect
+var _spell_light: PointLight2D
 var _coop_level_up_bound: bool = false
 
 func _ready() -> void:
@@ -63,6 +64,7 @@ func _ready() -> void:
 	_sprite = sprite
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
+	_spell_light = get_node_or_null("SpellLight") as PointLight2D
 	_bind_coop_level_up()
 
 func _physics_process(delta: float) -> void:
@@ -231,7 +233,22 @@ func _try_cast_spell() -> void:
 		if not spell.cast(data):
 			continue
 		_play_spell_flash()
+		var hp_before: Array = []
+		for n in enemy_nodes:
+			hp_before.append(n.data.hp if n.data != null else 0)
 		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id())
+		for i in range(enemy_nodes.size()):
+			var n: Enemy = enemy_nodes[i]
+			if n.data == null:
+				continue
+			var dealt: int = hp_before[i] - n.data.hp
+			if dealt > 0:
+				var ft := FloatingText.new()
+				var scene_root := n.get_parent()
+				if scene_root != null:
+					scene_root.add_child(ft)
+					ft.global_position = n.global_position
+					ft.set_text(str(dealt), Color(0.4, 0.6, 1.0))
 		var awarded := false
 		for n in enemy_nodes:
 			if n.data != null and not n.data.is_alive():
@@ -391,8 +408,11 @@ func _play_attack_flash() -> void:
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _play_spell_flash() -> void:
-	if _visual == null:
+	if _spell_light == null:
 		return
+	_spell_light.global_position = global_position
+	_spell_light.energy = 0.0
 	var tween := create_tween()
-	tween.tween_property(_visual, "modulate", Color(0.4, 0.6, 1.0), 0.06)
-	tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0), 0.18)
+	tween.tween_property(_spell_light, "energy", 3.0, 0.05)
+	tween.tween_property(_spell_light, "energy", 0.0, 0.3)\
+		.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
