@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://b5c0ngrats135xyz"]
+
+[ext_resource type="Script" path="res://scripts/ui/congratulations_screen.gd" id="1_congrats"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_congrats"]
+bg_color = Color(0.05, 0.07, 0.12, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.75, 0.35, 1)
+content_margin_left = 24.0
+content_margin_top = 16.0
+content_margin_right = 24.0
+content_margin_bottom = 16.0
+
+[node name="CongratulationsScreen" type="CanvasLayer"]
+layer = 5
+process_mode = 3
+script = ExtResource("1_congrats")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+mouse_filter = 0
+
+[node name="Center" type="CenterContainer" parent="Backdrop"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="Backdrop/Center"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_congrats")
+
+[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel"]
+theme_override_constants/separation = 10
+
+[node name="Headline" type="Label" parent="Backdrop/Center/Panel/VBox"]
+horizontal_alignment = 1
+text = "Congratulations!"
+theme_override_font_sizes/font_size = 24
+autowrap_mode = 2
+
+[node name="Stats" type="VBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+theme_override_constants/separation = 4
+
+[node name="FloorLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+horizontal_alignment = 1
+text = "Floor: 0"
+
+[node name="EnemiesLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+horizontal_alignment = 1
+text = "Enemies Slain: 0"
+
+[node name="XPLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+horizontal_alignment = 1
+text = "XP Earned: 0"
+
+[node name="GoldLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+horizontal_alignment = 1
+text = "Gold Earned: 0"
+
+[node name="ButtonRow" type="HBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="NextFloor" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+text = "Next Floor"
+
+[node name="UpdateCharacter" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+text = "Update Character"
+
+[node name="SaveAndExit" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+text = "Save & Exit"

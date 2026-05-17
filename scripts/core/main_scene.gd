@@ -17,6 +17,7 @@ extends Node2D
 const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
 const POWER_UP_SCENE_PATH := "res://scenes/power_up.tscn"
+const CONGRATS_SCENE_PATH := "res://scenes/congratulations_screen.tscn"
 
 var _run_controller: DungeonRunController = null
 var _watchers: Array[RoomClearWatcher] = []
@@ -350,23 +351,48 @@ func _on_dungeon_completed() -> void:
 	# is deferred until the player presses Continue.
 	_run_controller.transition()
 
-# Listens for DungeonRunController.dungeon_transitioned and opens the
-# pause menu in dungeon-transition mode (Stats tab + Continue button).
-# The Continue button's transition_continued signal then drives the
-# actual finalize + reload. PRD #52 / #61.
+# Listens for DungeonRunController.dungeon_transitioned and shows the
+# CongratulationsScreen overlay (PRD #132 / issue #135). The screen
+# displays the per-floor summary + headline; its three buttons emit
+# typed signals that drive: Next Floor → finalize + reload (this slice);
+# Update Character → #136; Save & Exit → #137 (placeholder prints here).
 func _on_dungeon_transitioned() -> void:
-	if _hud == null:
+	var scene := load(CONGRATS_SCENE_PATH)
+	if scene == null:
 		_finalize_and_reload()
 		return
-	var pm: CanvasLayer = _hud.open_pause_menu_for_transition()
-	if pm == null:
-		_finalize_and_reload()
-		return
-	if not pm.transition_continued.is_connected(_on_transition_continued):
-		pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
+	var screen: CongratulationsScreen = scene.instantiate()
+	var summary := _build_floor_summary()
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var is_first_boss := _is_first_boss_clear()
+	var message := CongratulationsMessageBuilder.build(is_first_boss, rng)
+	add_child(screen)
+	screen.populate(summary, message)
+	screen.next_floor_pressed.connect(_on_congrats_next_floor_pressed)
+	screen.update_character_pressed.connect(_on_congrats_update_character_pressed)
+	screen.save_and_exit_pressed.connect(_on_congrats_save_and_exit_pressed)
 
-func _on_transition_continued() -> void:
+# True when the player has never completed a dungeon before. Drives the
+# special first-boss headline path in CongratulationsMessageBuilder.
+# Reads dungeons_completed BEFORE _finalize_completed_run increments it,
+# matching the floor-number convention in _build_floor_summary.
+func _is_first_boss_clear() -> bool:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.meta_tracker == null:
+		return true
+	return gs.meta_tracker.dungeons_completed == 0
+
+func _on_congrats_next_floor_pressed() -> void:
 	_finalize_and_reload()
+
+# Placeholder: wired in slice #136.
+func _on_congrats_update_character_pressed() -> void:
+	print("[CongratulationsScreen] Update Character pressed (slice #136)")
+
+# Placeholder: wired in slice #137.
+func _on_congrats_save_and_exit_pressed() -> void:
+	print("[CongratulationsScreen] Save & Exit pressed (slice #137)")
 
 func _finalize_and_reload() -> void:
 	_finalize_completed_run()
