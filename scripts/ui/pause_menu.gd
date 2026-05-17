@@ -483,6 +483,8 @@ func _refresh_skills_panel() -> void:
 func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "SkillRow_%s" % node.id
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var label := Label.new()
 	label.name = "SkillRowLabel_%s" % node.id
 	# Per #130: locked rows advertise the level required to auto-unlock the
@@ -493,8 +495,16 @@ func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContain
 		label.text = "%s — Unlocked" % node.display_name
 	else:
 		label.text = "%s — Unlocks at level %d" % [node.display_name, node.level_required]
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(label)
+	col.add_child(label)
+	if node.description != "":
+		var desc := Label.new()
+		desc.name = "SkillRowDesc_%s" % node.id
+		desc.text = node.description
+		desc.add_theme_font_size_override("font_size", 10)
+		desc.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 1.0))
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(desc)
+	row.add_child(col)
 	return row
 
 func _on_resume_pressed() -> void:

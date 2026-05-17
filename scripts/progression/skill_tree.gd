@@ -71,11 +71,11 @@ static func make_battle_kitten_tree() -> SkillTree:
 	var fur_missile := Spell.make("fur_missile", "Fur Missile", Spell.EffectKind.DAMAGE, 7, 1.8)
 	var cat_nap := Spell.make("cat_nap", "Cat Nap", Spell.EffectKind.AREA, 6, 3.0)
 	var feral_frenzy := Spell.make("feral_frenzy", "Feral Frenzy", Spell.EffectKind.AREA, 10, 5.0)
-	t.add_node(SkillNode.make("paw_smash", "Paw Smash", paw_smash, [], 1, 1))
-	t.add_node(SkillNode.make("hissy_fit", "Hissy Fit", hissy_fit, [], 1, 3))
-	t.add_node(SkillNode.make("fur_missile", "Fur Missile", fur_missile, [], 1, 5))
-	t.add_node(SkillNode.make("cat_nap", "Cat Nap", cat_nap, [], 1, 8))
-	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12))
+	t.add_node(SkillNode.make("paw_smash", "Paw Smash", paw_smash, [], 1, 1, "Smacks a single enemy with a powerful paw."))
+	t.add_node(SkillNode.make("hissy_fit", "Hissy Fit", hissy_fit, [], 1, 3, "Furious scratch burst. Costs 2 HP to cast."))
+	t.add_node(SkillNode.make("fur_missile", "Fur Missile", fur_missile, [], 1, 5, "Launches a spinning fur-ball at one enemy."))
+	t.add_node(SkillNode.make("cat_nap", "Cat Nap", cat_nap, [], 1, 8, "A relaxed swipe that hits all nearby enemies."))
+	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12, "Unleashes chaos on all surrounding enemies."))
 	return t
 
 static func make_wizard_kitten_tree() -> SkillTree:
@@ -85,11 +85,11 @@ static func make_wizard_kitten_tree() -> SkillTree:
 	var whisker_bolt := Spell.make("whisker_bolt", "Whisker Bolt", Spell.EffectKind.DAMAGE, 6, 1.2)
 	var litter_storm := Spell.make("litter_storm", "Litter Storm", Spell.EffectKind.AREA, 5, 2.5)
 	var arcane_purr := Spell.make("arcane_purr", "Arcane Purr", Spell.EffectKind.DAMAGE, 10, 4.0)
-	t.add_node(SkillNode.make("hairball_hex", "Hairball Hex", hairball_hex, [], 1, 1))
-	t.add_node(SkillNode.make("catnip_curse", "Catnip Curse", catnip_curse, [], 1, 3))
-	t.add_node(SkillNode.make("whisker_bolt", "Whisker Bolt", whisker_bolt, [], 1, 5))
-	t.add_node(SkillNode.make("litter_storm", "Litter Storm", litter_storm, [], 1, 8))
-	t.add_node(SkillNode.make("arcane_purr", "Arcane Purr", arcane_purr, [], 1, 12))
+	t.add_node(SkillNode.make("hairball_hex", "Hairball Hex", hairball_hex, [], 1, 1, "Lobs a magical hairball at one enemy."))
+	t.add_node(SkillNode.make("catnip_curse", "Catnip Curse", catnip_curse, [], 1, 3, "Boosts your own combat power temporarily."))
+	t.add_node(SkillNode.make("whisker_bolt", "Whisker Bolt", whisker_bolt, [], 1, 5, "Fires a crackling whisker bolt at one enemy."))
+	t.add_node(SkillNode.make("litter_storm", "Litter Storm", litter_storm, [], 1, 8, "Rains litter down on all nearby enemies."))
+	t.add_node(SkillNode.make("arcane_purr", "Arcane Purr", arcane_purr, [], 1, 12, "Channels pure arcane energy into one devastating blast."))
 	return t
 
 static func make_sleepy_kitten_tree() -> SkillTree:
@@ -99,11 +99,11 @@ static func make_sleepy_kitten_tree() -> SkillTree:
 	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.BUFF, 4, 4.0)
 	var dream_bubble := Spell.make("dream_bubble", "Dream Bubble", Spell.EffectKind.HEAL, 7, 3.5)
 	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.HEAL, 12, 6.0)
-	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1))
-	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 3))
-	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 5))
-	t.add_node(SkillNode.make("dream_bubble", "Dream Bubble", dream_bubble, [], 1, 8))
-	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12))
+	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1, "Wraps you in warmth to restore a little HP."))
+	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 3, "A cozy blanket that restores HP."))
+	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 5, "Radiates comfort to boost your defenses."))
+	t.add_node(SkillNode.make("dream_bubble", "Dream Bubble", dream_bubble, [], 1, 8, "Summons a dreamlike bubble that heals significantly."))
+	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12, "A divine slumber that restores a large amount of HP."))
 	return t
 
 static func make_chonk_kitten_tree() -> SkillTree:
@@ -113,11 +113,11 @@ static func make_chonk_kitten_tree() -> SkillTree:
 	var sit_on_it := Spell.make("sit_on_it", "Sit On It", Spell.EffectKind.DAMAGE, 7, 1.5)
 	var hairball_horrors := Spell.make("hairball_horrors", "Hairball Horrors", Spell.EffectKind.AREA, 6, 3.5)
 	var maximum_chonk := Spell.make("maximum_chonk", "Maximum Chonk", Spell.EffectKind.BUFF, 8, 6.0)
-	t.add_node(SkillNode.make("chonk_taunt", "Chonk Taunt", chonk_taunt, [], 1, 1))
-	t.add_node(SkillNode.make("belly_flop", "Belly Flop", belly_flop, [], 1, 3))
-	t.add_node(SkillNode.make("sit_on_it", "Sit On It", sit_on_it, [], 1, 5))
-	t.add_node(SkillNode.make("hairball_horrors", "Hairball Horrors", hairball_horrors, [], 1, 8))
-	t.add_node(SkillNode.make("maximum_chonk", "Maximum Chonk", maximum_chonk, [], 1, 12))
+	t.add_node(SkillNode.make("chonk_taunt", "Chonk Taunt", chonk_taunt, [], 1, 1, "Draws all enemy attention with your impressive mass."))
+	t.add_node(SkillNode.make("belly_flop", "Belly Flop", belly_flop, [], 1, 3, "Drops your full weight on nearby enemies."))
+	t.add_node(SkillNode.make("sit_on_it", "Sit On It", sit_on_it, [], 1, 5, "Sits on a single enemy with crushing force."))
+	t.add_node(SkillNode.make("hairball_horrors", "Hairball Horrors", hairball_horrors, [], 1, 8, "Scatters hairballs across the area."))
+	t.add_node(SkillNode.make("maximum_chonk", "Maximum Chonk", maximum_chonk, [], 1, 12, "Reaches peak chonkiness, boosting all stats."))
 	return t
 
 # DEPRECATED — pre-PRD-#124 archetype-shaped trees. Retained only so legacy
