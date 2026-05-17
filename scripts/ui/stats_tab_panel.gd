@@ -57,10 +57,12 @@ func _build() -> void:
 	_unspent_label = Label.new()
 	_unspent_label.name = "UnspentLabel"
 	_unspent_label.text = "Unspent points: 0"
+	_unspent_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_unspent_label)
 	_level_label = Label.new()
 	_level_label.name = "LevelLabel"
 	_level_label.text = "Lv —"
+	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_level_label)
 	for s in STAT_ROWS:
 		add_child(_make_row(s))
@@ -74,6 +76,7 @@ func _build() -> void:
 func _make_row(s: Dictionary) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "Row_%s" % s.key
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	var name_lbl := Label.new()
 	name_lbl.name = "NameLabel_%s" % s.key
