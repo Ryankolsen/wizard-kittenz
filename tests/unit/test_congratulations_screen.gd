@@ -57,6 +57,14 @@ func test_update_character_pressed_fires_on_button_press():
 	btn.pressed.emit()
 	assert_signal_emitted(s, "update_character_pressed")
 
+func test_update_character_pressed_signal_declared():
+	# PRD #132 / issue #136 — main_scene relies on the typed
+	# update_character_pressed signal to drive the pause-menu open path.
+	# Pin the declaration so a rename can't silently break that wiring.
+	var s := _instantiate()
+	assert_true(s.has_signal("update_character_pressed"),
+		"CongratulationsScreen must declare 'update_character_pressed' signal")
+
 func test_save_and_exit_pressed_fires_on_button_press():
 	var s := _instantiate()
 	watch_signals(s)

@@ -386,9 +386,24 @@ func _is_first_boss_clear() -> bool:
 func _on_congrats_next_floor_pressed() -> void:
 	_finalize_and_reload()
 
-# Placeholder: wired in slice #136.
+# PRD #132 / issue #136 — opens the existing pause-menu stat-allocation
+# screen in transition mode on top of the congratulations overlay. The
+# pause menu's Continue press fires transition_continued, which drives
+# the same finalize + reload path Next Floor takes. CONNECT_ONE_SHOT so
+# a second open (impossible today but cheap insurance) can't stack
+# duplicate handlers.
 func _on_congrats_update_character_pressed() -> void:
-	print("[CongratulationsScreen] Update Character pressed (slice #136)")
+	if _hud == null:
+		_finalize_and_reload()
+		return
+	var pm := _hud.open_pause_menu_for_transition()
+	if pm == null:
+		_finalize_and_reload()
+		return
+	pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
+
+func _on_transition_continued() -> void:
+	_finalize_and_reload()
 
 # Placeholder: wired in slice #137.
 func _on_congrats_save_and_exit_pressed() -> void:
