@@ -30,6 +30,7 @@ var _hitbox: Area2D
 var _spell_tree: SkillTree
 var _power_ups: PowerUpManager
 var _visual: Node2D
+var _sprite: Sprite2D
 var _wobble_time: float = 0.0
 var _regen_accum: float = 0.0
 var _died_emitted: bool = false
@@ -59,6 +60,7 @@ func _ready() -> void:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
 		sprite.texture = load("res://assets/sprites/wizard_kitten.png")
+	_sprite = sprite
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
 	_bind_coop_level_up()
@@ -79,6 +81,8 @@ func _physics_process(delta: float) -> void:
 	# last-known direction (relevant for backstab targeting).
 	if input_dir != Vector2.ZERO:
 		data.facing = input_dir.normalized()
+		if _sprite != null and input_dir.x != 0.0:
+			_sprite.flip_h = input_dir.x > 0.0
 	move_and_slide()
 	_tick_spells(delta)
 	_tick_regeneration(delta)
