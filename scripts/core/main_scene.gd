@@ -25,6 +25,7 @@ var _hud: HUD = null
 var _dungeon_layout: DungeonLayout = null
 var _spawn_planner: RoomSpawnPlanner = null
 var _exit_door: ExitDoor = null
+var _congrats_screen: CongratulationsScreen = null
 
 # PRD #132 / issue #134 — per-floor stat tracking for the congratulations
 # screen. Enemies-slain is incremented in _on_enemy_died. XP and gold
@@ -361,17 +362,17 @@ func _on_dungeon_transitioned() -> void:
 	if scene == null:
 		_finalize_and_reload()
 		return
-	var screen: CongratulationsScreen = scene.instantiate()
+	_congrats_screen = scene.instantiate()
 	var summary := _build_floor_summary()
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var is_first_boss := _is_first_boss_clear()
 	var message := CongratulationsMessageBuilder.build(is_first_boss, rng)
-	add_child(screen)
-	screen.populate(summary, message)
-	screen.next_floor_pressed.connect(_on_congrats_next_floor_pressed)
-	screen.update_character_pressed.connect(_on_congrats_update_character_pressed)
-	screen.save_and_exit_pressed.connect(_on_congrats_save_and_exit_pressed)
+	add_child(_congrats_screen)
+	_congrats_screen.populate(summary, message)
+	_congrats_screen.next_floor_pressed.connect(_on_congrats_next_floor_pressed)
+	_congrats_screen.update_character_pressed.connect(_on_congrats_update_character_pressed)
+	_congrats_screen.save_and_exit_pressed.connect(_on_congrats_save_and_exit_pressed)
 
 # True when the player has never completed a dungeon before. Drives the
 # special first-boss headline path in CongratulationsMessageBuilder.
@@ -393,6 +394,8 @@ func _on_congrats_next_floor_pressed() -> void:
 # a second open (impossible today but cheap insurance) can't stack
 # duplicate handlers.
 func _on_congrats_update_character_pressed() -> void:
+	if _congrats_screen != null:
+		_congrats_screen.hide()
 	if _hud == null:
 		_finalize_and_reload()
 		return
@@ -400,7 +403,8 @@ func _on_congrats_update_character_pressed() -> void:
 	if pm == null:
 		_finalize_and_reload()
 		return
-	pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
+	if not pm.transition_continued.is_connected(_on_transition_continued):
+		pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
 
 func _on_transition_continued() -> void:
 	_finalize_and_reload()
