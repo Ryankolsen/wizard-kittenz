@@ -102,15 +102,14 @@ func test_stat_scaling_increases_max_hp_on_level_up():
 	assert_eq(c.max_hp, 10, "+2 max_hp on level-up matches base_max_hp_for curve")
 	assert_gt(c.max_hp, hp_before, "stat strictly increases with level")
 
-func test_level_up_heals_by_max_hp_delta_without_overhealing():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+func test_level_up_fully_restores_hp_and_mp():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.take_damage(5)
-	var hp_before := c.hp
+	c.magic_points = 1
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2)
-	# +2 max_hp, hp should rise by 2 but not exceed new max.
-	assert_eq(c.hp, hp_before + 2, "level-up heals by max_hp delta")
-	assert_lte(c.hp, c.max_hp, "hp never exceeds max_hp")
+	assert_eq(c.hp, c.max_hp, "level-up fully restores hp to max_hp")
+	assert_eq(c.magic_points, c.max_mp, "level-up fully restores mp to max_mp")
 
 func test_no_level_overflow_with_huge_xp_dump():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)

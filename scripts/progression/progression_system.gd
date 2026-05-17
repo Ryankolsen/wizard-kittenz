@@ -53,10 +53,10 @@ static func stat_points_for_level(level: int) -> int:
 	return 3 + (maxi(1, level) - 1) / 10
 
 static func _apply_level_up(c: CharacterData, ledger: CurrencyLedger = null) -> void:
-	var new_max_hp := CharacterData.base_max_hp_for(c.character_class, c.level)
-	var hp_gain := new_max_hp - c.max_hp
-	c.max_hp = new_max_hp
-	c.hp = mini(c.hp + hp_gain, c.max_hp)
+	c.max_hp = CharacterData.base_max_hp_for(c.character_class, c.level)
+	c.hp = c.max_hp
+	c.max_mp = CharacterData.base_max_mp_for(c.character_class, c.level)
+	c.magic_points = c.max_mp
 	c.skill_points += stat_points_for_level(c.level)
 	if ledger != null:
 		ledger.credit(LEVEL_UP_GEM_REWARD, CurrencyLedger.Currency.GEM)
