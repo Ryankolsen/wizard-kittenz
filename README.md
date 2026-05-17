@@ -47,7 +47,29 @@ Open `project.godot` in Godot 4.6. Run from the editor or export to Android (see
 
 ### 4. Run tests
 
-Tests use the [GUT](https://github.com/bitwes/Gut) framework. Run from the Godot editor via the GUT panel, or configure the GUT runner to execute `tests/unit/`.
+Tests use the [GUT](https://github.com/bitwes/Gut) framework.
+
+**From the terminal (headless):**
+
+```bash
+/path/to/Godot.app/Contents/MacOS/Godot \
+  --headless --path . \
+  --script addons/gut/gut_cmdln.gd \
+  -gdir=res://tests/unit -gprefix=test_ -gsuffix=.gd -gexit
+```
+
+On macOS the Godot binary is typically at `/Applications/Godot.app/Contents/MacOS/Godot` or wherever you installed it.
+
+**Run a single file:**
+
+```bash
+/path/to/Godot.app/Contents/MacOS/Godot \
+  --headless --path . \
+  --script addons/gut/gut_cmdln.gd \
+  -gtest=res://tests/unit/test_foo.gd -gexit
+```
+
+**From the editor:** open the GUT panel (bottom dock) and click Run All.
 
 ## Deploying to production
 
