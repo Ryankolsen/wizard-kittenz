@@ -405,9 +405,18 @@ func _on_congrats_update_character_pressed() -> void:
 func _on_transition_continued() -> void:
 	_finalize_and_reload()
 
-# Placeholder: wired in slice #137.
+# PRD #132 / issue #137 — persists the cleared-floor progress, drops
+# the in-flight dungeon run so the next boot starts fresh, and returns
+# the player to the character-creation / main-menu scene. Distinct from
+# Next Floor (no _finalize_and_reload): Save & Exit exits the dungeon
+# entirely. SaveManager.save_from_state reads every persisted field off
+# GameState directly, matching the pause-menu Quit Dungeon path.
 func _on_congrats_save_and_exit_pressed() -> void:
-	print("[CongratulationsScreen] Save & Exit pressed (slice #137)")
+	SaveManager.save_from_state()
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.dungeon_run_controller = null
+	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
 
 func _finalize_and_reload() -> void:
 	_finalize_completed_run()

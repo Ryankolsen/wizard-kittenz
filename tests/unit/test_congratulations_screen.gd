@@ -71,3 +71,11 @@ func test_save_and_exit_pressed_fires_on_button_press():
 	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/SaveAndExit")
 	btn.pressed.emit()
 	assert_signal_emitted(s, "save_and_exit_pressed")
+
+func test_save_and_exit_pressed_signal_declared():
+	# PRD #132 / issue #137 — main_scene relies on the typed
+	# save_and_exit_pressed signal to drive the save + scene-change path.
+	# Pin the declaration so a rename can't silently break that wiring.
+	var s := _instantiate()
+	assert_true(s.has_signal("save_and_exit_pressed"),
+		"CongratulationsScreen must declare 'save_and_exit_pressed' signal")
