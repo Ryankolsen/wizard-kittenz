@@ -125,11 +125,16 @@ func _award_power_up_xp() -> void:
 	var session := _coop_session()
 	var local_id := _local_player_id()
 	if session != null and session.is_routing_ready():
+		if not _coop_level_up_bound:
+			_bind_coop_level_up()
 		var per_player := KillRewardRouter.xp_per_player(
 			POWERUP_XP, session.xp_broadcaster.player_count())
 		session.xp_broadcaster.on_enemy_killed(per_player, local_id)
 		return
+	var old_level := data.level
 	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger(), _spell_tree)
+	if LevelUpEffect.is_real_level_up(old_level, data.level):
+		_trigger_level_up_effect(data.level)
 
 # Mushroom power-up integration: every 2 seconds while active, cast the first
 # ready unlocked spell against any enemies overlapping the swing-radius
@@ -305,10 +310,6 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 	# level-up in a session to silently miss the effect.
 	if not _coop_level_up_bound:
 		_bind_coop_level_up()
-	# Solo: route_kill mutates data.level via ProgressionSystem.add_xp, so
-	# a before/after diff is the level-up edge. Co-op: route_kill broadcasts
-	# via xp_broadcaster; data.level on the Player is untouched and the
-	# level-up edge arrives via CoopXPSubscriber.level_up (wired above).
 	var old_level := data.level
 	var item_drop := KillRewardRouter.route_kill(
 		data,

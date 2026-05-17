@@ -8,7 +8,7 @@ func test_make_new_slime_has_expected_defaults():
 	assert_eq(e.hp, 4)
 	assert_eq(e.attack, 1)
 	assert_eq(e.defense, 0)
-	assert_eq(e.xp_reward, 2)
+	assert_eq(e.xp_reward, 15)
 	assert_eq(e.enemy_id, "", "fresh spawn has no id until the spawn layer mints one")
 	assert_false(e.is_boss, "non-boss by default")
 
@@ -21,7 +21,7 @@ func test_make_new_each_kind_has_distinct_stats():
 	assert_eq(rat.max_hp, 5)
 	assert_eq(rat.attack, 2)
 	assert_eq(rat.defense, 1, "rat is the only kind with defense baseline")
-	assert_eq(rat.xp_reward, 3)
+	assert_eq(rat.xp_reward, 25)
 	assert_ne(slime.enemy_name, rat.enemy_name)
 
 func test_take_damage_clamps_and_kills():

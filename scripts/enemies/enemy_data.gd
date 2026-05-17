@@ -77,10 +77,10 @@ static func base_defense_for(k: EnemyKind) -> int:
 
 static func base_xp_for(k: EnemyKind) -> int:
 	match k:
-		EnemyKind.SLIME: return 2
-		EnemyKind.BAT: return 2
-		EnemyKind.RAT: return 3
-	return 2
+		EnemyKind.SLIME: return 15
+		EnemyKind.BAT: return 15
+		EnemyKind.RAT: return 25
+	return 15
 
 static func base_gold_for(k: EnemyKind) -> int:
 	match k:
