@@ -27,6 +27,7 @@ const POWERUP_XP: int = 25
 
 var _attack_controller: AttackController
 var _hitbox: Area2D
+var _spell_hitbox: Area2D
 var _spell_tree: SkillTree
 var _power_ups: PowerUpManager
 var _visual: Node2D
@@ -57,6 +58,7 @@ func _ready() -> void:
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = ATTACK_COOLDOWN
 	_hitbox = get_node_or_null("Hitbox")
+	_spell_hitbox = get_node_or_null("SpellHitbox")
 	_power_ups = PowerUpManager.new()
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
@@ -134,9 +136,9 @@ func _award_power_up_xp() -> void:
 # hitbox. No-op if no spells are unlocked yet — the buff is still "active",
 # it just has nothing to fire.
 func _on_mushroom_spell_fired() -> void:
-	if _spell_tree == null or _hitbox == null:
+	if _spell_tree == null or _spell_hitbox == null:
 		return
-	var enemy_nodes := _overlapping_enemy_nodes()
+	var enemy_nodes := _overlapping_enemy_nodes(_spell_hitbox)
 	var enemy_data: Array = []
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
@@ -223,9 +225,9 @@ func _try_attack() -> void:
 # "swing radius" model consistent across attack types until #11 introduces
 # per-spell projectiles/areas.
 func _try_cast_spell() -> void:
-	if _spell_tree == null or _hitbox == null:
+	if _spell_tree == null or _spell_hitbox == null:
 		return
-	var enemy_nodes := _overlapping_enemy_nodes()
+	var enemy_nodes := _overlapping_enemy_nodes(_spell_hitbox)
 	var enemy_data: Array = []
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
@@ -260,9 +262,10 @@ func _try_cast_spell() -> void:
 			SaveManager.save_from_state()
 		return
 
-func _overlapping_enemy_nodes() -> Array:
+func _overlapping_enemy_nodes(hitbox: Area2D = null) -> Array:
+	var box := hitbox if hitbox != null else _hitbox
 	var out: Array = []
-	for area in _hitbox.get_overlapping_areas():
+	for area in box.get_overlapping_areas():
 		var node := area.get_parent()
 		if node is Enemy and node.data != null:
 			out.append(node)

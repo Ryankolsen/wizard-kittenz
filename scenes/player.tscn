@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://b8wk1tn3p2yqa"]
+[gd_scene load_steps=8 format=3 uid="uid://b8wk1tn3p2yqa"]
 
 [ext_resource type="Script" path="res://scripts/core/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/core/level_up_effect.gd" id="2_level_up_effect"]
@@ -8,6 +8,9 @@ size = Vector2(20, 20)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
 size = Vector2(32, 32)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_spell_hitbox"]
+size = Vector2(96, 96)
 
 [sub_resource type="Gradient" id="Gradient_spell_light"]
 colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 0)
@@ -34,6 +37,13 @@ collision_mask = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
 shape = SubResource("RectangleShape2D_hitbox")
+
+[node name="SpellHitbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpellHitbox"]
+shape = SubResource("RectangleShape2D_spell_hitbox")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position_smoothing_enabled = true
