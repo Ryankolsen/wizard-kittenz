@@ -47,7 +47,7 @@ func _ready() -> void:
 	var ledger := _ledger()
 	if ledger != null and not ledger.balance_changed.is_connected(_on_balance_changed):
 		ledger.balance_changed.connect(_on_balance_changed)
-	var billing := _billing()
+	var billing = _billing()
 	if billing != null:
 		if billing.has_signal("purchase_succeeded") \
 				and not billing.purchase_succeeded.is_connected(_on_billing_purchase_succeeded):
