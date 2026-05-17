@@ -25,6 +25,14 @@ var _dungeon_layout: DungeonLayout = null
 var _spawn_planner: RoomSpawnPlanner = null
 var _exit_door: ExitDoor = null
 
+# PRD #132 / issue #134 — per-floor stat tracking for the congratulations
+# screen. Enemies-slain is incremented in _on_enemy_died. XP and gold
+# snapshots are taken at dungeon start so _build_floor_summary can compute
+# the delta at completion. All three reset whenever a new dungeon starts.
+var _enemies_slain_this_floor: int = 0
+var _xp_at_floor_start: int = 0
+var _gold_at_floor_start: int = 0
+
 func _ready() -> void:
 	_hud = $HUD
 
@@ -98,6 +106,9 @@ func _start_new_dungeon(gs) -> void:
 	_run_controller = DungeonRunController.new()
 	_run_controller.start(dungeon)
 	_run_controller.seed = seed
+	_enemies_slain_this_floor = 0
+	_xp_at_floor_start = _snapshot_xp(gs)
+	_gold_at_floor_start = _snapshot_gold(gs)
 	if gs != null:
 		gs.dungeon_run_controller = _run_controller
 		# Co-op session activation. Before this commit, lobby.gd's
@@ -196,12 +207,39 @@ func _local_skill_tree() -> SkillTree:
 func _on_enemy_died(enemy: Enemy) -> void:
 	if enemy == null or enemy.data == null:
 		return
+	_enemies_slain_this_floor += 1
 	# Fan the death across all watchers; each watcher gates on its own
 	# expected enemy_id set, so only the matching room's watcher
 	# rising-edges true. Cheaper than maintaining a parallel
 	# room_id -> watcher map for the small per-dungeon room count.
 	for watcher in _watchers:
 		watcher.notify_death(enemy.data.enemy_id)
+
+# PRD #132 / issue #134 — assembles the FloorRunSummary handed to the
+# congratulations screen. Floor number is dungeons_completed + 1 because
+# this fires BEFORE DungeonRunCompletion.complete() increments the
+# counter; the floor the player just cleared is the (current + 1)th.
+# XP / gold are deltas from the start-of-floor snapshots so any meta
+# carry-over already present at dungeon start is excluded.
+func _build_floor_summary() -> FloorRunSummary:
+	var gs := get_node_or_null("/root/GameState")
+	var floor_number := 1
+	if gs != null and gs.meta_tracker != null:
+		floor_number = gs.meta_tracker.dungeons_completed + 1
+	var xp_earned: int = _snapshot_xp(gs) - _xp_at_floor_start
+	var gold_earned: int = _snapshot_gold(gs) - _gold_at_floor_start
+	return FloorRunSummary.new(
+		floor_number, _enemies_slain_this_floor, xp_earned, gold_earned)
+
+func _snapshot_xp(gs) -> int:
+	if gs == null or gs.current_character == null:
+		return 0
+	return int(gs.current_character.xp)
+
+func _snapshot_gold(gs) -> int:
+	if gs == null or gs.currency_ledger == null:
+		return 0
+	return int(gs.currency_ledger.balance(CurrencyLedger.Currency.GOLD))
 
 # Spawns the ExitDoor scene at the boss room's world center. The door starts
 # locked; boss_room_cleared (wired in _ready) drives the transition to open.
