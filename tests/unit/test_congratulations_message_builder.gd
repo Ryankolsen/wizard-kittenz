@@ -7,7 +7,7 @@ extends GutTest
 # random adjective from a curated pool and interpolates it into a
 # template. The caller owns the RNG so tests can seed deterministically.
 
-const FIRST_BOSS_MESSAGE := "Congratulations! You survived your first battle with a boss!"
+const FIRST_BOSS_MESSAGE := "Congratulations on your first boss kill!"
 
 func _rng(seed_value: int) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()

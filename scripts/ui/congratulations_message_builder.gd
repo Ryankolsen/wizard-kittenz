@@ -16,7 +16,7 @@ extends RefCounted
 # Stateless by design: no exported vars, no scene tree, no class
 # state. Tests construct an RNG, seed it, and call build() directly.
 
-const FIRST_BOSS_MESSAGE := "Congratulations! You survived your first battle with a boss!"
+const FIRST_BOSS_MESSAGE := "Congratulations on your first boss kill!"
 
 const ADJECTIVE_POOL: Array[String] = [
 	"pummeling",
