@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://b3xyk7m5q9zwb"]
+[gd_scene load_steps=3 format=3 uid="uid://b3xyk7m5q9zwb"]
 
 [ext_resource type="Script" path="res://scripts/character/character_creation.gd" id="1_creation"]
+[ext_resource type="Texture2D" path="res://assets/sprites/banner.png" id="2_banner"]
 
 [node name="CharacterCreation" type="Control"]
 layout_mode = 3
@@ -9,12 +10,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_creation")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.08, 0.08, 0.14, 1)
+texture = ExtResource("2_banner")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="MainMenu" type="CenterContainer" parent="."]
 layout_mode = 1
