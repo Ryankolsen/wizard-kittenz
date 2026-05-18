@@ -52,6 +52,6 @@ func boss_corridor_entrance(boss_id: int) -> Dictionary:
 	var boss_origin := Vector2(float(boss_grid.x * step), float(boss_grid.y * step))
 	var corridor_center_x := boss_origin.x + ROOM_SIZE_PX / 2.0 + half_tile
 	return {
-		"position": Vector2(corridor_center_x, boss_origin.y - half_tile),
+		"position": Vector2(corridor_center_x, boss_origin.y + half_tile),
 		"rotation": PI / 2.0
 	}

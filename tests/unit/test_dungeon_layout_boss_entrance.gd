@@ -24,14 +24,14 @@ func _make_layout(boss_id: int, positions: Dictionary, corridors: Array) -> Dung
 
 func test_parent_above_boss_returns_north_wall_position():
 	# Parent at (0,0), boss at (1,1): parent.y=0 < boss.y=1 → north wall entry.
-	# boss_origin = (272, 272); door y = 272 - 8 = 264
+	# boss_origin = (272, 272); door y = 272 + 8 = 280 (first tile row of boss room)
 	# boss_center.x = 272 + 96 + 8 = 376
 	var layout := _make_layout(1,
 		{0: Vector2i(0, 0), 1: Vector2i(1, 1)},
 		[[0, 1]])
 	var result: Dictionary = layout.boss_corridor_entrance(1)
-	assert_eq(result["position"], Vector2(376.0, 264.0),
-		"north entry: door centred on wall tile above boss room")
+	assert_eq(result["position"], Vector2(376.0, 280.0),
+		"north entry: door on first tile row of boss room north wall")
 
 func test_parent_above_boss_rotation_is_half_pi():
 	var layout := _make_layout(1,
@@ -46,13 +46,13 @@ func test_parent_above_boss_rotation_is_half_pi():
 
 func test_parent_at_different_x_still_uses_boss_center_x():
 	# Parent at (3, 0), boss at (5, 1): parent.y=0 < boss.y=1 → north wall.
-	# boss_origin = (5*272, 272) = (1360, 272); door y = 264
+	# boss_origin = (5*272, 272) = (1360, 272); door y = 272 + 8 = 280
 	# boss_center.x = 1360 + 96 + 8 = 1464
 	var layout := _make_layout(2,
 		{0: Vector2i(0, 0), 1: Vector2i(3, 0), 2: Vector2i(5, 1)},
 		[[0, 1], [1, 2]])
 	var result: Dictionary = layout.boss_corridor_entrance(2)
-	assert_eq(result["position"], Vector2(1464.0, 264.0),
+	assert_eq(result["position"], Vector2(1464.0, 280.0),
 		"north entry x is centred on boss room regardless of parent x")
 
 
