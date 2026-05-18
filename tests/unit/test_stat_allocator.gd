@@ -73,16 +73,20 @@ func test_multi_point_dump_to_single_stat():
 	assert_eq(c.skill_points, 5)
 
 func test_partial_allocation_subset_of_stats_valid():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Sleepy Kitten chosen because regen is gated to Sleepy classes
+	# (issue #142). Baseline regen=1, so +2 fits under the cap of 3.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.skill_points = 4
 	var ok := StatAllocator.allocate(c, {"luck": 2, "regeneration": 2})
 	assert_true(ok)
 	assert_eq(c.luck, 2)
-	assert_eq(c.regeneration, 2)
+	assert_eq(c.regeneration, 3, "baseline 1 + 2 invested = 3")
 	assert_eq(c.skill_points, 0)
 
 func test_all_int_stats_one_point_each():
-	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Sleepy Kitten (baseline regen=1, cap=3) so regen:1 invest is legal
+	# after gating in issue #142.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.skill_points = 8
 	var plan := {
 		"attack": 1,
@@ -97,6 +101,7 @@ func test_all_int_stats_one_point_each():
 	var attack_before := c.attack
 	var magic_attack_before := c.magic_attack
 	var speed_before := c.speed
+	var regen_before := c.regeneration
 	var ok := StatAllocator.allocate(c, plan)
 	assert_true(ok)
 	assert_eq(c.attack, attack_before + 1)
@@ -105,7 +110,7 @@ func test_all_int_stats_one_point_each():
 	assert_eq(c.magic_resistance, 1)
 	assert_eq(c.dexterity, 1)
 	assert_eq(c.luck, 1)
-	assert_eq(c.regeneration, 1)
+	assert_eq(c.regeneration, regen_before + 1)
 	assert_almost_eq(c.speed, speed_before + 1.0, 0.0001)
 	assert_eq(c.skill_points, 0)
 

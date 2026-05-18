@@ -227,6 +227,42 @@ func test_make_new_sleepy_has_positive_regeneration():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_gt(c.regeneration, 0)
 
+# --- Regen gating (issue #142) --------------------------------------------
+
+func test_sleepy_kitten_starts_at_one_regen():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_eq(c.regeneration, 1, "Sleepy Kitten baseline regen is 1 (down from 3)")
+
+func test_non_sleepy_class_starts_at_zero_regen():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(c.regeneration, 0, "Non-Sleepy classes have regen locked at 0")
+
+func test_sleepy_kitten_regen_investment_capped_at_three():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	c.skill_points = 10
+	for _i in range(10):
+		StatAllocator.allocate(c, {"regeneration": 1})
+	assert_true(c.regeneration <= 3, "Sleepy Kitten regen capped at 3, got %d" % c.regeneration)
+
+func test_non_sleepy_class_cannot_invest_regen():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.skill_points = 1
+	var ok := StatAllocator.allocate(c, {"regeneration": 1})
+	assert_false(ok, "non-Sleepy classes cannot invest stat points in regen")
+	assert_eq(c.regeneration, 0, "regen unchanged after rejected investment")
+	assert_eq(c.skill_points, 1, "skill_points unchanged after rejected investment")
+
+func test_item_regen_capped_at_one_for_non_sleepy_class():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var item := ItemData.new()
+	item.slot = ItemData.Slot.ACCESSORY
+	item.stat_name = "regeneration"
+	item.stat_bonus = 2
+	var inv := ItemInventory.new()
+	inv.equip(item)
+	ItemStatApplicator.apply(inv, c)
+	assert_eq(c.regeneration, 1, "non-Sleepy class regen capped at 1 from items")
+
 func test_save_load_roundtrips_chonk_kitten():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Biscuit")
 	var err := c.save_to(TMP_PATH)

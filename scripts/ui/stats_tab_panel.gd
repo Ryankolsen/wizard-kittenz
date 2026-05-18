@@ -115,9 +115,22 @@ func refresh(c: CharacterData) -> void:
 	_unspent_label.text = "Unspent points: %d" % c.skill_points
 	_level_label.text = "Lv %d" % c.level
 	var can_spend := c.skill_points > 0
+	var is_sleepy := CharacterData.is_sleepy_class(c.character_class)
 	for s in STAT_ROWS:
 		(_stat_labels[s.key] as Label).text = _format_stat(c, s)
-		(_plus_buttons[s.key] as Button).disabled = not can_spend
+		var btn := _plus_buttons[s.key] as Button
+		# Regen is a Sleepy-class identity stat (issue #142). Hide the
+		# "+" entirely for non-Sleepy classes so players understand they
+		# cannot invest. Sleepy classes additionally gate on the cap.
+		if s.key == "regeneration":
+			if not is_sleepy:
+				btn.visible = false
+				btn.disabled = true
+				continue
+			btn.visible = true
+			btn.disabled = not can_spend or c.regeneration >= CharacterData.REGEN_CAP_SLEEPY
+		else:
+			btn.disabled = not can_spend
 
 func _format_stat(c: CharacterData, s: Dictionary) -> String:
 	match s.kind:

@@ -37,6 +37,15 @@ static func allocate(c: CharacterData, plan: Dictionary) -> bool:
 		total += pts
 	if total > c.skill_points:
 		return false
+	# Regen gating (issue #142): non-Sleepy classes cannot invest, and
+	# Sleepy classes are capped at CharacterData.REGEN_CAP_SLEEPY total.
+	if plan.has("regeneration"):
+		var regen_pts: int = int(plan["regeneration"])
+		if regen_pts > 0:
+			if not CharacterData.is_sleepy_class(c.character_class):
+				return false
+			if c.regeneration + regen_pts > CharacterData.REGEN_CAP_SLEEPY:
+				return false
 	for stat in plan.keys():
 		var pts: int = int(plan[stat])
 		if pts == 0:

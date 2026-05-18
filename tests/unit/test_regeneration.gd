@@ -63,10 +63,12 @@ func test_regeneration_does_not_heal_dead_character():
 
 func test_allocating_regeneration_stat_has_in_game_effect():
 	# End-to-end: StatAllocator.allocate -> regeneration > 0 -> tick heals.
-	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Sleepy Kitten: regen gated to Sleepy classes (issue #142). Baseline
+	# regen=1, +2 invested reaches the cap at 3.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.skill_points = 3
-	c.hp = c.max_hp - 4  # Mage max_hp=8; deficit of 4 keeps character alive
-	StatAllocator.allocate(c, {"regeneration": 3})
+	c.hp = c.max_hp - 4
+	StatAllocator.allocate(c, {"regeneration": 2})
 	assert_eq(c.regeneration, 3)
 	var p := _make_player(c)
 	p._tick_regeneration(1.0)

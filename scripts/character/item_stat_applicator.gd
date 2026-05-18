@@ -22,7 +22,13 @@ static func apply(inventory: ItemInventory, character: CharacterData) -> void:
 		var current: Variant = character.get(item.stat_name)
 		if current == null:
 			continue
-		character.set(item.stat_name, current + item.stat_bonus)
+		var new_val: Variant = current + item.stat_bonus
+		# Regen has a per-class cap (issue #142). Non-Sleepy classes can
+		# receive at most +1 total regen from items; Sleepy classes share
+		# the same total cap that gates stat investment.
+		if item.stat_name == "regeneration":
+			new_val = mini(int(new_val), CharacterData.max_regeneration_for(character.character_class))
+		character.set(item.stat_name, new_val)
 
 static func recompute(inventory: ItemInventory, character: CharacterData, base: CharacterData) -> void:
 	if character == null or base == null:

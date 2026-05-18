@@ -125,16 +125,24 @@ static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
 	return base + (lvl - 1) * 2
 
 static func base_regeneration_for(klass: CharacterClass, _lvl: int) -> int:
+	# Regen is a Sleepy-class identity stat (issue #142). All non-Sleepy
+	# classes have a 0 baseline; Sleepy Kitten / Cat carry the only
+	# positive baselines.
 	match klass:
-		CharacterClass.WIZARD_KITTEN: return 0
-		CharacterClass.BATTLE_KITTEN: return 0
-		CharacterClass.SLEEPY_KITTEN: return 3
-		CharacterClass.CHONK_KITTEN: return 1
-		CharacterClass.WIZARD_CAT: return 0
-		CharacterClass.BATTLE_CAT: return 0
-		CharacterClass.SLEEPY_CAT: return 4
-		CharacterClass.CHONK_CAT: return 2
+		CharacterClass.SLEEPY_KITTEN: return 1
+		CharacterClass.SLEEPY_CAT: return 2
 	return 0
+
+# Total regen cap (issue #142). Sleepy classes can reach up to 3 via
+# stat investment; other classes are capped at 1 (item-granted only).
+const REGEN_CAP_SLEEPY := 3
+const REGEN_CAP_NON_SLEEPY := 1
+
+static func is_sleepy_class(klass: CharacterClass) -> bool:
+	return klass == CharacterClass.SLEEPY_KITTEN or klass == CharacterClass.SLEEPY_CAT
+
+static func max_regeneration_for(klass: CharacterClass) -> int:
+	return REGEN_CAP_SLEEPY if is_sleepy_class(klass) else REGEN_CAP_NON_SLEEPY
 
 static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterData:
 	var c := CharacterData.new()
