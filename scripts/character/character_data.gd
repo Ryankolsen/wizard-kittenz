@@ -214,9 +214,10 @@ func add_buff(stat: String, amount: int, duration: float) -> void:
 	if stat != BUFF_GROUP_REGEN:
 		apply_stat_delta(stat, amount)
 
-func tick_buffs(delta: float) -> void:
+func tick_buffs(delta: float) -> int:
 	if delta <= 0.0 or _buffs.is_empty():
-		return
+		return 0
+	var total_healed := 0
 	var expired: Array = []
 	for b in _buffs:
 		if b.stat == BUFF_GROUP_REGEN:
@@ -227,7 +228,7 @@ func tick_buffs(delta: float) -> void:
 			while b.accum >= 1.0:
 				b.accum -= 1.0
 				if is_alive():
-					heal(int(b.amount))
+					total_healed += heal(int(b.amount))
 		b.remaining -= delta
 		if b.remaining <= 0.0:
 			expired.append(b)
@@ -235,6 +236,7 @@ func tick_buffs(delta: float) -> void:
 		if b.stat != BUFF_GROUP_REGEN:
 			apply_stat_delta(b.stat, -int(b.amount))
 		_buffs.erase(b)
+	return total_healed
 
 func has_active_buff(stat: String) -> bool:
 	for b in _buffs:

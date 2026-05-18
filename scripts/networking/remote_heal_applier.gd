@@ -58,8 +58,13 @@ static func apply(
 			continue
 		if target_id != "" and node.player_id != target_id:
 			continue
+		var hp_before: int = node.data.hp
 		if _apply_to(node.data, effect_kind, amount, duration):
 			applied = true
+			if effect_kind in ["SMART_HEAL", "AOE_HEAL"]:
+				var healed: int = node.data.hp - hp_before
+				if healed > 0:
+					FloatingText.spawn(node, str(healed), Color(0.2, 1.0, 0.4))
 	return applied
 
 static func _apply_to(data: CharacterData, effect_kind: String, amount: int, duration: float) -> bool:

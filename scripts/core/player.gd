@@ -101,7 +101,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_tick_spells(delta)
 	if data != null:
-		data.tick_buffs(delta)
+		var regen_healed := data.tick_buffs(delta)
+		if regen_healed > 0:
+			FloatingText.spawn(self, str(regen_healed), Color(0.2, 1.0, 0.4))
 	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
@@ -259,10 +261,15 @@ func _try_cast_spell() -> void:
 		if not spell.cast(data):
 			continue
 		_play_spell_flash()
+		var hp_self_before := data.hp if data != null else 0
 		var hp_before: Array = []
 		for n in enemy_nodes:
 			hp_before.append(n.data.hp if n.data != null else 0)
 		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id(), _heal_broadcaster())
+		if data != null:
+			var self_healed := data.hp - hp_self_before
+			if self_healed > 0:
+				FloatingText.spawn(self, str(self_healed), Color(0.2, 1.0, 0.4))
 		for i in range(enemy_nodes.size()):
 			var n: Enemy = enemy_nodes[i]
 			if n.data == null:
