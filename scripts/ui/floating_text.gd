@@ -40,6 +40,21 @@ static func spawn(target_node: Node, text: String, color: Color = Color(1, 1, 1,
 	ft.set_text(text, color)
 	return ft
 
+# Spawn helper for text that must survive the target node being freed (e.g.
+# damage numbers on an enemy that dies this frame). Parents to target's parent
+# and positions at target's global_position so the text stays in world space.
+static func spawn_at(target: Node2D, text: String, color: Color = Color(1, 1, 1, 1)) -> FloatingText:
+	if target == null:
+		return null
+	var scene_parent := target.get_parent()
+	if scene_parent == null:
+		return null
+	var ft := FloatingText.new()
+	scene_parent.add_child(ft)
+	ft.global_position = target.global_position
+	ft.set_text(text, color)
+	return ft
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	position.y -= delta * (RISE_PIXELS / DURATION)

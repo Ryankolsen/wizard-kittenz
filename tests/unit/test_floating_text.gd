@@ -69,3 +69,18 @@ func test_spawn_parents_to_target():
 	add_child_autofree(parent)
 	var ft := FloatingText.spawn(parent, "Miss")
 	assert_eq(ft.get_parent(), parent)
+
+func test_spawn_at_parents_to_scene_root_and_positions_at_target():
+	# spawn_at is used for damage numbers on enemies that die this frame —
+	# parenting to the scene root keeps the text alive after queue_free.
+	var scene_root := Node2D.new()
+	add_child_autofree(scene_root)
+	var target := Node2D.new()
+	scene_root.add_child(target)
+	target.global_position = Vector2(100.0, 200.0)
+	var ft := FloatingText.spawn_at(target, "42", Color(1, 0, 0))
+	assert_eq(ft.get_parent(), scene_root, "parented to scene root, not target")
+	assert_eq(ft.global_position, Vector2(100.0, 200.0), "positioned at target's world pos")
+
+func test_spawn_at_null_target_returns_null():
+	assert_null(FloatingText.spawn_at(null, "42"))
