@@ -34,12 +34,40 @@ func room_center_world(room_id: int) -> Vector2:
 	var origin := grid_to_world(room_positions[room_id], ROOM_SIZE_PX, CORRIDOR_WIDTH_PX)
 	return origin + Vector2(ROOM_SIZE_PX / 2, ROOM_SIZE_PX / 2)
 
-# World position of the corridor entrance on the left wall of the boss room.
-# The layout engine always places the boss furthest along +x, so the corridor
-# always enters from the left. The exit door sits here to gate the passage.
-func boss_corridor_entrance_world(boss_id: int) -> Vector2:
+# World position and rotation for the exit door at the boss room's corridor
+# entrance. Returns {"position": Vector2, "rotation": float (radians)}.
+#
+# The corridor is L-shaped: horizontal at the parent's center y, then
+# vertical at the boss's center x. The last leg always enters the boss room
+# through a specific wall — which wall depends on the parent's grid position
+# relative to the boss. Door rotation 0 = vertical slab (west/east entry);
+# PI/2 = horizontal slab (north/south entry via the vertical corridor leg).
+func boss_corridor_entrance(boss_id: int) -> Dictionary:
+	var fallback := {"position": Vector2.ZERO, "rotation": 0.0}
 	if not room_positions.has(boss_id):
-		return Vector2.ZERO
+		return fallback
+
 	var step := ROOM_SIZE_PX + CORRIDOR_WIDTH_PX
-	var grid: Vector2i = room_positions[boss_id]
-	return Vector2(float(grid.x * step), float(grid.y * step + ROOM_SIZE_PX / 2))
+	var boss_grid: Vector2i = room_positions[boss_id]
+	var boss_origin := Vector2(float(boss_grid.x * step), float(boss_grid.y * step))
+	var boss_center := boss_origin + Vector2(ROOM_SIZE_PX / 2.0, ROOM_SIZE_PX / 2.0)
+
+	# Find the parent room — the corridor that leads INTO the boss room.
+	var parent_grid := boss_grid
+	for pair in corridors:
+		if pair[1] == boss_id and room_positions.has(pair[0]):
+			parent_grid = room_positions[pair[0]]
+			break
+
+	if parent_grid.y == boss_grid.y:
+		# Pure horizontal corridor — enters west or east wall.
+		if parent_grid.x < boss_grid.x:
+			return {"position": Vector2(boss_origin.x, boss_center.y), "rotation": 0.0}
+		else:
+			return {"position": Vector2(boss_origin.x + ROOM_SIZE_PX, boss_center.y), "rotation": 0.0}
+	else:
+		# L-shaped corridor — vertical leg at boss_center.x enters north or south wall.
+		if parent_grid.y > boss_grid.y:
+			return {"position": Vector2(boss_center.x, boss_origin.y + ROOM_SIZE_PX), "rotation": PI / 2.0}
+		else:
+			return {"position": Vector2(boss_center.x, boss_origin.y), "rotation": PI / 2.0}
