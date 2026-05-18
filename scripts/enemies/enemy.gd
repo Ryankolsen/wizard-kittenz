@@ -31,7 +31,11 @@ func _ready() -> void:
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
-		var path: String = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
+		var path: String
+		if data.is_boss:
+			path = "res://assets/sprites/vacuum_boss.jpg"
+		else:
+			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
 		sprite.texture = load(path)
 
 func _physics_process(delta: float) -> void:
