@@ -146,6 +146,10 @@ func test_start_builds_managers_and_emits_signal():
 	# usable for unit tests, but no wire packets are sent.
 	assert_null(session.taunt_outbound_bridge,
 		"outbound bridge null on lobby-less start")
+	# Same lockstep for the HEAL relay (PRD #140).
+	assert_not_null(session.heal_broadcaster)
+	assert_null(session.heal_outbound_bridge,
+		"heal outbound bridge null on lobby-less start")
 
 func test_start_builds_taunt_outbound_bridge_when_lobby_supplied():
 	# When a NakamaLobby is threaded into start(), the session owns a
@@ -160,6 +164,11 @@ func test_start_builds_taunt_outbound_bridge_when_lobby_supplied():
 		"bridge built when lobby ref supplied")
 	assert_true(session.taunt_outbound_bridge.is_bound(),
 		"bridge subscribed to broadcaster on construction")
+	# HEAL bridge built and bound in lockstep with the TAUNT one.
+	assert_not_null(session.heal_outbound_bridge,
+		"heal bridge built when lobby ref supplied")
+	assert_true(session.heal_outbound_bridge.is_bound(),
+		"heal bridge subscribed to broadcaster on construction")
 
 func test_start_registers_all_party_ids_with_broadcaster():
 	# A kill-by-anyone XP broadcast must fan out to every party id; the
@@ -301,6 +310,10 @@ func test_end_drops_managers_and_unscales_members():
 	# Outbound bridge dropped alongside the broadcaster so a leftover
 	# signal connection can't keep fanning packets after end().
 	assert_null(session.taunt_outbound_bridge)
+	# HEAL relay dropped too — the wire half can't keep firing on a
+	# stale broadcaster post-teardown.
+	assert_null(session.heal_broadcaster)
+	assert_null(session.heal_outbound_bridge)
 	# Scaling removed: effective == real for every member.
 	assert_eq(session.member_for("u1").effective_stats.level, 10)
 	assert_eq(session.member_for("u2").effective_stats.level, 3)

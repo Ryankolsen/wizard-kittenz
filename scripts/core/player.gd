@@ -161,10 +161,11 @@ func _on_mushroom_spell_fired() -> void:
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
 	var bc := _taunt_broadcaster()
+	var hb = _heal_broadcaster()
 	var caster_id := _local_player_id()
 	for spell in _spell_tree.get_unlocked_spells():
 		if spell.cast(data):
-			SpellEffectResolver.apply(spell, data, enemy_data, null, bc, caster_id)
+			SpellEffectResolver.apply(spell, data, enemy_data, null, bc, caster_id, hb)
 			break
 
 # Render-time sway while Ale is active. Visual-only; doesn't affect physics
@@ -261,7 +262,7 @@ func _try_cast_spell() -> void:
 		var hp_before: Array = []
 		for n in enemy_nodes:
 			hp_before.append(n.data.hp if n.data != null else 0)
-		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id())
+		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id(), _heal_broadcaster())
 		for i in range(enemy_nodes.size()):
 			var n: Enemy = enemy_nodes[i]
 			if n.data == null:
@@ -369,6 +370,12 @@ func _taunt_broadcaster() -> TauntBroadcaster:
 	if session == null:
 		return null
 	return session.taunt_broadcaster
+
+func _heal_broadcaster():
+	var session := _coop_session()
+	if session == null:
+		return null
+	return session.heal_broadcaster
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")

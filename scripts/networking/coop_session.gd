@@ -6,6 +6,8 @@ extends RefCounted
 # this script's parse step depending on which file the engine touches
 # first. Preload sidesteps the registry lookup entirely.
 const TauntSyncOutboundBridgeRef = preload("res://scripts/networking/taunt_sync_outbound_bridge.gd")
+const HealBroadcasterRef = preload("res://scripts/networking/heal_broadcaster.gd")
+const HealSyncOutboundBridgeRef = preload("res://scripts/networking/heal_sync_outbound_bridge.gd")
 
 # Per-match orchestrator. Owns the lifetime of the per-run managers
 # (XPBroadcaster, RunXPSummary, NetworkSyncManager, EnemyStateSyncManager,
@@ -102,6 +104,18 @@ var taunt_broadcaster: TauntBroadcaster = null
 # paths that call start() without a lobby (the broadcaster still
 # fan-outs locally; the wire half just stays dark).
 var taunt_outbound_bridge = null
+# Outbound HEAL relay (PRD #140, follow-up to slice #146). Sleepy
+# Kitten casts (SMART_HEAL / AOE_HEAL / GROUP_REGEN / PARTY_BUFF)
+# emit on this broadcaster via SpellEffectResolver so the wire bridge
+# can fan each tuple out to remote clients. Same lifetime as the
+# other per-run managers.
+var heal_broadcaster: HealBroadcasterRef = null
+# Outbound HEAL wire bridge. Subscribes to heal_broadcaster.heal_applied
+# on start() (when a NakamaLobby is supplied) and routes each emission
+# through lobby.send_heal_async so a local Sleepy Kitten's cast lands
+# on every remote client's RemoteHealApplier. Mirrors the taunt
+# outbound bridge lifetime exactly.
+var heal_outbound_bridge = null
 # Outbound counterpart to network_sync. One gate per local player per
 # match — Player.gd's _physics_process consults this gate each tick to
 # decide whether to fan a position packet over NakamaLobby. Same lifetime
@@ -171,6 +185,7 @@ func start(dungeon: Dungeon, tree: SkillTree = null, lobby_ref = null) -> bool:
 	run_controller = DungeonRunController.new()
 	position_broadcast_gate = PositionBroadcastGate.new()
 	taunt_broadcaster = TauntBroadcaster.new()
+	heal_broadcaster = HealBroadcasterRef.new()
 	# Outbound TAUNT bridge: only built when a lobby ref is threaded in.
 	# Solo / test paths (lobby_ref == null) leave the wire half dark; the
 	# broadcaster still fan-outs locally so the SpellEffectResolver path
@@ -178,6 +193,7 @@ func start(dungeon: Dungeon, tree: SkillTree = null, lobby_ref = null) -> bool:
 	# local_player_id resolves to a real party member).
 	if lobby_ref != null:
 		taunt_outbound_bridge = TauntSyncOutboundBridgeRef.new(taunt_broadcaster, lobby_ref)
+		heal_outbound_bridge = HealSyncOutboundBridgeRef.new(heal_broadcaster, lobby_ref)
 
 	for pid in player_ids:
 		xp_broadcaster.register_player(pid)
@@ -315,6 +331,8 @@ func _drop_managers() -> void:
 		xp_subscriber.unbind()
 	if taunt_outbound_bridge != null:
 		taunt_outbound_bridge.unbind()
+	if heal_outbound_bridge != null:
+		heal_outbound_bridge.unbind()
 	xp_broadcaster = null
 	xp_summary = null
 	xp_subscriber = null
@@ -324,3 +342,5 @@ func _drop_managers() -> void:
 	position_broadcast_gate = null
 	taunt_broadcaster = null
 	taunt_outbound_bridge = null
+	heal_broadcaster = null
+	heal_outbound_bridge = null
