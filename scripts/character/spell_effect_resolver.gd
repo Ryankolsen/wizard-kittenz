@@ -1,6 +1,11 @@
 class_name SpellEffectResolver
 extends RefCounted
 
+# Preload HealBroadcaster — sibling class_name lookup is load-order-fragile
+# in Godot 4.x when the class was added in the same change as the caller
+# (same workaround CoopSession uses for TauntSyncOutboundBridgeRef).
+const HealBroadcasterRef = preload("res://scripts/networking/heal_broadcaster.gd")
+
 # Dispatches a Spell's effect over a target list based on EffectKind. Spells
 # bypass DamageResolver — `power` is the raw magic damage dealt, then the
 # Wire Combat Stats (PRD #85) pipeline applies:
@@ -14,7 +19,7 @@ extends RefCounted
 # Returns total HP removed across all targets so callers can drive popups /
 # kill-reward XP awards from a single number.
 
-static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "") -> int:
+static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
 	var effective_power := spell.power + _read_int(caster, "magic_attack", 0)
@@ -57,7 +62,10 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			if pick == null:
 				pick = caster
 			if pick != null and pick.has_method("heal"):
-				total += int(pick.heal(smart_amount))
+				var smart_dealt := int(pick.heal(smart_amount))
+				total += smart_dealt
+				if heal_broadcaster != null:
+					heal_broadcaster.on_heal_applied(caster_id, _read_player_id(pick), "SMART_HEAL", smart_dealt, 0.0)
 		Spell.EffectKind.AOE_HEAL:
 			# Issue #141: heals every entry in the targets array. Caster is
 			# included only if the caller put it in the array. Returns the sum
@@ -65,7 +73,10 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			var aoe_amount := spell.power + _read_int(caster, "magic_attack", 0)
 			for t in targets:
 				if t != null and t.has_method("heal"):
-					total += int(t.heal(aoe_amount))
+					var aoe_dealt := int(t.heal(aoe_amount))
+					total += aoe_dealt
+					if heal_broadcaster != null:
+						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "AOE_HEAL", aoe_dealt, 0.0)
 		Spell.EffectKind.GROUP_REGEN:
 			# Regen Snooze: 2 HP/sec for 15s per target. Driven by
 			# CharacterData.tick_buffs — passive regen is suppressed in
@@ -74,6 +85,8 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			for t in targets:
 				if t != null and t.has_method("add_buff"):
 					t.add_buff(CharacterData.BUFF_GROUP_REGEN, 2, 15.0)
+					if heal_broadcaster != null:
+						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "GROUP_REGEN", 2, 15.0)
 		Spell.EffectKind.PARTY_BUFF:
 			# Cozy Aura: +3 defense and +3 magic_resistance for 15s per
 			# target. add_buff mutates the stat field directly so the rest
@@ -83,6 +96,14 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				if t != null and t.has_method("add_buff"):
 					t.add_buff("defense", 3, 15.0)
 					t.add_buff("magic_resistance", 3, 15.0)
+					if heal_broadcaster != null:
+						# Two emissions per target keeps the wire packet 1:1
+						# with the local add_buff calls — the receiver can
+						# apply each stat delta independently without having
+						# to know that Cozy Aura bundles defense+MR.
+						var pid := _read_player_id(t)
+						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_DEFENSE", 3, 15.0)
+						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_MAGIC_RESISTANCE", 3, 15.0)
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.
@@ -133,6 +154,13 @@ static func _lowest_hp_pct_target(targets: Array):
 			best_pct = pct
 			best = t
 	return best
+
+static func _read_player_id(target) -> String:
+	if target == null or typeof(target) != TYPE_OBJECT:
+		return ""
+	if "player_id" in target:
+		return str(target.get("player_id"))
+	return ""
 
 static func _mitigated(effective_power: int, target) -> int:
 	var resistance := _read_int(target, "magic_resistance", 0)

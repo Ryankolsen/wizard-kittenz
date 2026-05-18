@@ -42,6 +42,12 @@ var _coop_level_up_bound: bool = false
 func _ready() -> void:
 	add_to_group("player")
 	add_to_group("taunt_targets")
+	# "players" group is the lookup surface RemoteHealApplier (issue #146)
+	# walks to resolve heal_applied(target_id) → local Player node.
+	# Membership is a node-level concern, not a CharacterData one — the
+	# applier needs to flip live HP / buff state, which lives on the
+	# Player + its data, not on a bare CharacterData reference.
+	add_to_group("players")
 	if player_id == "":
 		player_id = _local_player_id()
 	if data == null:
@@ -51,6 +57,11 @@ func _ready() -> void:
 			_spell_tree = gs.skill_tree
 	if data == null:
 		data = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	# Mirror the player_id onto data so SpellEffectResolver can stamp
+	# heal_applied(target_id) without a node reference (the resolver
+	# operates on CharacterData arrays, not Player nodes).
+	if data.player_id == "":
+		data.player_id = player_id
 	# data.speed is now the source of truth (per-class baseline). The @export
 	# stays as an editor-time override for scene-only iteration.
 	if data.speed > 0.0:

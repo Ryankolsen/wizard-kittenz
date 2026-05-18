@@ -43,6 +43,12 @@ const SAVE_PATH := "user://character.tres"
 # because it's purely runtime — saves/loads don't need to round-trip the
 # moment-to-moment vector.
 var facing: Vector2 = Vector2.DOWN
+# Cross-client identity (issue #145). Populated by the owning Player node
+# from GameState.local_player_id so SpellEffectResolver can stamp
+# heal_applied with a per-target id that the receiving client resolves
+# against the "players" SceneTree group. Pure runtime — saves don't
+# round-trip it; empty string is the "solo / pre-handshake" sentinel.
+var player_id: String = ""
 
 # Active buff system (issue #144). Each buff is
 # {stat: String, amount: int, remaining: float, accum: float}. The sentinel
