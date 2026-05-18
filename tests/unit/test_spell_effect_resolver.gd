@@ -174,6 +174,86 @@ func test_taunt_source_id_clears_on_expiry():
 	assert_eq(enemy.taunt_source_id, "",
 		"taunt_source_id cleared on expiry alongside taunt_target")
 
+func test_smart_heal_picks_lowest_hp_pct_target():
+	# Issue #141: SMART_HEAL routes to the ally with the lowest HP percentage,
+	# not the caster. Caster at full HP, ally A at 80%, ally B at 40% — B wins.
+	var caster := _caster(0)
+	var ally_a := _caster(0)
+	ally_a.max_hp = 10
+	ally_a.hp = 8
+	var ally_b := _caster(0)
+	ally_b.max_hp = 10
+	ally_b.hp = 4
+	var ally_b_start := ally_b.hp
+	var ally_a_start := ally_a.hp
+	var caster_start := caster.hp
+	var spell := Spell.make("sh", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.0)
+	var healed := SpellEffectResolver.apply(spell, caster, [ally_a, ally_b])
+	assert_eq(healed, 3, "spell.power 3 heals the 40% ally for 3")
+	assert_eq(ally_b.hp, ally_b_start + 3, "lowest-HP-pct ally is healed")
+	assert_eq(ally_a.hp, ally_a_start, "higher-HP-pct ally untouched")
+	assert_eq(caster.hp, caster_start, "caster untouched when an ally needs healing more")
+
+func test_smart_heal_falls_back_to_caster_when_targets_empty():
+	var caster := _caster(0)
+	caster.hp = caster.max_hp - 5
+	var spell := Spell.make("sh", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.0)
+	var healed := SpellEffectResolver.apply(spell, caster, [])
+	assert_eq(healed, 3, "empty targets falls back to caster heal")
+	assert_eq(caster.hp, caster.max_hp - 2)
+
+func test_smart_heal_falls_back_to_caster_when_all_targets_full_hp():
+	var caster := _caster(0)
+	caster.hp = caster.max_hp - 5
+	var ally := _caster(0)
+	# ally is at full HP, so ineligible — caster (missing HP) is healed instead.
+	var spell := Spell.make("sh", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.0)
+	var healed := SpellEffectResolver.apply(spell, caster, [ally])
+	assert_eq(healed, 3, "no wounded target falls back to caster")
+	assert_eq(caster.hp, caster.max_hp - 2)
+	assert_eq(ally.hp, ally.max_hp, "full-HP ally unchanged")
+
+func test_aoe_heal_heals_every_target():
+	var caster := _caster(0)
+	var a := _caster(0)
+	a.hp = a.max_hp - 5
+	var b := _caster(0)
+	b.hp = b.max_hp - 5
+	var spell := Spell.make("ah", "Warm Blanket", Spell.EffectKind.AOE_HEAL, 3, 2.5)
+	SpellEffectResolver.apply(spell, caster, [a, b])
+	assert_eq(a.hp, a.max_hp - 2, "ally a healed for 3")
+	assert_eq(b.hp, b.max_hp - 2, "ally b healed for 3")
+
+func test_aoe_heal_return_value_is_sum_across_targets():
+	# Two allies each missing 3 HP, spell power 5: each clamps at 3 HP restored,
+	# so total = 6.
+	var caster := _caster(0)
+	var a := _caster(0)
+	a.hp = a.max_hp - 3
+	var b := _caster(0)
+	b.hp = b.max_hp - 3
+	var spell := Spell.make("ah", "Nap of the Gods", Spell.EffectKind.AOE_HEAL, 5, 6.0)
+	var healed := SpellEffectResolver.apply(spell, caster, [a, b])
+	assert_eq(healed, 6, "return value is sum of clamped HP restored")
+
+func test_group_regen_does_not_crash_and_returns_zero():
+	# Stub branch (#141): real buff application lands in slice #3. Solo path
+	# must no-op safely and report zero instant HP restored.
+	var caster := _caster(0)
+	var a := _caster(0)
+	a.hp = a.max_hp - 5
+	var spell := Spell.make("gr", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 2, 3.5)
+	var healed := SpellEffectResolver.apply(spell, caster, [a])
+	assert_eq(healed, 0, "stub branch returns zero — no instant HP")
+	assert_eq(a.hp, a.max_hp - 5, "target HP unchanged by stub")
+
+func test_party_buff_does_not_crash_and_returns_zero():
+	var caster := _caster(0)
+	var a := _caster(0)
+	var spell := Spell.make("pb", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 3, 4.0)
+	var healed := SpellEffectResolver.apply(spell, caster, [a])
+	assert_eq(healed, 0, "stub branch returns zero — no instant HP")
+
 func test_taunt_ignores_non_taunt_targets_without_crash():
 	# CharacterData has no taunt_target field — TAUNT should skip it duck-type
 	# style without erroring.

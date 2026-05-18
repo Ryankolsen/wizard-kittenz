@@ -45,6 +45,38 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			if caster != null and caster.has_method("heal"):
 				var heal_amount := spell.power + _read_int(caster, "magic_attack", 0)
 				total += int(caster.heal(heal_amount))
+		Spell.EffectKind.SMART_HEAL:
+			# Issue #141: picks the ally with the lowest HP percentage from the
+			# targets array (ties broken by array order). Falls back to caster
+			# when targets is empty or every target is already at full HP. Heal
+			# amount uses spell.power + magic_attack, same formula as HEAL;
+			# crit is intentionally NOT rolled (matches HEAL's deterministic
+			# tuning).
+			var smart_amount := spell.power + _read_int(caster, "magic_attack", 0)
+			var pick = _lowest_hp_pct_target(targets)
+			if pick == null:
+				pick = caster
+			if pick != null and pick.has_method("heal"):
+				total += int(pick.heal(smart_amount))
+		Spell.EffectKind.AOE_HEAL:
+			# Issue #141: heals every entry in the targets array. Caster is
+			# included only if the caller put it in the array. Returns the sum
+			# of HP restored across all targets.
+			var aoe_amount := spell.power + _read_int(caster, "magic_attack", 0)
+			for t in targets:
+				if t != null and t.has_method("heal"):
+					total += int(t.heal(aoe_amount))
+		Spell.EffectKind.GROUP_REGEN:
+			# Issue #141 stub: real regen-over-time application waits on the
+			# active-buff system in slice #3 (issue #144). No-crash placeholder
+			# so solo-path tests pass and downstream slices can wire in the
+			# buff without further resolver churn.
+			pass
+		Spell.EffectKind.PARTY_BUFF:
+			# Issue #141 stub: defense + magic_resistance buff application
+			# also waits on the active-buff system (#144). No-crash placeholder;
+			# no state is mutated yet.
+			pass
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.
@@ -73,6 +105,28 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 							eid = str(t.enemy_id)
 						taunt_broadcaster.on_taunt_applied(caster_id, eid, spell.cooldown)
 	return total
+
+# Returns the target with the strictly lowest HP percentage (hp / max_hp).
+# Targets that are full HP, dead, or lack hp/max_hp fields are skipped. Ties
+# are broken by array order (first occurrence wins). Returns null when no
+# eligible target exists so the caller can fall back to the caster.
+static func _lowest_hp_pct_target(targets: Array):
+	var best = null
+	var best_pct := 2.0
+	for t in targets:
+		if t == null:
+			continue
+		if not ("hp" in t and "max_hp" in t):
+			continue
+		var hp_val := int(t.get("hp"))
+		var max_val := int(t.get("max_hp"))
+		if max_val <= 0 or hp_val >= max_val:
+			continue
+		var pct := float(hp_val) / float(max_val)
+		if pct < best_pct:
+			best_pct = pct
+			best = t
+	return best
 
 static func _mitigated(effective_power: int, target) -> int:
 	var resistance := _read_int(target, "magic_resistance", 0)

@@ -5,7 +5,7 @@ extends RefCounted
 # spell so a future SpellEffectResolver can dispatch on it (damage to one,
 # area damage, or self-buff). For the tracer the kind + power tuple is enough
 # to give each spell a distinct combat behavior.
-enum EffectKind { DAMAGE, AREA, BUFF, HEAL, TAUNT }
+enum EffectKind { DAMAGE, AREA, BUFF, HEAL, TAUNT, SMART_HEAL, AOE_HEAL, GROUP_REGEN, PARTY_BUFF }
 
 var id: String = ""
 var display_name: String = ""
