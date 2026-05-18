@@ -63,25 +63,6 @@ static func items() -> Array[ShopCatalogItem]:
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK))
 
 	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.SKILL_UNLOCK_FIREBALL,
-		"Fireball (Mage)",
-		"Launch a fiery projectile that explodes on impact.",
-		CurrencyLedger.Currency.GOLD, 250,
-		ShopCatalogItem.CATEGORY_SKILL))
-	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.SKILL_UNLOCK_SHADOWSTEP,
-		"Shadowstep (Thief)",
-		"Short-range teleport behind the nearest enemy.",
-		CurrencyLedger.Currency.GOLD, 250,
-		ShopCatalogItem.CATEGORY_SKILL))
-	out.append(ShopCatalogItem.make(
-		PurchaseRegistry.SKILL_UNLOCK_SMOKE_BOMB,
-		"Smoke Bomb (Ninja)",
-		"Drop a smoke cloud that briefly stuns nearby enemies.",
-		CurrencyLedger.Currency.GOLD, 250,
-		ShopCatalogItem.CATEGORY_SKILL))
-
-	out.append(ShopCatalogItem.make(
 		PurchaseRegistry.GEM_BUNDLE_STARTER,
 		"Starter Bundle",
 		"%d Gems" % GEMS_STARTER,
