@@ -121,6 +121,8 @@ func _try_contact_damage(target: Node2D) -> void:
 	# evade because DamageResolver collapses both to 0.
 	if dealt == 0 and data != null and data.attack > 0:
 		FloatingText.spawn(player, "Miss")
+	elif dealt > 0:
+		FloatingText.spawn(player, str(dealt), Color(1.0, 0.2, 0.2))
 
 func flash_hit() -> void:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
