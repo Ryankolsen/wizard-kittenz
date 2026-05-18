@@ -12,6 +12,10 @@ extends RefCounted
 # Keep these in sync with the painter — both layers consume the same map.
 const ROOM_SIZE_PX: int = 192
 const CORRIDOR_WIDTH_PX: int = 80
+# Must match DungeonTilemapPainter.TILE_SIZE. Half this value centres the
+# door on the actual pixel centre of the corridor tiles — room_center_world
+# returns the tile-origin (tile * 16) not the tile-centre (tile * 16 + 8).
+const TILE_SIZE_PX: int = 16
 
 var room_positions: Dictionary = {}
 var corridors: Array = []
@@ -48,9 +52,12 @@ func boss_corridor_entrance(boss_id: int) -> Dictionary:
 		return fallback
 
 	var step := ROOM_SIZE_PX + CORRIDOR_WIDTH_PX
+	var half_tile := TILE_SIZE_PX / 2  # 8 px — centres door on corridor pixel centre
 	var boss_grid: Vector2i = room_positions[boss_id]
 	var boss_origin := Vector2(float(boss_grid.x * step), float(boss_grid.y * step))
-	var boss_center := boss_origin + Vector2(ROOM_SIZE_PX / 2.0, ROOM_SIZE_PX / 2.0)
+	# boss_center is the top-left pixel of the centre tile, not the pixel-centre
+	# of the 5-tile corridor span. The +half_tile shift aligns the door exactly.
+	var boss_center := boss_origin + Vector2(ROOM_SIZE_PX / 2.0 + half_tile, ROOM_SIZE_PX / 2.0 + half_tile)
 
 	# Find the parent room — the corridor that leads INTO the boss room.
 	var parent_grid := boss_grid
@@ -60,14 +67,15 @@ func boss_corridor_entrance(boss_id: int) -> Dictionary:
 			break
 
 	if parent_grid.y == boss_grid.y:
-		# Pure horizontal corridor — enters west or east wall.
+		# Pure horizontal corridor — door sits on the wall tile (half_tile inside
+		# the corridor from the boss room edge), y centred on corridor span.
 		if parent_grid.x < boss_grid.x:
-			return {"position": Vector2(boss_origin.x, boss_center.y), "rotation": 0.0}
+			return {"position": Vector2(boss_origin.x - half_tile, boss_center.y), "rotation": 0.0}
 		else:
-			return {"position": Vector2(boss_origin.x + ROOM_SIZE_PX, boss_center.y), "rotation": 0.0}
+			return {"position": Vector2(boss_origin.x + ROOM_SIZE_PX + half_tile, boss_center.y), "rotation": 0.0}
 	else:
-		# L-shaped corridor — vertical leg at boss_center.x enters north or south wall.
+		# L-shaped — vertical leg enters north or south wall; x centred on corridor.
 		if parent_grid.y > boss_grid.y:
-			return {"position": Vector2(boss_center.x, boss_origin.y + ROOM_SIZE_PX), "rotation": PI / 2.0}
+			return {"position": Vector2(boss_center.x, boss_origin.y + ROOM_SIZE_PX + half_tile), "rotation": PI / 2.0}
 		else:
-			return {"position": Vector2(boss_center.x, boss_origin.y), "rotation": PI / 2.0}
+			return {"position": Vector2(boss_center.x, boss_origin.y - half_tile), "rotation": PI / 2.0}
