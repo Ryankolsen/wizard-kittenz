@@ -58,13 +58,25 @@ func compute(dungeon: Dungeon) -> DungeonLayout:
 
 	# Boss placement: furthest manhattan distance from origin. Walk +x past
 	# the current max distance, then nudge forward until we find a free cell.
+	# North-wall invariant: boss must be strictly south of (y >) its parent
+	# so the exit door always sits on the boss room's north wall.
 	if dungeon.boss_id >= 0 and not positions.has(dungeon.boss_id):
 		var max_dist: int = 0
 		for p in positions.values():
 			var d: int = abs(p.x) + abs(p.y)
 			if d > max_dist:
 				max_dist = d
-		var boss_pos := Vector2i(max_dist + 1, 0)
+
+		# Find the boss's parent grid position before placing the boss.
+		var parent_pos := Vector2i(0, 0)
+		for rid in positions:
+			var room := dungeon.get_room(rid)
+			if room != null and room.connections.has(dungeon.boss_id):
+				parent_pos = positions[rid]
+				break
+
+		# Start one row below the parent so the corridor enters north wall.
+		var boss_pos := Vector2i(max_dist + 1, parent_pos.y + 1)
 		while occupied.has(boss_pos):
 			boss_pos.x += 1
 		positions[dungeon.boss_id] = boss_pos

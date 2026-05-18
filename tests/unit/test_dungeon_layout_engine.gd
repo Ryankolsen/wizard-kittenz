@@ -109,3 +109,18 @@ func test_corridors_count_matches_edge_count():
 		var layout := DungeonLayoutEngine.new().compute(dungeon)
 		assert_eq(layout.corridors.size(), edge_count,
 			"seed %d: corridor count matches edge count" % s)
+
+func test_boss_parent_is_always_above_boss():
+	# North-wall invariant: the boss room's parent must always be at a strictly
+	# smaller grid y than the boss so the corridor enters through the north wall.
+	for s in [1, 2, 3, 7, 42, 100, 123, 9999]:
+		var dungeon := DungeonGenerator.generate(s)
+		var layout := DungeonLayoutEngine.new().compute(dungeon)
+		var boss_grid: Vector2i = layout.room_positions[dungeon.boss_id]
+		var parent_grid := boss_grid
+		for pair in layout.corridors:
+			if pair[1] == dungeon.boss_id and layout.room_positions.has(pair[0]):
+				parent_grid = layout.room_positions[pair[0]]
+				break
+		assert_true(parent_grid.y < boss_grid.y,
+			"seed %d: parent.y %d must be < boss.y %d" % [s, parent_grid.y, boss_grid.y])
