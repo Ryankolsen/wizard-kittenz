@@ -67,16 +67,22 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				if t != null and t.has_method("heal"):
 					total += int(t.heal(aoe_amount))
 		Spell.EffectKind.GROUP_REGEN:
-			# Issue #141 stub: real regen-over-time application waits on the
-			# active-buff system in slice #3 (issue #144). No-crash placeholder
-			# so solo-path tests pass and downstream slices can wire in the
-			# buff without further resolver churn.
-			pass
+			# Regen Snooze: 2 HP/sec for 15s per target. Driven by
+			# CharacterData.tick_buffs — passive regen is suppressed in
+			# Player._tick_regeneration for the buff's duration so the two
+			# don't stack (issue #144).
+			for t in targets:
+				if t != null and t.has_method("add_buff"):
+					t.add_buff(CharacterData.BUFF_GROUP_REGEN, 2, 15.0)
 		Spell.EffectKind.PARTY_BUFF:
-			# Issue #141 stub: defense + magic_resistance buff application
-			# also waits on the active-buff system (#144). No-crash placeholder;
-			# no state is mutated yet.
-			pass
+			# Cozy Aura: +3 defense and +3 magic_resistance for 15s per
+			# target. add_buff mutates the stat field directly so the rest
+			# of the damage pipeline reads the boosted values transparently;
+			# tick_buffs reverts both on expiry (issue #144).
+			for t in targets:
+				if t != null and t.has_method("add_buff"):
+					t.add_buff("defense", 3, 15.0)
+					t.add_buff("magic_resistance", 3, 15.0)
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.

@@ -89,6 +89,8 @@ func _physics_process(delta: float) -> void:
 			_sprite.flip_h = input_dir.x > 0.0
 	move_and_slide()
 	_tick_spells(delta)
+	if data != null:
+		data.tick_buffs(delta)
 	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
@@ -182,6 +184,11 @@ func _tick_spells(dt: float) -> void:
 
 func _tick_regeneration(dt: float) -> void:
 	if data == null or data.regeneration <= 0 or not data.is_alive():
+		_regen_accum = 0.0
+		return
+	# Suppress passive regen while Regen Snooze (GROUP_REGEN) is active so the
+	# active-buff HoT doesn't stack on top of the per-class passive (#144).
+	if data.has_active_buff(CharacterData.BUFF_GROUP_REGEN):
 		_regen_accum = 0.0
 		return
 	_regen_accum += dt

@@ -44,6 +44,15 @@ const SAVE_PATH := "user://character.tres"
 # moment-to-moment vector.
 var facing: Vector2 = Vector2.DOWN
 
+# Active buff system (issue #144). Each buff is
+# {stat: String, amount: int, remaining: float, accum: float}. The sentinel
+# stat name BUFF_GROUP_REGEN ticks HP-over-time instead of mutating a field;
+# for any other stat name, `amount` is added to the field on apply and
+# subtracted on expiry. Re-applying with the same stat refreshes `remaining`
+# but does NOT re-add `amount`, so durations refresh and stats don't stack.
+const BUFF_GROUP_REGEN := "__group_regen_hp"
+var _buffs: Array = []
+
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10
 	match klass:
@@ -186,6 +195,46 @@ func heal(amount: int) -> int:
 	var healed := mini(amount, max_hp - hp)
 	hp += healed
 	return healed
+
+func add_buff(stat: String, amount: int, duration: float) -> void:
+	if stat == "" or duration <= 0.0:
+		return
+	for b in _buffs:
+		if b.stat == stat:
+			b.remaining = duration
+			return
+	var buff := {"stat": stat, "amount": amount, "remaining": duration, "accum": 0.0}
+	_buffs.append(buff)
+	if stat != BUFF_GROUP_REGEN:
+		apply_stat_delta(stat, amount)
+
+func tick_buffs(delta: float) -> void:
+	if delta <= 0.0 or _buffs.is_empty():
+		return
+	var expired: Array = []
+	for b in _buffs:
+		if b.stat == BUFF_GROUP_REGEN:
+			# Effective delta is clamped to remaining seconds so a single
+			# large dt can't overshoot the buff's duration in heal ticks.
+			var eff: float = minf(delta, b.remaining)
+			b.accum += eff
+			while b.accum >= 1.0:
+				b.accum -= 1.0
+				if is_alive():
+					heal(int(b.amount))
+		b.remaining -= delta
+		if b.remaining <= 0.0:
+			expired.append(b)
+	for b in expired:
+		if b.stat != BUFF_GROUP_REGEN:
+			apply_stat_delta(b.stat, -int(b.amount))
+		_buffs.erase(b)
+
+func has_active_buff(stat: String) -> bool:
+	for b in _buffs:
+		if b.stat == stat:
+			return true
+	return false
 
 func clone() -> CharacterData:
 	var c := CharacterData.new()
