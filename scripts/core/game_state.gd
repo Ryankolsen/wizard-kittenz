@@ -6,6 +6,7 @@ extends Node
 const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_serializer.gd")
 const SkillInventoryRef = preload("res://scripts/progression/skill_inventory.gd")
 const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
+const _RemoteHealApplierRef = preload("res://scripts/networking/remote_heal_applier.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -187,6 +188,7 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 		lobby.position_received.connect(_on_position_received)
 		lobby.kill_received.connect(_on_kill_received)
 		lobby.taunt_received.connect(_on_taunt_received)
+		lobby.heal_received.connect(_on_heal_received)
 		lobby.host_paused.connect(_on_host_paused)
 		lobby.host_unpaused.connect(_on_host_unpaused)
 
@@ -197,6 +199,8 @@ func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 		old.kill_received.disconnect(_on_kill_received)
 	if old.taunt_received.is_connected(_on_taunt_received):
 		old.taunt_received.disconnect(_on_taunt_received)
+	if old.heal_received.is_connected(_on_heal_received):
+		old.heal_received.disconnect(_on_heal_received)
 	if old.host_paused.is_connected(_on_host_paused):
 		old.host_paused.disconnect(_on_host_paused)
 	if old.host_unpaused.is_connected(_on_host_unpaused):
@@ -245,6 +249,19 @@ func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> vo
 # guard.
 func _on_taunt_received(caster_id: String, enemy_id: String, duration: float) -> void:
 	RemoteTauntApplier.apply(get_tree(), caster_id, enemy_id, duration)
+
+# Inbound HEAL/buff bridge — wire packet → RemoteHealApplier (data side).
+# The applier walks the "players" group and dispatches by effect_kind:
+# instant heals via CharacterData.heal, GROUP_REGEN / PARTY_BUFF_* via
+# add_buff. Solo / pre-scene-add paths are silent no-ops via the
+# applier's null-tree guard. Self-echo dropping happens upstream in
+# NakamaLobby._route_heal so the local resolver's already-applied effect
+# isn't double-stacked here. caster_id is unused by the applier today
+# (the receiver doesn't need to know who cast — heal/buff effects don't
+# carry attribution like XP does) but stays in the signal payload for
+# future hooks (e.g. floating-text "Player X healed you").
+func _on_heal_received(_caster_id: String, target_id: String, effect_kind: String, amount: int, duration: float) -> void:
+	_RemoteHealApplierRef.apply(get_tree(), target_id, effect_kind, amount, duration)
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's

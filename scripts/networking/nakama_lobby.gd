@@ -47,6 +47,17 @@ const OP_DUNGEON_TRANSITION_START: int = 10
 # data.taunt_source_id + data.taunt_remaining so the future AI lookup-by-
 # id branch can redirect.
 const OP_TAUNT: int = 11
+# In-match HEAL/buff broadcast (PRD #140, issue #146). Payload:
+# {"target_id": String, "effect_kind": String, "amount": int,
+#  "duration": float}. caster_id is taken from the socket presence (not
+# the payload) so a client can't spoof another player's heal — same
+# anti-spoofing model as OP_POSITION / OP_KILL / OP_TAUNT. effect_kind
+# is the Spell.EffectKind-derived string ("SMART_HEAL" / "AOE_HEAL" /
+# "GROUP_REGEN" / "PARTY_BUFF_DEFENSE" / "PARTY_BUFF_MAGIC_RESISTANCE")
+# the receiver routes through RemoteHealApplier. target_id == "" is the
+# reserved AOE/party-wide sentinel (every "players"-group node on the
+# receiver); current sender paths always emit per-target.
+const OP_HEAL: int = 12
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -97,6 +108,12 @@ signal dungeon_transition_received(seed: int)
 # without a live CoopSession. caster_id is the sender presence, not from
 # the payload (anti-spoofing).
 signal taunt_received(caster_id: String, enemy_id: String, duration: float)
+# In-match HEAL/buff event from a remote player. GameState routes this
+# into RemoteHealApplier.apply when a session is active. Decoupled via
+# signal for the same reason as taunt_received — keeps NakamaLobby
+# testable without a live CoopSession or SceneTree. caster_id is the
+# sender presence, not from the payload (anti-spoofing).
+signal heal_received(caster_id: String, target_id: String, effect_kind: String, amount: int, duration: float)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -231,6 +248,27 @@ func send_taunt_async(enemy_id: String, duration: float) -> void:
 		return
 	var payload := {"enemy_id": enemy_id, "duration": duration}
 	await _socket.send_match_state_async(_match_id, OP_TAUNT, JSON.stringify(payload))
+
+# Broadcasts a local HEAL/buff event to every match participant. Empty
+# effect_kind is a defensive no-op — without a routing key the receiver
+# can't dispatch. target_id == "" is intentionally allowed (AOE/party-
+# wide sentinel); current sender paths always emit per-target but the
+# wire shape preserves it for future broadcasts. caster_id is NOT in the
+# payload — Nakama tags every packet with the sender presence, so the
+# receiving side reads caster_id off the socket envelope (same anti-
+# spoofing model as OP_KILL / OP_TAUNT).
+func send_heal_async(target_id: String, effect_kind: String, amount: int, duration: float) -> void:
+	if effect_kind == "":
+		return
+	if _socket == null or _match_id == "":
+		return
+	var payload := {
+		"target_id": target_id,
+		"effect_kind": effect_kind,
+		"amount": amount,
+		"duration": duration,
+	}
+	await _socket.send_match_state_async(_match_id, OP_HEAL, JSON.stringify(payload))
 
 # Returns true iff the local player is the lobby host. Host gate for the
 # OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
@@ -397,6 +435,9 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	if op_code == OP_TAUNT:
 		_route_taunt(sender_id, data)
 		return
+	if op_code == OP_HEAL:
+		_route_heal(sender_id, data)
+		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
 		return
@@ -503,6 +544,28 @@ func _route_taunt(sender_id: String, data: Dictionary) -> void:
 	if duration <= 0.0:
 		return
 	taunt_received.emit(sender_id, enemy_id, duration)
+
+# Decodes the OP_HEAL payload and emits heal_received. Self-echoes
+# (sender_id == local_player_id) and empty sender_id are dropped here
+# rather than relying on RemoteHealApplier's downstream guard: the local
+# resolver already applied the heal/buff on this client, so re-applying
+# the wire echo would double-stack instant heals and refresh local buff
+# windows from an unrelated wire latency. Empty effect_kind is dropped
+# because RemoteHealApplier rejects it anyway — same shape as the
+# OP_TAUNT routing guard. target_id == "" is intentionally NOT dropped
+# (AOE/party-wide sentinel reserved for future broadcasts).
+func _route_heal(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not data.has("effect_kind"):
+		return
+	var effect_kind: String = String(data.get("effect_kind", ""))
+	if effect_kind == "":
+		return
+	var target_id: String = String(data.get("target_id", ""))
+	var amount: int = int(data.get("amount", 0))
+	var duration: float = float(data.get("duration", 0.0))
+	heal_received.emit(sender_id, target_id, effect_kind, amount, duration)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client
