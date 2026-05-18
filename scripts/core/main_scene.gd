@@ -259,7 +259,7 @@ func _spawn_exit_door() -> void:
 	if scene == null:
 		return
 	_exit_door = scene.instantiate()
-	_exit_door.position = _dungeon_layout.room_center_world(boss_id)
+	_exit_door.position = _dungeon_layout.boss_corridor_entrance_world(boss_id)
 	_exit_door.player_exited_dungeon.connect(_on_player_exited_dungeon)
 	add_child(_exit_door)
 	if _run_controller.is_room_cleared(boss_id):

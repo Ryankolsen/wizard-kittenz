@@ -33,3 +33,13 @@ func room_center_world(room_id: int) -> Vector2:
 		return Vector2.ZERO
 	var origin := grid_to_world(room_positions[room_id], ROOM_SIZE_PX, CORRIDOR_WIDTH_PX)
 	return origin + Vector2(ROOM_SIZE_PX / 2, ROOM_SIZE_PX / 2)
+
+# World position of the corridor entrance on the left wall of the boss room.
+# The layout engine always places the boss furthest along +x, so the corridor
+# always enters from the left. The exit door sits here to gate the passage.
+func boss_corridor_entrance_world(boss_id: int) -> Vector2:
+	if not room_positions.has(boss_id):
+		return Vector2.ZERO
+	var step := ROOM_SIZE_PX + CORRIDOR_WIDTH_PX
+	var grid: Vector2i = room_positions[boss_id]
+	return Vector2(float(grid.x * step), float(grid.y * step + ROOM_SIZE_PX / 2))
