@@ -33,7 +33,7 @@ func _ready() -> void:
 	if sprite != null:
 		var path: String
 		if data.is_boss:
-			path = "res://assets/sprites/vacuum_boss.jpg"
+			path = "res://assets/sprites/vacuum_boss.png"
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
 		sprite.texture = load(path)
