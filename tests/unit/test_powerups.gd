@@ -52,14 +52,12 @@ func test_ale_wobble_returns_nonzero_varying_offset():
 	assert_ne(v_quarter, Vector2.ZERO, "wobble produces non-zero offset at t=0.25")
 	assert_ne(v_quarter, v_half, "offset varies with time (sinusoidal)")
 
-func test_mushroom_emits_random_spell_fired_once_per_2s_interval():
-	# Issue test 5: MushroomEffect.tick(2.0) emits random_spell_fired exactly
-	# once per 2-second interval.
-	var effect := MushroomEffect.new()
-	var calls := [0]
-	effect.random_spell_fired.connect(func(): calls[0] += 1)
-	effect.tick(2.0)
-	assert_eq(calls[0], 1, "exactly one emission per 2s tick")
+func test_mushroom_increases_defense_on_apply():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var base_defense := c.defense
+	var manager := PowerUpManager.new()
+	manager.apply("mushrooms", c)
+	assert_gt(c.defense, base_defense, "mushroom increases defense")
 
 # --- Coverage extras ---
 
@@ -108,33 +106,34 @@ func test_partial_tick_does_not_expire_long_powerup():
 	manager.tick(5.0)
 	assert_true(manager.is_active("ale"), "half-elapsed effect still active")
 
-func test_mushroom_emits_three_times_over_full_duration():
-	var effect := MushroomEffect.new()
-	var calls := [0]
-	effect.random_spell_fired.connect(func(): calls[0] += 1)
-	effect.tick(2.0)
-	effect.tick(2.0)
-	effect.tick(2.0)
-	assert_eq(calls[0], 3, "3 emissions over 6s duration")
-	assert_true(effect.is_expired(), "expired after full duration")
+func test_mushroom_expires_and_returns_defense_to_base():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var base_defense := c.defense
+	var manager := PowerUpManager.new()
+	var effect := manager.apply("mushrooms", c)
+	manager.tick(effect.duration)
+	assert_eq(c.defense, base_defense, "defense returns to baseline after expiry")
+	assert_false(manager.is_active("mushrooms"), "expired effect removed from active set")
 
-func test_mushroom_does_not_emit_under_interval():
-	var effect := MushroomEffect.new()
-	var calls := [0]
-	effect.random_spell_fired.connect(func(): calls[0] += 1)
-	effect.tick(1.5)
-	assert_eq(calls[0], 0, "no emission under 2s")
-	effect.tick(0.5)
-	assert_eq(calls[0], 1, "emission once accumulator reaches 2s")
+func test_mushroom_minimum_one_defense_bonus_at_low_base():
+	# A class with defense 1: 1 * 0.30 = 0.3, rounded = 0 — the floor ensures
+	# bonus is always at least 1.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.defense = 1
+	var manager := PowerUpManager.new()
+	manager.apply("mushrooms", c)
+	assert_eq(c.defense, 2, "+1 floor applied to small base defense")
 
-func test_mushroom_large_tick_drains_multi_emission():
-	# Defensive: a tick > FIRE_INTERVAL should emit once per interval drained,
-	# not just once.
-	var effect := MushroomEffect.new()
-	var calls := [0]
-	effect.random_spell_fired.connect(func(): calls[0] += 1)
-	effect.tick(4.0)
-	assert_eq(calls[0], 2, "tick(4.0) emits twice")
+func test_mushroom_revert_preserves_concurrent_defense_change():
+	# If something else bumps defense during the buff, removing mushroom should
+	# subtract only the delta we applied — not snap back to the pre-buff value.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var base_defense := c.defense
+	var manager := PowerUpManager.new()
+	var effect := manager.apply("mushrooms", c)
+	c.defense += 5
+	manager.tick(effect.duration)
+	assert_eq(c.defense, base_defense + 5, "external defense change survives mushroom removal")
 
 func test_powerup_factory_makes_correct_type():
 	var catnip := PowerUpEffect.make("catnip")

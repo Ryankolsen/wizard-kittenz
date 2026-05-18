@@ -131,11 +131,7 @@ func _check_died() -> void:
 	died.emit()
 
 func collect_power_up(type_id: String) -> void:
-	var effect := _power_ups.apply(type_id, data)
-	if effect != null and effect is MushroomEffect:
-		var mushroom: MushroomEffect = effect
-		if not mushroom.random_spell_fired.is_connected(_on_mushroom_spell_fired):
-			mushroom.random_spell_fired.connect(_on_mushroom_spell_fired)
+	_power_ups.apply(type_id, data)
 	_award_power_up_xp()
 
 # PRD #52: every power-up pickup pays POWERUP_XP. Co-op fans through
@@ -157,25 +153,6 @@ func _award_power_up_xp() -> void:
 	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger(), _spell_tree)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
-
-# Mushroom power-up integration: every 2 seconds while active, cast the first
-# ready unlocked spell against any enemies overlapping the swing-radius
-# hitbox. No-op if no spells are unlocked yet — the buff is still "active",
-# it just has nothing to fire.
-func _on_mushroom_spell_fired() -> void:
-	if _spell_tree == null or _spell_hitbox == null:
-		return
-	var enemy_nodes := _overlapping_enemy_nodes(_spell_hitbox)
-	var enemy_data: Array = []
-	for n in enemy_nodes:
-		enemy_data.append(n.data)
-	var bc := _taunt_broadcaster()
-	var hb = _heal_broadcaster()
-	var caster_id := _local_player_id()
-	for spell in _spell_tree.get_unlocked_spells():
-		if spell.cast(data):
-			SpellEffectResolver.apply(spell, data, enemy_data, null, bc, caster_id, hb)
-			break
 
 # Render-time sway while Ale is active. Visual-only; doesn't affect physics
 # velocity or hitbox position. Resets to (0,0) when ale drops off.
