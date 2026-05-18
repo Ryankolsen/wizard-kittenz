@@ -1,0 +1,3 @@
+# HUD uses polling instead of signal subscriptions
+
+HUD's HP, MP, XP, and stat-point bars read from `player.data` every frame rather than subscribing to individual signals. This was a deliberate choice: polling keeps wiring trivial (one `_process` loop, no subscribe/unsubscribe lifecycle) and the math is already decoupled as static pure functions (`hp_bar_ratio`, `xp_bar_ratio`, `mp_bar_ratio`, `xp_bar_label`, `hp_bar_label`). Those static functions are the test surface. Extracting a `HUDPresenter` or signal-driven approach was evaluated and rejected — it adds indirection with no felt benefit given the current scale of the project.
