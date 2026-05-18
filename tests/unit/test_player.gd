@@ -31,7 +31,7 @@ func test_player_joins_taunt_targets_group_with_local_id_on_ready():
 	if gs == null:
 		pending("GameState autoload not present in this test run")
 		return
-	var prior := gs.local_player_id
+	var prior: String = gs.local_player_id
 	gs.local_player_id = "test_local_id"
 	var p := Player.new()
 	add_child_autofree(p)
@@ -52,3 +52,33 @@ func test_player_id_export_overrides_local_id():
 	add_child_autofree(p)
 	assert_eq(p.player_id, "preset_id",
 		"non-blank player_id is preserved across _ready")
+
+# --- GameState injection (issue #150 follow-up) ---
+
+class FakeGameState:
+	var local_player_id: String = "injected_id"
+	var coop_session = null
+	var lobby = null
+	var offline_xp_tracker = null
+	var currency_ledger = null
+	var meta_tracker = null
+	var current_character = null
+	var skill_tree = null
+
+func test_inject_game_state_provides_local_player_id_without_autoload():
+	# Demonstrates testability without a running GameState autoload: inject a
+	# fake before _ready fires so Player reads its id from the injected object.
+	var fake := FakeGameState.new()
+	var p := Player.new()
+	p._inject_game_state(fake)
+	add_child_autofree(p)
+	assert_eq(p.player_id, "injected_id",
+		"player_id should be populated from injected game state, not the autoload")
+
+func test_inject_game_state_coop_session_returns_null_when_not_set():
+	var fake := FakeGameState.new()
+	var p := Player.new()
+	p._inject_game_state(fake)
+	add_child_autofree(p)
+	assert_null(p._coop_session(),
+		"_coop_session() returns null when injected state has no session")

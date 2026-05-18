@@ -38,8 +38,16 @@ var _died_emitted: bool = false
 var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
 var _coop_level_up_bound: bool = false
+# Cached once in _ready; injectable via _inject_game_state() so tests can
+# drive Player without a running GameState autoload.
+var _game_state = null
+
+func _inject_game_state(gs) -> void:
+	_game_state = gs
 
 func _ready() -> void:
+	if _game_state == null:
+		_game_state = get_node_or_null("/root/GameState")
 	add_to_group("player")
 	add_to_group("taunt_targets")
 	# "players" group is the lookup surface RemoteHealApplier (issue #146)
@@ -51,10 +59,9 @@ func _ready() -> void:
 	if player_id == "":
 		player_id = _local_player_id()
 	if data == null:
-		var gs := get_node_or_null("/root/GameState")
-		if gs != null and gs.current_character != null:
-			data = gs.current_character
-			_spell_tree = gs.skill_tree
+		if _game_state != null and _game_state.current_character != null:
+			data = _game_state.current_character
+			_spell_tree = _game_state.skill_tree
 	if data == null:
 		data = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	# Mirror the player_id onto data so SpellEffectResolver can stamp
@@ -316,10 +323,7 @@ func _record_meta_progress() -> void:
 		CharacterFactory.name_from_class(data.character_class), data.level)
 
 func _meta_tracker() -> MetaProgressionTracker:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.meta_tracker
+	return _game_state.meta_tracker if _game_state != null else null
 
 # Routes a local kill to the right reward path: solo applies XP locally
 # and tallies into the offline counter; co-op broadcasts XP via the
@@ -385,16 +389,10 @@ func _heal_broadcaster():
 	return session.heal_broadcaster
 
 func _coop_session() -> CoopSession:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.coop_session
+	return _game_state.coop_session if _game_state != null else null
 
 func _lobby() -> NakamaLobby:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.lobby
+	return _game_state.lobby if _game_state != null else null
 
 # Per-tick co-op outbound: ask the gate whether to broadcast our position,
 # fire-and-forget the Nakama send if yes. Solo play (no session) is a
@@ -408,28 +406,19 @@ func _maybe_broadcast_position() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not session.position_broadcast_gate.try_broadcast(now, global_position):
 		return
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null or gs.lobby == null:
+	var lob := _lobby()
+	if lob == null:
 		return
-	gs.lobby.send_position_async(now, global_position)
+	lob.send_position_async(now, global_position)
 
 func _local_player_id() -> String:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return ""
-	return gs.local_player_id
+	return _game_state.local_player_id if _game_state != null else ""
 
 func _offline_xp_tracker() -> OfflineXPTracker:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.offline_xp_tracker
+	return _game_state.offline_xp_tracker if _game_state != null else null
 
 func _currency_ledger() -> CurrencyLedger:
-	var gs := get_node_or_null("/root/GameState")
-	if gs == null:
-		return null
-	return gs.currency_ledger
+	return _game_state.currency_ledger if _game_state != null else null
 
 func _play_attack_flash() -> void:
 	if _visual == null:
