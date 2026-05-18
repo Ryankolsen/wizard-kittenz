@@ -65,6 +65,27 @@ func test_plan_enemy_boss_room_sets_is_boss():
 	assert_eq(d.enemy_id, "r7_e0")
 	assert_true(d.is_boss, "boss room enemy is flagged for the boss-kill bonus")
 
+func test_plan_enemy_boss_room_has_boosted_stats():
+	var r := _make_boss_room(7, EnemyData.EnemyKind.RAT)
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	var base_hp := EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT)
+	var base_atk := EnemyData.base_attack_for(EnemyData.EnemyKind.RAT)
+	var base_def := EnemyData.base_defense_for(EnemyData.EnemyKind.RAT)
+	assert_eq(d.max_hp, base_hp * RoomSpawnPlanner.BOSS_HP_MULT)
+	assert_eq(d.hp, d.max_hp, "hp starts full")
+	assert_eq(d.attack, base_atk * RoomSpawnPlanner.BOSS_ATTACK_MULT)
+	assert_eq(d.defense, base_def * RoomSpawnPlanner.BOSS_DEFENSE_MULT)
+	assert_eq(d.xp_reward, EnemyData.base_xp_for(EnemyData.EnemyKind.RAT) * RoomSpawnPlanner.BOSS_XP_MULT)
+	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.RAT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
+	assert_eq(d.enemy_name, "King Rat")
+
+func test_plan_enemy_standard_room_not_boosted():
+	var r := _make_standard_room(3, EnemyData.EnemyKind.RAT)
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT), "standard RAT is unmodified")
+	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.RAT))
+	assert_false(d.is_boss)
+
 func test_plan_enemy_powerup_room_returns_null():
 	var r := _make_powerup_room(2)
 	assert_null(RoomSpawnPlanner.plan_enemy(r), "power-up rooms have no enemy")

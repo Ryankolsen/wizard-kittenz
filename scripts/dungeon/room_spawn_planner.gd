@@ -59,6 +59,12 @@ var _enemy_data_by_room_id: Dictionary = {}
 # whether to instantiate an enemy node at all. spawn_idx defaults to 0
 # (one enemy per room today); the multi-spawn-per-room future call
 # site passes 1, 2, ... for additional spawns.
+const BOSS_HP_MULT: int = 4
+const BOSS_ATTACK_MULT: int = 3
+const BOSS_DEFENSE_MULT: int = 2
+const BOSS_XP_MULT: int = 3
+const BOSS_GOLD_MULT: int = 4
+
 static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 	if room == null:
 		return null
@@ -67,6 +73,14 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 	var data := EnemyData.make_new(room.enemy_kind)
 	data.enemy_id = "r%d_e%d" % [room.id, spawn_idx]
 	data.is_boss = (room.type == Room.TYPE_BOSS)
+	if data.is_boss:
+		data.max_hp = data.max_hp * BOSS_HP_MULT
+		data.hp = data.max_hp
+		data.attack = data.attack * BOSS_ATTACK_MULT
+		data.defense = data.defense * BOSS_DEFENSE_MULT
+		data.xp_reward = data.xp_reward * BOSS_XP_MULT
+		data.gold_reward = data.gold_reward * BOSS_GOLD_MULT
+		data.enemy_name = "King Rat"
 	return data
 
 # Returns the power-up type string for a power-up room, or empty string
