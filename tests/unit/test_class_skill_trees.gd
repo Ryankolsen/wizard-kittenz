@@ -17,11 +17,11 @@ const WIZARD_NODES := [
 	["arcane_purr", 12, Spell.EffectKind.DAMAGE],
 ]
 const SLEEPY_NODES := [
-	["fuzzy_warmth", 1, Spell.EffectKind.HEAL],
-	["warm_blanket", 3, Spell.EffectKind.HEAL],
-	["cozy_aura", 5, Spell.EffectKind.BUFF],
-	["dream_bubble", 8, Spell.EffectKind.HEAL],
-	["nap_of_the_gods", 12, Spell.EffectKind.HEAL],
+	["fuzzy_warmth", 1, Spell.EffectKind.SMART_HEAL],
+	["cozy_aura", 3, Spell.EffectKind.PARTY_BUFF],
+	["warm_blanket", 5, Spell.EffectKind.AOE_HEAL],
+	["regen_snooze", 8, Spell.EffectKind.GROUP_REGEN],
+	["nap_of_the_gods", 12, Spell.EffectKind.AOE_HEAL],
 ]
 const CHONK_NODES := [
 	["chonk_taunt", 1, Spell.EffectKind.TAUNT],
@@ -66,6 +66,12 @@ func test_wizard_kitten_roster():
 
 func test_sleepy_kitten_roster():
 	_assert_roster(SkillTree.make_sleepy_kitten_tree(), SLEEPY_NODES, "Sleepy")
+
+func test_sleepy_kitten_dream_bubble_removed():
+	assert_null(SkillTree.make_sleepy_kitten_tree().find("dream_bubble"))
+
+func test_sleepy_kitten_regen_snooze_exists():
+	assert_not_null(SkillTree.make_sleepy_kitten_tree().find("regen_snooze"))
 
 func test_chonk_kitten_roster():
 	_assert_roster(SkillTree.make_chonk_kitten_tree(), CHONK_NODES, "Chonk")

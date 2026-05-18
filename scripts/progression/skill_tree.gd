@@ -94,16 +94,16 @@ static func make_wizard_kitten_tree() -> SkillTree:
 
 static func make_sleepy_kitten_tree() -> SkillTree:
 	var t := SkillTree.new()
-	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.HEAL, 3, 1.5)
-	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.HEAL, 5, 2.5)
-	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.BUFF, 4, 4.0)
-	var dream_bubble := Spell.make("dream_bubble", "Dream Bubble", Spell.EffectKind.HEAL, 7, 3.5)
-	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.HEAL, 12, 6.0)
-	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1, "Wraps you in warmth to restore a little HP."))
-	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 3, "A cozy blanket that restores HP."))
-	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 5, "Radiates comfort to boost your defenses."))
-	t.add_node(SkillNode.make("dream_bubble", "Dream Bubble", dream_bubble, [], 1, 8, "Summons a dreamlike bubble that heals significantly."))
-	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12, "A divine slumber that restores a large amount of HP."))
+	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.5)
+	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0)
+	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.AOE_HEAL, 5, 2.5)
+	var regen_snooze := Spell.make("regen_snooze", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 0, 3.5)
+	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.AOE_HEAL, 12, 6.0)
+	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1, "Heals the most wounded ally nearby, or yourself if alone."))
+	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 3, "Wraps nearby allies in a cozy aura, boosting defense and magic resistance for 15 seconds."))
+	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 5, "A cozy blanket that heals all nearby allies."))
+	t.add_node(SkillNode.make("regen_snooze", "Regen Snooze", regen_snooze, [], 1, 8, "The party curls up for a cat-nap, regenerating HP over time."))
+	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12, "A divine slumber that restores a large amount of HP to all nearby allies."))
 	return t
 
 static func make_chonk_kitten_tree() -> SkillTree:
