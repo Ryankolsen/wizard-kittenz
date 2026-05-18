@@ -83,6 +83,9 @@ func _chase(target: Node2D) -> void:
 		velocity = dir * move_speed
 		if dir != Vector2.ZERO and data != null:
 			data.facing = dir
+			var sprite := get_node_or_null("Sprite2D") as Sprite2D
+			if sprite != null:
+				sprite.flip_h = dir.x > 0.0
 	move_and_slide()
 
 # Contact damage gated by AttackController so a melee-range enemy doesn't
