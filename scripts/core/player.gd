@@ -226,10 +226,9 @@ func _try_attack() -> void:
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
-				_award_kill_xp(node.data)
+				_handle_enemy_killed(node)
 				_record_meta_progress()
 				SaveManager.save_from_state()
-				node.queue_free()
 
 # Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
 # "swing radius" model consistent across attack types until #11 introduces
@@ -266,16 +265,19 @@ func _try_cast_spell() -> void:
 					scene_root.add_child(ft)
 					ft.global_position = n.global_position
 					ft.set_text(str(dealt), Color(0.4, 0.6, 1.0))
-		var awarded := false
+		var any_killed := false
 		for n in enemy_nodes:
 			if n.data != null and not n.data.is_alive():
-				_award_kill_xp(n.data)
-				n.queue_free()
-				awarded = true
-		if awarded:
+				_handle_enemy_killed(n)
+				any_killed = true
+		if any_killed:
 			_record_meta_progress()
 			SaveManager.save_from_state()
 		return
+
+func _handle_enemy_killed(node: Enemy) -> void:
+	_award_kill_xp(node.data)
+	node.queue_free()
 
 func _overlapping_enemy_nodes(hitbox: Area2D = null) -> Array:
 	var box := hitbox if hitbox != null else _hitbox
