@@ -38,11 +38,11 @@ func room_center_world(room_id: int) -> Vector2:
 	var origin := grid_to_world(room_positions[room_id], ROOM_SIZE_PX, CORRIDOR_WIDTH_PX)
 	return origin + Vector2(ROOM_SIZE_PX / 2, ROOM_SIZE_PX / 2)
 
-# World position and rotation for the exit door at the boss room's corridor
-# entrance. Always returns the north wall: the layout engine guarantees the
-# boss's parent is at grid y < boss_grid.y, so the corridor always enters
-# through the north wall. Returns {"position": Vector2, "rotation": float}.
-func boss_corridor_entrance(boss_id: int) -> Dictionary:
+# World position and rotation for the exit door on the boss room's south wall.
+# The corridor always enters from the north (layout engine invariant), so the
+# exit door lives on the opposite south wall — the player enters freely, kills
+# the boss, then the south door unlocks. Returns {"position": Vector2, "rotation": float}.
+func boss_exit_position(boss_id: int) -> Dictionary:
 	if not room_positions.has(boss_id):
 		return {"position": Vector2.ZERO, "rotation": 0.0}
 
@@ -50,8 +50,9 @@ func boss_corridor_entrance(boss_id: int) -> Dictionary:
 	var half_tile := TILE_SIZE_PX / 2
 	var boss_grid: Vector2i = room_positions[boss_id]
 	var boss_origin := Vector2(float(boss_grid.x * step), float(boss_grid.y * step))
-	var corridor_center_x := boss_origin.x + ROOM_SIZE_PX / 2.0 + half_tile
+	var room_center_x := boss_origin.x + ROOM_SIZE_PX / 2.0 + half_tile
+	# South wall: last tile row of the boss room floor.
 	return {
-		"position": Vector2(corridor_center_x, boss_origin.y + half_tile),
+		"position": Vector2(room_center_x, boss_origin.y + ROOM_SIZE_PX - half_tile),
 		"rotation": PI / 2.0
 	}

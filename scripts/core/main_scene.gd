@@ -259,7 +259,7 @@ func _spawn_exit_door() -> void:
 	if scene == null:
 		return
 	_exit_door = scene.instantiate()
-	var entrance: Dictionary = _dungeon_layout.boss_corridor_entrance(boss_id)
+	var entrance: Dictionary = _dungeon_layout.boss_exit_position(boss_id)
 	_exit_door.position = entrance["position"]
 	_exit_door.rotation = entrance["rotation"]
 	_exit_door.player_exited_dungeon.connect(_on_player_exited_dungeon)
