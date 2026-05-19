@@ -7,7 +7,7 @@ extends GutTest
 
 func test_ready_spell_damages_enemy():
 	var spell := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var hp_before := enemy.hp
 	assert_true(spell.is_ready(), "freshly created spell should be ready")
 	var cast_ok := spell.cast()

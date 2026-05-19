@@ -23,7 +23,7 @@ func _make_two_room_dungeon() -> Dungeon:
 	d.add_room(start)
 	d.start_id = 0
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(boss)
 	d.boss_id = 1
 	return d

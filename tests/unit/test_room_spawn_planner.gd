@@ -6,12 +6,12 @@ extends GutTest
 
 # --- helpers ---------------------------------------------------------------
 
-func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.SLIME) -> Room:
+func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.ANGRY_PIGEON) -> Room:
 	var r := Room.make(room_id, Room.TYPE_STANDARD)
 	r.enemy_kind = kind
 	return r
 
-func _make_boss_room(room_id: int, kind: int = EnemyData.EnemyKind.RAT) -> Room:
+func _make_boss_room(room_id: int, kind: int = EnemyData.EnemyKind.DOG_KNIGHT) -> Room:
 	var r := Room.make(room_id, Room.TYPE_BOSS)
 	r.enemy_kind = kind
 	return r
@@ -38,7 +38,7 @@ func _make_session_with_lobby() -> CoopSession:
 	var d := Dungeon.new()
 	var start := Room.make(0, Room.TYPE_START)
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	start.connections = [1]
 	d.add_room(start)
 	d.add_room(boss)
@@ -50,40 +50,40 @@ func _make_session_with_lobby() -> CoopSession:
 # --- plan_enemy ------------------------------------------------------------
 
 func test_plan_enemy_standard_room_returns_populated_data():
-	var r := _make_standard_room(3, EnemyData.EnemyKind.SLIME)
+	var r := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
 	var d := RoomSpawnPlanner.plan_enemy(r)
 	assert_not_null(d)
-	assert_eq(d.kind, EnemyData.EnemyKind.SLIME)
+	assert_eq(d.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(d.enemy_id, "r3_e0", "id format is r{room_id}_e{spawn_idx}")
 	assert_false(d.is_boss, "standard room is not a boss room")
 
 func test_plan_enemy_boss_room_sets_is_boss():
-	var r := _make_boss_room(7, EnemyData.EnemyKind.RAT)
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)
 	assert_not_null(d)
-	assert_eq(d.kind, EnemyData.EnemyKind.RAT)
+	assert_eq(d.kind, EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_eq(d.enemy_id, "r7_e0")
 	assert_true(d.is_boss, "boss room enemy is flagged for the boss-kill bonus")
 
 func test_plan_enemy_boss_room_has_boosted_stats():
-	var r := _make_boss_room(7, EnemyData.EnemyKind.RAT)
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)
-	var base_hp := EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT)
-	var base_atk := EnemyData.base_attack_for(EnemyData.EnemyKind.RAT)
-	var base_def := EnemyData.base_defense_for(EnemyData.EnemyKind.RAT)
+	var base_hp := EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	var base_atk := EnemyData.base_attack_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	var base_def := EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_eq(d.max_hp, base_hp * RoomSpawnPlanner.BOSS_HP_MULT)
 	assert_eq(d.hp, d.max_hp, "hp starts full")
 	assert_eq(d.attack, base_atk * RoomSpawnPlanner.BOSS_ATTACK_MULT)
 	assert_eq(d.defense, base_def * RoomSpawnPlanner.BOSS_DEFENSE_MULT)
-	assert_eq(d.xp_reward, EnemyData.base_xp_for(EnemyData.EnemyKind.RAT) * RoomSpawnPlanner.BOSS_XP_MULT)
-	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.RAT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
+	assert_eq(d.xp_reward, EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_XP_MULT)
+	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
 	assert_eq(d.enemy_name, "King Rat")
 
 func test_plan_enemy_standard_room_not_boosted():
-	var r := _make_standard_room(3, EnemyData.EnemyKind.RAT)
+	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)
-	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT), "standard RAT is unmodified")
-	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.RAT))
+	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT), "standard RAT is unmodified")
+	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.DOG_KNIGHT))
 	assert_false(d.is_boss)
 
 func test_plan_enemy_powerup_room_returns_null():
@@ -108,17 +108,17 @@ func test_plan_enemy_returns_independent_instances():
 	assert_eq(b.hp, b.max_hp, "second instance untouched by first's damage")
 
 func test_plan_enemy_spawn_idx_appears_in_id():
-	var r := _make_standard_room(5, EnemyData.EnemyKind.BAT)
+	var r := _make_standard_room(5, EnemyData.EnemyKind.ROGUE_ROOMBA)
 	var d := RoomSpawnPlanner.plan_enemy(r, 2)
 	assert_eq(d.enemy_id, "r5_e2", "spawn_idx threads through to id")
 
 func test_plan_enemy_max_hp_matches_kind():
 	# Pin that we go through EnemyData.make_new (so future stat changes
 	# in EnemyData propagate without the planner having to re-pin them).
-	var r := _make_standard_room(0, EnemyData.EnemyKind.RAT)
+	var r := _make_standard_room(0, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)
-	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.RAT))
-	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.RAT))
+	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT))
+	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.DOG_KNIGHT))
 
 # --- plan_powerup ----------------------------------------------------------
 

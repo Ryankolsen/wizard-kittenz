@@ -260,7 +260,7 @@ func _tiny_dungeon() -> Dungeon:
 	var start := Room.make(0, Room.TYPE_START)
 	start.connections = [1]
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(start)
 	d.add_room(boss)
 	d.start_id = 0

@@ -15,7 +15,7 @@ func test_enemy_scene_has_no_polygon2d_placeholder():
 
 func test_slime_enemy_has_texture_after_ready():
 	var scene = load("res://scenes/enemy.tscn").instantiate()
-	scene.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	scene.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	add_child_autofree(scene)
 	var sprite = scene.get_node_or_null("Sprite2D") as Sprite2D
 	assert_not_null(sprite)
@@ -23,7 +23,7 @@ func test_slime_enemy_has_texture_after_ready():
 
 func test_bat_enemy_has_texture_after_ready():
 	var scene = load("res://scenes/enemy.tscn").instantiate()
-	scene.data = EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	scene.data = EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	add_child_autofree(scene)
 	var sprite = scene.get_node_or_null("Sprite2D") as Sprite2D
 	assert_not_null(sprite)
@@ -31,11 +31,11 @@ func test_bat_enemy_has_texture_after_ready():
 
 func test_slime_and_bat_textures_differ():
 	var slime = load("res://scenes/enemy.tscn").instantiate()
-	slime.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	slime.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	add_child_autofree(slime)
 
 	var bat = load("res://scenes/enemy.tscn").instantiate()
-	bat.data = EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	bat.data = EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	add_child_autofree(bat)
 
 	var slime_tex = (slime.get_node("Sprite2D") as Sprite2D).texture

@@ -21,7 +21,7 @@ func _make_two_room_dungeon() -> Dungeon:
 	d.add_room(start)
 	d.start_id = 0
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(boss)
 	d.boss_id = 1
 	return d
@@ -40,7 +40,7 @@ func _make_attacker(attack: int) -> EnemyData:
 	# Minimal enemy attacker for damage routing tests. DamageResolver only
 	# reads `attack: int` off attacker_stats; defense/hp on the attacker
 	# are irrelevant for incoming-damage-to-player flows.
-	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	e.attack = attack
 	return e
 

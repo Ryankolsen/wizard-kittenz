@@ -27,16 +27,24 @@ extends RefCounted
 const MIN_ROOMS := 5
 const MAX_ROOMS := 10
 
-# Standard rooms get the lower-stat enemies; boss draws from the harder pool.
-# Boss-vs-standard separation is the "harder enemy variant" acceptance
-# criterion. EnemyKind values: SLIME=0, BAT=1, RAT=2 (RAT has the highest
-# base hp/attack/defense).
+# Both pools currently span the full 5-kind roster (PRD #151). All kinds
+# share equal base stats this phase, so boss "difficulty" comes from the
+# RoomSpawnPlanner boss multipliers, not from a separate stronger pool.
+# Future per-dungeon enemy config (PRD #151 user story 13) replaces these
+# constants with a data-driven, dungeon-keyed lookup.
 const STANDARD_ENEMY_KINDS := [
-	EnemyData.EnemyKind.SLIME,
-	EnemyData.EnemyKind.BAT,
+	EnemyData.EnemyKind.ANGRY_PIGEON,
+	EnemyData.EnemyKind.ROGUE_ROOMBA,
+	EnemyData.EnemyKind.DOG_KNIGHT,
+	EnemyData.EnemyKind.CATNIP_DEALER,
+	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
 ]
 const BOSS_ENEMY_KINDS := [
-	EnemyData.EnemyKind.RAT,
+	EnemyData.EnemyKind.ANGRY_PIGEON,
+	EnemyData.EnemyKind.ROGUE_ROOMBA,
+	EnemyData.EnemyKind.DOG_KNIGHT,
+	EnemyData.EnemyKind.CATNIP_DEALER,
+	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
 ]
 
 const POWER_UP_TYPES := ["catnip", "ale", "mushrooms"]

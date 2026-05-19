@@ -9,7 +9,7 @@ func _make_mage() -> CharacterData:
 	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 
 func _make_slime_attacker(attack: int) -> EnemyData:
-	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	e.attack = attack
 	return e
 

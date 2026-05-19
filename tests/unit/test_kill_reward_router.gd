@@ -22,7 +22,7 @@ func _make_character(level: int = 1) -> CharacterData:
 	return c
 
 func _make_enemy(xp_reward: int, is_boss: bool = false) -> EnemyData:
-	var e := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	e.xp_reward = xp_reward
 	e.is_boss = is_boss
 	return e
@@ -40,7 +40,7 @@ func _make_two_room_dungeon() -> Dungeon:
 	d.add_room(start)
 	d.start_id = 0
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(boss)
 	d.boss_id = 1
 	return d
@@ -564,7 +564,7 @@ func test_game_state_set_lobby_null_does_not_crash_on_kill():
 
 func _spawn_enemy_in_tree(enemy_id: String) -> Enemy:
 	var e := Enemy.new()
-	e.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	e.data.enemy_id = enemy_id
 	add_child_autofree(e)
 	return e

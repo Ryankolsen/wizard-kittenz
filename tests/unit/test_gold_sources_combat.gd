@@ -11,7 +11,7 @@ extends GutTest
 func _make_character() -> CharacterData:
 	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 
-func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.SLIME) -> Room:
+func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.ANGRY_PIGEON) -> Room:
 	var r := Room.make(room_id, Room.TYPE_STANDARD)
 	r.enemy_kind = kind
 	return r
@@ -35,39 +35,39 @@ func _make_controller_for(room: Room) -> DungeonRunController:
 # --- EnemyData.gold_reward defaults --------------------------------------
 
 func test_make_new_slime_sets_non_zero_gold_reward():
-	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_true(e.gold_reward > 0)
 	assert_eq(e.gold_reward, 2)
 
 func test_make_new_bat_sets_gold_reward():
-	var e := EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	assert_eq(e.gold_reward, 2)
 
 func test_make_new_rat_sets_gold_reward():
-	var e := EnemyData.make_new(EnemyData.EnemyKind.RAT)
-	assert_eq(e.gold_reward, 3)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
+	assert_eq(e.gold_reward, 2)
 
 # --- KillRewardRouter credits gold to the ledger -------------------------
 
 func test_route_kill_solo_credits_gold_to_ledger():
 	var c := _make_character()
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var ledger := CurrencyLedger.new()
 	KillRewardRouter.route_kill(c, enemy, null, "", null, null, ledger)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), enemy.gold_reward)
 
 func test_route_kill_null_ledger_safe():
 	var c := _make_character()
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null)
 	pass_test("no crash with null ledger")
 
 func test_route_kill_accumulates_gold_across_kills():
 	var c := _make_character()
 	var ledger := CurrencyLedger.new()
-	KillRewardRouter.route_kill(c, EnemyData.make_new(EnemyData.EnemyKind.SLIME), null, "", null, null, ledger)
-	KillRewardRouter.route_kill(c, EnemyData.make_new(EnemyData.EnemyKind.RAT), null, "", null, null, ledger)
-	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 5, "2 (slime) + 3 (rat)")
+	KillRewardRouter.route_kill(c, EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON), null, "", null, null, ledger)
+	KillRewardRouter.route_kill(c, EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT), null, "", null, null, ledger)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 4, "2 + 2 — all kinds share equal gold this phase")
 
 # --- RoomClearWatcher credits ROOM_CLEAR_GOLD bonus ----------------------
 
@@ -121,7 +121,7 @@ func test_room_clear_null_ledger_safe():
 # --- Full combat flow: kill credit + room clear bonus stack --------------
 
 func test_kill_plus_room_clear_credits_both_amounts():
-	var room := _make_standard_room(3, EnemyData.EnemyKind.SLIME)
+	var room := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
 	var controller := _make_controller_for(room)
 	var ledger := CurrencyLedger.new()
 	var w := RoomClearWatcher.new()
@@ -129,7 +129,7 @@ func test_kill_plus_room_clear_credits_both_amounts():
 	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
 	# Simulate the kill side first (KillRewardRouter), then the room-clear edge.
 	var c := _make_character()
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	KillRewardRouter.route_kill(c, enemy, null, "", null, null, ledger)
 	w.notify_death(ids[0])
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), enemy.gold_reward + RoomClearWatcher.ROOM_CLEAR_GOLD)

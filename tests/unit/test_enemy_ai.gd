@@ -58,7 +58,7 @@ func test_state_name_returns_human_readable_strings():
 
 func _make_enemy() -> Enemy:
 	var e := Enemy.new()
-	e.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	return e
 
 func test_enemy_emits_died_signal_when_hp_drops_to_zero():

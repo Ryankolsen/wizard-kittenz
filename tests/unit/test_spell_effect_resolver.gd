@@ -56,7 +56,7 @@ func test_heal_scales_with_magic_attack():
 func test_taunt_sets_enemy_target_to_caster():
 	var caster := _caster(0)
 	var other := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	enemy.taunt_target = other
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 2.0)
 	SpellEffectResolver.apply(spell, caster, [enemy])
@@ -65,8 +65,8 @@ func test_taunt_sets_enemy_target_to_caster():
 
 func test_taunt_taunts_multiple_enemies():
 	var caster := _caster(0)
-	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var e2 := EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.5)
 	SpellEffectResolver.apply(spell, caster, [e1, e2])
 	assert_eq(e1.taunt_target, caster)
@@ -74,7 +74,7 @@ func test_taunt_taunts_multiple_enemies():
 
 func test_taunt_expires_after_duration():
 	var caster := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
 	SpellEffectResolver.apply(spell, caster, [enemy])
 	assert_true(enemy.is_taunted(), "taunt active immediately after cast")
@@ -84,7 +84,7 @@ func test_taunt_expires_after_duration():
 
 func test_taunt_remaining_decays_partially():
 	var caster := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 2.0)
 	SpellEffectResolver.apply(spell, caster, [enemy])
 	enemy.tick_taunt(0.5)
@@ -109,7 +109,7 @@ func test_heal_targets_list_ignored():
 	# HEAL is a self-heal regardless of what's in the targets list.
 	var caster := _caster(0)
 	caster.hp = caster.max_hp - 5
-	var bystander := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var bystander := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var spell := Spell.make("h", "Heal", Spell.EffectKind.HEAL, 3, 1.0)
 	SpellEffectResolver.apply(spell, caster, [bystander])
 	assert_eq(caster.hp, caster.max_hp - 2)
@@ -121,9 +121,9 @@ func test_taunt_emits_on_broadcaster_per_enemy():
 	# own guards drop empties; this test pins that the resolver routes
 	# the tuple through.
 	var caster := _caster(0)
-	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	e1.enemy_id = "r3_e0"
-	var e2 := EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	e2.enemy_id = "r3_e1"
 	var bc := TauntBroadcaster.new()
 	var captured: Array = []
@@ -142,7 +142,7 @@ func test_taunt_stamps_source_id_when_caster_id_provided():
 	# receiving client (which has no caster CharacterData object) can match
 	# the taunt back to the right player.
 	var caster := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	enemy.enemy_id = "r1_e0"
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
 	SpellEffectResolver.apply(spell, caster, [enemy], null, null, "u42")
@@ -153,7 +153,7 @@ func test_taunt_leaves_source_id_unset_in_solo_path():
 	# Solo / pre-handshake path passes empty caster_id; resolver must not
 	# pollute the field with "" when there is no cross-client identity.
 	var caster := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	enemy.taunt_source_id = "previous_caster"
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
 	SpellEffectResolver.apply(spell, caster, [enemy])
@@ -165,7 +165,7 @@ func test_taunt_source_id_clears_on_expiry():
 	# taunt_target — otherwise the cross-client identity outlives the
 	# taunt window and a stale id leaks into the next taunt cycle.
 	var caster := _caster(0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
 	SpellEffectResolver.apply(spell, caster, [enemy], null, null, "u42")
 	assert_eq(enemy.taunt_source_id, "u42")

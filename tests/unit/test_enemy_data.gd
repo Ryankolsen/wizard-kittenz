@@ -1,50 +1,94 @@
 extends GutTest
 
-func test_make_new_slime_has_expected_defaults():
-	var e := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	assert_eq(e.kind, EnemyData.EnemyKind.SLIME)
-	assert_eq(e.enemy_name, "Slime")
+const _NEW_KINDS := [
+	EnemyData.EnemyKind.ANGRY_PIGEON,
+	EnemyData.EnemyKind.ROGUE_ROOMBA,
+	EnemyData.EnemyKind.DOG_KNIGHT,
+	EnemyData.EnemyKind.CATNIP_DEALER,
+	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
+]
+
+func test_make_new_angry_pigeon_has_expected_defaults():
+	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	assert_eq(e.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
+	assert_eq(e.enemy_name, "Angry Pigeon")
 	assert_eq(e.max_hp, 4)
 	assert_eq(e.hp, 4)
 	assert_eq(e.attack, 1)
 	assert_eq(e.defense, 0)
 	assert_eq(e.xp_reward, 15)
+	assert_eq(e.gold_reward, 2)
 	assert_eq(e.enemy_id, "", "fresh spawn has no id until the spawn layer mints one")
 	assert_false(e.is_boss, "non-boss by default")
 
-func test_make_new_each_kind_has_distinct_stats():
-	var slime := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var bat := EnemyData.make_new(EnemyData.EnemyKind.BAT)
-	var rat := EnemyData.make_new(EnemyData.EnemyKind.RAT)
-	assert_eq(bat.max_hp, 3)
-	assert_eq(bat.attack, 1)
-	assert_eq(rat.max_hp, 5)
-	assert_eq(rat.attack, 2)
-	assert_eq(rat.defense, 1, "rat is the only kind with defense baseline")
-	assert_eq(rat.xp_reward, 25)
-	assert_ne(slime.enemy_name, rat.enemy_name)
+func test_enum_has_exactly_five_new_values():
+	# Enum dictionary is name -> int. Asserting the keys pins down both the
+	# count and the spelling, so a typo or stray addition fails loudly.
+	var names := EnemyData.EnemyKind.keys()
+	assert_eq(names.size(), 5)
+	var expected := ["ANGRY_PIGEON", "ROGUE_ROOMBA", "DOG_KNIGHT", "CATNIP_DEALER", "HAUNTED_SPRAY_BOTTLE"]
+	for n in expected:
+		assert_true(names.has(n), "EnemyKind missing %s" % n)
+	for old in ["SLIME", "BAT", "RAT"]:
+		assert_false(names.has(old), "EnemyKind still contains retired %s" % old)
+
+func test_all_kinds_share_equal_base_stats():
+	# PRD #151 phase 1: all 5 kinds use the same base stats; differentiation
+	# is a future PRD. If a future change reintroduces per-kind stats this
+	# test fails fast and the maintainer can update the contract.
+	var hp_set := {}
+	var atk_set := {}
+	var def_set := {}
+	var xp_set := {}
+	var gold_set := {}
+	for k in _NEW_KINDS:
+		hp_set[EnemyData.base_max_hp_for(k)] = true
+		atk_set[EnemyData.base_attack_for(k)] = true
+		def_set[EnemyData.base_defense_for(k)] = true
+		xp_set[EnemyData.base_xp_for(k)] = true
+		gold_set[EnemyData.base_gold_for(k)] = true
+	assert_eq(hp_set.size(), 1, "all kinds must share base hp")
+	assert_eq(atk_set.size(), 1, "all kinds must share base attack")
+	assert_eq(def_set.size(), 1, "all kinds must share base defense")
+	assert_eq(xp_set.size(), 1, "all kinds must share base xp")
+	assert_eq(gold_set.size(), 1, "all kinds must share base gold")
+
+func test_display_names_are_non_empty_and_distinct():
+	var names := []
+	for k in _NEW_KINDS:
+		var n := EnemyData.display_name_for(k)
+		assert_ne(n, "", "display name must not be empty for kind %d" % k)
+		assert_false(names.has(n), "display name %s appeared twice" % n)
+		names.append(n)
+	assert_eq(names.size(), 5)
+
+func test_make_new_round_trip_names():
+	assert_eq(EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON).enemy_name, "Angry Pigeon")
+	assert_eq(EnemyData.make_new(EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE).enemy_name, "Haunted Spray Bottle")
+	assert_eq(EnemyData.make_new(EnemyData.EnemyKind.CATNIP_DEALER).enemy_name, "Catnip Dealer")
 
 func test_take_damage_clamps_and_kills():
-	var e := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_true(e.is_alive())
 	assert_eq(e.take_damage(2), 2)
-	assert_eq(e.hp, 3)
-	assert_eq(e.take_damage(99), 3, "overkill returns only damage actually dealt")
+	assert_eq(e.hp, 2)
+	assert_eq(e.take_damage(99), 2, "overkill returns only damage actually dealt")
 	assert_eq(e.hp, 0)
 	assert_false(e.is_alive())
 
 func test_make_new_returns_independent_instances():
-	var a := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var b := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var a := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var b := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	a.take_damage(99)
 	assert_eq(a.hp, 0)
 	assert_eq(b.hp, 4, "second instance should be untouched")
 
 func test_static_helpers_match_make_new():
-	for k in [EnemyData.EnemyKind.SLIME, EnemyData.EnemyKind.BAT, EnemyData.EnemyKind.RAT]:
+	for k in _NEW_KINDS:
 		var e := EnemyData.make_new(k)
 		assert_eq(e.max_hp, EnemyData.base_max_hp_for(k))
 		assert_eq(e.attack, EnemyData.base_attack_for(k))
 		assert_eq(e.defense, EnemyData.base_defense_for(k))
 		assert_eq(e.xp_reward, EnemyData.base_xp_for(k))
+		assert_eq(e.gold_reward, EnemyData.base_gold_for(k))
 		assert_eq(e.enemy_name, EnemyData.display_name_for(k))

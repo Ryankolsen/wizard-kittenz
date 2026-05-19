@@ -7,12 +7,12 @@ extends GutTest
 
 # --- helpers ---------------------------------------------------------------
 
-func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.SLIME) -> Room:
+func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.ANGRY_PIGEON) -> Room:
 	var r := Room.make(room_id, Room.TYPE_STANDARD)
 	r.enemy_kind = kind
 	return r
 
-func _make_boss_room(room_id: int, kind: int = EnemyData.EnemyKind.RAT) -> Room:
+func _make_boss_room(room_id: int, kind: int = EnemyData.EnemyKind.DOG_KNIGHT) -> Room:
 	var r := Room.make(room_id, Room.TYPE_BOSS)
 	r.enemy_kind = kind
 	return r
@@ -265,7 +265,7 @@ func _make_two_room_dungeon() -> Dungeon:
 	d.add_room(start)
 	d.start_id = 0
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(boss)
 	d.boss_id = 1
 	return d

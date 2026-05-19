@@ -1,10 +1,10 @@
 class_name EnemyData
 extends Resource
 
-enum EnemyKind { SLIME, BAT, RAT }
+enum EnemyKind { ANGRY_PIGEON, ROGUE_ROOMBA, DOG_KNIGHT, CATNIP_DEALER, HAUNTED_SPRAY_BOTTLE }
 
-@export var enemy_name: String = "Slime"
-@export var kind: EnemyKind = EnemyKind.SLIME
+@export var enemy_name: String = "Angry Pigeon"
+@export var kind: EnemyKind = EnemyKind.ANGRY_PIGEON
 @export var hp: int = 4
 @export var max_hp: int = 4
 @export var attack: int = 1
@@ -54,46 +54,31 @@ var taunt_remaining: float = 0.0
 # unset, and tick_taunt clears it on expiry alongside taunt_target.
 var taunt_source_id: String = ""
 
-static func base_max_hp_for(k: EnemyKind) -> int:
-	match k:
-		EnemyKind.SLIME: return 4
-		EnemyKind.BAT: return 3
-		EnemyKind.RAT: return 5
+# All 5 kinds share identical base stats this phase (PRD #151). Per-enemy
+# differentiation is a future PRD — the static helpers stay kind-keyed so
+# that future change is a body edit, not a signature change.
+static func base_max_hp_for(_k: EnemyKind) -> int:
 	return 4
 
-static func base_attack_for(k: EnemyKind) -> int:
-	match k:
-		EnemyKind.SLIME: return 1
-		EnemyKind.BAT: return 1
-		EnemyKind.RAT: return 2
+static func base_attack_for(_k: EnemyKind) -> int:
 	return 1
 
-static func base_defense_for(k: EnemyKind) -> int:
-	match k:
-		EnemyKind.SLIME: return 0
-		EnemyKind.BAT: return 0
-		EnemyKind.RAT: return 1
+static func base_defense_for(_k: EnemyKind) -> int:
 	return 0
 
-static func base_xp_for(k: EnemyKind) -> int:
-	match k:
-		EnemyKind.SLIME: return 15
-		EnemyKind.BAT: return 15
-		EnemyKind.RAT: return 25
+static func base_xp_for(_k: EnemyKind) -> int:
 	return 15
 
-static func base_gold_for(k: EnemyKind) -> int:
-	match k:
-		EnemyKind.SLIME: return 2
-		EnemyKind.BAT: return 2
-		EnemyKind.RAT: return 3
+static func base_gold_for(_k: EnemyKind) -> int:
 	return 2
 
 static func display_name_for(k: EnemyKind) -> String:
 	match k:
-		EnemyKind.SLIME: return "Slime"
-		EnemyKind.BAT: return "Bat"
-		EnemyKind.RAT: return "Rat"
+		EnemyKind.ANGRY_PIGEON: return "Angry Pigeon"
+		EnemyKind.ROGUE_ROOMBA: return "Rogue Roomba"
+		EnemyKind.DOG_KNIGHT: return "Dog Knight"
+		EnemyKind.CATNIP_DEALER: return "Catnip Dealer"
+		EnemyKind.HAUNTED_SPRAY_BOTTLE: return "Haunted Spray Bottle"
 	return "Enemy"
 
 static func make_new(k: EnemyKind) -> EnemyData:

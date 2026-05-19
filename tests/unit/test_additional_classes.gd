@@ -39,7 +39,7 @@ func test_backstab_deals_more_damage_from_behind():
 	# damage when attacking from behind (target facing away) than from front.
 	# Same direction = attacker is behind; opposite directions = face-to-face.
 	var attacker_front: CharacterData = CharacterFactory.create_default("Thief")
-	var target_front: EnemyData = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var target_front: EnemyData = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	# Make the slime tankier so the front swing doesn't land at the floor of 1.
 	target_front.max_hp = 50
 	target_front.hp = 50
@@ -48,7 +48,7 @@ func test_backstab_deals_more_damage_from_behind():
 	var front_damage := ThiefAbilities.backstab(attacker_front, target_front)
 
 	var attacker_behind: CharacterData = CharacterFactory.create_default("Thief")
-	var target_behind: EnemyData = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var target_behind: EnemyData = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	target_behind.max_hp = 50
 	target_behind.hp = 50
 	attacker_behind.facing = Vector2.RIGHT
@@ -134,7 +134,7 @@ func test_backstab_zero_attack_deals_no_damage_even_from_behind():
 	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.attack = 0
 	attacker.facing = Vector2.UP
-	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var target := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	target.facing = Vector2.UP
 	var hp_before := target.hp
 	assert_eq(ThiefAbilities.backstab(attacker, target), 0)
@@ -144,7 +144,7 @@ func test_backstab_floor_one_damage_when_defense_exceeds_attack():
 	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.attack = 2
 	attacker.facing = Vector2.UP
-	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var target := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	target.defense = 99
 	target.facing = Vector2.LEFT  # facing toward attacker -> front
 	# Front: floor at 1. Behind: 1 * 2 = 2.
@@ -157,7 +157,7 @@ func test_backstab_zero_facing_treated_as_not_behind():
 	# never accidentally fires on uninitialized state.
 	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	attacker.facing = Vector2.RIGHT
-	var target := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var target := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	target.facing = Vector2.ZERO
 	assert_false(ThiefAbilities.is_behind(attacker, target))
 

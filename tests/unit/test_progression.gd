@@ -273,7 +273,7 @@ func test_skill_unlock_checker_null_tree_is_safe_noop():
 func test_killing_enemy_awards_xp_via_progression_system():
 	# Simulates the player.gd flow: damage until dead, then award xp_reward.
 	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var reward := enemy.xp_reward
 	while enemy.is_alive():
 		DamageResolver.apply(player, enemy)

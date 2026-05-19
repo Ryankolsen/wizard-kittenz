@@ -59,7 +59,7 @@ func test_magic_resistance_floor_of_one():
 
 func test_enemy_target_no_magic_resistance_field_no_crash():
 	var spell := Spell.make("s", "S", Spell.EffectKind.DAMAGE, 3, 1.0)
-	var enemy := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	enemy.max_hp = 100
 	enemy.hp = 100
 	# EnemyData has no magic_resistance — should default to 0, no crash.

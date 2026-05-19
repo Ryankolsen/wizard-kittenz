@@ -159,8 +159,8 @@ func test_spell_effect_resolver_damage_hits_first_alive_target():
 	# test stays focused on the "first target only" contract.
 	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	caster.magic_attack = 0
-	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var e2 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	var e1_hp_before := e1.hp
 	var e2_hp_before := e2.hp
 	var dealt := SpellEffectResolver.apply(fireball, caster, [e1, e2])
@@ -171,8 +171,8 @@ func test_spell_effect_resolver_damage_hits_first_alive_target():
 func test_spell_effect_resolver_area_hits_all_alive_targets():
 	var nova := Spell.make("frost_nova", "Frost Nova", Spell.EffectKind.AREA, 2, 1.5)
 	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
-	var e1 := EnemyData.make_new(EnemyData.EnemyKind.SLIME)
-	var e2 := EnemyData.make_new(EnemyData.EnemyKind.BAT)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	var e1_hp_before := e1.hp
 	var e2_hp_before := e2.hp
 	SpellEffectResolver.apply(nova, caster, [e1, e2])

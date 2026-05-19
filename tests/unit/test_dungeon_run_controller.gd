@@ -11,9 +11,9 @@ func _make_linear_dungeon() -> Dungeon:
 	var d := Dungeon.new()
 	var s := Room.make(0, Room.TYPE_START)
 	var n := Room.make(1, Room.TYPE_STANDARD)
-	n.enemy_kind = EnemyData.EnemyKind.SLIME
+	n.enemy_kind = EnemyData.EnemyKind.ANGRY_PIGEON
 	var b := Room.make(2, Room.TYPE_BOSS)
-	b.enemy_kind = EnemyData.EnemyKind.RAT
+	b.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	s.connections = [1]
 	n.connections = [2]
 	d.add_room(s)
@@ -30,11 +30,11 @@ func _make_branching_dungeon() -> Dungeon:
 	var d := Dungeon.new()
 	var s := Room.make(0, Room.TYPE_START)
 	var n := Room.make(1, Room.TYPE_STANDARD)
-	n.enemy_kind = EnemyData.EnemyKind.SLIME
+	n.enemy_kind = EnemyData.EnemyKind.ANGRY_PIGEON
 	var p := Room.make(2, Room.TYPE_POWERUP)
 	p.power_up_type = "catnip"
 	var b := Room.make(3, Room.TYPE_BOSS)
-	b.enemy_kind = EnemyData.EnemyKind.RAT
+	b.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	s.connections = [1, 2]
 	n.connections = [3]
 	p.connections = [3]

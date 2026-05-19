@@ -18,15 +18,17 @@ var _player_ref: Node2D = null
 var _died_emitted: bool = false
 
 const _TEXTURE_BY_KIND := {
-	EnemyData.EnemyKind.SLIME: "res://assets/sprites/slime.png",
-	EnemyData.EnemyKind.BAT:   "res://assets/sprites/bat.png",
-	EnemyData.EnemyKind.RAT:   "res://assets/sprites/bat.png",
+	EnemyData.EnemyKind.ANGRY_PIGEON:         "res://assets/sprites/angry_pigeon_right.png",
+	EnemyData.EnemyKind.ROGUE_ROOMBA:         "res://assets/sprites/rogue_roomba_right.png",
+	EnemyData.EnemyKind.DOG_KNIGHT:           "res://assets/sprites/dog_knight_right.png",
+	EnemyData.EnemyKind.CATNIP_DEALER:        "res://assets/sprites/catnip_dealer_right.png",
+	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: "res://assets/sprites/haunted_spray_bottle_right.png",
 }
 
 func _ready() -> void:
 	add_to_group("enemies")
 	if data == null:
-		data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+		data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
@@ -35,7 +37,7 @@ func _ready() -> void:
 		if data.is_boss:
 			path = "res://assets/sprites/vacuum_boss.png"
 		else:
-			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/slime.png")
+			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
 
 func _physics_process(delta: float) -> void:

@@ -11,7 +11,7 @@ func _make_character(level: int = 1) -> CharacterData:
 	return c
 
 func _make_enemy(is_boss: bool = false) -> EnemyData:
-	var e := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	e.xp_reward = 1
 	e.is_boss = is_boss
 	return e

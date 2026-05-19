@@ -1010,7 +1010,7 @@ func _make_two_room_dungeon_for_apply() -> Dungeon:
 	d.add_room(start)
 	d.start_id = 0
 	var boss := Room.make(1, Room.TYPE_BOSS)
-	boss.enemy_kind = EnemyData.EnemyKind.RAT
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
 	d.add_room(boss)
 	d.boss_id = 1
 	return d
@@ -1158,7 +1158,7 @@ func test_remote_kill_apply_does_not_double_fire_with_local_kill():
 	# XP. Same idempotent registry guards both sides.
 	var session := _make_active_session_for_apply("u1")
 	var local := session.member_for("u1")
-	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.RAT)
+	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	enemy_data.enemy_id = "e1"
 	enemy_data.xp_reward = 3
 	# Local kill first: applies XP via CoopXPSubscriber (3) and erases e1.

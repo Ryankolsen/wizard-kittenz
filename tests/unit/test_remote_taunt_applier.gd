@@ -7,7 +7,7 @@ extends GutTest
 
 func _make_enemy_in_tree(enemy_id: String) -> Enemy:
 	var e := Enemy.new()
-	e.data = EnemyData.make_new(EnemyData.EnemyKind.SLIME)
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	e.data.enemy_id = enemy_id
 	add_child_autofree(e)
 	return e
