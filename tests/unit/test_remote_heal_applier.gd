@@ -129,3 +129,67 @@ func test_apply_zero_amount_smart_heal_returns_false():
 func test_aoe_heal_empty_target_returns_false_when_no_players():
 	# Sentinel + empty group is still a no-op — no players to fan out to.
 	assert_false(RemoteHealApplier.apply(get_tree(), "", "AOE_HEAL", 5, 0.0))
+
+# --- Floating text on remote heals (PRD #150) -------------------------------
+# Below pins the green-number visual feedback applied when a remote heal lands.
+# The applier walks the "players" group and spawns FloatingText as a child of
+# the matched node. Tests look for that child after apply().
+
+const _HEAL_GREEN := Color(0.2, 1.0, 0.4)
+
+func _find_floating_text_child(node: Node) -> FloatingText:
+	for c in node.get_children():
+		if c is FloatingText:
+			return c
+	return null
+
+func test_smart_heal_spawns_green_floating_text():
+	var p := _make_player_in_tree("u1")
+	RemoteHealApplier.apply(get_tree(), "u1", "SMART_HEAL", 5, 0.0)
+	var ft := _find_floating_text_child(p)
+	assert_not_null(ft, "SMART_HEAL on remote player spawns FloatingText")
+	var label := ft.get_node("Label") as Label
+	assert_eq(label.text, "5", "label shows healed amount")
+	assert_almost_eq(label.modulate.r, _HEAL_GREEN.r, 0.01)
+	assert_almost_eq(label.modulate.g, _HEAL_GREEN.g, 0.01)
+	assert_almost_eq(label.modulate.b, _HEAL_GREEN.b, 0.01)
+
+func test_aoe_heal_spawns_green_floating_text():
+	var p := _make_player_in_tree("u1")
+	RemoteHealApplier.apply(get_tree(), "u1", "AOE_HEAL", 4, 0.0)
+	var ft := _find_floating_text_child(p)
+	assert_not_null(ft)
+	assert_eq((ft.get_node("Label") as Label).text, "4")
+
+func test_aoe_heal_sentinel_spawns_text_over_each_player():
+	# PRD #150 story 3: Warm Blanket fans the green number out to every ally.
+	var p1 := _make_player_in_tree("u1")
+	var p2 := _make_player_in_tree("u2")
+	RemoteHealApplier.apply(get_tree(), "", "AOE_HEAL", 3, 0.0)
+	assert_not_null(_find_floating_text_child(p1))
+	assert_not_null(_find_floating_text_child(p2))
+
+func test_smart_heal_at_max_hp_spawns_no_text():
+	# Zero-heal suppression: target already at full HP gets no popup so the
+	# screen doesn't pile up with "0" numbers from periodic SMART_HEAL casts.
+	var p := _make_player_in_tree("u1")
+	p.data.hp = p.data.max_hp
+	RemoteHealApplier.apply(get_tree(), "u1", "SMART_HEAL", 5, 0.0)
+	assert_null(_find_floating_text_child(p))
+
+func test_group_regen_apply_spawns_no_text():
+	# GROUP_REGEN's apply only registers the buff — the per-second tick is
+	# where the green number renders (covered by the player-side regen-tick
+	# spawn in player.gd). The apply call itself must stay quiet.
+	var p := _make_player_in_tree("u1")
+	RemoteHealApplier.apply(get_tree(), "u1", "GROUP_REGEN", 2, 15.0)
+	assert_null(_find_floating_text_child(p))
+
+func test_party_buff_apply_spawns_no_text():
+	# PRD #150: Cozy Aura restores no HP so no floating text — buff icons /
+	# stat-readouts are the visual channel for this effect.
+	var p := _make_player_in_tree("u1")
+	RemoteHealApplier.apply(get_tree(), "u1", "PARTY_BUFF_DEFENSE", 3, 15.0)
+	assert_null(_find_floating_text_child(p))
+	RemoteHealApplier.apply(get_tree(), "u1", "PARTY_BUFF_MAGIC_RESISTANCE", 3, 15.0)
+	assert_null(_find_floating_text_child(p))
