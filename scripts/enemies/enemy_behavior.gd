@@ -30,4 +30,6 @@ static func for_kind(kind: int) -> EnemyBehavior:
 			return RogueRoombaBehavior.new()
 		EnemyData.EnemyKind.DOG_KNIGHT:
 			return DogKnightBehavior.new()
+		EnemyData.EnemyKind.CATNIP_DEALER:
+			return CatnipDealerBehavior.new()
 	return EnemyBehavior.new()

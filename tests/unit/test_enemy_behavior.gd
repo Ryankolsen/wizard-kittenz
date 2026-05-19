@@ -338,3 +338,126 @@ func test_dog_knight_dead_enemy_skips_charge():
 		b.tick(1.0, e)
 	assert_false(b.wants_to_charge(), "dead dog knight should never want to charge")
 	assert_false(b.is_charging, "dead dog knight should never be charging")
+
+
+# ---------------------------------------------------------------------------
+# CatnipDealerBehavior (issue #164) — preferred range, flee, random debuff.
+# ---------------------------------------------------------------------------
+
+class _MockDealerPlayer extends Node2D:
+	var data = null
+
+class _MockDealerPlayerData:
+	var hp: int = 10
+	var max_hp: int = 10
+
+class _MockDealerEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 1  # EnemyAIState.State.CHASE
+	var _player_ref: Node2D = null
+
+
+func test_catnip_dealer_holds_preferred_range():
+	# Acceptance #1: at >PREFERRED_RANGE (+deadband), approach the player;
+	# at <PREFERRED_RANGE (-deadband), back away to hold distance. The
+	# behavior's desired_direction returns a unit vector the Enemy node
+	# scales by move_speed. Issue text says "away (repositioning inward)"
+	# at 150 — read as a typo for "toward" since the dealer's stated goal
+	# is to *reach* ~120 from a too-far position. The test pins the
+	# gameplay-sensible direction.
+	var b := CatnipDealerBehavior.new()
+	var far_dir := b.desired_direction(Vector2.ZERO, Vector2(150.0, 0.0))
+	assert_eq(far_dir, Vector2(1.0, 0.0), "at 150px the dealer should approach the player")
+	var near_dir := b.desired_direction(Vector2.ZERO, Vector2(90.0, 0.0))
+	assert_eq(near_dir, Vector2(-1.0, 0.0), "at 90px the dealer should back away to hold range")
+
+
+func test_catnip_dealer_flees_on_melee_entry():
+	# Acceptance #2: ≤FLEE_RANGE (~40px) flips is_fleeing on; 50px is outside.
+	var b := CatnipDealerBehavior.new()
+	assert_true(b.is_fleeing(35.0), "35px should be inside flee range")
+	assert_false(b.is_fleeing(50.0), "50px should be outside flee range")
+
+
+func test_catnip_dealer_fire_timer_fires():
+	# Acceptance #3: fire timer trips wants_to_fire() after ~2.5s. Driving 2.6s
+	# of ticks without a player ref accrues the timer without queuing a fire.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockDealerEnemy.new()
+	for _i in range(26):
+		b.tick(0.1, e)
+	assert_true(b.wants_to_fire(), "wants_to_fire should be true after 2.6s")
+
+
+func test_catnip_dealer_pick_debuff_covers_all_three():
+	# Acceptance #4: debuff selection eventually picks all three types.
+	# 20 calls across a seeded RNG should yield at least one of each.
+	var b := CatnipDealerBehavior.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345
+	var seen := {}
+	for _i in range(20):
+		seen[b.pick_debuff(rng)] = true
+	assert_true(seen.has(CatnipDealerBehavior.DEBUFF_CONFUSION), "confusion should appear")
+	assert_true(seen.has(CatnipDealerBehavior.DEBUFF_SLOWNESS), "slowness should appear")
+	assert_true(seen.has(CatnipDealerBehavior.DEBUFF_MISFIRE), "misfire should appear")
+
+
+func test_catnip_dealer_misfire_no_op_without_spells():
+	# Acceptance #5: misfire against a bare player data with no spells must
+	# not crash and must not mutate HP. Pure-data path — no SceneTree needed.
+	var pd := _MockDealerPlayerData.new()
+	pd.hp = 10
+	CatnipDealerBehavior.apply_misfire(pd)
+	assert_eq(pd.hp, 10, "misfire should not change HP")
+
+
+func test_catnip_dealer_make_debuff_effect_maps_to_subclasses():
+	# Confusion / slowness construct their respective PowerUpEffect; misfire
+	# returns null since there's no time-bounded state to push onto the
+	# PowerUpManager (the side effect, if any, fires at apply-time only).
+	assert_true(CatnipDealerBehavior.make_debuff_effect(
+		CatnipDealerBehavior.DEBUFF_CONFUSION) is ConfusionEffect)
+	assert_true(CatnipDealerBehavior.make_debuff_effect(
+		CatnipDealerBehavior.DEBUFF_SLOWNESS) is SlownessEffect)
+	assert_null(CatnipDealerBehavior.make_debuff_effect(
+		CatnipDealerBehavior.DEBUFF_MISFIRE),
+		"misfire should not construct a PowerUpEffect")
+
+
+func test_catnip_dealer_for_kind_dispatches_subclass():
+	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.CATNIP_DEALER)
+	assert_true(b is CatnipDealerBehavior,
+		"CATNIP_DEALER kind must dispatch to CatnipDealerBehavior")
+
+
+func test_catnip_dealer_dead_enemy_skips_fire():
+	# DEAD is the sink — a dead dealer must not accrue the fire timer or
+	# queue a projectile. Same pattern as pigeon / roomba / dog knight.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockDealerEnemy.new()
+	e.state = 3  # EnemyAIState.State.DEAD
+	for _i in range(30):
+		b.tick(0.1, e)
+	assert_false(b.wants_to_fire(),
+		"dead dealer should never want to fire")
+	assert_eq(b.pending_fire_target, null,
+		"dead dealer should never queue a fire")
+
+
+func test_catnip_dealer_fire_publishes_target_when_in_range():
+	# Integration of fire-timer + range gate: with a player ref set inside
+	# projectile range (>FLEE, <=MAX) the next ready tick should publish the
+	# player position as pending_fire_target.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockDealerEnemy.new()
+	var p := _MockDealerPlayer.new()
+	p.global_position = Vector2(150.0, 0.0)
+	e._player_ref = p
+	for _i in range(26):
+		b.tick(0.1, e)
+	assert_not_null(b.pending_fire_target,
+		"fire should be queued once cooldown elapses and player is in range")
+	assert_eq(b.pending_fire_target, Vector2(150.0, 0.0),
+		"pending_fire_target should equal the player position at fire time")

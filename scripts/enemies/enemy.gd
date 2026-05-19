@@ -95,10 +95,12 @@ func _physics_process(delta: float) -> void:
 	# Skipped on DEAD so behaviors don't tick a freed node.
 	if _behavior != null and state != EnemyAIState.State.DEAD:
 		_drive_rogue_roomba(delta)
+		_drive_catnip_dealer(delta)
 		_behavior.tick(delta, self)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
 		_observe_dog_knight()
+		_observe_catnip_dealer()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -318,6 +320,103 @@ func _spawn_roomba_trail() -> void:
 	)
 	hazard.global_position = global_position
 	parent.add_child(hazard)
+
+# Catnip Dealer motion override (issue #164). Reads the behavior's desired
+# direction (preferred-range hold + flee inside FLEE_RANGE) and drives
+# move_and_slide directly. Pure-data behavior stays SceneTree-free; the Enemy
+# node owns the physics step — same separation as the roomba's _drive helper.
+func _drive_catnip_dealer(_delta: float) -> void:
+	if not (_behavior is CatnipDealerBehavior):
+		return
+	var cdb := _behavior as CatnipDealerBehavior
+	var player := _player_ref
+	if player == null:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
+	var dir := cdb.desired_direction(global_position, player.global_position)
+	velocity = dir * move_speed
+	if dir != Vector2.ZERO and data != null:
+		data.facing = dir
+		var sprite := get_node_or_null("Sprite2D") as Sprite2D
+		if sprite != null:
+			sprite.flip_h = dir.x > 0.0
+	move_and_slide()
+
+# Bridges CatnipDealerBehavior state edges to scene-tree side effects: spawns
+# the catnip-bag EnemyProjectile when pending_fire_target is set, and the
+# green-burst VFX + debuff FloatingText on projectile hit (via the on_hit
+# callback closed over the chosen debuff type).
+func _observe_catnip_dealer() -> void:
+	if not (_behavior is CatnipDealerBehavior):
+		return
+	var cdb := _behavior as CatnipDealerBehavior
+	if cdb.pending_fire_target != null:
+		var target_pos: Vector2 = cdb.pending_fire_target
+		var debuff_type: String = cdb.pick_debuff(cdb._rng)
+		_spawn_catnip_projectile(target_pos, debuff_type)
+		cdb.pending_fire_target = null
+	if cdb.pending_burst_position != null:
+		_spawn_catnip_burst(cdb.pending_burst_position)
+		cdb.pending_burst_position = null
+
+func _spawn_catnip_projectile(target_pos: Vector2, debuff_type: String) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var proj := EnemyProjectile.new()
+	proj.position = global_position
+	# Close over the dealer behavior so the on-hit observer publishes the burst
+	# position back through pending_burst_position next frame.
+	var behavior_ref := _behavior
+	var on_hit := func(player_node):
+		if behavior_ref is CatnipDealerBehavior:
+			(behavior_ref as CatnipDealerBehavior).pending_burst_position = (
+				player_node.global_position if player_node is Node2D else target_pos)
+		_apply_catnip_debuff(player_node, debuff_type)
+	proj.configure(
+		target_pos,
+		CatnipDealerBehavior.PROJECTILE_SPEED,
+		CatnipDealerBehavior.PROJECTILE_RADIUS,
+		CatnipDealerBehavior.PROJECTILE_COLOR,
+		CatnipDealerBehavior.PROJECTILE_MAX_RANGE,
+		on_hit
+	)
+	parent.add_child(proj)
+
+func _apply_catnip_debuff(player_node, debuff_type: String) -> void:
+	if player_node == null:
+		return
+	var label := CatnipDealerBehavior.floating_text_label(debuff_type)
+	if debuff_type == CatnipDealerBehavior.DEBUFF_MISFIRE:
+		if player_node.has_method("get") and player_node.get("data") != null:
+			CatnipDealerBehavior.apply_misfire(player_node.get("data"))
+	else:
+		var effect := CatnipDealerBehavior.make_debuff_effect(debuff_type)
+		if effect != null and player_node.has_method("apply_debuff"):
+			player_node.apply_debuff(effect)
+	if label != "" and player_node is Node:
+		FloatingText.spawn(player_node, label, Color(0.5, 0.85, 0.3))
+
+func _spawn_catnip_burst(pos: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var burst := Node2D.new()
+	burst.global_position = pos
+	var circle := Polygon2D.new()
+	var points := PackedVector2Array()
+	var seg := 16
+	for i in range(seg):
+		var a := TAU * float(i) / float(seg)
+		points.append(Vector2(cos(a), sin(a)) * CatnipDealerBehavior.BURST_RADIUS)
+	circle.polygon = points
+	circle.color = CatnipDealerBehavior.BURST_COLOR
+	burst.add_child(circle)
+	parent.add_child(burst)
+	var tween := burst.create_tween()
+	tween.tween_property(circle, "modulate:a", 0.0, CatnipDealerBehavior.BURST_DURATION)
+	tween.tween_callback(burst.queue_free)
 
 func _find_player() -> Node2D:
 	var nodes := get_tree().get_nodes_in_group("player")
