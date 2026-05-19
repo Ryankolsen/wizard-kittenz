@@ -14,5 +14,16 @@ extends RefCounted
 func tick(_delta: float, _enemy) -> void:
 	pass
 
-static func for_kind(_kind: int) -> EnemyBehavior:
+# When a behavior wants to take exclusive control of motion this frame
+# (e.g., Angry Pigeon's straight-line dive bomb that must ignore steering),
+# it returns true and the Enemy node skips its state-machine match block,
+# letting the behavior's tick write global_position / velocity unopposed.
+# Default false so the standard chase/attack/idle baseline runs.
+func is_overriding_motion() -> bool:
+	return false
+
+static func for_kind(kind: int) -> EnemyBehavior:
+	match kind:
+		EnemyData.EnemyKind.ANGRY_PIGEON:
+			return AngryPigeonBehavior.new()
 	return EnemyBehavior.new()

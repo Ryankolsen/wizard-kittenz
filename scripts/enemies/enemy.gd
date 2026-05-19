@@ -17,6 +17,12 @@ var _behavior: EnemyBehavior
 # RemoteKitten target produces a pursuit-only state (no damage on touch).
 var _player_ref: Node2D = null
 var _died_emitted: bool = false
+# Angry Pigeon dive-bomb VFX (issue #161). Lazily-created Line2D parented to
+# the enemy and populated each frame during a charge; cleared on completion.
+# Kept on Enemy (not the behavior) so the pure-data behavior stays SceneTree-
+# free and trivially testable — same separation as Player._apply_wet_tint.
+var _pigeon_trail: Line2D = null
+var _pigeon_was_charging: bool = false
 
 const _TEXTURE_BY_KIND := {
 	EnemyData.EnemyKind.ANGRY_PIGEON:         "res://assets/sprites/angry_pigeon_right.png",
@@ -53,25 +59,37 @@ func _physics_process(delta: float) -> void:
 	if player != null:
 		distance = global_position.distance_to(player.global_position)
 	apply_state_update(distance)
-	match state:
-		EnemyAIState.State.CHASE:
-			_chase(player)
-		EnemyAIState.State.ATTACK:
-			velocity = Vector2.ZERO
-			move_and_slide()
-			_try_contact_damage(player)
-		EnemyAIState.State.DEAD:
-			velocity = Vector2.ZERO
-			queue_free()
-		_:
-			velocity = Vector2.ZERO
-			move_and_slide()
+	# Per-kind behavior may take exclusive control of motion this frame
+	# (e.g., Angry Pigeon dive bomb, issue #161). When it does, skip the
+	# state-machine match block so direct global_position writes from the
+	# behavior aren't undone by _chase / move_and_slide. DEAD still runs
+	# its queue_free path regardless.
+	var motion_override := (
+		_behavior != null
+		and state != EnemyAIState.State.DEAD
+		and _behavior.is_overriding_motion()
+	)
+	if not motion_override:
+		match state:
+			EnemyAIState.State.CHASE:
+				_chase(player)
+			EnemyAIState.State.ATTACK:
+				velocity = Vector2.ZERO
+				move_and_slide()
+				_try_contact_damage(player)
+			EnemyAIState.State.DEAD:
+				velocity = Vector2.ZERO
+				queue_free()
+			_:
+				velocity = Vector2.ZERO
+				move_and_slide()
 	# Per-kind behavior hook (issue #157). Runs after the base state machine so
 	# kinds layer on top of chase/attack — overrides can read enemy.state /
 	# velocity, spawn projectiles, drop hazards, etc. Default base impl no-ops.
 	# Skipped on DEAD so behaviors don't tick a freed node.
 	if _behavior != null and state != EnemyAIState.State.DEAD:
 		_behavior.tick(delta, self)
+		_observe_angry_pigeon()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -141,6 +159,61 @@ func flash_hit() -> void:
 	var tween := create_tween()
 	tween.tween_property(sprite, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.0)
 	tween.tween_property(sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
+
+# Bridges AngryPigeonBehavior state edges to scene-tree side effects: motion
+# trail Line2D during charge, FloorHazard slow zone and SPLAT FloatingText
+# on completion. No-ops when the active behavior is not the pigeon's.
+func _observe_angry_pigeon() -> void:
+	if not (_behavior is AngryPigeonBehavior):
+		return
+	var apb := _behavior as AngryPigeonBehavior
+	if apb.is_charging and not _pigeon_was_charging:
+		_start_pigeon_trail()
+	if apb.is_charging and _pigeon_trail != null:
+		_pigeon_trail.add_point(global_position)
+	if not apb.is_charging and _pigeon_was_charging:
+		_end_pigeon_trail()
+	_pigeon_was_charging = apb.is_charging
+	if apb.pending_hazard_position != null:
+		_spawn_pigeon_hazard(apb.pending_hazard_position)
+		apb.pending_hazard_position = null
+		FloatingText.spawn(self, "SPLAT")
+
+func _start_pigeon_trail() -> void:
+	if _pigeon_trail != null:
+		return
+	_pigeon_trail = Line2D.new()
+	_pigeon_trail.width = 3.0
+	_pigeon_trail.default_color = Color(1.0, 0.7, 0.7, 0.6)
+	_pigeon_trail.top_level = true
+	add_child(_pigeon_trail)
+	_pigeon_trail.add_point(global_position)
+
+func _end_pigeon_trail() -> void:
+	if _pigeon_trail == null:
+		return
+	# Fade-out tween so the trail lingers briefly post-impact. queue_free is
+	# called via the tween's finished signal so we don't strand a Line2D.
+	var trail := _pigeon_trail
+	_pigeon_trail = null
+	var tween := create_tween()
+	tween.tween_property(trail, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(trail.queue_free)
+
+func _spawn_pigeon_hazard(pos: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var hazard := FloorHazard.new()
+	hazard.configure(
+		AngryPigeonBehavior.HAZARD_DURATION,
+		AngryPigeonBehavior.HAZARD_SLOW_PERCENT,
+		0.0,
+		AngryPigeonBehavior.HAZARD_RADIUS,
+		AngryPigeonBehavior.HAZARD_COLOR
+	)
+	hazard.global_position = pos
+	parent.add_child(hazard)
 
 func _find_player() -> Node2D:
 	var nodes := get_tree().get_nodes_in_group("player")
