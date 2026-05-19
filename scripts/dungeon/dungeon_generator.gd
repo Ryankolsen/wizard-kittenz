@@ -19,10 +19,11 @@ extends RefCounted
 #      guaranteed: the three types are shuffled, then three distinct middle-room
 #      slots are chosen at random to receive them. All remaining middle rooms
 #      are standard combat rooms.
-#   6. Each combat room (standard + boss) seeds an enemy kind. Boss draws
-#      from BOSS_ENEMY_KINDS (currently {RAT}, the highest-stat existing
-#      kind) — that's the "harder enemy variant" criterion. Standard rooms
-#      draw from STANDARD_ENEMY_KINDS ({SLIME, BAT}).
+#   6. Each combat room (standard + boss) seeds an enemy kind. Boss and
+#      standard rooms both draw from the full 5-kind roster today (per PRD
+#      #151). Boss "difficulty" comes from the RoomSpawnPlanner boss stat
+#      multipliers, not from a separate stronger pool. A future per-dungeon
+#      data-driven enemy config will replace the constants below.
 
 const MIN_ROOMS := 5
 const MAX_ROOMS := 10

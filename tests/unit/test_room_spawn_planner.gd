@@ -77,7 +77,7 @@ func test_plan_enemy_boss_room_has_boosted_stats():
 	assert_eq(d.defense, base_def * RoomSpawnPlanner.BOSS_DEFENSE_MULT)
 	assert_eq(d.xp_reward, EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_XP_MULT)
 	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
-	assert_eq(d.enemy_name, "King Rat")
+	assert_eq(d.enemy_name, "The Vacuum")
 
 func test_plan_enemy_standard_room_not_boosted():
 	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
@@ -413,3 +413,46 @@ func test_planned_enemy_id_round_trips_through_apply_death():
 	assert_true(session.enemy_sync.is_alive(spawned[0].enemy_id))
 	assert_true(session.enemy_sync.apply_death(spawned[0].enemy_id))
 	assert_false(session.enemy_sync.is_alive(spawned[0].enemy_id))
+
+# --- new enemy roster (issue #154) -----------------------------------------
+
+func test_boss_enemy_name_is_the_vacuum():
+	# Generator-level: every boss room across many seeded dungeons emits
+	# "The Vacuum" as its enemy_name. Locks the boss-name rename against
+	# any future kind-routing change.
+	for seed in range(1, 30):
+		var dungeon := DungeonGenerator.generate(seed)
+		var boss_room := dungeon.rooms[dungeon.boss_id]
+		var boss_data := RoomSpawnPlanner.plan_enemy(boss_room)
+		assert_eq(boss_data.enemy_name, "The Vacuum",
+			"seed %d boss is named The Vacuum" % seed)
+
+func test_standard_rooms_never_emit_old_kind_names():
+	# None of the placeholder names (Slime / Bat / Rat) appear in the
+	# pool the generator draws standard rooms from.
+	var old_names := ["Slime", "Bat", "Rat"]
+	for seed in range(1, 30):
+		var dungeon := DungeonGenerator.generate(seed)
+		for room in dungeon.rooms:
+			if room.type != Room.TYPE_STANDARD:
+				continue
+			var data := RoomSpawnPlanner.plan_enemy(room)
+			assert_false(old_names.has(data.enemy_name),
+				"seed %d room %d emitted old name %s" % [seed, room.id, data.enemy_name])
+
+func test_all_five_kinds_reachable_in_standard_pool():
+	# Probabilistic coverage: across many seeded dungeons, every one of the
+	# 5 new display names appears at least once as a standard-room enemy.
+	# The generator picks uniformly from STANDARD_ENEMY_KINDS, so 30 seeds
+	# x ~5 standard rooms each (~150 draws) gives effectively zero chance
+	# of a missed kind unless the pool itself is wrong.
+	var seen := {}
+	for seed in range(1, 60):
+		var dungeon := DungeonGenerator.generate(seed)
+		for room in dungeon.rooms:
+			if room.type != Room.TYPE_STANDARD:
+				continue
+			var data := RoomSpawnPlanner.plan_enemy(room)
+			seen[data.enemy_name] = true
+	for expected in ["Angry Pigeon", "Rogue Roomba", "Dog Knight", "Catnip Dealer", "Haunted Spray Bottle"]:
+		assert_true(seen.has(expected), "kind %s appeared in standard pool" % expected)

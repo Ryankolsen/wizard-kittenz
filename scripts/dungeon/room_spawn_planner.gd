@@ -80,7 +80,7 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 		data.defense = data.defense * BOSS_DEFENSE_MULT
 		data.xp_reward = data.xp_reward * BOSS_XP_MULT
 		data.gold_reward = data.gold_reward * BOSS_GOLD_MULT
-		data.enemy_name = "King Rat"
+		data.enemy_name = "The Vacuum"
 	return data
 
 # Returns the power-up type string for a power-up room, or empty string
