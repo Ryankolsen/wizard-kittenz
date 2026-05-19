@@ -83,6 +83,7 @@ func compute(dungeon: Dungeon) -> DungeonLayout:
 		occupied[boss_pos] = dungeon.boss_id
 
 	layout.room_positions = positions
+	layout.boss_id = dungeon.boss_id
 
 	# Corridors mirror the directed edges of the dungeon graph one-for-one.
 	var corridors: Array = []

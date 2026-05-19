@@ -181,6 +181,8 @@ func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session:
 			continue
 		if layout != null:
 			data.spawn_position = layout.room_center_world(room.id)
+			if data.is_boss:
+				data.room_bounds = layout.boss_room_bounds(room.id)
 		_enemy_data_by_room_id[room.id] = data
 		if session != null and session.enemy_sync != null:
 			session.enemy_sync.register_enemy(data.enemy_id)

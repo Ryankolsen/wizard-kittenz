@@ -41,6 +41,11 @@ var facing: Vector2 = Vector2.DOWN
 # effect decays via tick_taunt(dt) each physics frame and clears once
 # taunt_remaining reaches 0. Pure-data — Enemy node code reads these to
 # override _find_player().
+var detection_radius: float = EnemyAIState.DETECTION_RADIUS
+# World-space Rect2 bounding this enemy's room. Non-zero only for the boss —
+# set by RoomSpawnPlanner so Enemy._clamp_to_room_bounds() can keep the boss
+# inside its room each physics frame.
+var room_bounds: Rect2 = Rect2()
 var taunt_target = null
 var taunt_remaining: float = 0.0
 # Cross-client identity for the TAUNT caster. Stamped by SpellEffectResolver

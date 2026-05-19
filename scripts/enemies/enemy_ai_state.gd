@@ -22,14 +22,14 @@ const CHASE_SPEED: float = 40.0
 # any other state, so a player wandering back into detection range can't
 # reanimate a corpse. HP <= 0 always wins (a poison-tick that kills mid-
 # attack still flips to DEAD this frame).
-static func next_state(current: int, distance: float, hp: int) -> int:
+static func next_state(current: int, distance: float, hp: int, detection_radius: float = DETECTION_RADIUS) -> int:
 	if hp <= 0:
 		return State.DEAD
 	if current == State.DEAD:
 		return State.DEAD
 	if distance <= MELEE_RANGE:
 		return State.ATTACK
-	if distance <= DETECTION_RADIUS:
+	if distance <= detection_radius:
 		return State.CHASE
 	return State.IDLE
 

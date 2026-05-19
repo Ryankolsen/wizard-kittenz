@@ -12,9 +12,9 @@ extends GutTest
 #   = boss_origin.y + 192 - 8 = boss_origin.y + 184
 # x: centred on the boss room, same formula as corridor_center_x.
 
-const ROOM_SIZE_PX  := 192  # must match DungeonLayout constants
+const BOSS_ROOM_SIZE_PX := 384  # must match DungeonLayout.BOSS_ROOM_SIZE_PX
 const CORRIDOR_PX   := 80
-const STEP          := 272  # ROOM_SIZE_PX + CORRIDOR_PX
+const STEP          := 272  # ROOM_SIZE_PX(192) + CORRIDOR_PX
 const HALF_TILE     := 8    # DungeonLayout.TILE_SIZE_PX / 2
 
 func _make_layout(boss_id: int, positions: Dictionary, corridors: Array) -> DungeonLayout:
@@ -28,13 +28,14 @@ func _make_layout(boss_id: int, positions: Dictionary, corridors: Array) -> Dung
 
 func test_returns_south_wall_position():
 	# Parent at (0,0), boss at (1,1).
-	# boss_origin = (272, 272); door y = 272 + 192 - 8 = 456
-	# room_center_x = 272 + 96 + 8 = 376
+	# boss_origin = (272, 272); BOSS_ROOM_SIZE_PX = 384
+	# door y = 272 + 384 - 8 = 648
+	# room_center_x = 272 + 192 + 8 = 472
 	var layout := _make_layout(1,
 		{0: Vector2i(0, 0), 1: Vector2i(1, 1)},
 		[[0, 1]])
 	var result: Dictionary = layout.boss_exit_position(1)
-	assert_eq(result["position"], Vector2(376.0, 456.0),
+	assert_eq(result["position"], Vector2(472.0, 648.0),
 		"south wall: door on last tile row of boss room")
 
 func test_rotation_is_half_pi():
@@ -50,13 +51,14 @@ func test_rotation_is_half_pi():
 
 func test_x_uses_boss_room_center():
 	# Parent at (3,0), boss at (5,1).
-	# boss_origin = (1360, 272); y = 272 + 192 - 8 = 456
-	# room_center_x = 1360 + 96 + 8 = 1464
+	# boss_origin = (1360, 272); BOSS_ROOM_SIZE_PX = 384
+	# door y = 272 + 384 - 8 = 648
+	# room_center_x = 1360 + 192 + 8 = 1560
 	var layout := _make_layout(2,
 		{0: Vector2i(0, 0), 1: Vector2i(3, 0), 2: Vector2i(5, 1)},
 		[[0, 1], [1, 2]])
 	var result: Dictionary = layout.boss_exit_position(2)
-	assert_eq(result["position"], Vector2(1464.0, 456.0),
+	assert_eq(result["position"], Vector2(1560.0, 648.0),
 		"south wall x is centred on boss room regardless of parent x")
 
 

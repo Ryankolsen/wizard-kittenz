@@ -108,6 +108,8 @@ func _physics_process(delta: float) -> void:
 		_observe_dog_knight()
 		_observe_catnip_dealer()
 		_observe_haunted_spray_bottle()
+	if state != EnemyAIState.State.DEAD:
+		_clamp_to_room_bounds()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -116,7 +118,7 @@ func _physics_process(delta: float) -> void:
 func apply_state_update(distance: float) -> void:
 	if data == null:
 		return
-	state = EnemyAIState.next_state(state, distance, data.hp)
+	state = EnemyAIState.next_state(state, distance, data.hp, data.detection_radius)
 	if state == EnemyAIState.State.DEAD and not _died_emitted:
 		_died_emitted = true
 		# Notify the per-kind behavior so it can publish death-edge state
@@ -245,6 +247,10 @@ func _spawn_pigeon_hazard(pos: Vector2) -> void:
 # a deterministic-yet-varied direction.
 func _drive_rogue_roomba(_delta: float) -> void:
 	if not (_behavior is RogueRoombaBehavior):
+		return
+	if state == EnemyAIState.State.IDLE:
+		velocity = Vector2.ZERO
+		move_and_slide()
 		return
 	if _roomba_velocity == Vector2.ZERO:
 		var p := _player_ref
@@ -508,6 +514,14 @@ func _spawn_catnip_burst(pos: Vector2) -> void:
 	var tween := burst.create_tween()
 	tween.tween_property(circle, "modulate:a", 0.0, CatnipDealerBehavior.BURST_DURATION)
 	tween.tween_callback(burst.queue_free)
+
+func _clamp_to_room_bounds() -> void:
+	if data == null or not data.room_bounds.has_area():
+		return
+	const MARGIN := 16.0
+	var b: Rect2 = data.room_bounds
+	global_position.x = clamp(global_position.x, b.position.x + MARGIN, b.end.x - MARGIN)
+	global_position.y = clamp(global_position.y, b.position.y + MARGIN, b.end.y - MARGIN)
 
 func _find_player() -> Node2D:
 	var nodes := get_tree().get_nodes_in_group("player")

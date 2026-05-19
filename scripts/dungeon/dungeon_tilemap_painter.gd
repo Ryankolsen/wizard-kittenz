@@ -19,6 +19,7 @@ extends RefCounted
 const FLOOR_TEXTURE_PATH := "res://assets/sprites/floor.png"
 const TILE_SIZE := 16
 const ROOM_TILES := 12
+const BOSS_ROOM_TILES := 24
 const CORRIDOR_TILES := 5
 
 const SOURCE_FLOOR := 0
@@ -51,8 +52,9 @@ func paint(layout: DungeonLayout, tilemap: TileMap, dungeon: Dungeon = null) -> 
 			src = SOURCE_START
 		elif rid == boss_id:
 			src = SOURCE_BOSS
-		for y in range(ROOM_TILES):
-			for x in range(ROOM_TILES):
+		var room_tiles: int = BOSS_ROOM_TILES if rid == boss_id else ROOM_TILES
+		for y in range(room_tiles):
+			for x in range(room_tiles):
 				var cell := origin + Vector2i(x, y)
 				tilemap.set_cell(0, cell, src, Vector2i(0, 0))
 				floor_cells[cell] = true
@@ -68,18 +70,18 @@ func paint(layout: DungeonLayout, tilemap: TileMap, dungeon: Dungeon = null) -> 
 	# pass through room centers using the standard floor source, which would
 	# otherwise overwrite the distinct start/boss variants inside the room.
 	_repaint_variant_room(tilemap, layout, start_id, SOURCE_START)
-	_repaint_variant_room(tilemap, layout, boss_id, SOURCE_BOSS)
+	_repaint_variant_room(tilemap, layout, boss_id, SOURCE_BOSS, BOSS_ROOM_TILES)
 
 	_paint_walls(tilemap, floor_cells)
 
-func _repaint_variant_room(tilemap: TileMap, layout: DungeonLayout, rid: int, source_id: int) -> void:
+func _repaint_variant_room(tilemap: TileMap, layout: DungeonLayout, rid: int, source_id: int, room_tiles: int = ROOM_TILES) -> void:
 	if rid < 0 or not layout.room_positions.has(rid):
 		return
 	var step_tiles: int = ROOM_TILES + CORRIDOR_TILES
 	var grid_pos: Vector2i = layout.room_positions[rid]
 	var origin := Vector2i(grid_pos.x * step_tiles, grid_pos.y * step_tiles)
-	for y in range(ROOM_TILES):
-		for x in range(ROOM_TILES):
+	for y in range(room_tiles):
+		for x in range(room_tiles):
 			tilemap.set_cell(0, origin + Vector2i(x, y), source_id, Vector2i(0, 0))
 
 # Returns the tile-space center of a room — useful to placement code (exit

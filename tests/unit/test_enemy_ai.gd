@@ -274,6 +274,15 @@ func test_is_taunted_false_when_timer_expired_even_with_source_id():
 		"expired timer overrides source_id presence")
 	e.free()
 
+func test_next_state_respects_custom_detection_radius():
+	# AC: passing a custom detection_radius overrides the constant.
+	var big_radius := EnemyAIState.DETECTION_RADIUS * 2.0
+	var just_inside := big_radius - 5.0
+	var s := EnemyAIState.next_state(_State.IDLE, just_inside, 5, big_radius)
+	assert_eq(s, _State.CHASE, "custom radius: inside -> CHASE")
+	var s2 := EnemyAIState.next_state(_State.IDLE, just_inside, 5)
+	assert_eq(s2, _State.IDLE, "default radius: same distance is still outside")
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.
