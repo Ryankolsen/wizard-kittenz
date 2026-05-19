@@ -50,6 +50,22 @@ var facing: Vector2 = Vector2.DOWN
 # round-trip it; empty string is the "solo / pre-handshake" sentinel.
 var player_id: String = ""
 
+# Confusion-debuff counter (issue #160). ConfusionEffect raises on apply and
+# lowers on remove; Player reads `is_confused()` each frame to flip input.
+# Counter (not bool) so concurrent confusion sources don't clobber each other
+# — a second source uncounted by the first would clear the flag prematurely
+# when only one expires.
+var _confusion_count: int = 0
+
+func is_confused() -> bool:
+	return _confusion_count > 0
+
+func push_confusion() -> void:
+	_confusion_count += 1
+
+func pop_confusion() -> void:
+	_confusion_count = maxi(0, _confusion_count - 1)
+
 # Active buff system (issue #144). Each buff is
 # {stat: String, amount: int, remaining: float, accum: float}. The sentinel
 # stat name BUFF_GROUP_REGEN ticks HP-over-time instead of mutating a field;

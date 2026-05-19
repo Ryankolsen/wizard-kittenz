@@ -24,6 +24,22 @@ func apply(type_id: String, target) -> PowerUpEffect:
 	_active[type_id] = effect
 	return effect
 
+# Apply a caller-constructed effect (debuffs / future custom-duration buffs
+# that the string-id factory can't express). Same refresh-not-stack semantics
+# as apply(): if `effect.type` is already active, the in-flight effect's
+# duration is refreshed and the passed instance is discarded.
+func apply_effect(effect: PowerUpEffect, target) -> PowerUpEffect:
+	if effect == null:
+		return null
+	var type_id := effect.type
+	if _active.has(type_id):
+		var existing: PowerUpEffect = _active[type_id]
+		existing.refresh()
+		return existing
+	effect.apply_to(target)
+	_active[type_id] = effect
+	return effect
+
 func tick(dt: float) -> void:
 	if dt <= 0.0:
 		return

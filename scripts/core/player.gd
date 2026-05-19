@@ -94,8 +94,13 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	# Re-read data.speed each frame so PowerUpManager mutations (Catnip)
-	# propagate without needing a Player.gd hook.
+	# ConfusionEffect (#160) flips the input vector while active. Done here
+	# rather than inside compute_velocity so facing / sprite flip below also
+	# read the reversed direction — confused players visibly face "wrong".
+	if data != null and data.is_confused():
+		input_dir = -input_dir
+	# Re-read data.speed each frame so PowerUpManager mutations (Catnip / Wet
+	# / Slowness) propagate without needing a Player.gd hook.
 	if data != null and data.speed > 0.0:
 		speed = data.speed
 	velocity = compute_velocity(input_dir, speed)
@@ -114,6 +119,7 @@ func _physics_process(delta: float) -> void:
 	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
+	_apply_wet_tint()
 	_maybe_broadcast_position()
 	if Input.is_action_just_pressed("attack"):
 		_try_attack()
@@ -133,6 +139,16 @@ func _check_died() -> void:
 func collect_power_up(type_id: String) -> void:
 	_power_ups.apply(type_id, data)
 	_award_power_up_xp()
+
+# Issue #160. Enemies / hazards push a constructed effect (so they control the
+# duration) instead of a string id — debuffs aren't in the PowerUpEffect.make
+# factory because they aren't player-side pickups. Refresh-not-stack semantics
+# match collect_power_up: re-applying the same debuff type extends the timer
+# rather than stacking the magnitude.
+func apply_debuff(effect: PowerUpEffect) -> void:
+	if data == null or effect == null:
+		return
+	_power_ups.apply_effect(effect, data)
 
 # PRD #52: every power-up pickup pays POWERUP_XP. Co-op fans through
 # the same broadcaster-split path as kills so each party member gets
@@ -165,6 +181,19 @@ func _apply_ale_wobble(delta: float) -> void:
 	elif _visual.position != Vector2.ZERO:
 		_wobble_time = 0.0
 		_visual.position = Vector2.ZERO
+
+# Render-time blue tint while WetEffect (#160) is active. Visual-only; the
+# speed reduction is handled by the effect itself mutating data.speed. Clean
+# restore on expiry mirrors _apply_ale_wobble.
+const _WET_TINT := Color(0.55, 0.75, 1.0, 1.0)
+func _apply_wet_tint() -> void:
+	if _sprite == null:
+		return
+	if _power_ups.is_active(WetEffect.TYPE):
+		if _sprite.modulate != _WET_TINT:
+			_sprite.modulate = _WET_TINT
+	elif _sprite.modulate != Color.WHITE:
+		_sprite.modulate = Color.WHITE
 
 func _tick_spells(dt: float) -> void:
 	if _spell_tree == null:
