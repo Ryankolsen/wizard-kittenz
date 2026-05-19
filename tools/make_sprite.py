@@ -67,6 +67,7 @@ def main():
     parser.add_argument("name", help="Base sprite name (e.g. angry_pigeon)")
     parser.add_argument("--grid", default="2x2", help="Grid layout, e.g. 2x2, 1x4 (default: 2x2)")
     parser.add_argument("--tolerance", type=int, default=15, help="White removal tolerance 0-255 (default: 15)")
+    parser.add_argument("--size", type=int, default=48, help="Fit sprite within this pixel box (default: 48). Set 0 to skip resize.")
     parser.add_argument("--out", default="assets/sprites", help="Output directory (default: assets/sprites)")
     args = parser.parse_args()
 
@@ -86,6 +87,9 @@ def main():
         label = labels[i] if i < len(labels) else f"frame_{i}"
         cell = remove_white_background(cell, args.tolerance)
         cell = autocrop(cell)
+        if args.size > 0:
+            scale = args.size / max(cell.width, cell.height)
+            cell = cell.resize((round(cell.width * scale), round(cell.height * scale)), Image.LANCZOS)
         out_path = out_dir / f"{args.name}_{label}.png"
         cell.save(out_path)
         saved.append(out_path)
