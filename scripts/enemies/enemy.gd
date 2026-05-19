@@ -10,6 +10,7 @@ signal died
 
 var state: int = EnemyAIState.State.IDLE
 var _attack_controller: AttackController
+var _behavior: EnemyBehavior
 # Cached chase target. Widened to Node2D in PRD #124 co-op TAUNT so a
 # RemoteKitten (Node2D) can be the target on a receiving client where the
 # caster has no local Player node. Contact damage gates on `is Player` so a
@@ -31,6 +32,7 @@ func _ready() -> void:
 		data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
+	_behavior = EnemyBehavior.for_kind(data.kind)
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
 		var path: String
@@ -64,6 +66,12 @@ func _physics_process(delta: float) -> void:
 		_:
 			velocity = Vector2.ZERO
 			move_and_slide()
+	# Per-kind behavior hook (issue #157). Runs after the base state machine so
+	# kinds layer on top of chase/attack — overrides can read enemy.state /
+	# velocity, spawn projectiles, drop hazards, etc. Default base impl no-ops.
+	# Skipped on DEAD so behaviors don't tick a freed node.
+	if _behavior != null and state != EnemyAIState.State.DEAD:
+		_behavior.tick(delta, self)
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
