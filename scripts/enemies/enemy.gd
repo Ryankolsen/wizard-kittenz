@@ -23,6 +23,12 @@ var _died_emitted: bool = false
 # free and trivially testable — same separation as Player._apply_wet_tint.
 var _pigeon_trail: Line2D = null
 var _pigeon_was_charging: bool = false
+# Rogue Roomba state (issue #162). Velocity vector the behavior wall-bounces;
+# initialized to a random unit direction on first physics frame so the roomba
+# doesn't just drift toward the player. Berserk-applied flag prevents the
+# tint/speed buff from re-applying once the entry count crosses 0→1.
+var _roomba_velocity: Vector2 = Vector2.ZERO
+var _roomba_berserk_applied: bool = false
 
 const _TEXTURE_BY_KIND := {
 	EnemyData.EnemyKind.ANGRY_PIGEON:         "res://assets/sprites/angry_pigeon_right.png",
@@ -88,8 +94,10 @@ func _physics_process(delta: float) -> void:
 	# velocity, spawn projectiles, drop hazards, etc. Default base impl no-ops.
 	# Skipped on DEAD so behaviors don't tick a freed node.
 	if _behavior != null and state != EnemyAIState.State.DEAD:
+		_drive_rogue_roomba(delta)
 		_behavior.tick(delta, self)
 		_observe_angry_pigeon()
+		_observe_rogue_roomba()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -213,6 +221,66 @@ func _spawn_pigeon_hazard(pos: Vector2) -> void:
 		AngryPigeonBehavior.HAZARD_COLOR
 	)
 	hazard.global_position = pos
+	parent.add_child(hazard)
+
+# Roomba motion override (issue #162). Runs before the behavior tick so the
+# move_and_slide happens this frame; slide-collision normals are then reflected
+# into _roomba_velocity for the next frame. Direction lazily-initialized from
+# the player vector (or random fallback) on first call so each spawn drifts in
+# a deterministic-yet-varied direction.
+func _drive_rogue_roomba(_delta: float) -> void:
+	if not (_behavior is RogueRoombaBehavior):
+		return
+	if _roomba_velocity == Vector2.ZERO:
+		var p := _player_ref
+		if p != null:
+			var to_player := (p.global_position - global_position)
+			if to_player != Vector2.ZERO:
+				_roomba_velocity = to_player.normalized() * move_speed
+		if _roomba_velocity == Vector2.ZERO:
+			_roomba_velocity = Vector2.RIGHT * move_speed
+	velocity = _roomba_velocity
+	move_and_slide()
+	for i in range(get_slide_collision_count()):
+		var col := get_slide_collision(i)
+		if col == null:
+			continue
+		_roomba_velocity = RogueRoombaBehavior.reflect_velocity(_roomba_velocity, col.get_normal())
+		break
+
+# Bridges RogueRoombaBehavior state edges to scene-tree side effects: damage
+# trail FloorHazard spawn, berserk tint / speed buff / FloatingText.
+func _observe_rogue_roomba() -> void:
+	if not (_behavior is RogueRoombaBehavior):
+		return
+	var rrb := _behavior as RogueRoombaBehavior
+	if rrb.pending_trail_spawn:
+		_spawn_roomba_trail()
+		rrb.pending_trail_spawn = false
+	if rrb.berserk_entry_count > 0 and not _roomba_berserk_applied:
+		_roomba_berserk_applied = true
+		var sprite := get_node_or_null("Sprite2D") as Sprite2D
+		if sprite != null:
+			sprite.modulate = RogueRoombaBehavior.BERSERK_TINT
+		move_speed *= RogueRoombaBehavior.BERSERK_SPEED_MULTIPLIER
+		# Preserve current direction, scale magnitude to the new speed.
+		if _roomba_velocity != Vector2.ZERO:
+			_roomba_velocity = _roomba_velocity.normalized() * move_speed
+		FloatingText.spawn(self, "BERSERK", Color(1.0, 0.2, 0.2))
+
+func _spawn_roomba_trail() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var hazard := FloorHazard.new()
+	hazard.configure(
+		RogueRoombaBehavior.TRAIL_DURATION,
+		0.0,
+		RogueRoombaBehavior.TRAIL_DAMAGE_PER_SEC,
+		RogueRoombaBehavior.TRAIL_RADIUS,
+		RogueRoombaBehavior.TRAIL_COLOR
+	)
+	hazard.global_position = global_position
 	parent.add_child(hazard)
 
 func _find_player() -> Node2D:

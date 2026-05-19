@@ -26,4 +26,6 @@ static func for_kind(kind: int) -> EnemyBehavior:
 	match kind:
 		EnemyData.EnemyKind.ANGRY_PIGEON:
 			return AngryPigeonBehavior.new()
+		EnemyData.EnemyKind.ROGUE_ROOMBA:
+			return RogueRoombaBehavior.new()
 	return EnemyBehavior.new()

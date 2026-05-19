@@ -144,3 +144,84 @@ func test_angry_pigeon_dead_enemy_skips_charge():
 		b.tick(1.0, e)
 	assert_false(b.wants_to_charge(), "dead enemy should never want to charge")
 	assert_false(b.is_charging, "dead enemy should never be charging")
+
+
+# ---------------------------------------------------------------------------
+# RogueRoombaBehavior (issue #162) — wall-bounce, damage trail, berserk.
+# ---------------------------------------------------------------------------
+
+class _MockRoombaData:
+	var hp: int = 10
+	var max_hp: int = 10
+
+class _MockRoombaEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 1  # EnemyAIState.State.CHASE
+	var data: _MockRoombaData = _MockRoombaData.new()
+
+func test_rogue_roomba_reflect_velocity_off_left_normal():
+	# Issue #162 acceptance #1: bouncing velocity (1, 0) off a wall whose
+	# inward normal is (-1, 0) should reverse the X component → (-1, 0).
+	# Pure static helper so the bounce math is verifiable without physics.
+	var reflected := RogueRoombaBehavior.reflect_velocity(Vector2(1, 0), Vector2(-1, 0))
+	assert_eq(reflected, Vector2(-1, 0), "velocity should reflect across the wall normal")
+
+
+func test_rogue_roomba_trail_timer_fires_periodically():
+	# Acceptance #2: a trail segment is requested every ~0.3s while moving.
+	# After 0.35s of ticks the behavior should set pending_trail_spawn; the
+	# observer consumes it by clearing the flag back to false.
+	var b := RogueRoombaBehavior.new()
+	var e := _MockRoombaEnemy.new()
+	b.tick(0.35, e)
+	assert_true(b.pending_trail_spawn, "trail spawn should be requested after 0.35s")
+	# Observer-side consumption.
+	b.pending_trail_spawn = false
+	b.tick(0.35, e)
+	assert_true(b.pending_trail_spawn, "second trail spawn should fire 0.35s later")
+
+
+func test_rogue_roomba_berserk_triggers_at_threshold():
+	# Acceptance #4: at ≤30% HP berserk activates. 3/10 HP = 30% — equal-to
+	# the threshold should trigger.
+	var b := RogueRoombaBehavior.new()
+	var e := _MockRoombaEnemy.new()
+	e.data.hp = 3
+	e.data.max_hp = 10
+	b.tick(0.05, e)
+	assert_true(b.is_berserk, "berserk should activate at ≤30% HP")
+	assert_eq(b.berserk_entry_count, 1, "berserk entry counter should record one entry")
+
+
+func test_rogue_roomba_berserk_fires_once_per_encounter():
+	# Acceptance #6: berserk entry fires exactly once even if HP drops further.
+	# The observer applies tint / speed / FloatingText off berserk_entry_count
+	# crossing 0→1, so re-firing on subsequent ticks would double-apply the buff.
+	var b := RogueRoombaBehavior.new()
+	var e := _MockRoombaEnemy.new()
+	e.data.hp = 3
+	e.data.max_hp = 10
+	b.tick(0.05, e)
+	e.data.hp = 1
+	for _i in range(5):
+		b.tick(0.05, e)
+	assert_eq(b.berserk_entry_count, 1, "berserk should fire exactly once per encounter")
+
+
+func test_rogue_roomba_no_berserk_above_threshold():
+	# Acceptance: 50% HP is above the 30% threshold — no berserk.
+	var b := RogueRoombaBehavior.new()
+	var e := _MockRoombaEnemy.new()
+	e.data.hp = 5
+	e.data.max_hp = 10
+	b.tick(0.05, e)
+	assert_false(b.is_berserk, "berserk should not activate above 30% HP")
+	assert_eq(b.berserk_entry_count, 0, "no berserk entry above threshold")
+
+
+func test_rogue_roomba_for_kind_dispatches_subclass():
+	# The for_kind factory should hand back a RogueRoombaBehavior for the
+	# ROGUE_ROOMBA kind so Enemy._ready picks it up without per-kind branching.
+	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.ROGUE_ROOMBA)
+	assert_true(b is RogueRoombaBehavior, "ROGUE_ROOMBA kind must dispatch to RogueRoombaBehavior")
