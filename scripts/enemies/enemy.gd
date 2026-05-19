@@ -53,6 +53,11 @@ func _ready() -> void:
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
+	# Haunted Spray Bottle (issue #165) floats over terrain — clear the
+	# collision_mask so move_and_slide ignores wall tiles. The hurtbox stays
+	# on the player-projectile layer so it remains hittable.
+	if _behavior is HauntedSprayBottleBehavior and (_behavior as HauntedSprayBottleBehavior).ignores_wall_collision:
+		collision_mask = 0
 
 func _physics_process(delta: float) -> void:
 	if data == null:
@@ -96,11 +101,13 @@ func _physics_process(delta: float) -> void:
 	if _behavior != null and state != EnemyAIState.State.DEAD:
 		_drive_rogue_roomba(delta)
 		_drive_catnip_dealer(delta)
+		_drive_haunted_spray_bottle(delta)
 		_behavior.tick(delta, self)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
 		_observe_dog_knight()
 		_observe_catnip_dealer()
+		_observe_haunted_spray_bottle()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -397,6 +404,90 @@ func _apply_catnip_debuff(player_node, debuff_type: String) -> void:
 			player_node.apply_debuff(effect)
 	if label != "" and player_node is Node:
 		FloatingText.spawn(player_node, label, Color(0.5, 0.85, 0.3))
+
+# Haunted Spray Bottle motion override (issue #165). Reads the behavior's
+# desired direction (preferred-range hold) and drives move_and_slide directly.
+func _drive_haunted_spray_bottle(_delta: float) -> void:
+	if not (_behavior is HauntedSprayBottleBehavior):
+		return
+	var hsb := _behavior as HauntedSprayBottleBehavior
+	var player := _player_ref
+	if player == null:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
+	var dir := hsb.desired_direction(global_position, player.global_position)
+	velocity = dir * move_speed
+	if dir != Vector2.ZERO and data != null:
+		data.facing = dir
+		var sprite := get_node_or_null("Sprite2D") as Sprite2D
+		if sprite != null:
+			sprite.flip_h = dir.x > 0.0
+	move_and_slide()
+
+# Bridges HauntedSprayBottleBehavior state edges to scene-tree side effects:
+# spawns the 3-projectile cone of EnemyProjectiles, the blue Line2D cone VFX,
+# and the "WET" FloatingText on hit (via the on_hit callback).
+func _observe_haunted_spray_bottle() -> void:
+	if not (_behavior is HauntedSprayBottleBehavior):
+		return
+	var hsb := _behavior as HauntedSprayBottleBehavior
+	if hsb.pending_fire_aim != null:
+		var aim: Vector2 = hsb.pending_fire_aim
+		var origin: Vector2 = hsb.pending_cone_origin if hsb.pending_cone_origin != null else global_position
+		for d in HauntedSprayBottleBehavior.compute_cone_directions(aim):
+			_spawn_spray_projectile(origin, d)
+		_spawn_spray_cone_vfx(origin, aim)
+		hsb.pending_fire_aim = null
+		hsb.pending_cone_origin = null
+
+func _spawn_spray_projectile(origin: Vector2, direction: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var proj := EnemyProjectile.new()
+	proj.position = origin
+	var target := origin + direction * HauntedSprayBottleBehavior.PROJECTILE_MAX_RANGE
+	var on_hit := func(player_node):
+		_apply_spray_wet(player_node)
+	proj.configure(
+		target,
+		HauntedSprayBottleBehavior.PROJECTILE_SPEED,
+		HauntedSprayBottleBehavior.PROJECTILE_RADIUS,
+		HauntedSprayBottleBehavior.PROJECTILE_COLOR,
+		HauntedSprayBottleBehavior.PROJECTILE_MAX_RANGE,
+		on_hit
+	)
+	parent.add_child(proj)
+
+func _apply_spray_wet(player_node) -> void:
+	if player_node == null:
+		return
+	var effect := HauntedSprayBottleBehavior.make_wet_effect()
+	if player_node.has_method("apply_debuff"):
+		player_node.apply_debuff(effect)
+	if player_node is Node:
+		FloatingText.spawn(player_node, "WET", HauntedSprayBottleBehavior.PROJECTILE_COLOR)
+
+func _spawn_spray_cone_vfx(origin: Vector2, aim: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var cone := Line2D.new()
+	cone.top_level = true
+	cone.width = 3.0
+	cone.default_color = HauntedSprayBottleBehavior.CONE_VFX_COLOR
+	var dirs := HauntedSprayBottleBehavior.compute_cone_directions(aim)
+	var length := HauntedSprayBottleBehavior.CONE_VFX_LENGTH
+	# Draw a fan: outer edge → origin → other outer edge so the segment forms
+	# the cone silhouette in one Line2D node.
+	cone.add_point(origin + dirs[1] * length)
+	cone.add_point(origin)
+	cone.add_point(origin + dirs[2] * length)
+	parent.add_child(cone)
+	var tween := cone.create_tween()
+	tween.tween_property(cone, "modulate:a", 0.0, HauntedSprayBottleBehavior.CONE_VFX_DURATION)
+	tween.tween_callback(cone.queue_free)
 
 func _spawn_catnip_burst(pos: Vector2) -> void:
 	var parent := get_parent()

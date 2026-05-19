@@ -461,3 +461,124 @@ func test_catnip_dealer_fire_publishes_target_when_in_range():
 		"fire should be queued once cooldown elapses and player is in range")
 	assert_eq(b.pending_fire_target, Vector2(150.0, 0.0),
 		"pending_fire_target should equal the player position at fire time")
+
+
+# ---------------------------------------------------------------------------
+# HauntedSprayBottleBehavior (issue #165) — cone attack, Wet debuff, float.
+# ---------------------------------------------------------------------------
+
+class _MockSprayPlayer extends Node2D:
+	var data = null
+	var _manager: PowerUpManager = PowerUpManager.new()
+	func apply_debuff(effect: PowerUpEffect) -> void:
+		_manager.apply_effect(effect, data)
+
+class _MockSprayPlayerData:
+	var speed: float = 100.0
+	var hp: int = 10
+
+class _MockSprayEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 1  # EnemyAIState.State.CHASE
+	var _player_ref: Node2D = null
+
+
+func test_haunted_spray_bottle_cone_spread_angles():
+	# Acceptance #2 (tests #1): compute_cone_directions returns center + ±15°.
+	var dirs := HauntedSprayBottleBehavior.compute_cone_directions(Vector2.RIGHT)
+	assert_eq(dirs.size(), 3, "cone should yield 3 directions")
+	assert_almost_eq(dirs[0].x, 1.0, 0.0001)
+	assert_almost_eq(dirs[0].y, 0.0, 0.0001)
+	var spread := deg_to_rad(HauntedSprayBottleBehavior.CONE_ANGLE_DEG)
+	# Dot of two unit vectors at angle θ is cos(θ).
+	assert_almost_eq(dirs[1].dot(Vector2.RIGHT), cos(spread), 0.0001)
+	assert_almost_eq(dirs[2].dot(Vector2.RIGHT), cos(spread), 0.0001)
+	# +15° rotates Vector2.RIGHT downward in Godot's y-down basis (sin(+θ) > 0).
+	assert_true(dirs[1].y > 0.0, "first off-axis direction should be the +15° rotation")
+	assert_true(dirs[2].y < 0.0, "second off-axis direction should be the -15° rotation")
+
+
+func test_haunted_spray_bottle_fire_timer_fires():
+	# Acceptance #2 (tests #2): wants_to_fire trips after ~2.0s.
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockSprayEnemy.new()
+	for _i in range(21):
+		b.tick(0.1, e)
+	assert_true(b.wants_to_fire(), "wants_to_fire should be true after 2.1s")
+
+
+func test_haunted_spray_bottle_wet_effect_applied_on_hit():
+	# Acceptance #3 (tests #3): WetEffect mutates speed (30% reduction).
+	var pd := _MockSprayPlayerData.new()
+	pd.speed = 100.0
+	var effect := HauntedSprayBottleBehavior.make_wet_effect()
+	effect.apply_to(pd)
+	assert_almost_eq(pd.speed, 70.0, 0.0001, "speed should be reduced 30% while Wet")
+
+
+func test_haunted_spray_bottle_wet_effect_refreshes_on_rehit():
+	# Acceptance #3 (tests #4): a second hit while the first is still active
+	# refreshes the timer rather than stacking another effect.
+	var pd := _MockSprayPlayerData.new()
+	var manager := PowerUpManager.new()
+	manager.apply_effect(HauntedSprayBottleBehavior.make_wet_effect(), pd)
+	manager.tick(2.0)
+	var active := manager.get_active(WetEffect.TYPE)
+	assert_not_null(active, "WetEffect should still be active 2.0s in")
+	assert_true(active.remaining < HauntedSprayBottleBehavior.WET_DURATION,
+		"timer should have decayed before refresh")
+	manager.apply_effect(HauntedSprayBottleBehavior.make_wet_effect(), pd)
+	assert_almost_eq(active.remaining, HauntedSprayBottleBehavior.WET_DURATION, 0.0001,
+		"re-hit should refresh remaining to the full WET_DURATION")
+	assert_eq(manager.active_count(), 1, "refresh should not stack a second WetEffect")
+
+
+func test_haunted_spray_bottle_ignores_wall_collision_flag():
+	# Acceptance #6 (tests #5): the float-over-terrain flag is on the behavior
+	# itself so the Enemy node can clear collision_mask on _ready.
+	var b := HauntedSprayBottleBehavior.new()
+	assert_true(b.ignores_wall_collision,
+		"spray bottle must declare it ignores wall collision")
+
+
+func test_haunted_spray_bottle_for_kind_dispatches_subclass():
+	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE)
+	assert_true(b is HauntedSprayBottleBehavior,
+		"HAUNTED_SPRAY_BOTTLE kind must dispatch to HauntedSprayBottleBehavior")
+
+
+func test_haunted_spray_bottle_dead_enemy_skips_fire():
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockSprayEnemy.new()
+	e.state = 3  # DEAD
+	for _i in range(25):
+		b.tick(0.1, e)
+	assert_false(b.wants_to_fire(), "dead spray bottle should never want to fire")
+	assert_eq(b.pending_fire_aim, null, "dead spray bottle should never queue a fire")
+
+
+func test_haunted_spray_bottle_fire_publishes_aim_when_in_range():
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockSprayEnemy.new()
+	var p := _MockSprayPlayer.new()
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	for _i in range(21):
+		b.tick(0.1, e)
+	assert_not_null(b.pending_fire_aim,
+		"fire should be queued once cooldown elapses and player ref is set")
+	assert_almost_eq(b.pending_fire_aim.x, 1.0, 0.0001,
+		"aim should point along the player vector")
+	assert_almost_eq(b.pending_fire_aim.y, 0.0, 0.0001)
+	assert_eq(b.pending_cone_origin, Vector2.ZERO,
+		"cone origin should be the bottle's position at fire time")
+
+
+func test_haunted_spray_bottle_preferred_range_hold():
+	# Outside preferred range → approach; inside → back away.
+	var b := HauntedSprayBottleBehavior.new()
+	var far_dir := b.desired_direction(Vector2.ZERO, Vector2(140.0, 0.0))
+	assert_eq(far_dir, Vector2(1.0, 0.0), "at 140px the bottle should approach")
+	var near_dir := b.desired_direction(Vector2.ZERO, Vector2(70.0, 0.0))
+	assert_eq(near_dir, Vector2(-1.0, 0.0), "at 70px the bottle should back away")
