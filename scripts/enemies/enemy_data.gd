@@ -63,7 +63,12 @@ static func base_max_hp_for(_k: EnemyKind) -> int:
 static func base_attack_for(_k: EnemyKind) -> int:
 	return 1
 
-static func base_defense_for(_k: EnemyKind) -> int:
+static func base_defense_for(k: EnemyKind) -> int:
+	# Dog Knight (issue #163) is the documented exception to the equal-stats
+	# rule — its raised armor is the gameplay reason to drop the mead bottle
+	# instead of front-line tanking. Other kinds stay at 0 per PRD #151.
+	if k == EnemyKind.DOG_KNIGHT:
+		return 2
 	return 0
 
 static func base_xp_for(_k: EnemyKind) -> int:

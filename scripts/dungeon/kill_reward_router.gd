@@ -107,6 +107,19 @@ static func route_kill(
 		xp_tracker.record(enemy_data.xp_reward)
 	return item_drop
 
+# Mead pickup hook (issue #163). DogKnight kills should spawn a mead bottle
+# PowerUpPickup at the death position; this static returns the power-up type
+# string the Enemy-side observer should pass to PowerUpPickup, or "" when no
+# pickup should drop. Pure-data so the spawn-on-death wiring doesn't need a
+# kind switch at the call site — the dispatch lives here next to the other
+# kill-reward routing.
+static func mead_drop_type_for(enemy_data: EnemyData) -> String:
+	if enemy_data == null:
+		return ""
+	if enemy_data.kind == EnemyData.EnemyKind.DOG_KNIGHT:
+		return PowerUpEffect.TYPE_ALE
+	return ""
+
 # Pure split helper. floor(xp_total / max(1, party_size)) so a 1-player
 # co-op session keeps the full reward and odd totals (e.g. 100 / 3)
 # floor-divide cleanly per AC. Exposed as a static so RoomClearWatcher

@@ -44,12 +44,15 @@ func test_all_kinds_share_equal_base_stats():
 	for k in _NEW_KINDS:
 		hp_set[EnemyData.base_max_hp_for(k)] = true
 		atk_set[EnemyData.base_attack_for(k)] = true
-		def_set[EnemyData.base_defense_for(k)] = true
+		# DOG_KNIGHT (issue #163) is the documented exception to the equal-
+		# stats rule — its raised defense is exercised by test_enemy_behavior.
+		if k != EnemyData.EnemyKind.DOG_KNIGHT:
+			def_set[EnemyData.base_defense_for(k)] = true
 		xp_set[EnemyData.base_xp_for(k)] = true
 		gold_set[EnemyData.base_gold_for(k)] = true
 	assert_eq(hp_set.size(), 1, "all kinds must share base hp")
 	assert_eq(atk_set.size(), 1, "all kinds must share base attack")
-	assert_eq(def_set.size(), 1, "all kinds must share base defense")
+	assert_eq(def_set.size(), 1, "non-DOG_KNIGHT kinds must share base defense")
 	assert_eq(xp_set.size(), 1, "all kinds must share base xp")
 	assert_eq(gold_set.size(), 1, "all kinds must share base gold")
 

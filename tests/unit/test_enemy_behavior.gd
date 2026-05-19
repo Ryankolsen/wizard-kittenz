@@ -225,3 +225,116 @@ func test_rogue_roomba_for_kind_dispatches_subclass():
 	# ROGUE_ROOMBA kind so Enemy._ready picks it up without per-kind branching.
 	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	assert_true(b is RogueRoombaBehavior, "ROGUE_ROOMBA kind must dispatch to RogueRoombaBehavior")
+
+
+# ---------------------------------------------------------------------------
+# DogKnightBehavior (issue #163) — raised defense, drunk charge, mead drop.
+# ---------------------------------------------------------------------------
+
+class _MockDogEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 1  # EnemyAIState.State.CHASE
+
+func test_dog_knight_has_raised_base_defense():
+	# Acceptance #1: DOG_KNIGHT base defense is strictly greater than all
+	# other kinds. PRD #151 keeps the other four at the shared baseline;
+	# DOG_KNIGHT is the documented exception.
+	var dk := EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	for k in EnemyData.EnemyKind.values():
+		if k == EnemyData.EnemyKind.DOG_KNIGHT:
+			continue
+		assert_gt(dk, EnemyData.base_defense_for(k),
+			"DOG_KNIGHT defense should exceed kind %d" % k)
+
+
+func test_dog_knight_charge_timer_fires():
+	# Acceptance #2: charge auto-triggers after the ~5s cooldown elapses.
+	# Driving five 1.0s ticks against a mock accrues the cooldown; the
+	# behavior auto-begins the charge on the threshold-crossing tick.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	for _i in range(5):
+		b.tick(1.0, e)
+	assert_true(b.is_charging, "charge should auto-begin after 5s cooldown")
+
+
+func test_dog_knight_pick_charge_direction_varies_with_seed():
+	# Acceptance #3: direction is randomized per charge. Two distinct seeds
+	# should produce two distinct unit vectors. Seeds chosen empirically to
+	# diverge — change in lockstep if the RNG algorithm changes.
+	var b := DogKnightBehavior.new()
+	var rng_a := RandomNumberGenerator.new()
+	rng_a.seed = 1
+	var rng_b := RandomNumberGenerator.new()
+	rng_b.seed = 2
+	var dir_a := b.pick_charge_direction(rng_a)
+	var dir_b := b.pick_charge_direction(rng_b)
+	assert_ne(dir_a, dir_b, "different seeds should produce different directions")
+	assert_almost_eq(dir_a.length(), 1.0, 0.0001, "direction should be a unit vector")
+
+
+func test_dog_knight_wobble_offset_varies_over_time():
+	# Acceptance #4: lateral wobble is sinusoidal, not flat. Three sample
+	# points across a charge should not all match.
+	var w0 := DogKnightBehavior.wobble_offset(0.0)
+	var w1 := DogKnightBehavior.wobble_offset(0.25)
+	var w2 := DogKnightBehavior.wobble_offset(0.5)
+	var all_equal := (
+		is_equal_approx(w0, w1)
+		and is_equal_approx(w1, w2)
+	)
+	assert_false(all_equal, "wobble offset should vary over time (sinusoidal)")
+
+
+func test_dog_knight_burp_pending_after_charge_ends():
+	# Acceptance #4 (BURP side): pending_burp flips true on the tick the
+	# charge completes, so the Enemy-side observer spawns the FloatingText.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	b.begin_charge(Vector2.RIGHT)
+	# CHARGE_DURATION = 1.0; one tick at 1.1s overshoots cleanly.
+	b.tick(1.1, e)
+	assert_false(b.is_charging, "charge should have ended after CHARGE_DURATION")
+	assert_true(b.pending_burp, "pending_burp should be set on charge completion")
+
+
+func test_dog_knight_mead_drop_on_death():
+	# Acceptance #5: on_enemy_died publishes the death position as
+	# pending_mead_drop_position so the Enemy-side observer can spawn the
+	# mead PowerUpPickup. Data handoff only — scene spawn lives in Enemy.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	e.global_position = Vector2(50.0, 75.0)
+	b.on_enemy_died(e)
+	assert_not_null(b.pending_mead_drop_position,
+		"pending_mead_drop_position should be set after on_enemy_died")
+	assert_eq(b.pending_mead_drop_position, Vector2(50.0, 75.0),
+		"pending_mead_drop_position should equal enemy.global_position")
+
+
+func test_dog_knight_kill_reward_router_mead_hook():
+	# Acceptance #6: KillRewardRouter exposes a static that returns the
+	# mead pickup type for DOG_KNIGHT and "" for other kinds, so the
+	# Enemy-side spawn-on-death wiring stays kind-agnostic.
+	var dk := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
+	var ap := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	assert_eq(KillRewardRouter.mead_drop_type_for(dk), PowerUpEffect.TYPE_ALE,
+		"DOG_KNIGHT should drop a mead/ale pickup")
+	assert_eq(KillRewardRouter.mead_drop_type_for(ap), "",
+		"non-DOG_KNIGHT kinds should not drop mead")
+
+
+func test_dog_knight_for_kind_dispatches_subclass():
+	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.DOG_KNIGHT)
+	assert_true(b is DogKnightBehavior, "DOG_KNIGHT kind must dispatch to DogKnightBehavior")
+
+
+func test_dog_knight_dead_enemy_skips_charge():
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	e.state = 3  # DEAD
+	for _i in range(6):
+		b.tick(1.0, e)
+	assert_false(b.wants_to_charge(), "dead dog knight should never want to charge")
+	assert_false(b.is_charging, "dead dog knight should never be charging")

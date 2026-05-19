@@ -98,6 +98,7 @@ func _physics_process(delta: float) -> void:
 		_behavior.tick(delta, self)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
+		_observe_dog_knight()
 
 # Advances the AI state machine and emits `died` on the live -> DEAD edge.
 # Public so tests can drive transitions without instantiating into a
@@ -109,6 +110,11 @@ func apply_state_update(distance: float) -> void:
 	state = EnemyAIState.next_state(state, distance, data.hp)
 	if state == EnemyAIState.State.DEAD and not _died_emitted:
 		_died_emitted = true
+		# Notify the per-kind behavior so it can publish death-edge state
+		# (e.g., DogKnight's mead drop position) before the observer next runs.
+		if _behavior is DogKnightBehavior:
+			(_behavior as DogKnightBehavior).on_enemy_died(self)
+			_observe_dog_knight()
 		died.emit()
 
 func _chase(target: Node2D) -> void:
@@ -267,6 +273,36 @@ func _observe_rogue_roomba() -> void:
 		if _roomba_velocity != Vector2.ZERO:
 			_roomba_velocity = _roomba_velocity.normalized() * move_speed
 		FloatingText.spawn(self, "BERSERK", Color(1.0, 0.2, 0.2))
+
+# Bridges DogKnightBehavior state edges to scene-tree side effects: "BURP"
+# FloatingText on charge end, mead PowerUpPickup parented to the dungeon root
+# at the death position. No-op when the active behavior is not the dog
+# knight's.
+func _observe_dog_knight() -> void:
+	if not (_behavior is DogKnightBehavior):
+		return
+	var dkb := _behavior as DogKnightBehavior
+	if dkb.pending_burp:
+		FloatingText.spawn(self, "BURP", Color(0.8, 0.9, 0.4))
+		dkb.pending_burp = false
+	if dkb.pending_mead_drop_position != null:
+		_spawn_mead_pickup(dkb.pending_mead_drop_position)
+		dkb.pending_mead_drop_position = null
+
+func _spawn_mead_pickup(pos: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var mead_type := KillRewardRouter.mead_drop_type_for(data)
+	if mead_type == "":
+		return
+	var scene: PackedScene = load("res://scenes/power_up.tscn")
+	if scene == null:
+		return
+	var pickup: PowerUpPickup = scene.instantiate()
+	pickup.power_up_type = mead_type
+	pickup.global_position = pos
+	parent.call_deferred("add_child", pickup)
 
 func _spawn_roomba_trail() -> void:
 	var parent := get_parent()
