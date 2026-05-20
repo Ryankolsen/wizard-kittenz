@@ -297,3 +297,15 @@ func test_customize_save_returns_to_main_menu():
 	save_btn.pressed.emit()
 	assert_true(scene.get_node("MainMenu").visible, "Save must return to main menu")
 
+# Bug: starting a new game when a stale dungeon_run_controller is in GameState
+# (e.g. loaded from a save with an in-flight run) must clear it so main_scene
+# starts a fresh dungeon instead of resuming the old one.
+func test_quick_start_clears_stale_dungeon_run_controller():
+	GameState.dungeon_run_controller = DungeonRunController.new()
+	var scene := _instantiate_creation_scene()
+	var btn := scene.get_node(
+		_btn_path("QuickStart", "BattleKittenButton")) as Button
+	btn.pressed.emit()
+	assert_null(GameState.dungeon_run_controller,
+		"_finalize must clear dungeon_run_controller so main_scene starts a new dungeon")
+

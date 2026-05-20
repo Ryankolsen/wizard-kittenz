@@ -178,6 +178,7 @@ func _refresh_appearance_label() -> void:
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
+	GameState.dungeon_run_controller = null
 	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
 	get_tree().change_scene_to_file(main_scene_path)
 
