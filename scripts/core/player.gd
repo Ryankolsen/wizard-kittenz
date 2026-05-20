@@ -182,14 +182,14 @@ func _apply_ale_wobble(delta: float) -> void:
 		_wobble_time = 0.0
 		_visual.position = Vector2.ZERO
 
-# Render-time blue tint while WetEffect (#160) is active. Visual-only; the
+# Render-time blue tint while the wet debuff (#160) is active. Visual-only; the
 # speed reduction is handled by the effect itself mutating data.speed. Clean
 # restore on expiry mirrors _apply_ale_wobble.
 const _WET_TINT := Color(0.55, 0.75, 1.0, 1.0)
 func _apply_wet_tint() -> void:
 	if _sprite == null:
 		return
-	if _power_ups.is_active(WetEffect.TYPE):
+	if _power_ups.is_active(PowerUpEffect.TYPE_WET):
 		if _sprite.modulate != _WET_TINT:
 			_sprite.modulate = _WET_TINT
 	elif _sprite.modulate != Color.WHITE:

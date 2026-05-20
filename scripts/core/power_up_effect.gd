@@ -15,6 +15,7 @@ extends RefCounted
 const TYPE_CATNIP := "catnip"
 const TYPE_ALE := "ale"
 const TYPE_MUSHROOMS := "mushrooms"
+const TYPE_WET := "wet"
 
 var type: String = ""
 var duration: float = 0.0
