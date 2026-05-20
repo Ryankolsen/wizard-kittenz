@@ -91,6 +91,15 @@ static func display_name_for(k: EnemyKind) -> String:
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return "Haunted Spray Bottle"
 	return "Enemy"
 
+static func base_detection_radius_for(k: EnemyKind) -> float:
+	match k:
+		EnemyKind.ANGRY_PIGEON:    return 64.0  # aerial, moderate awareness
+		EnemyKind.ROGUE_ROOMBA:    return 72.0  # bounces into range quickly
+		EnemyKind.DOG_KNIGHT:      return 56.0  # heavy armour, slow to react
+		EnemyKind.CATNIP_DEALER:   return 60.0  # skittish but short-sighted
+		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 60.0  # floaty, dim
+	return EnemyAIState.DETECTION_RADIUS
+
 static func make_new(k: EnemyKind) -> EnemyData:
 	var e := EnemyData.new()
 	e.kind = k
@@ -101,6 +110,7 @@ static func make_new(k: EnemyKind) -> EnemyData:
 	e.defense = base_defense_for(k)
 	e.xp_reward = base_xp_for(k)
 	e.gold_reward = base_gold_for(k)
+	e.detection_radius = base_detection_radius_for(k)
 	return e
 
 func is_alive() -> bool:

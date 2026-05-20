@@ -91,16 +91,19 @@ func test_died_signal_only_fires_once_even_across_multiple_updates():
 func test_enemy_state_walks_idle_chase_attack_chase_idle():
 	# End-to-end transition path through the state machine, driven by the
 	# same apply_state_update entry point _physics_process uses.
+	# Uses the enemy's own detection_radius (per-kind) rather than the global
+	# constant so the test stays green after per-kind tuning.
 	var e := _make_enemy()
+	var r := e.data.detection_radius
 	e.apply_state_update(1000.0)
 	assert_eq(e.state, _State.IDLE)
-	e.apply_state_update(EnemyAIState.DETECTION_RADIUS - 10.0)
+	e.apply_state_update(r - 10.0)
 	assert_eq(e.state, _State.CHASE)
 	e.apply_state_update(EnemyAIState.MELEE_RANGE - 5.0)
 	assert_eq(e.state, _State.ATTACK)
 	e.apply_state_update(EnemyAIState.MELEE_RANGE + 10.0)
 	assert_eq(e.state, _State.CHASE)
-	e.apply_state_update(EnemyAIState.DETECTION_RADIUS + 50.0)
+	e.apply_state_update(r + 50.0)
 	assert_eq(e.state, _State.IDLE)
 	e.free()
 

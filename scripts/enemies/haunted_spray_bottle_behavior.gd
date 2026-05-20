@@ -36,10 +36,7 @@ var pending_cone_origin = null
 var _fire_elapsed: float = 0.0
 
 func is_overriding_motion() -> bool:
-	# Holds preferred range rather than chase-steering — Enemy node delegates
-	# the move_and_slide to _drive_haunted_spray_bottle while the state-machine
-	# match block is skipped, same pattern as the Catnip Dealer.
-	return true
+	return false
 
 # Pure helper returning a unit-length direction vector (or Vector2.ZERO inside
 # the deadband). Inside PREFERRED_RANGE → away; outside → toward. No flee

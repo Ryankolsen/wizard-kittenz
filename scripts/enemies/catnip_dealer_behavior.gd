@@ -42,10 +42,7 @@ func _init() -> void:
 	_rng.randomize()
 
 func is_overriding_motion() -> bool:
-	# Dealer drives its own velocity (preferred-range hold + flee) instead of
-	# the chase steering. Enemy node delegates the move_and_slide to
-	# _drive_catnip_dealer while the state-machine match block is skipped.
-	return true
+	return false
 
 # True when the player is inside the melee threshold and the dealer should
 # back away rather than hold range. Exposed for tests so the threshold is

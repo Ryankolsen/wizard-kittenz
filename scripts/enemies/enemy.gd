@@ -339,22 +339,7 @@ func _spawn_roomba_trail() -> void:
 # move_and_slide directly. Pure-data behavior stays SceneTree-free; the Enemy
 # node owns the physics step — same separation as the roomba's _drive helper.
 func _drive_catnip_dealer(_delta: float) -> void:
-	if not (_behavior is CatnipDealerBehavior):
-		return
-	var cdb := _behavior as CatnipDealerBehavior
-	var player := _player_ref
-	if player == null:
-		velocity = Vector2.ZERO
-		move_and_slide()
-		return
-	var dir := cdb.desired_direction(global_position, player.global_position)
-	velocity = dir * move_speed
-	if dir != Vector2.ZERO and data != null:
-		data.facing = dir
-		var sprite := get_node_or_null("Sprite2D") as Sprite2D
-		if sprite != null:
-			sprite.flip_h = dir.x > 0.0
-	move_and_slide()
+	pass
 
 # Bridges CatnipDealerBehavior state edges to scene-tree side effects: spawns
 # the catnip-bag EnemyProjectile when pending_fire_target is set, and the
@@ -414,22 +399,7 @@ func _apply_catnip_debuff(player_node, debuff_type: String) -> void:
 # Haunted Spray Bottle motion override (issue #165). Reads the behavior's
 # desired direction (preferred-range hold) and drives move_and_slide directly.
 func _drive_haunted_spray_bottle(_delta: float) -> void:
-	if not (_behavior is HauntedSprayBottleBehavior):
-		return
-	var hsb := _behavior as HauntedSprayBottleBehavior
-	var player := _player_ref
-	if player == null:
-		velocity = Vector2.ZERO
-		move_and_slide()
-		return
-	var dir := hsb.desired_direction(global_position, player.global_position)
-	velocity = dir * move_speed
-	if dir != Vector2.ZERO and data != null:
-		data.facing = dir
-		var sprite := get_node_or_null("Sprite2D") as Sprite2D
-		if sprite != null:
-			sprite.flip_h = dir.x > 0.0
-	move_and_slide()
+	pass
 
 # Bridges HauntedSprayBottleBehavior state edges to scene-tree side effects:
 # spawns the 3-projectile cone of EnemyProjectiles, the blue Line2D cone VFX,
