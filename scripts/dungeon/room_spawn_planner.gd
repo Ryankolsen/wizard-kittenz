@@ -64,6 +64,10 @@ const BOSS_ATTACK_MULT: int = 3
 const BOSS_DEFENSE_MULT: int = 2
 const BOSS_XP_MULT: int = 3
 const BOSS_GOLD_MULT: int = 4
+# Boss room is 24x24 tiles at 16 px each = 384x384 px. A player entering at
+# any wall edge is at most ~272 px (half-diagonal) from the room center.
+# 300 px gives the boss sight-line to the doorway without reaching into the corridor.
+const BOSS_DETECTION_RADIUS: float = 300.0
 
 static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 	if room == null:
@@ -81,6 +85,7 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 		data.xp_reward = data.xp_reward * BOSS_XP_MULT
 		data.gold_reward = data.gold_reward * BOSS_GOLD_MULT
 		data.enemy_name = "The Vacuum"
+		data.detection_radius = BOSS_DETECTION_RADIUS
 	return data
 
 # Returns the power-up type string for a power-up room, or empty string

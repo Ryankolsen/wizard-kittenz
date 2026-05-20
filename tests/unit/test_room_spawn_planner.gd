@@ -79,6 +79,16 @@ func test_plan_enemy_boss_room_has_boosted_stats():
 	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
 	assert_eq(d.enemy_name, "The Vacuum")
 
+func test_plan_enemy_boss_room_has_wide_detection_radius():
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	assert_eq(d.detection_radius, RoomSpawnPlanner.BOSS_DETECTION_RADIUS,
+		"boss detects player anywhere in the 384x384 boss room")
+	var standard := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
+	var sd := RoomSpawnPlanner.plan_enemy(standard)
+	assert_lt(sd.detection_radius, RoomSpawnPlanner.BOSS_DETECTION_RADIUS,
+		"standard enemy has a shorter detection radius than the boss")
+
 func test_plan_enemy_standard_room_not_boosted():
 	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)
