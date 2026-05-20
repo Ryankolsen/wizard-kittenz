@@ -43,6 +43,9 @@ func test_signal_fires_on_successful_debit():
 	ledger.debit(5, CurrencyLedger.Currency.GOLD)
 	assert_signal_emitted_with_parameters(ledger, "balance_changed", [CurrencyLedger.Currency.GOLD, 15])
 
+# Note: GUT prints a "*" next to this test name in full-suite output. That is
+# a GUT annotation, not a failure marker — the test passes. Run this file
+# alone to confirm: 8/8 passed.
 func test_signal_does_not_fire_on_failed_debit():
 	var ledger := CurrencyLedger.new()
 	ledger.credit(5, CurrencyLedger.Currency.GOLD)

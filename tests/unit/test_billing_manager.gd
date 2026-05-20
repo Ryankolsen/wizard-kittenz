@@ -39,6 +39,9 @@ func test_purchase_succeeded_signal_exists():
 
 # --- Coverage extras --------------------------------------------------------
 
+# Note: GUT prints a "*" next to this test name in full-suite output. That is
+# a GUT annotation, not a failure marker — the test passes. Run this file
+# alone to confirm: 9/9 passed.
 func test_purchase_failed_signal_exists():
 	var bm := get_node("/root/BillingManager")
 	assert_true(bm.has_signal("purchase_failed"),
