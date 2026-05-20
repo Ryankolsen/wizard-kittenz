@@ -44,7 +44,10 @@ func _ready() -> void:
 		data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
-	_behavior = EnemyBehavior.for_kind(data.kind)
+	# Bosses use the base (standard chase) behavior regardless of kind — they
+	# already have a unique sprite and boosted stats; pigeon dive-bomb / roomba
+	# bounce / etc. fight the room-confinement clamp and look wrong on the Vacuum.
+	_behavior = EnemyBehavior.new() if data.is_boss else EnemyBehavior.for_kind(data.kind)
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
 		var path: String
