@@ -81,11 +81,16 @@ func reconcile() -> void:
 		if not _kittens.has(p.player_id):
 			_spawn(p, sync, slot_index)
 		else:
-			# Update name/tint in case a PLAYER_INFO landed mid-session.
+			# Update name/tint/character_class in case a PLAYER_INFO landed mid-session.
 			var existing: RemoteKitten = _kittens[p.player_id]
 			existing.kitten_name = p.kitten_name
 			if existing.has_node("Label"):
 				existing.get_node("Label").text = p.kitten_name
+			if existing.character_class != p.character_class_int:
+				existing.character_class = p.character_class_int
+				var sprite_node: Sprite2D = existing.get_node_or_null("Sprite2D")
+				if sprite_node != null:
+					sprite_node.texture = load(SpriteHelper.path_for_class(p.character_class_int))
 		slot_index += 1
 	# Free anything the roster no longer contains.
 	for pid in _kittens.keys():
@@ -104,6 +109,7 @@ func _spawn(player: LobbyPlayer, sync, slot_index: int) -> void:
 	var inst: RemoteKitten = _scene.instantiate()
 	inst.player_id = player.player_id
 	inst.kitten_name = player.kitten_name
+	inst.character_class = player.character_class_int
 	inst.tint_color = TINTS[slot_index % TINTS.size()]
 	inst.network_sync = sync
 	add_child(inst)

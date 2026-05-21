@@ -213,7 +213,8 @@ func _on_create_room_pressed() -> void:
 	var room_code := RoomCodeGenerator.new().generate()
 	var local_player := LobbyPlayer.make(
 		session.user_id, c.character_name,
-		CharacterData.CharacterClass.keys()[c.character_class], true
+		CharacterData.CharacterClass.keys()[c.character_class], true,
+		c.character_class
 	)
 	var lobby := NakamaLobby.new(socket, session)
 	var ok := await lobby.create_async(room_code, local_player)
@@ -245,7 +246,8 @@ func _on_join_room_pressed() -> void:
 		return
 	var local_player := LobbyPlayer.make(
 		session.user_id, c.character_name,
-		CharacterData.CharacterClass.keys()[c.character_class]
+		CharacterData.CharacterClass.keys()[c.character_class], false,
+		c.character_class
 	)
 	var lobby := NakamaLobby.new(socket, session)
 	var join_error := ""

@@ -14,15 +14,19 @@ extends RefCounted
 var player_id: String = ""
 var kitten_name: String = ""
 var class_name_str: String = ""
+# Raw int (not the typed enum) so it round-trips cleanly through JSON in
+# OP_PLAYER_INFO; drives the remote sprite mapping via SpriteHelper.
+var character_class_int: int = CharacterData.CharacterClass.WIZARD_KITTEN
 var ready: bool = false
 var is_host: bool = false
 
-static func make(id: String, name: String, klass: String, host: bool = false) -> LobbyPlayer:
+static func make(id: String, name: String, klass: String, host: bool = false, character_class_int: int = CharacterData.CharacterClass.WIZARD_KITTEN) -> LobbyPlayer:
 	var lp := LobbyPlayer.new()
 	lp.player_id = id
 	lp.kitten_name = name
 	lp.class_name_str = klass
 	lp.is_host = host
+	lp.character_class_int = character_class_int
 	return lp
 
 func to_dict() -> Dictionary:
@@ -30,6 +34,7 @@ func to_dict() -> Dictionary:
 		"player_id": player_id,
 		"kitten_name": kitten_name,
 		"class_name": class_name_str,
+		"character_class": character_class_int,
 		"ready": ready,
 		"is_host": is_host,
 	}
@@ -39,6 +44,7 @@ static func from_dict(d: Dictionary) -> LobbyPlayer:
 	lp.player_id = String(d.get("player_id", ""))
 	lp.kitten_name = String(d.get("kitten_name", ""))
 	lp.class_name_str = String(d.get("class_name", ""))
+	lp.character_class_int = int(d.get("character_class", CharacterData.CharacterClass.WIZARD_KITTEN))
 	lp.ready = bool(d.get("ready", false))
 	lp.is_host = bool(d.get("is_host", false))
 	return lp

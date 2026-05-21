@@ -197,7 +197,11 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 func send_player_info_async(player: LobbyPlayer) -> void:
 	if _socket == null or _match_id == "":
 		return
-	var payload := {"kitten_name": player.kitten_name, "class_name": player.class_name_str}
+	var payload := {
+		"kitten_name": player.kitten_name,
+		"class_name": player.class_name_str,
+		"character_class": player.character_class_int,
+	}
 	await _socket.send_match_state_async(_match_id, OP_PLAYER_INFO, JSON.stringify(payload))
 
 func send_ready_async(is_ready: bool) -> void:
@@ -461,6 +465,7 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 			if p != null:
 				p.kitten_name = String(data.get("kitten_name", p.kitten_name))
 				p.class_name_str = String(data.get("class_name", p.class_name_str))
+				p.character_class_int = int(data.get("character_class", p.character_class_int))
 			lobby_updated.emit(lobby_state)
 		OP_READY_TOGGLE:
 			lobby_state.set_ready(sender_id, bool(data.get("ready", false)))

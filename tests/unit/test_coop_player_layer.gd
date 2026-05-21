@@ -194,6 +194,54 @@ func test_remote_kitten_scene_loads():
 	assert_not_null(inst.get_node_or_null("Label"))
 	inst.free()
 
+func test_spawn_sets_character_class_on_remote_kitten():
+	# Issue #170 acceptance: CoopPlayerLayer._spawn must propagate the
+	# LobbyPlayer.character_class_int into the new RemoteKitten so the
+	# remote sprite is class-correct on first render.
+	var gs := get_node("/root/GameState")
+	var nl := NakamaLobby.new()
+	nl.local_player_id = "me"
+	var ls := LobbyState.new("ABCDE")
+	var alice := LobbyPlayer.make("alice", "k_alice", "Battle Kitten")
+	alice.character_class_int = CharacterData.CharacterClass.BATTLE_KITTEN
+	ls.add_player(LobbyPlayer.make("me", "k_me", "Wizard Kitten"))
+	ls.add_player(alice)
+	nl.lobby_state = ls
+	gs.set_lobby(nl)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var rk: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_not_null(rk)
+	assert_eq(rk.character_class, CharacterData.CharacterClass.BATTLE_KITTEN,
+		"spawn must carry character_class_int through to the kitten")
+
+func test_reconcile_updates_character_class_on_existing_kitten():
+	# Issue #170 acceptance: a late PLAYER_INFO must update character_class
+	# on the already-spawned RemoteKitten (and refresh its sprite).
+	var gs := get_node("/root/GameState")
+	var nl := NakamaLobby.new()
+	nl.local_player_id = "me"
+	var ls := LobbyState.new("ABCDE")
+	var alice := LobbyPlayer.make("alice", "k_alice", "Wizard Kitten")
+	alice.character_class_int = CharacterData.CharacterClass.WIZARD_KITTEN
+	ls.add_player(LobbyPlayer.make("me", "k_me", "Wizard Kitten"))
+	ls.add_player(alice)
+	nl.lobby_state = ls
+	gs.set_lobby(nl)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var rk: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_eq(rk.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Late PLAYER_INFO lands: alice is actually Sleepy Kitten.
+	alice.character_class_int = CharacterData.CharacterClass.SLEEPY_KITTEN
+	layer.reconcile()
+	assert_eq(layer.remote_kitten_for("alice"), rk,
+		"reconcile reuses the existing node, no respawn")
+	assert_eq(rk.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN,
+		"reconcile must refresh character_class on existing kittens")
+
 func test_main_scene_includes_coop_player_layer():
 	# Regression guard parallel to test_main_scene_includes_touch_controls:
 	# main.tscn must contain a CoopPlayerLayer or remote players never
