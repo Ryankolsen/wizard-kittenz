@@ -18,14 +18,40 @@ from PIL import Image
 
 
 def remove_white_background(img: Image.Image, tolerance: int = 15) -> Image.Image:
+    """Flood-fill from border corners so only background white is removed.
+    Interior white pixels (fur, armor, etc.) are protected by the sprite outline."""
+    from collections import deque
     img = img.convert("RGBA")
     pixels = img.load()
     w, h = img.size
+
+    def is_bg(x, y):
+        r, g, b, a = pixels[x, y]
+        return r >= 255 - tolerance and g >= 255 - tolerance and b >= 255 - tolerance
+
+    visited = set()
+    queue = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if is_bg(x, y) and (x, y) not in visited:
+                visited.add((x, y))
+                queue.append((x, y))
     for y in range(h):
-        for x in range(w):
-            r, g, b, a = pixels[x, y]
-            if r >= 255 - tolerance and g >= 255 - tolerance and b >= 255 - tolerance:
-                pixels[x, y] = (r, g, b, 0)
+        for x in (0, w - 1):
+            if is_bg(x, y) and (x, y) not in visited:
+                visited.add((x, y))
+                queue.append((x, y))
+
+    while queue:
+        x, y = queue.popleft()
+        r, g, b, _ = pixels[x, y]
+        pixels[x, y] = (r, g, b, 0)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in visited and is_bg(nx, ny):
+                visited.add((nx, ny))
+                queue.append((nx, ny))
+
     return img
 
 
