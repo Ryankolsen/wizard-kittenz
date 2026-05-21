@@ -24,6 +24,7 @@ extends Node2D
 @export var player_id: String = ""
 @export var kitten_name: String = ""
 @export var tint_color: Color = Color(1, 1, 1, 1)
+@export var character_class: CharacterData.CharacterClass = CharacterData.CharacterClass.WIZARD_KITTEN
 # Untyped to avoid a script-level dependency on NetworkSyncManager — RefCounted
 # refs round-trip through @export poorly. CoopPlayerLayer assigns this
 # directly after instantiate(). Null is treated as "no sync source" and the
@@ -32,6 +33,7 @@ var network_sync = null
 
 @onready var _placeholder: Polygon2D = get_node_or_null("Placeholder")
 @onready var _label: Label = get_node_or_null("Label")
+@onready var _sprite: Sprite2D = get_node_or_null("Sprite2D")
 
 func _ready() -> void:
 	# Join the taunt-targets group so Enemy._select_taunt_target_by_id can
@@ -44,6 +46,8 @@ func _ready() -> void:
 		_placeholder.modulate = tint_color
 	if _label != null:
 		_label.text = kitten_name
+	if _sprite != null:
+		_sprite.texture = load(SpriteHelper.path_for_class(character_class))
 
 func _process(_delta: float) -> void:
 	if network_sync == null or player_id == "":

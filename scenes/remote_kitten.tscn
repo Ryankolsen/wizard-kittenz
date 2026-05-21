@@ -9,6 +9,8 @@ script = ExtResource("1_remote_kitten")
 color = Color(0.95, 0.78, 0.45, 1)
 polygon = PackedVector2Array(-6, -6, 6, -6, 6, 6, -6, 6)
 
+[node name="Sprite2D" type="Sprite2D" parent="."]
+
 [node name="Label" type="Label" parent="."]
 offset_left = -32.0
 offset_top = -22.0
