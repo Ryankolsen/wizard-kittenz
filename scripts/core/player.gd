@@ -80,7 +80,7 @@ func _ready() -> void:
 	_power_ups = PowerUpManager.new()
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
-		sprite.texture = load("res://assets/sprites/wizard_kitten.png")
+		sprite.texture = load(SpriteHelper.path_for_class(data.character_class))
 	_sprite = sprite
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
