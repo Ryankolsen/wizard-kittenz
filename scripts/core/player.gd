@@ -109,7 +109,7 @@ func _physics_process(delta: float) -> void:
 	if input_dir != Vector2.ZERO:
 		data.facing = input_dir.normalized()
 		if _sprite != null and input_dir.x != 0.0:
-			_sprite.flip_h = input_dir.x > 0.0
+			_sprite.flip_h = input_dir.x < 0.0
 	move_and_slide()
 	_tick_spells(delta)
 	if data != null:
