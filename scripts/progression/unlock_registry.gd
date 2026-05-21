@@ -12,11 +12,10 @@ extends RefCounted
 # for starter classes that shouldn't appear gated. Stored in the registry as
 # a list of strings rather than full conditions.
 
-# Starter classes are always unlocked. The four-Kitten roster (#117) makes
-# battle/wizard/sleepy kittens starter; chonk_kitten is the gated archetype
-# (see DEFAULT_CONDITIONS).
+# Starter classes are always unlocked. All four Kitten archetypes are starter
+# classes; Cat-tier upgrades are gated (see DEFAULT_CONDITIONS).
 const STARTER_CLASSES := [
-	"battle_kitten", "wizard_kitten", "sleepy_kitten",
+	"battle_kitten", "wizard_kitten", "sleepy_kitten", "chonk_kitten",
 ]
 
 # Default conditions list for the shipping registry. New entries here unlock
@@ -25,7 +24,6 @@ const STARTER_CLASSES := [
 # MetaProgressionTracker.get_stat), and threshold (>=). Each Cat-tier unlock
 # gates on max_level_per_class for its matching Kitten archetype.
 const DEFAULT_CONDITIONS: Array = [
-	{"id": "chonk_kitten", "stat": "dungeons_completed", "threshold": 5},
 	{"id": "wizard_cat", "stat": "max_level_per_class.wizard_kitten", "threshold": 5},
 	{"id": "battle_cat", "stat": "max_level_per_class.battle_kitten", "threshold": 5},
 	{"id": "sleepy_cat", "stat": "max_level_per_class.sleepy_kitten", "threshold": 5},

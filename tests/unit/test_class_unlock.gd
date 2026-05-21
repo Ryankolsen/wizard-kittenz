@@ -8,43 +8,31 @@ func after_each():
 
 # --- Issue #121 tests (Chonk Kitten unlock gate) ---
 
-func test_chonk_kitten_locked_until_threshold():
-	# Issue #121 test 1+3: is_unlocked("chonk_kitten") is false until
-	# dungeons_completed reaches 5, then flips true. Same shape as the
-	# old ninja gate; the gameplay condition swaps from a starter-class
-	# unlock to the tier-2 Kitten archetype.
+func test_chonk_kitten_unlocked_immediately():
+	# Chonk Kitten is a starter class — available from the first run,
+	# no dungeon completion required.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
-	assert_false(registry.is_unlocked("chonk_kitten", tracker),
-		"chonk_kitten locked at start (dungeons_completed = 0)")
-	for _i in range(4):
-		tracker.record_dungeon_complete()
-	assert_false(registry.is_unlocked("chonk_kitten", tracker),
-		"still locked at 4/5 dungeons")
-	tracker.record_dungeon_complete()
 	assert_true(registry.is_unlocked("chonk_kitten", tracker),
-		"unlocks at exactly 5 dungeons (>= threshold)")
+		"chonk_kitten unlocked at start")
 
-func test_three_base_kittens_unlocked_immediately():
-	# Issue #121 test 2: battle/wizard/sleepy kittens are starter classes
-	# in the new four-class roster — no gating, no tracker progression.
+func test_all_base_kittens_unlocked_immediately():
+	# All four Kitten archetypes are starter classes — no gating, no tracker
+	# progression required.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
 	assert_true(registry.is_unlocked("battle_kitten", tracker))
 	assert_true(registry.is_unlocked("wizard_kitten", tracker))
 	assert_true(registry.is_unlocked("sleepy_kitten", tracker))
+	assert_true(registry.is_unlocked("chonk_kitten", tracker))
 
-func test_check_all_surfaces_chonk_kitten_at_threshold():
-	# Issue #121 test 4: after the threshold is hit, the registry's
-	# unlock projection includes chonk_kitten (so the screen layer can
-	# fire the "new class available!" toast).
+func test_check_all_does_not_include_chonk_kitten_as_starter():
+	# chonk_kitten is a starter class — not in the conditions list, so
+	# check_all (which reports gated unlocks) never surfaces it.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
-	assert_false(registry.check_all(tracker).has("chonk_kitten"))
-	for _i in range(5):
-		tracker.record_dungeon_complete()
-	assert_true(registry.check_all(tracker).has("chonk_kitten"),
-		"check_all surfaces chonk_kitten after the threshold is hit")
+	assert_false(registry.check_all(tracker).has("chonk_kitten"),
+		"chonk_kitten is a starter, not in gated unlock list")
 
 func test_legacy_ninja_id_is_not_unlocked():
 	# Issue #118: the legacy "ninja" string id is gone; is_unlocked falls
@@ -123,8 +111,9 @@ func test_is_unlocked_with_null_tracker_locks_non_starters():
 	# Defensive: unlock check with no tracker reads false for gated ids,
 	# but starter classes still pass.
 	var registry := UnlockRegistry.make_default()
-	assert_false(registry.is_unlocked("chonk_kitten", null))
+	assert_false(registry.is_unlocked("wizard_cat", null), "cat class locked without tracker")
 	assert_true(registry.is_unlocked("wizard_kitten", null), "starter still passes without tracker")
+	assert_true(registry.is_unlocked("chonk_kitten", null), "chonk_kitten is starter, passes without tracker")
 
 func test_tracker_max_level_is_high_water_mark():
 	# record_level_reached only increases the stored max; lower levels are
@@ -227,10 +216,9 @@ func test_newly_unlocked_diff():
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
 	var prev := registry.check_all(tracker)
-	for _i in range(5):
-		tracker.record_dungeon_complete()
+	tracker.record_level_reached("wizard_kitten", 5)
 	var new_ids := registry.newly_unlocked(prev, tracker)
-	assert_true(new_ids.has("chonk_kitten"))
+	assert_true(new_ids.has("wizard_cat"))
 	# A second call with the latest snapshot finds nothing new.
 	var again := registry.newly_unlocked(registry.check_all(tracker), tracker)
 	assert_eq(again.size(), 0, "no further transitions when already current")
@@ -241,11 +229,11 @@ func test_check_all_does_not_include_starter_classes():
 	# the unlock-progress screen focused on what the player earned.
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
-	for _i in range(5):
-		tracker.record_dungeon_complete()
+	tracker.record_level_reached("wizard_kitten", 5)
 	var unlocked := registry.check_all(tracker)
 	assert_false(unlocked.has("wizard_kitten"), "starter mage not included")
 	assert_false(unlocked.has("battle_kitten"), "starter thief not included")
+	assert_false(unlocked.has("chonk_kitten"), "starter chonk not included")
 
 func test_character_factory_handles_archmage():
 	var klass: int = CharacterFactory.class_from_name("wizard_cat")
