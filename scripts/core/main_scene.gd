@@ -179,8 +179,15 @@ func _setup_rooms() -> void:
 		# character, co-op fans through the party-split broadcaster.
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
 		_watchers.append(watcher)
-	var pu_rooms := _run_controller.dungeon.rooms.filter(func(r): return r.type == Room.TYPE_POWERUP)
+	_spawn_healing_box()
 
+func _spawn_healing_box() -> void:
+	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
+		return
+	var start_id := _run_controller.dungeon.start_id
+	var box := HealingBox.new()
+	box.position = _dungeon_layout.room_center_world(start_id)
+	add_child(box)
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
