@@ -73,8 +73,6 @@ func tick(delta: float, enemy) -> void:
 		_advance_charge(delta, enemy)
 		return
 	_cooldown_elapsed += delta
-	if enemy != null and wants_to_charge():
-		begin_charge(pick_charge_direction(_rng))
 
 func _advance_charge(delta: float, enemy) -> void:
 	if enemy == null:

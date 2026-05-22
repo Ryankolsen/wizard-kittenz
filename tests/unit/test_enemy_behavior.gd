@@ -249,14 +249,15 @@ func test_dog_knight_has_raised_base_defense():
 
 
 func test_dog_knight_charge_timer_fires():
-	# Acceptance #2: charge auto-triggers after the ~5s cooldown elapses.
-	# Driving five 1.0s ticks against a mock accrues the cooldown; the
-	# behavior auto-begins the charge on the threshold-crossing tick.
+	# Acceptance #2: after the ~5s cooldown elapses, wants_to_charge() is true
+	# and begin_charge() (called by _drive_dog_knight in enemy.gd) starts it.
 	var b := DogKnightBehavior.new()
 	var e := _MockDogEnemy.new()
 	for _i in range(5):
 		b.tick(1.0, e)
-	assert_true(b.is_charging, "charge should auto-begin after 5s cooldown")
+	assert_true(b.wants_to_charge(), "wants_to_charge should be true after 5s cooldown")
+	b.begin_charge(Vector2.RIGHT)
+	assert_true(b.is_charging, "charge should begin when begin_charge is called")
 
 
 func test_dog_knight_pick_charge_direction_varies_with_seed():

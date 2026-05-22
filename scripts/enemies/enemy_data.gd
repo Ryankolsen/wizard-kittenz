@@ -95,7 +95,7 @@ static func base_detection_radius_for(k: EnemyKind) -> float:
 	match k:
 		EnemyKind.ANGRY_PIGEON:    return 64.0  # aerial, moderate awareness
 		EnemyKind.ROGUE_ROOMBA:    return 72.0  # bounces into range quickly
-		EnemyKind.DOG_KNIGHT:      return 56.0  # heavy armour, slow to react
+		EnemyKind.DOG_KNIGHT:      return 200.0 # aggressive, charges from distance
 		EnemyKind.CATNIP_DEALER:   return 60.0  # skittish but short-sighted
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 60.0  # floaty, dim
 	return EnemyAIState.DETECTION_RADIUS
