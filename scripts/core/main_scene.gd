@@ -18,6 +18,7 @@ const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
 const POWER_UP_SCENE_PATH := "res://scenes/power_up.tscn"
 const CONGRATS_SCENE_PATH := "res://scenes/congratulations_screen.tscn"
+const BossDeathEffectScript := preload("res://scripts/vfx/boss_death_effect.gd")
 
 var _run_controller: DungeonRunController = null
 var _watchers: Array[RoomClearWatcher] = []
@@ -34,6 +35,7 @@ var _congrats_screen: CongratulationsScreen = null
 var _enemies_slain_this_floor: int = 0
 var _xp_at_floor_start: int = 0
 var _gold_at_floor_start: int = 0
+var _boss_death_position: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	_hud = $HUD
@@ -217,6 +219,8 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	if enemy == null or enemy.data == null:
 		return
 	_enemies_slain_this_floor += 1
+	if enemy.data.is_boss:
+		_boss_death_position = enemy.global_position
 	# Fan the death across all watchers; each watcher gates on its own
 	# expected enemy_id set, so only the matching room's watcher
 	# rising-edges true. Cheaper than maintaining a parallel
@@ -277,6 +281,9 @@ func _spawn_exit_door() -> void:
 func _on_boss_room_cleared() -> void:
 	if _exit_door != null:
 		_exit_door.open()
+	var effect := BossDeathEffectScript.new()
+	effect.global_position = _boss_death_position
+	add_child(effect)
 	# Issue #99 AC1: in co-op, the host fans the boss-clear edge to every
 	# peer so all clients open their door simultaneously. Non-host clients
 	# silently no-op via lobby.send_boss_cleared_async's is_local_host
