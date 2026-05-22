@@ -25,8 +25,8 @@ extends RefCounted
 #      multipliers, not from a separate stronger pool. A future per-dungeon
 #      data-driven enemy config will replace the constants below.
 
-const MIN_ROOMS := 5
-const MAX_ROOMS := 10
+const MIN_ROOMS := 9
+const MAX_ROOMS := 14
 
 # Both pools currently span the full 5-kind roster (PRD #151). All kinds
 # share equal base stats this phase, so boss "difficulty" comes from the

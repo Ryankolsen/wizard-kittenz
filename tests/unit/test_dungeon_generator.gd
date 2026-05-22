@@ -2,14 +2,26 @@ extends GutTest
 
 # --- Issue tests (5 acceptance scenarios) ---
 
-func test_generate_returns_5_to_10_rooms():
+func test_generate_returns_min_to_max_rooms():
 	# Issue test 1: DungeonGenerator.generate() returns a graph with between
-	# 5 and 10 nodes inclusive. Run a handful of seeds to cover the range,
-	# not just one draw.
+	# MIN_ROOMS and MAX_ROOMS nodes inclusive. Run a handful of seeds to cover
+	# the range, not just one draw.
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
 		var d := DungeonGenerator.generate(s)
 		assert_between(d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS,
-			"seed %d produced %d rooms (expected 5..10)" % [s, d.size()])
+			"seed %d produced %d rooms (expected %d..%d)" % [s, d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS])
+
+func test_every_dungeon_has_at_least_four_standard_combat_rooms():
+	# Minimum mob requirement: every dungeon must have at least 4 standard
+	# combat rooms so the player fights at least 4 mobs + the boss per level.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var standard_count := 0
+		for r in d.rooms:
+			if r.type == Room.TYPE_STANDARD:
+				standard_count += 1
+		assert_gte(standard_count, 4,
+			"seed %d produced only %d standard rooms (minimum 4 required)" % [s, standard_count])
 
 func test_exactly_one_boss_room():
 	# Issue test 2: exactly one node has type == "boss".
