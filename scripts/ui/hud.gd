@@ -28,9 +28,6 @@ var _stat_points_badge: Label
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
-const LOOT_PROMPT_SCENE := preload("res://scenes/loot_prompt.tscn")
-
-var _loot_prompt: CanvasLayer = null
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -299,11 +296,6 @@ func _find_player() -> Player:
 			return n
 	return null
 
-# Loot prompt (PRD #73 / issue #80). Player emits item_dropped after the
-# kill-reward router returns a non-null ItemData; HUD owns the modal
-# dialog. Disabling _physics_process on the player while the prompt is
-# open is what enforces "movement/attacks blocked" without touching the
-# tree-wide pause flag (which would also freeze coop peers).
 func _bind_player_item_drop() -> void:
 	if _player == null:
 		return
@@ -313,33 +305,9 @@ func _bind_player_item_drop() -> void:
 func _on_player_item_dropped(item: ItemData) -> void:
 	if item == null:
 		return
-	var prompt := _ensure_loot_prompt()
-	if _player != null:
-		_player.set_physics_process(false)
-	prompt.show_for(item)
-
-func _ensure_loot_prompt() -> CanvasLayer:
-	if _loot_prompt == null:
-		_loot_prompt = LOOT_PROMPT_SCENE.instantiate()
-		add_child(_loot_prompt)
-		_loot_prompt.choice_made.connect(_on_loot_choice_made)
-	return _loot_prompt
-
-func _on_loot_choice_made(item: ItemData, equip: bool) -> void:
-	if _player != null:
-		_player.set_physics_process(true)
-	if item == null:
-		return
 	var gs := get_node_or_null("/root/GameState")
 	if gs == null or gs.item_inventory == null:
 		return
-	var inventory: ItemInventory = gs.item_inventory
-	if equip:
-		var prev: ItemData = inventory.equipped_in(item.slot)
-		if prev != null and _player != null and _player.data != null:
-			CharacterMutator.new(_player.data).apply_stat_delta(prev.stat_name, -prev.stat_bonus)
-		inventory.equip(item)
-		if _player != null and _player.data != null:
-			CharacterMutator.new(_player.data).apply_stat_delta(item.stat_name, item.stat_bonus)
-	else:
-		inventory.add_to_bag(item)
+	gs.item_inventory.add_to_bag(item)
+	if _player != null:
+		FloatingText.spawn(_player, "Looted: " + item.display_name, Color(1.0, 0.85, 0.3))
