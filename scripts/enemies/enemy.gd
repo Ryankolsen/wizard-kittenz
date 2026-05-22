@@ -105,6 +105,7 @@ func _physics_process(delta: float) -> void:
 		_drive_rogue_roomba(delta)
 		_drive_catnip_dealer(delta)
 		_drive_haunted_spray_bottle(delta)
+		_drive_dog_knight()
 		_behavior.tick(delta, self)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
@@ -291,6 +292,22 @@ func _observe_rogue_roomba() -> void:
 		if _roomba_velocity != Vector2.ZERO:
 			_roomba_velocity = _roomba_velocity.normalized() * move_speed
 		FloatingText.spawn(self, "BERSERK", Color(1.0, 0.2, 0.2))
+
+# Supplies the player direction to DogKnightBehavior before its tick fires so
+# the charge targets the player rather than a random angle.
+func _drive_dog_knight() -> void:
+	if not (_behavior is DogKnightBehavior):
+		return
+	var dkb := _behavior as DogKnightBehavior
+	if not dkb.wants_to_charge():
+		return
+	var player := _find_player()
+	var dir := Vector2.RIGHT
+	if player != null:
+		var to_player := player.global_position - global_position
+		if to_player != Vector2.ZERO:
+			dir = to_player.normalized()
+	dkb.begin_charge(dir)
 
 # Bridges DogKnightBehavior state edges to scene-tree side effects: "BURP"
 # FloatingText on charge end, mead PowerUpPickup parented to the dungeon root

@@ -41,6 +41,10 @@ func tick(delta: float, enemy) -> void:
 	# DEAD is the sink — no trail accrual, no berserk check post-death.
 	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
 		return
+	# Only drop trail while actively chasing — not while idle before detection.
+	var s = enemy.get("state") if enemy != null else null
+	if s == null or s == 0:  # EnemyAIState.State.IDLE
+		return
 	_trail_elapsed += delta
 	if _trail_elapsed >= TRAIL_INTERVAL:
 		_trail_elapsed = 0.0

@@ -41,6 +41,7 @@ func configure(p_duration: float, p_slow_percent: float,
 	color = p_color
 
 func _ready() -> void:
+	z_index = -1
 	queue_redraw()
 
 func _draw() -> void:
