@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Convert a Midjourney sprite sheet (2x2 grid, white background) into
-individual transparent PNGs ready for Godot.
+Convert a Midjourney sprite sheet into individual transparent PNGs ready for Godot.
 
 Usage:
-    python3 tools/make_sprite.py <image_path> <sprite_name> [--grid NxM] [--tolerance N]
+    python3 tools/make_sprite.py <image_path> <sprite_name> [--grid NxM] [--tolerance N] [--bg white|black]
 
 Examples:
     python3 tools/make_sprite.py images-to-be-sprites/pigeon.png angry_pigeon
     python3 tools/make_sprite.py images-to-be-sprites/pigeon.png angry_pigeon --grid 2x2 --tolerance 20
+    python3 tools/make_sprite.py images-to-be-sprites/catnip.png catnip --grid 1x1 --bg black
 """
 
 import sys
@@ -17,9 +17,8 @@ from pathlib import Path
 from PIL import Image
 
 
-def remove_white_background(img: Image.Image, tolerance: int = 15) -> Image.Image:
-    """Flood-fill from border corners so only background white is removed.
-    Interior white pixels (fur, armor, etc.) are protected by the sprite outline."""
+def remove_background(img: Image.Image, tolerance: int = 15, bg: str = "white") -> Image.Image:
+    """Flood-fill from border corners to remove background. Interior pixels are protected."""
     from collections import deque
     img = img.convert("RGBA")
     pixels = img.load()
@@ -27,6 +26,8 @@ def remove_white_background(img: Image.Image, tolerance: int = 15) -> Image.Imag
 
     def is_bg(x, y):
         r, g, b, a = pixels[x, y]
+        if bg == "black":
+            return r <= tolerance and g <= tolerance and b <= tolerance
         return r >= 255 - tolerance and g >= 255 - tolerance and b >= 255 - tolerance
 
     visited = set()
@@ -92,7 +93,8 @@ def main():
     parser.add_argument("image", help="Path to the source image")
     parser.add_argument("name", help="Base sprite name (e.g. angry_pigeon)")
     parser.add_argument("--grid", default="2x2", help="Grid layout, e.g. 2x2, 1x4 (default: 2x2)")
-    parser.add_argument("--tolerance", type=int, default=15, help="White removal tolerance 0-255 (default: 15)")
+    parser.add_argument("--tolerance", type=int, default=15, help="Background removal tolerance 0-255 (default: 15)")
+    parser.add_argument("--bg", default="white", choices=["white", "black"], help="Background color to remove (default: white)")
     parser.add_argument("--size", type=int, default=48, help="Fit sprite within this pixel box (default: 48). Set 0 to skip resize.")
     parser.add_argument("--out", default="assets/sprites", help="Output directory (default: assets/sprites)")
     args = parser.parse_args()
@@ -103,7 +105,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     img = Image.open(src)
-    print(f"Source: {src.name}  {img.size}  mode={img.mode}  grid={cols}x{rows}")
+    print(f"Source: {src.name}  {img.size}  mode={img.mode}  grid={cols}x{rows}  bg={args.bg}")
 
     cells = split_grid(img, cols, rows)
     labels = GRID_LABELS.get((cols, rows), [f"frame_{i}" for i in range(len(cells))])
@@ -111,7 +113,7 @@ def main():
     saved = []
     for i, cell in enumerate(cells):
         label = labels[i] if i < len(labels) else f"frame_{i}"
-        cell = remove_white_background(cell, args.tolerance)
+        cell = remove_background(cell, args.tolerance, args.bg)
         cell = autocrop(cell)
         if args.size > 0:
             scale = args.size / max(cell.width, cell.height)
