@@ -60,6 +60,47 @@ static func all_items() -> Array[ItemData]:
 	items.append(ItemData.make("tubby_belt", "Tubby Belt", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "max_hp", 10.0, _CHONK))
 	items.append(ItemData.make("stone_pendant", "Stone Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "magic_resistance", 3.0, _CHONK))
 	items.append(ItemData.make("heart_of_the_boulder", "Heart of the Boulder", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "magic_resistance", 5.0, _CHONK))
+	# --- Slice 4 expansion: +9 per class ---
+	# Battle Kitten — second wave
+	items.append(ItemData.make("rusted_dagger", "Rusted Dagger", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE))
+	items.append(ItemData.make("knights_sabre", "Knight's Sabre", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0, _BATTLE))
+	items.append(ItemData.make("dragonslayer_greatsword", "Dragonslayer Greatsword", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "attack", 9.0, _BATTLE))
+	items.append(ItemData.make("scout_jerkin", "Scout Jerkin", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "evasion", 0.03, _BATTLE))
+	items.append(ItemData.make("knights_breastplate", "Knight's Breastplate", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 4.0, _BATTLE))
+	items.append(ItemData.make("warlord_aegis", "Warlord Aegis", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_hp", 30.0, _BATTLE))
+	items.append(ItemData.make("warriors_band", "Warrior's Band", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "attack", 1.0, _BATTLE))
+	items.append(ItemData.make("berserker_pendant", "Berserker Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "crit_chance", 0.10, _BATTLE))
+	items.append(ItemData.make("champions_medal", "Champion's Medal", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "attack", 5.0, _BATTLE))
+	# Wizard Kitten — second wave
+	items.append(ItemData.make("novice_wand", "Novice Wand", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "magic_attack", 3.0, _WIZARD))
+	items.append(ItemData.make("runed_staff", "Runed Staff", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "magic_attack", 6.0, _WIZARD))
+	items.append(ItemData.make("voidcaller_staff", "Voidcaller Staff", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "magic_attack", 11.0, _WIZARD))
+	items.append(ItemData.make("acolyte_hood", "Acolyte Hood", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "max_mp", 6.0, _WIZARD))
+	items.append(ItemData.make("enchanters_garb", "Enchanter's Garb", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "magic_resistance", 3.0, _WIZARD))
+	items.append(ItemData.make("celestial_mantle", "Celestial Mantle", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_mp", 30.0, _WIZARD))
+	items.append(ItemData.make("mana_pebble", "Mana Pebble", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "max_mp", 4.0, _WIZARD))
+	items.append(ItemData.make("scryers_lens", "Scryer's Lens", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "magic_attack", 4.0, _WIZARD))
+	items.append(ItemData.make("orb_of_eternity", "Orb of Eternity", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "mp_regen", 0.6, _WIZARD))
+	# Sleepy Kitten — second wave
+	items.append(ItemData.make("feather_wand", "Feather Wand", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "magic_attack", 2.0, _SLEEPY))
+	items.append(ItemData.make("cloud_staff", "Cloud Staff", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "magic_attack", 4.0, _SLEEPY))
+	items.append(ItemData.make("starlight_caduceus", "Starlight Caduceus", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "mp_regen", 0.5, _SLEEPY))
+	items.append(ItemData.make("warm_nightgown", "Warm Nightgown", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "regeneration", 1.0, _SLEEPY))
+	items.append(ItemData.make("comfy_quilt", "Comfy Quilt", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "max_hp", 15.0, _SLEEPY))
+	items.append(ItemData.make("dreamweaver_shroud", "Dreamweaver Shroud", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "regeneration", 3.0, _SLEEPY))
+	items.append(ItemData.make("catnap_ribbon", "Catnap Ribbon", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "mp_regen", 0.2, _SLEEPY))
+	items.append(ItemData.make("silken_locket", "Silken Locket", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "regeneration", 1.5, _SLEEPY))
+	items.append(ItemData.make("heart_of_the_dream", "Heart of the Dream", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_mp", 25.0, _SLEEPY))
+	# Chonk Kitten — second wave
+	items.append(ItemData.make("oak_cudgel", "Oak Cudgel", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 3.0, _CHONK))
+	items.append(ItemData.make("bone_crusher", "Bone Crusher", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 6.0, _CHONK))
+	items.append(ItemData.make("mountain_maul", "Mountain Maul", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "attack", 9.0, _CHONK))
+	items.append(ItemData.make("padded_gambeson", "Padded Gambeson", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "max_hp", 8.0, _CHONK))
+	items.append(ItemData.make("bulwark_cuirass", "Bulwark Cuirass", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 5.0, _CHONK))
+	items.append(ItemData.make("titanic_aegis", "Titanic Aegis", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_hp", 40.0, _CHONK))
+	items.append(ItemData.make("thick_collar", "Thick Collar", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "defense", 1.0, _CHONK))
+	items.append(ItemData.make("granite_pendant", "Granite Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "defense", 3.0, _CHONK))
+	items.append(ItemData.make("indomitable_locket", "Indomitable Locket", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 50.0, _CHONK))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:
