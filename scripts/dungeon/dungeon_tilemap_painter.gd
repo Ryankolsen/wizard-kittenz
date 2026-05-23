@@ -200,9 +200,10 @@ func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 # The footprint extends BAR_DOOR_FOOTPRINT cells inward along the door-normal
 # axis so every cell lands on bar floor (walkable). The bar's other corridor
 # mouths (its two outgoing edges) stay as plain floor: still walkable, just no
-# door visual. Bumped from 2 to 4 (#196) so the door reads as a proper
-# entrance at game scale instead of a tile-sized smudge.
-const BAR_DOOR_FOOTPRINT := 4
+# door visual. Bumped to 8 (a 128 px square) so the hand-authored door + sign
+# art reads at game scale instead of getting lost against the dungeon tiles —
+# fits inside the 12-tile bar perimeter with 2 tiles of margin on each side.
+const BAR_DOOR_FOOTPRINT := 8
 func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dungeon) -> void:
 	if dungeon == null:
 		return
