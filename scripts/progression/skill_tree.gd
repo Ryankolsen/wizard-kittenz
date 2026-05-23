@@ -80,11 +80,14 @@ static func make_battle_kitten_tree() -> SkillTree:
 
 static func make_wizard_kitten_tree() -> SkillTree:
 	var t := SkillTree.new()
-	var hairball_hex := Spell.make("hairball_hex", "Hairball Hex", Spell.EffectKind.DAMAGE, 3, 0.8)
-	var catnip_curse := Spell.make("catnip_curse", "Catnip Curse", Spell.EffectKind.BUFF, 4, 3.0)
-	var whisker_bolt := Spell.make("whisker_bolt", "Whisker Bolt", Spell.EffectKind.DAMAGE, 6, 1.2)
-	var litter_storm := Spell.make("litter_storm", "Litter Storm", Spell.EffectKind.AREA, 5, 2.5)
-	var arcane_purr := Spell.make("arcane_purr", "Arcane Purr", Spell.EffectKind.DAMAGE, 10, 4.0)
+	# mp_cost tiers (issue #177): early 2-3 / mid 4-6 / powerful 7-10. All values
+	# fit under base_max_mp_for(WIZARD_KITTEN, 1) == 10 so a fresh wizard can
+	# cast any unlocked spell from level 1 (within unlock gating).
+	var hairball_hex := Spell.make("hairball_hex", "Hairball Hex", Spell.EffectKind.DAMAGE, 3, 0.8, 0, 2)
+	var catnip_curse := Spell.make("catnip_curse", "Catnip Curse", Spell.EffectKind.BUFF, 4, 3.0, 0, 4)
+	var whisker_bolt := Spell.make("whisker_bolt", "Whisker Bolt", Spell.EffectKind.DAMAGE, 6, 1.2, 0, 5)
+	var litter_storm := Spell.make("litter_storm", "Litter Storm", Spell.EffectKind.AREA, 5, 2.5, 0, 6)
+	var arcane_purr := Spell.make("arcane_purr", "Arcane Purr", Spell.EffectKind.DAMAGE, 10, 4.0, 0, 8)
 	t.add_node(SkillNode.make("hairball_hex", "Hairball Hex", hairball_hex, [], 1, 1, "Lobs a magical hairball at one enemy."))
 	t.add_node(SkillNode.make("catnip_curse", "Catnip Curse", catnip_curse, [], 1, 3, "Boosts your own combat power temporarily."))
 	t.add_node(SkillNode.make("whisker_bolt", "Whisker Bolt", whisker_bolt, [], 1, 5, "Fires a crackling whisker bolt at one enemy."))
@@ -94,11 +97,14 @@ static func make_wizard_kitten_tree() -> SkillTree:
 
 static func make_sleepy_kitten_tree() -> SkillTree:
 	var t := SkillTree.new()
-	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.5)
-	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0)
-	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.AOE_HEAL, 5, 2.5)
-	var regen_snooze := Spell.make("regen_snooze", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 0, 3.5)
-	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.AOE_HEAL, 12, 6.0)
+	# mp_cost tiers (issue #177): early 2-3 / mid 4-6 / powerful 7-10. All values
+	# fit under base_max_mp_for(SLEEPY_KITTEN, 1) == 10 so a fresh sleepy can
+	# cast any unlocked spell from level 1 (within unlock gating).
+	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.5, 0, 2)
+	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0, 0, 4)
+	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.AOE_HEAL, 5, 2.5, 0, 5)
+	var regen_snooze := Spell.make("regen_snooze", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 0, 3.5, 0, 6)
+	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.AOE_HEAL, 12, 6.0, 0, 8)
 	t.add_node(SkillNode.make("fuzzy_warmth", "Fuzzy Warmth", fuzzy_warmth, [], 1, 1, "Heals the most wounded ally nearby, or yourself if alone."))
 	t.add_node(SkillNode.make("cozy_aura", "Cozy Aura", cozy_aura, [], 1, 3, "Wraps nearby allies in a cozy aura, boosting defense and magic resistance for 15 seconds."))
 	t.add_node(SkillNode.make("warm_blanket", "Warm Blanket", warm_blanket, [], 1, 5, "A cozy blanket that heals all nearby allies."))

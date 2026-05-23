@@ -28,7 +28,7 @@ var hp_cost: int = 0
 # skill tree; physical-class spells leave it at 0 (no MP gating).
 var mp_cost: int = 0
 
-static func make(s_id: String, name: String, kind: int, power_val: int, cd: float = 1.0, hp_cost_val: int = 0) -> Spell:
+static func make(s_id: String, name: String, kind: int, power_val: int, cd: float = 1.0, hp_cost_val: int = 0, mp_cost_val: int = 0) -> Spell:
 	var s := Spell.new()
 	s.id = s_id
 	s.display_name = name
@@ -37,6 +37,7 @@ static func make(s_id: String, name: String, kind: int, power_val: int, cd: floa
 	s.cooldown = cd
 	s.base_cooldown = cd
 	s.hp_cost = hp_cost_val
+	s.mp_cost = mp_cost_val
 	return s
 
 func is_ready() -> bool:

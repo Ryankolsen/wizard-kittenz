@@ -129,3 +129,37 @@ func test_chonk_cat_shares_kitten_tree():
 
 func _fresh_game_state():
 	return get_node("/root/GameState")
+
+# Issue #177: mp_cost on mage skill trees.
+
+func test_wizard_kitten_spells_all_have_mp_cost():
+	var tree := SkillTree.make_wizard_kitten_tree()
+	for node in tree.nodes:
+		assert_not_null(node.spell, "Wizard node %s should have a spell" % node.id)
+		assert_gt(node.spell.mp_cost, 0, "Wizard spell %s mp_cost > 0" % node.id)
+
+func test_sleepy_kitten_spells_all_have_mp_cost():
+	var tree := SkillTree.make_sleepy_kitten_tree()
+	for node in tree.nodes:
+		assert_not_null(node.spell, "Sleepy node %s should have a spell" % node.id)
+		assert_gt(node.spell.mp_cost, 0, "Sleepy spell %s mp_cost > 0" % node.id)
+
+func test_battle_kitten_spells_have_zero_mp_cost():
+	var tree := SkillTree.make_battle_kitten_tree()
+	for node in tree.nodes:
+		assert_eq(node.spell.mp_cost, 0, "Battle spell %s mp_cost == 0" % node.id)
+
+func test_chonk_kitten_spells_have_zero_mp_cost():
+	var tree := SkillTree.make_chonk_kitten_tree()
+	for node in tree.nodes:
+		assert_eq(node.spell.mp_cost, 0, "Chonk spell %s mp_cost == 0" % node.id)
+
+func test_mage_mp_costs_fit_in_starting_mp_pool():
+	# Acceptance: player can always cast at least the cheapest spell from a
+	# fresh start — every spell's mp_cost must be <= base_max_mp_for(class, 1).
+	var wizard_cap := CharacterData.base_max_mp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 1)
+	for node in SkillTree.make_wizard_kitten_tree().nodes:
+		assert_lte(node.spell.mp_cost, wizard_cap, "Wizard %s mp_cost <= %d" % [node.id, wizard_cap])
+	var sleepy_cap := CharacterData.base_max_mp_for(CharacterData.CharacterClass.SLEEPY_KITTEN, 1)
+	for node in SkillTree.make_sleepy_kitten_tree().nodes:
+		assert_lte(node.spell.mp_cost, sleepy_cap, "Sleepy %s mp_cost <= %d" % [node.id, sleepy_cap])
