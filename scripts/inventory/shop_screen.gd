@@ -23,6 +23,18 @@ extends Control
 const CHARACTER_CREATION_SCENE := "res://scenes/character_creation.tscn"
 const ERROR_AUTO_HIDE_SECONDS := 3.0
 
+# Fired on every Back press. Overlay callers (e.g. the in-dungeon bar room)
+# connect this to tear the shop down without a scene change; the legacy
+# character-creation flow ignores it and relies on the default scene swap.
+signal back_pressed()
+# When true, _on_back_pressed skips the scene change so an overlay host can
+# decide how to dispose the screen (queue_free its CanvasLayer wrapper, etc.).
+var _overlay_mode: bool = false
+
+
+func set_overlay_mode(enabled: bool) -> void:
+	_overlay_mode = enabled
+
 @onready var _gold_label: Label = $MarginContainer/Layout/CurrencyRow/GoldLabel
 @onready var _gem_label: Label = $MarginContainer/Layout/CurrencyRow/GemLabel
 @onready var _item_list: VBoxContainer = $MarginContainer/Layout/Scroll/ItemList
@@ -111,6 +123,9 @@ func _on_balance_changed(_currency: int, _new_balance: int) -> void:
 	_refresh_currency()
 
 func _on_back_pressed() -> void:
+	back_pressed.emit()
+	if _overlay_mode:
+		return
 	get_tree().change_scene_to_file(CHARACTER_CREATION_SCENE)
 
 func _refresh_currency() -> void:
