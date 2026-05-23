@@ -42,10 +42,17 @@ static func resolve(character: CharacterData, context: int, rng: RandomNumberGen
 	var idx := rng.randi_range(0, pool.size() - 1)
 	return pool[idx]
 
+static func is_drop_eligible(item: ItemData, character_class: int) -> bool:
+	if item == null:
+		return false
+	if item.source != ItemData.Source.DROP:
+		return false
+	return ClassEligibility.is_class_allowed(item, character_class)
+
 static func _class_filtered_pool(rarity: int, character_class: int) -> Array[ItemData]:
 	var out: Array[ItemData] = []
 	for item in ItemCatalog.items_for_rarity(rarity):
-		if ClassEligibility.is_class_allowed(item, character_class):
+		if is_drop_eligible(item, character_class):
 			out.append(item)
 	return out
 

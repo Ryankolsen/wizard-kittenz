@@ -41,6 +41,13 @@ func test_all_items_have_bonuses():
 	for item in ItemCatalog.all_items():
 		assert_true(item.bonuses.size() > 0, "item %s has empty bonuses" % item.id)
 
+func test_all_items_source_is_drop():
+	# Slice 5 of PRD #201: catalog has no SHOP items yet; every item must
+	# default to source == DROP. Future SHOP items will be added in Slice 6.
+	for item in ItemCatalog.all_items():
+		assert_eq(item.source, ItemData.Source.DROP,
+			"item %s has non-DROP source before SHOP slice" % item.id)
+
 func test_every_class_covers_full_slot_rarity_matrix():
 	var classes := [
 		CharacterData.CharacterClass.BATTLE_KITTEN,

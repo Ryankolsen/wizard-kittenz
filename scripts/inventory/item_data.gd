@@ -3,6 +3,7 @@ extends Resource
 
 enum Slot { WEAPON, ARMOR, ACCESSORY }
 enum Rarity { COMMON, RARE, EPIC }
+enum Source { DROP, SHOP }
 
 @export var id: String = ""
 @export var display_name: String = ""
@@ -12,11 +13,12 @@ enum Rarity { COMMON, RARE, EPIC }
 # CharacterData.CharacterClass enum values. Empty = no class allowed (sentinel).
 # Cat-tier inheritance is resolved in ClassEligibility, not stored here.
 @export var allowed_classes: Array[int] = []
+@export var source: Source = Source.DROP
 
-static func make(p_id: String, p_display_name: String, p_slot: Slot, p_rarity: Rarity, p_stat_name: String, p_stat_bonus: float, p_allowed_classes: Array = []) -> ItemData:
-	return make_multi(p_id, p_display_name, p_slot, p_rarity, [StatBonus.make(p_stat_name, p_stat_bonus)], p_allowed_classes)
+static func make(p_id: String, p_display_name: String, p_slot: Slot, p_rarity: Rarity, p_stat_name: String, p_stat_bonus: float, p_allowed_classes: Array = [], p_source: Source = Source.DROP) -> ItemData:
+	return make_multi(p_id, p_display_name, p_slot, p_rarity, [StatBonus.make(p_stat_name, p_stat_bonus)], p_allowed_classes, p_source)
 
-static func make_multi(p_id: String, p_display_name: String, p_slot: Slot, p_rarity: Rarity, p_bonuses: Array, p_allowed_classes: Array = []) -> ItemData:
+static func make_multi(p_id: String, p_display_name: String, p_slot: Slot, p_rarity: Rarity, p_bonuses: Array, p_allowed_classes: Array = [], p_source: Source = Source.DROP) -> ItemData:
 	var d := ItemData.new()
 	d.id = p_id
 	d.display_name = p_display_name
@@ -30,4 +32,5 @@ static func make_multi(p_id: String, p_display_name: String, p_slot: Slot, p_rar
 	for c in p_allowed_classes:
 		typed_classes.append(int(c))
 	d.allowed_classes = typed_classes
+	d.source = p_source
 	return d

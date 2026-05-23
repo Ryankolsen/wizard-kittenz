@@ -138,6 +138,51 @@ func test_cat_tier_inherits_kitten_eligibility():
 		assert_true(ClassEligibility.is_class_allowed(item, c.character_class),
 			"item %s not allowed for BATTLE_CAT" % item.id)
 
+# --- Slice 5 of PRD #201: source field (DROP/SHOP split) ---------------------
+
+func _make_shop_item(klass: int) -> ItemData:
+	return ItemData.make("test_shop_only", "Test Shop Only",
+		ItemData.Slot.WEAPON, ItemData.Rarity.COMMON,
+		"attack", 1.0, [klass], ItemData.Source.SHOP)
+
+func _make_drop_item(klass: int) -> ItemData:
+	return ItemData.make("test_drop_only", "Test Drop Only",
+		ItemData.Slot.WEAPON, ItemData.Rarity.COMMON,
+		"attack", 1.0, [klass], ItemData.Source.DROP)
+
+func test_is_drop_eligible_rejects_shop_item():
+	var item := _make_shop_item(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_false(ItemDropResolver.is_drop_eligible(item,
+		CharacterData.CharacterClass.WIZARD_KITTEN),
+		"SHOP item must never be drop-eligible even for matching class")
+
+func test_is_drop_eligible_accepts_drop_item_for_matching_class():
+	var item := _make_drop_item(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_true(ItemDropResolver.is_drop_eligible(item,
+		CharacterData.CharacterClass.WIZARD_KITTEN))
+
+func test_is_drop_eligible_rejects_drop_item_for_wrong_class():
+	# Composition of source + class filters: DROP item still blocked by class.
+	var item := _make_drop_item(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_false(ItemDropResolver.is_drop_eligible(item,
+		CharacterData.CharacterClass.WIZARD_KITTEN))
+
+func test_is_drop_eligible_null_item():
+	assert_false(ItemDropResolver.is_drop_eligible(null,
+		CharacterData.CharacterClass.WIZARD_KITTEN))
+
+func test_resolver_never_returns_shop_item_across_100_rolls():
+	# Today no SHOP items exist in the catalog, so this is a forward-looking
+	# regression guard: snapshot the resolver's catalog-driven rolls and
+	# assert each returned item has source == DROP.
+	var c := _make_character(11, CharacterData.CharacterClass.WIZARD_KITTEN)
+	var rng := _make_rng(8675309)
+	for i in 100:
+		var item := ItemDropResolver.resolve(c, ItemDropResolver.Context.BOSS, rng)
+		assert_not_null(item)
+		assert_eq(item.source, ItemData.Source.DROP,
+			"resolver returned SHOP item %s" % item.id)
+
 func test_level_1_wizard_still_only_common():
 	# Existing LEVEL_GATE_RARE behavior preserved under class filtering.
 	var c := _make_character(1, CharacterData.CharacterClass.WIZARD_KITTEN)
