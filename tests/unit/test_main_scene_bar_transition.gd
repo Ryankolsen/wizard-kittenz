@@ -194,6 +194,29 @@ func test_camera_limits_not_mutated_by_bar_entry():
 		"camera.limit_bottom untouched by bar entry")
 
 
+func test_bar_room_mounted_before_player_in_child_order():
+	# Without an explicit reorder, add_child appends BarRoomScene AFTER the
+	# Player sibling, and main_scene has no y_sort on its root — so the bar's
+	# subtree draws on top of the player sprite in scene-tree order. The
+	# _enter_bar_room handler calls move_child(bar, 0) right after add_child
+	# to push the bar to the front, restoring the player's "on top of
+	# everything" rendering. Asserting child index pins that move.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	var bar := inst.get_node_or_null("BarRoomScene")
+	var player := inst.get_node_or_null("Player")
+	assert_not_null(bar, "precondition: bar mounted")
+	assert_not_null(player, "precondition: player exists under main_scene")
+	assert_lt(bar.get_index(), player.get_index(),
+		"bar mounted at lower child index than player so player draws on top")
+
+
 func test_saved_camera_limits_field_removed():
 	# Lock the refactor in: the _saved_camera_limits field that backed the
 	# old lift/restore is gone, along with the lift/restore methods. Reading

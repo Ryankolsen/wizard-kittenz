@@ -15,6 +15,7 @@ y_sort_enabled = true
 script = ExtResource("1_bar_room")
 
 [node name="TileMap" type="TileMap" parent="."]
+z_index = -1
 format = 2
 
 [node name="BarCounter" type="Sprite2D" parent="."]

@@ -265,6 +265,11 @@ func _enter_bar_room() -> void:
 	if bar.has_signal("player_exited_bar"):
 		bar.player_exited_bar.connect(_on_player_exited_bar)
 	add_child(bar)
+	# Push the bar to the front of the child list so the Player (and any later
+	# siblings like HUD) draw on top of the bar's tilemap and props. Without
+	# this, add_child appends BarRoomScene after Player and its subtree
+	# overlaps the player sprite in scene-tree draw order.
+	move_child(bar, 0)
 	bar.global_position = _player.global_position
 	_bar_room_scene = bar
 

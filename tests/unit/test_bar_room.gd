@@ -168,6 +168,19 @@ func test_bar_room_has_no_texturerect_background():
 		"no TextureRect children remain from the raster-background implementation")
 
 
+func test_bar_room_tilemap_renders_below_props():
+	# Y-sort on the BarRoom root sorts children by Y position. The TileMap
+	# node sits at y=0 while Bartender (y=-64) and BarCounter (y=-48) are
+	# above it — without a z_index override, the tilemap would draw AFTER
+	# the props and cover them. z_index = -1 on the TileMap pushes the
+	# floor + walls into a lower z-group, matching the dungeon's main.tscn
+	# pattern, so props always sit on top of the floor.
+	var bar := _make_bar()
+	var tilemap: TileMap = bar.find_child("TileMap", true, false)
+	assert_eq(tilemap.z_index, -1,
+		"bar TileMap has z_index = -1 so floor/walls draw below props")
+
+
 func test_bar_room_root_y_sorts_props_with_player():
 	# Y-sort on the root: standalone props (counter, tables, bartender) and
 	# the player draw in walk-behind order. The Node2D y_sort_enabled flag
