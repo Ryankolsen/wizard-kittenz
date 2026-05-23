@@ -244,6 +244,35 @@ func test_bar_entrance_cells_are_walkable_floor_sources():
 			assert_ne(source_id, -1,
 				"seed %d door cell %s must be a painted (non-empty) tile" % [s, str(cell)])
 
+func test_bar_entrance_cells_use_distinct_atlas_quadrants():
+	# AC: the 2x2 door footprint maps each cell to its matching atlas quadrant
+	# (0,0)=top-left, (1,0)=top-right, (0,1)=bottom-left, (1,1)=bottom-right —
+	# so the source bar_entrance.png renders as a single contiguous door across
+	# the 4 tiles instead of tile-repeating the full image into each cell.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	var painter := DungeonTilemapPainter.new()
+	painter.paint(layout, tilemap, dungeon)
+
+	var cells: Array = painter.bar_entrance_tiles
+	assert_eq(cells.size(), 4, "door footprint must be 2x2")
+	var xs: Array = cells.map(func(c): return c.x)
+	var ys: Array = cells.map(func(c): return c.y)
+	var min_x: int = xs.min()
+	var min_y: int = ys.min()
+	var seen: Dictionary = {}
+	for cell in cells:
+		var coord: Vector2i = tilemap.get_cell_atlas_coords(0, cell)
+		var expected := Vector2i(cell.x - min_x, cell.y - min_y)
+		assert_eq(coord, expected,
+			"cell %s atlas coord %s must match quadrant offset %s" % [str(cell), str(coord), str(expected)])
+		seen[coord] = true
+	assert_eq(seen.size(), 4,
+		"all four atlas quadrants (0,0)(1,0)(0,1)(1,1) must be stamped exactly once")
+
 func test_non_bar_room_centers_unchanged_by_bar_entrance_pass():
 	# AC: bar-entrance painting only touches bar perimeter cells. Start, boss,
 	# standard, and power-up room centers keep their existing tile sources.

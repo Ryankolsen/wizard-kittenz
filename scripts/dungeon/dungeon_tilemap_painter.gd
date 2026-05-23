@@ -168,26 +168,31 @@ func _build_tileset() -> TileSet:
 	return ts
 
 # Bar entrance uses the standalone bar_entrance.png art, not a tint of floor.png
-# — it's a hand-authored doorway sprite, not a floor variant. Image is resized
-# to TILE_SIZE because TileMap stamps one source-region per cell and the painter
-# uses 16 px tiles everywhere.
+# — it's a hand-authored doorway sprite, not a floor variant. The source image
+# is resized to a 2x2 atlas grid (2*TILE_SIZE on each side) and split into four
+# 16 px sub-tiles. The painter stamps these four atlas coords into the matching
+# cells of the door's 2x2 footprint, so the full door art renders across the
+# footprint as a single contiguous picture instead of tile-repeating.
 func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 	var base := load(BAR_ENTRANCE_TEXTURE_PATH) as Texture2D
 	var src := TileSetAtlasSource.new()
+	var atlas_size := TILE_SIZE * 2
 	if base == null:
 		# Defensive: in headless tests the texture may not load. Use a solid
 		# warm-brown so create_tile() still has a valid texture.
-		var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
+		var img := Image.create(atlas_size, atlas_size, false, Image.FORMAT_RGBA8)
 		img.fill(Color(0.6, 0.35, 0.15))
 		src.texture = ImageTexture.create_from_image(img)
 	else:
 		var img: Image = base.get_image()
 		img.convert(Image.FORMAT_RGBA8)
-		if img.get_width() != TILE_SIZE or img.get_height() != TILE_SIZE:
-			img.resize(TILE_SIZE, TILE_SIZE)
+		if img.get_width() != atlas_size or img.get_height() != atlas_size:
+			img.resize(atlas_size, atlas_size)
 		src.texture = ImageTexture.create_from_image(img)
 	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	src.create_tile(Vector2i(0, 0))
+	for qy in range(2):
+		for qx in range(2):
+			src.create_tile(Vector2i(qx, qy))
 	ts.add_source(src, source_id)
 
 # Paint one entrance per bar room — a 2x2 footprint on the perimeter facing the
@@ -226,8 +231,17 @@ func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dung
 		var parent_grid: Vector2i = layout.room_positions[parent_id]
 		var parent_center := parent_grid * step_tiles + Vector2i(ROOM_TILES / 2, ROOM_TILES / 2)
 		var footprint: Array = _bar_entrance_footprint(bar_origin, bar_cx, bar_cy, parent_center)
+		# Compute the footprint's top-left so each cell can be mapped to its
+		# matching quadrant of the 2x2 atlas — keeps the door art contiguous
+		# across the 4 tiles instead of tile-repeating the full image in each.
+		var min_x: int = footprint[0].x
+		var min_y: int = footprint[0].y
 		for cell in footprint:
-			tilemap.set_cell(0, cell, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
+			min_x = mini(min_x, cell.x)
+			min_y = mini(min_y, cell.y)
+		for cell in footprint:
+			var atlas_coord := Vector2i(cell.x - min_x, cell.y - min_y)
+			tilemap.set_cell(0, cell, SOURCE_BAR_ENTRANCE, atlas_coord)
 			bar_entrance_tiles.append(cell)
 
 # The bar's parent is the room that lists bar_id in its outgoing connections.
