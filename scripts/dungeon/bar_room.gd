@@ -117,6 +117,15 @@ func _on_shop_closed() -> void:
 	if _shop_overlay != null and is_instance_valid(_shop_overlay):
 		_shop_overlay.queue_free()
 	_shop_overlay = null
+	# Land the player back on the bartender's menu instead of leaving them
+	# free in the room — matches AC: "Closing ShopScreen returns control to
+	# the bubble menu" (#197). open_menu() re-evaluates option enabled-state,
+	# so a beer that just became affordable (or unaffordable) reflects that
+	# without re-approaching. No-op if the player walked away while shopping,
+	# since open_menu gates on _player_in_range.
+	var bartender := get_node_or_null("Bartender") as InteractableNPC
+	if bartender != null:
+		bartender.open_menu()
 
 
 # Loads the prop textures at runtime and assigns them to the placed Sprite2D
