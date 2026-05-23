@@ -135,9 +135,10 @@ func test_apply_camera_limits_matches_used_rect():
 	assert_gt(camera.limit_bottom, camera.limit_top, "bottom > top")
 
 func test_exactly_one_bar_entrance_per_dungeon():
-	# AC: exactly one bar doorway (a 2x2 footprint = 4 tiles) is painted per
-	# dungeon, regardless of how many corridors connect to the bar room. The
-	# other corridor mouths remain plain walkable floor.
+	# AC: exactly one bar doorway (NxN footprint where N = BAR_DOOR_FOOTPRINT)
+	# is painted per dungeon, regardless of how many corridors connect to the
+	# bar room. Other corridor mouths remain plain walkable floor.
+	var expected: int = DungeonTilemapPainter.BAR_DOOR_FOOTPRINT * DungeonTilemapPainter.BAR_DOOR_FOOTPRINT
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
 		var dungeon := DungeonGenerator.generate(s)
 		var layout := DungeonLayoutEngine.new().compute(dungeon)
@@ -145,8 +146,8 @@ func test_exactly_one_bar_entrance_per_dungeon():
 		add_child_autofree(tilemap)
 		var painter := DungeonTilemapPainter.new()
 		painter.paint(layout, tilemap, dungeon)
-		assert_eq(painter.bar_entrance_tiles.size(), 4,
-			"seed %d painted %d entrance tiles (expected 4 = single 2x2 door)" % [s, painter.bar_entrance_tiles.size()])
+		assert_eq(painter.bar_entrance_tiles.size(), expected,
+			"seed %d painted %d entrance tiles (expected %d = single NxN door)" % [s, painter.bar_entrance_tiles.size(), expected])
 
 func test_bar_room_entrance_uses_distinct_tile():
 	# AC: the bar room's corridor connection is painted with the dedicated
@@ -219,13 +220,16 @@ func test_bar_entrance_footprint_is_contiguous_rectangle():
 	painter.paint(layout, tilemap, dungeon)
 
 	var cells: Array = painter.bar_entrance_tiles
-	assert_gte(cells.size(), 4, "door footprint spans at least 2x2 tiles")
+	var n: int = DungeonTilemapPainter.BAR_DOOR_FOOTPRINT
+	assert_eq(cells.size(), n * n, "door footprint is %dx%d tiles" % [n, n])
 	var xs: Array = cells.map(func(c): return c.x)
 	var ys: Array = cells.map(func(c): return c.y)
 	var width: int = xs.max() - xs.min() + 1
 	var height: int = ys.max() - ys.min() + 1
 	assert_eq(cells.size(), width * height,
 		"door cells form a contiguous rectangle (%d cells, %dx%d bounding box)" % [cells.size(), width, height])
+	assert_eq(width, n, "door bounding box width matches BAR_DOOR_FOOTPRINT")
+	assert_eq(height, n, "door bounding box height matches BAR_DOOR_FOOTPRINT")
 
 func test_bar_entrance_cells_are_walkable_floor_sources():
 	# AC: every door cell paints either the bar-entrance source or remains on
@@ -245,10 +249,9 @@ func test_bar_entrance_cells_are_walkable_floor_sources():
 				"seed %d door cell %s must be a painted (non-empty) tile" % [s, str(cell)])
 
 func test_bar_entrance_cells_use_distinct_atlas_quadrants():
-	# AC: the 2x2 door footprint maps each cell to its matching atlas quadrant
-	# (0,0)=top-left, (1,0)=top-right, (0,1)=bottom-left, (1,1)=bottom-right —
-	# so the source bar_entrance.png renders as a single contiguous door across
-	# the 4 tiles instead of tile-repeating the full image into each cell.
+	# AC: the NxN door footprint maps each cell to its matching atlas quadrant
+	# — so the source bar_entrance.png renders as a single contiguous door across
+	# the footprint instead of tile-repeating the full image into each cell.
 	var pair := _make_layout(42)
 	var dungeon: Dungeon = pair[0]
 	var layout: DungeonLayout = pair[1]
@@ -258,7 +261,8 @@ func test_bar_entrance_cells_use_distinct_atlas_quadrants():
 	painter.paint(layout, tilemap, dungeon)
 
 	var cells: Array = painter.bar_entrance_tiles
-	assert_eq(cells.size(), 4, "door footprint must be 2x2")
+	var n: int = DungeonTilemapPainter.BAR_DOOR_FOOTPRINT
+	assert_eq(cells.size(), n * n, "door footprint must be %dx%d" % [n, n])
 	var xs: Array = cells.map(func(c): return c.x)
 	var ys: Array = cells.map(func(c): return c.y)
 	var min_x: int = xs.min()
@@ -270,8 +274,8 @@ func test_bar_entrance_cells_use_distinct_atlas_quadrants():
 		assert_eq(coord, expected,
 			"cell %s atlas coord %s must match quadrant offset %s" % [str(cell), str(coord), str(expected)])
 		seen[coord] = true
-	assert_eq(seen.size(), 4,
-		"all four atlas quadrants (0,0)(1,0)(0,1)(1,1) must be stamped exactly once")
+	assert_eq(seen.size(), n * n,
+		"all %d atlas quadrants must be stamped exactly once" % [n * n])
 
 func test_non_bar_room_centers_unchanged_by_bar_entrance_pass():
 	# AC: bar-entrance painting only touches bar perimeter cells. Start, boss,

@@ -169,14 +169,14 @@ func _build_tileset() -> TileSet:
 
 # Bar entrance uses the standalone bar_entrance.png art, not a tint of floor.png
 # — it's a hand-authored doorway sprite, not a floor variant. The source image
-# is resized to a 2x2 atlas grid (2*TILE_SIZE on each side) and split into four
-# 16 px sub-tiles. The painter stamps these four atlas coords into the matching
-# cells of the door's 2x2 footprint, so the full door art renders across the
-# footprint as a single contiguous picture instead of tile-repeating.
+# is resized to a BAR_DOOR_FOOTPRINT x BAR_DOOR_FOOTPRINT atlas grid and split
+# into TILE_SIZE-sized sub-tiles. The painter stamps these atlas coords into
+# the matching cells of the door's footprint, so the full door art renders
+# across the footprint as a single contiguous picture instead of tile-repeating.
 func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 	var base := load(BAR_ENTRANCE_TEXTURE_PATH) as Texture2D
 	var src := TileSetAtlasSource.new()
-	var atlas_size := TILE_SIZE * 2
+	var atlas_size := TILE_SIZE * BAR_DOOR_FOOTPRINT
 	if base == null:
 		# Defensive: in headless tests the texture may not load. Use a solid
 		# warm-brown so create_tile() still has a valid texture.
@@ -190,17 +190,19 @@ func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 			img.resize(atlas_size, atlas_size)
 		src.texture = ImageTexture.create_from_image(img)
 	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	for qy in range(2):
-		for qx in range(2):
+	for qy in range(BAR_DOOR_FOOTPRINT):
+		for qx in range(BAR_DOOR_FOOTPRINT):
 			src.create_tile(Vector2i(qx, qy))
 	ts.add_source(src, source_id)
 
-# Paint one entrance per bar room — a 2x2 footprint on the perimeter facing the
-# bar's parent room (the room the player arrives through). The 2x2 extends one
-# cell inward along the door-normal axis so every cell lands on bar floor
-# (walkable). The bar's other corridor mouths (its two outgoing edges) stay as
-# plain floor: still walkable, just no door visual.
-const BAR_DOOR_FOOTPRINT := 2
+# Paint one entrance per bar room — a BAR_DOOR_FOOTPRINT-sized square on the
+# perimeter facing the bar's parent room (the room the player arrives through).
+# The footprint extends BAR_DOOR_FOOTPRINT cells inward along the door-normal
+# axis so every cell lands on bar floor (walkable). The bar's other corridor
+# mouths (its two outgoing edges) stay as plain floor: still walkable, just no
+# door visual. Bumped from 2 to 4 (#196) so the door reads as a proper
+# entrance at game scale instead of a tile-sized smudge.
+const BAR_DOOR_FOOTPRINT := 4
 func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dungeon) -> void:
 	if dungeon == null:
 		return
@@ -254,44 +256,49 @@ func _find_parent_id(dungeon: Dungeon, bar_id: int) -> int:
 			return r.id
 	return -1
 
-# Pick the 2x2 footprint of the bar-room doorway on the perimeter facing
-# `other_center` along the dominant axis. Two cells span the door's width
-# along the perimeter edge; the other two extend one tile into the bar
-# interior along the door-normal axis. All four cells land on bar floor.
+# Pick the NxN footprint (N = BAR_DOOR_FOOTPRINT) of the bar-room doorway on
+# the perimeter facing `other_center` along the dominant axis. N cells span
+# the door's width along the perimeter edge; another N cells extend inward
+# along the door-normal axis. The span is offset by -(N/2 - 1) from the bar
+# center on the perimeter axis — biased slightly toward the +axis side (matches
+# the original 2x2 behavior of [bar_cy, bar_cy+1] sitting just south/east of
+# center). All N*N cells land inside the bar room footprint.
 func _bar_entrance_footprint(bar_origin: Vector2i, bar_cx: int, bar_cy: int, other_center: Vector2i) -> Array:
 	var dx: int = other_center.x - bar_cx
 	var dy: int = other_center.y - bar_cy
 	var max_x: int = bar_origin.x + ROOM_TILES - 1
 	var max_y: int = bar_origin.y + ROOM_TILES - 1
+	var n: int = BAR_DOOR_FOOTPRINT
+	var span_offset: int = -(n / 2 - 1)  # 0 for n=2, -1 for n=4 — keeps bar_c[xy]+0..+1 in the span.
 	var cells: Array = []
 	if absi(dx) >= absi(dy):
-		# East (dx>0) or west (dx<=0) edge. Span y in [bar_cy, bar_cy+1],
-		# extend inward along x.
-		var edge_x: int
-		var inward_x: int
+		# East (dx>0) or west (dx<=0) edge. Span y across n cells, extend
+		# inward along x for n cells.
+		var inward_xs: Array = []
 		if dx > 0:
-			edge_x = max_x
-			inward_x = max_x - 1
+			for i in range(n):
+				inward_xs.append(max_x - i)
 		else:
-			edge_x = bar_origin.x
-			inward_x = bar_origin.x + 1
-		for y in [bar_cy, bar_cy + 1]:
-			cells.append(Vector2i(edge_x, y))
-			cells.append(Vector2i(inward_x, y))
+			for i in range(n):
+				inward_xs.append(bar_origin.x + i)
+		for i in range(n):
+			var y: int = bar_cy + span_offset + i
+			for x in inward_xs:
+				cells.append(Vector2i(x, y))
 	else:
-		# North (dy<=0) or south (dy>0) edge. Span x in [bar_cx, bar_cx+1],
-		# extend inward along y.
-		var edge_y: int
-		var inward_y: int
+		# North (dy<=0) or south (dy>0) edge. Span x across n cells, extend
+		# inward along y for n cells.
+		var inward_ys: Array = []
 		if dy > 0:
-			edge_y = max_y
-			inward_y = max_y - 1
+			for i in range(n):
+				inward_ys.append(max_y - i)
 		else:
-			edge_y = bar_origin.y
-			inward_y = bar_origin.y + 1
-		for x in [bar_cx, bar_cx + 1]:
-			cells.append(Vector2i(x, edge_y))
-			cells.append(Vector2i(x, inward_y))
+			for i in range(n):
+				inward_ys.append(bar_origin.y + i)
+		for i in range(n):
+			var x: int = bar_cx + span_offset + i
+			for y in inward_ys:
+				cells.append(Vector2i(x, y))
 	return cells
 
 # Builds a per-source atlas whose texture is the floor sprite multiplied by
