@@ -9,6 +9,7 @@ var _hp_accum: float = 0.0
 var _mp_accum: float = 0.0
 
 func _ready() -> void:
+	z_index = -1
 	var sprite := Sprite2D.new()
 	sprite.texture = load("res://assets/sprites/healing_box_sprite.png")
 	add_child(sprite)
