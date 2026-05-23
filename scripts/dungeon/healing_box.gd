@@ -47,7 +47,7 @@ func tick(delta: float, target = null) -> void:
 		if mp_healed > 0:
 			target.data.magic_points += mp_healed
 			if is_inside_tree():
-				FloatingText.spawn(target as Node, "+" + str(mp_healed) + " MP", Color(0.4, 0.6, 1.0))
+				FloatingText.spawn(target as Node, "+" + str(mp_healed) + " MP", Color(0.7, 0.4, 1.0))
 
 func _find_overlapping_player():
 	var tree := get_tree()
