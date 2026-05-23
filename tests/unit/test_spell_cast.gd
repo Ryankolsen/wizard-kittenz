@@ -36,3 +36,35 @@ func test_no_damage_with_empty_target_list():
 	var total := SpellEffectResolver.apply(spell, null, [])
 	assert_eq(total, 0, "no damage when target list is empty")
 	assert_false(spell.is_ready(), "cooldown still consumed even with no targets")
+
+func test_cast_blocked_when_magic_points_insufficient():
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	caster.magic_points = 1
+	var spell := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
+	spell.mp_cost = 3
+	assert_false(spell.cast(caster), "cast returns false when magic_points < mp_cost")
+	assert_eq(caster.magic_points, 1, "magic_points unchanged after blocked cast")
+	assert_true(spell.is_ready(), "cooldown not consumed when MP-blocked")
+
+func test_cast_deducts_mp_on_success():
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	caster.magic_points = 10
+	var spell := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
+	spell.mp_cost = 3
+	assert_true(spell.cast(caster), "cast succeeds when magic_points >= mp_cost")
+	assert_eq(caster.magic_points, 7, "mp_cost deducted from magic_points")
+
+func test_mp_cost_zero_does_not_affect_physical_caster():
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var mp_before := caster.magic_points
+	var spell := Spell.make("slash", "Slash", Spell.EffectKind.DAMAGE, 3, 0.8)
+	assert_true(spell.cast(caster), "cast succeeds when mp_cost is 0")
+	assert_eq(caster.magic_points, mp_before, "magic_points unchanged when mp_cost is 0")
+
+func test_cast_succeeds_at_exact_mp_boundary():
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	caster.magic_points = 3
+	var spell := Spell.make("fireball", "Fireball", Spell.EffectKind.DAMAGE, 3, 0.8)
+	spell.mp_cost = 3
+	assert_true(spell.cast(caster), "cast succeeds when magic_points == mp_cost")
+	assert_eq(caster.magic_points, 0, "magic_points reduced to exactly 0")

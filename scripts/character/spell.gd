@@ -22,6 +22,11 @@ var cooldown_remaining: float = 0.0
 # is supplied to cast(), the amount is deducted from caster.hp at cast time and
 # the cast is blocked if it would leave the caster at <= 0 HP.
 var hp_cost: int = 0
+# Magic Point cast cost (PRD #173, issue #174). When > 0 and a caster is
+# supplied, mp_cost is deducted from caster.magic_points on success; cast is
+# blocked if caster.magic_points < mp_cost. Mage spells assign this in the
+# skill tree; physical-class spells leave it at 0 (no MP gating).
+var mp_cost: int = 0
 
 static func make(s_id: String, name: String, kind: int, power_val: int, cd: float = 1.0, hp_cost_val: int = 0) -> Spell:
 	var s := Spell.new()
@@ -49,10 +54,15 @@ func is_ready() -> bool:
 func cast(caster = null) -> bool:
 	if not is_ready():
 		return false
+	if mp_cost > 0 and caster != null and "magic_points" in caster:
+		if caster.magic_points < mp_cost:
+			return false
 	if hp_cost > 0 and caster != null and "hp" in caster:
 		if caster.hp <= hp_cost:
 			return false
 		caster.hp -= hp_cost
+	if mp_cost > 0 and caster != null and "magic_points" in caster:
+		caster.magic_points -= mp_cost
 	cooldown_remaining = cooldown
 	return true
 
