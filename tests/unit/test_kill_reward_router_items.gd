@@ -194,3 +194,26 @@ func test_route_kill_null_rng_does_not_crash():
 	var item := KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null)
 	# Boss => always non-null even with a default RNG.
 	assert_not_null(item)
+
+# --- gold_for_kill helper -----------------------------------------------------
+# Single source of truth for the gold amount a kill yields. route_kill credits
+# the ledger using this value, and the caller (Player) reads it to drive the
+# floating-text display so credit and display can never diverge.
+
+func test_gold_for_kill_base_amount():
+	var c := _make_character(1)
+	var enemy := _make_enemy(false)
+	enemy.gold_reward = 4
+	assert_eq(KillRewardRouter.gold_for_kill(c, enemy), 4)
+
+func test_gold_for_kill_includes_luck_bonus():
+	var c := _make_character(1)
+	c.luck = 3
+	var enemy := _make_enemy(false)
+	enemy.gold_reward = 2
+	assert_eq(KillRewardRouter.gold_for_kill(c, enemy), 5,
+		"base 2 + luck bonus 3 = 5")
+
+func test_gold_for_kill_null_safe():
+	assert_eq(KillRewardRouter.gold_for_kill(null, _make_enemy()), 0)
+	assert_eq(KillRewardRouter.gold_for_kill(_make_character(1), null), 0)

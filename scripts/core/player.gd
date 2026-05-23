@@ -7,6 +7,10 @@ signal died
 # prompt; Player is intentionally unaware of the UI so headless tests
 # can drive the kill flow without instancing a CanvasLayer.
 signal item_dropped(item: ItemData)
+# Fired after a kill credits gold (base + Luck bonus) so the HUD can spawn a
+# floating "+N Gold" label next to the player. Amount mirrors what landed in
+# the ledger via KillRewardRouter.gold_for_kill.
+signal gold_dropped(amount: int)
 
 const ATTACK_COOLDOWN: float = 0.4
 # PRD #52 power-up pickup XP. Awarded on every collect_power_up call.
@@ -371,6 +375,9 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 	)
 	if item_drop != null:
 		item_dropped.emit(item_drop)
+	var gold_amount := KillRewardRouter.gold_for_kill(data, enemy_data)
+	if gold_amount > 0:
+		gold_dropped.emit(gold_amount)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
 

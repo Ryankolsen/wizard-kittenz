@@ -296,11 +296,15 @@ func _find_player() -> Player:
 			return n
 	return null
 
+const DROP_TEXT_COLOR := Color(1.0, 0.85, 0.3)
+
 func _bind_player_item_drop() -> void:
 	if _player == null:
 		return
 	if not _player.item_dropped.is_connected(_on_player_item_dropped):
 		_player.item_dropped.connect(_on_player_item_dropped)
+	if not _player.gold_dropped.is_connected(_on_player_gold_dropped):
+		_player.gold_dropped.connect(_on_player_gold_dropped)
 
 func _on_player_item_dropped(item: ItemData) -> void:
 	if item == null:
@@ -309,5 +313,14 @@ func _on_player_item_dropped(item: ItemData) -> void:
 	if gs == null or gs.item_inventory == null:
 		return
 	gs.item_inventory.add_to_bag(item)
-	if _player != null:
-		FloatingText.spawn(_player, "Looted: " + item.display_name, Color(1.0, 0.85, 0.3))
+	_spawn_drop_text("Looted: " + item.display_name)
+
+func _on_player_gold_dropped(amount: int) -> void:
+	if amount <= 0:
+		return
+	_spawn_drop_text("+%d Gold" % amount)
+
+func _spawn_drop_text(text: String) -> void:
+	if _player == null:
+		return
+	FloatingText.spawn(_player, text, DROP_TEXT_COLOR)

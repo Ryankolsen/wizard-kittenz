@@ -49,14 +49,9 @@ static func route_kill(
 	# is per-character, not party-split). Null ledger (pre-wiring callers /
 	# tests that don't care about Gold) is a silent no-op.
 	if ledger != null:
-		ledger.credit(enemy_data.gold_reward, CurrencyLedger.Currency.GOLD)
-		# Luck flat gold bonus (PRD #85 / issue #90). +1 gold per luck point
-		# on every kill — stacks with the base gold credit above. luck<=0
-		# returns 0 inside gold_bonus, so the credit is a no-op for any
-		# character/enemy that ships luck=0.
-		var luck_gold := LuckRewardModifier.gold_bonus(data.luck)
-		if luck_gold > 0:
-			ledger.credit(luck_gold, CurrencyLedger.Currency.GOLD)
+		var gold := gold_for_kill(data, enemy_data)
+		if gold > 0:
+			ledger.credit(gold, CurrencyLedger.Currency.GOLD)
 	# Item drop (PRD #73 / issue #79). Resolve via the rarity-gated drop
 	# table. Boss kills always produce an item; regular kills ~10%. The
 	# router does not mutate ItemInventory — it returns the ItemData so
@@ -119,6 +114,15 @@ static func mead_drop_type_for(enemy_data: EnemyData) -> String:
 	if enemy_data.kind == EnemyData.EnemyKind.DOG_KNIGHT:
 		return PowerUpEffect.TYPE_ALE
 	return ""
+
+# Total gold a kill yields: enemy base reward + Luck flat bonus (PRD #85).
+# Single source of truth for both the ledger credit inside route_kill and the
+# floating-text display in the HUD, so the number a player sees can never
+# diverge from what landed in the ledger. Null-safe to mirror route_kill.
+static func gold_for_kill(data: CharacterData, enemy_data: EnemyData) -> int:
+	if data == null or enemy_data == null:
+		return 0
+	return enemy_data.gold_reward + LuckRewardModifier.gold_bonus(data.luck)
 
 # Pure split helper. floor(xp_total / max(1, party_size)) so a 1-player
 # co-op session keeps the full reward and odd totals (e.g. 100 / 3)
