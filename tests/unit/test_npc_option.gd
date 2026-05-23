@@ -32,7 +32,7 @@ func test_list_size_and_indexing():
 	var c := NPCOption.make("Exit", "close")
 	var list := NPCOptionList.make([a, b, c])
 	assert_eq(list.size(), 3)
-	assert_eq(list.get(1).label, "Get a beer")
+	assert_eq(list.get_at(1).label, "Get a beer")
 
 
 func test_list_enabled_indices_skips_disabled():

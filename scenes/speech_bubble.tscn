@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://cspeechbubble01"]
+[gd_scene format=3 uid="uid://b1cv5fat2v73u"]
 
 [ext_resource type="Script" path="res://scripts/dungeon/speech_bubble.gd" id="1_speech_bubble"]
 

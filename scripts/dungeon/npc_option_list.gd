@@ -18,7 +18,7 @@ func size() -> int:
 	return _options.size()
 
 
-func get(index: int) -> NPCOption:
+func get_at(index: int) -> NPCOption:
 	return _options[index]
 
 

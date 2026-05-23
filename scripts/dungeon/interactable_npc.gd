@@ -103,7 +103,7 @@ func _open_bubble() -> void:
 		return
 	# Use a Callable mask so disabled-state stays live across navigation steps
 	# — matches the BubbleSelectionController contract (see #196).
-	var mask := func(i: int) -> bool: return list.get(i).is_enabled()
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
 	var controller := BubbleSelectionController.make(list.size(), mask)
 	var bubble: SpeechBubble = load(SPEECH_BUBBLE_SCENE_PATH).instantiate()
 	add_child(bubble)

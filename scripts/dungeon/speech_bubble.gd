@@ -68,7 +68,7 @@ func confirm() -> String:
 	var idx := selection.confirm()
 	if idx < 0:
 		return ""
-	var opt: NPCOption = _list.get(idx)
+	var opt: NPCOption = _list.get_at(idx)
 	option_confirmed.emit(opt.effect_id)
 	return opt.effect_id
 
@@ -91,8 +91,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		move_next()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("attack"):
-		confirm()
+		# Mark handled BEFORE confirm() — confirm may dispatch an effect that
+		# dismisses this bubble (removes it from the tree), after which
+		# get_viewport() returns null.
 		get_viewport().set_input_as_handled()
+		confirm()
 
 
 func _rebuild_rows() -> void:
@@ -104,7 +107,7 @@ func _rebuild_rows() -> void:
 	if _list == null:
 		return
 	for i in _list.size():
-		var opt: NPCOption = _list.get(i)
+		var opt: NPCOption = _list.get_at(i)
 		var lbl := Label.new()
 		lbl.text = opt.label
 		if not opt.is_enabled():
