@@ -178,14 +178,14 @@ func test_is_unlocked_gameplay_path_still_works():
 		"back-compat: optional paid arg defaults to null")
 
 func test_is_unlocked_paid_does_not_bleed_to_unrelated_id():
-	# Paid grant of "wizard_cat" doesn't unlock "chonk_kitten". Per-id isolation.
-	# (sleepy_kitten is a starter so it's always unlocked — not a useful
-	# negative case here.)
+	# Paid grant of "wizard_cat" doesn't unlock "chonk_cat". Per-id isolation.
+	# (Kitten-tier ids are starters so they're always unlocked — not useful
+	# negative cases; Cat-tier ids like chonk_cat are gated.)
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
 	var paid := PaidUnlockInventory.new()
 	paid.grant("wizard_cat")
-	assert_false(registry.is_unlocked("chonk_kitten", tracker, paid))
+	assert_false(registry.is_unlocked("chonk_cat", tracker, paid))
 
 func test_is_unlocked_paid_case_insensitive_lookup():
 	# Caller passes "WIZARD_CAT" -> matches stored "wizard_cat". Same case-fold
@@ -202,9 +202,9 @@ func test_check_all_surfaces_paid_unlocks():
 	var registry := UnlockRegistry.make_default()
 	var tracker := MetaProgressionTracker.new()
 	var paid := PaidUnlockInventory.new()
-	paid.grant("chonk_kitten")
+	paid.grant("chonk_cat")
 	var unlocked := registry.check_all(tracker, paid)
-	assert_true(unlocked.has("chonk_kitten"), "chonk_kitten surfaces via paid path")
+	assert_true(unlocked.has("chonk_cat"), "chonk_cat surfaces via paid path")
 	assert_false(unlocked.has("wizard_cat"), "archmage still locked")
 
 func test_newly_unlocked_surfaces_paid_grant_transition():

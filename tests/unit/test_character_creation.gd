@@ -239,21 +239,6 @@ func test_all_four_quick_start_buttons_select_correct_class():
 			"QuickStart %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
 
 
-func test_chonk_kitten_disabled_at_zero_dungeons():
-	var scene := _instantiate_creation_scene()
-	var qs_chonk := scene.get_node(_btn_path("QuickStart", "ChonkKittenButton")) as Button
-	assert_true(qs_chonk.disabled, "Chonk Kitten gated until threshold met")
-
-func test_chonk_kitten_enabled_after_threshold():
-	GameState.current_character = null
-	GameState.meta_tracker = MetaProgressionTracker.new()
-	GameState.meta_tracker.dungeons_completed = 5
-	GameState.unlock_registry = UnlockRegistry.make_default()
-	var scene = load("res://scenes/character_creation.tscn").instantiate()
-	add_child_autofree(scene)
-	var qs_chonk := scene.get_node(_btn_path("QuickStart", "ChonkKittenButton")) as Button
-	assert_false(qs_chonk.disabled, "Chonk Kitten unlocked once threshold met")
-
 func test_multiplayer_fallback_defaults_to_battle_kitten():
 	var scene = _instantiate_creation_scene()
 	var data = scene._ensure_character_for_multiplayer()

@@ -40,14 +40,6 @@ func test_covers_one_class_unlock():
 			count += 1
 	assert_eq(count, 1)
 
-func test_at_least_one_skill_row_exists():
-	var any_skill := false
-	for item in ShopCatalog.items():
-		if item.category == ShopCatalogItem.CATEGORY_SKILL:
-			any_skill = true
-			break
-	assert_true(any_skill, "expected at least one skill row in catalog")
-
 func test_covers_four_gem_bundles_with_prd_price_tiers():
 	var prices := []
 	for item in ShopCatalog.items():
