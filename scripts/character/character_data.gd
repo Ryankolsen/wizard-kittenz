@@ -78,6 +78,11 @@ func pop_confusion() -> void:
 # subtracted on expiry. Re-applying with the same stat refreshes `remaining`
 # but does NOT re-add `amount`, so durations refresh and stats don't stack.
 const BUFF_GROUP_REGEN := "__group_regen_hp"
+# Multiplicative damage-multiplier buff (issue #198). Unlike stat buffs it
+# doesn't mutate a stored field — DamageResolver queries get_damage_multiplier()
+# at the moment of dealing damage, so the multiplier composes correctly with
+# any concurrent stat changes (level-up, gear swap) while the buff is active.
+const BUFF_GROUP_DAMAGE_MULT := "__group_damage_mult"
 var _buffs: Array = []
 
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
@@ -247,6 +252,29 @@ func add_buff(stat: String, amount: int, duration: float) -> void:
 	if stat != BUFF_GROUP_REGEN:
 		apply_stat_delta(stat, amount)
 
+func add_damage_mult_buff(magnitude: float, duration: float) -> void:
+	if duration <= 0.0 or magnitude <= 0.0:
+		return
+	for b in _buffs:
+		if b.stat == BUFF_GROUP_DAMAGE_MULT:
+			b.remaining = duration
+			b.magnitude = magnitude
+			return
+	_buffs.append({
+		"stat": BUFF_GROUP_DAMAGE_MULT,
+		"amount": 0,
+		"magnitude": magnitude,
+		"remaining": duration,
+		"accum": 0.0,
+	})
+
+func get_damage_multiplier() -> float:
+	var product := 1.0
+	for b in _buffs:
+		if b.stat == BUFF_GROUP_DAMAGE_MULT:
+			product *= float(b.get("magnitude", 1.0))
+	return product
+
 func tick_buffs(delta: float) -> int:
 	if delta <= 0.0 or _buffs.is_empty():
 		return 0
@@ -266,7 +294,9 @@ func tick_buffs(delta: float) -> int:
 		if b.remaining <= 0.0:
 			expired.append(b)
 	for b in expired:
-		if b.stat != BUFF_GROUP_REGEN:
+		# Group buffs (regen HoT, damage multiplier) never wrote a stat field
+		# at apply time, so there's nothing to revert at expiry.
+		if b.stat != BUFF_GROUP_REGEN and b.stat != BUFF_GROUP_DAMAGE_MULT:
 			apply_stat_delta(b.stat, -int(b.amount))
 		_buffs.erase(b)
 	return total_healed

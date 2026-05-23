@@ -209,6 +209,47 @@ func test_partial_evasion_does_not_always_evade():
 	var dealt := DamageResolver.apply(attacker, target, rng)
 	assert_gt(dealt, 0, "evasion=0.0 lets damage through")
 
+func test_outgoing_damage_scaled_by_multiplier_buff():
+	# Issue #198: DamageResolver multiplies post-mitigation damage by the
+	# attacker's get_damage_multiplier(). attack=5, defense=0 → 5 base; +20%
+	# buff → ceili(5 * 1.2) = 6.
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	attacker.attack = 5
+	var defender := Health.make(100, 0)
+	var base_dealt := DamageResolver.apply(attacker, defender, _force_hit())
+	assert_eq(base_dealt, 5, "baseline damage without buff is attack value")
+	attacker.add_damage_mult_buff(1.2, 60.0)
+	var buffed_dealt := DamageResolver.apply(attacker, defender, _force_hit())
+	assert_eq(buffed_dealt, 6, "ceili(5 * 1.2) = 6 with +20% buff")
+
+func test_outgoing_damage_unchanged_when_no_mult_buff():
+	# Regression pin: the new mult code path is a strict no-op when
+	# get_damage_multiplier() returns 1.0.
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	attacker.attack = 7
+	var defender := Health.make(100, 2)
+	var dealt := DamageResolver.apply(attacker, defender, _force_hit())
+	assert_eq(dealt, 5, "attack 7 - defense 2 = 5, no buff applied")
+
+func test_outgoing_damage_returns_to_baseline_after_buff_expiry():
+	var attacker := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	attacker.attack = 5
+	var defender := Health.make(100, 0)
+	attacker.add_damage_mult_buff(1.2, 60.0)
+	assert_eq(DamageResolver.apply(attacker, defender, _force_hit()), 6, "buffed")
+	attacker.tick_buffs(60.0)
+	assert_eq(DamageResolver.apply(attacker, defender, _force_hit()), 5, "back to baseline after expiry")
+
+func test_enemy_data_attacker_has_default_multiplier():
+	# EnemyData has no get_damage_multiplier() method; duck-typed read must
+	# default to 1.0 so enemy attacks resolve unchanged.
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	var hp_before := player.hp
+	var dealt := DamageResolver.apply(enemy, player, _force_hit())
+	assert_gt(dealt, 0, "enemy still deals damage without get_damage_multiplier")
+	assert_eq(player.hp, hp_before - dealt)
+
 func test_attack_controller_can_attack_after_long_idle():
 	var ac := AttackController.new()
 	ac.cooldown = 0.4

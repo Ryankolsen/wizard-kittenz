@@ -28,7 +28,21 @@ static func apply(attacker_stats, target, rng: RandomNumberGenerator = null) -> 
 	var evasion := _read_float(target, "evasion", 0.0)
 	if _roll_evade(evasion, rng):
 		return 0
+	# Damage-multiplier buffs (issue #198) scale post-mitigation damage so
+	# defense reductions apply before the boost — keeps a 1-damage chip hit
+	# from being inflated into a real number through buff stacking. ceili so a
+	# +20% buff on a 1-damage hit still rounds up to 2, not down to 1.
+	var dmg_mult := _read_damage_multiplier(attacker_stats)
+	if dmg_mult != 1.0:
+		mitigated = maxi(1, ceili(float(mitigated) * dmg_mult))
 	return target.take_damage(mitigated)
+
+static func _read_damage_multiplier(obj) -> float:
+	if obj == null or typeof(obj) != TYPE_OBJECT:
+		return 1.0
+	if obj.has_method("get_damage_multiplier"):
+		return float(obj.get_damage_multiplier())
+	return 1.0
 
 static func _read_float(obj, key: String, default_val: float) -> float:
 	if obj == null or typeof(obj) != TYPE_OBJECT:
