@@ -15,7 +15,8 @@ static func handle(product_id: String, character: CharacterData,
 		cosmetic_inventory: CosmeticInventory,
 		paid_unlocks: PaidUnlockInventory = null,
 		currency_ledger: CurrencyLedger = null,
-		skill_inventory = null) -> bool:
+		skill_inventory = null,
+		item_inventory: ItemInventory = null) -> bool:
 	var grant_type := PurchaseRegistry.grant_type_for(product_id)
 	match grant_type:
 		PurchaseRegistry.GRANT_CLASS_UPGRADE:
@@ -30,7 +31,22 @@ static func handle(product_id: String, character: CharacterData,
 			return _handle_gem_bundle(product_id, currency_ledger)
 		PurchaseRegistry.GRANT_SKILL_UNLOCK:
 			return _handle_skill_unlock(product_id, skill_inventory)
+		PurchaseRegistry.GRANT_ITEM:
+			return _handle_item(product_id, item_inventory)
 	return false
+
+# Shop gear (PRD #201 / Slice 6). The product_id is the ItemCatalog id; we
+# look the ItemData back up and append a fresh copy to the bag. Returns true
+# iff the grant landed so the caller can refund a debit on a missing item /
+# null inventory rather than silently eating Gold.
+static func _handle_item(product_id: String, item_inventory: ItemInventory) -> bool:
+	if item_inventory == null:
+		return false
+	var item_data := ItemCatalog.find(product_id)
+	if item_data == null or item_data.source != ItemData.Source.SHOP:
+		return false
+	item_inventory.add_to_bag(item_data)
+	return true
 
 # Class-unlock products grant a permanent paid unlock entry consulted by
 # UnlockRegistry.is_unlocked as an OR'd path alongside the gameplay condition

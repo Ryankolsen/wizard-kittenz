@@ -4,7 +4,7 @@ extends GutTest
 # without coupling to the scene; tests here pin the contract every row must
 # satisfy so a future row addition can't silently land malformed.
 
-const VALID_CATEGORIES := ["class_upgrade", "class_unlock", "skill", "gem_bundle"]
+const VALID_CATEGORIES := ["class_upgrade", "class_unlock", "skill", "gem_bundle", "gear"]
 
 func test_items_returns_non_empty_array():
 	var items := ShopCatalog.items()
@@ -56,3 +56,88 @@ func test_gem_bundles_are_only_real_money_priced_rows():
 		assert_true(item.currency_type == CurrencyLedger.Currency.GOLD
 				or item.currency_type == CurrencyLedger.Currency.GEM,
 			"non-bundle row has unexpected currency: " + item.product_id)
+
+# --- Slice 6 of PRD #201: Gear category --------------------------------------
+
+func test_no_args_omits_gear_category():
+	# Pre-Slice-6 callers (no character context) still see the legacy row set.
+	for item in ShopCatalog.items():
+		assert_ne(item.category, ShopCatalogItem.CATEGORY_GEAR,
+			"gear row leaked with no class context: " + item.product_id)
+
+func test_wizard_sees_at_least_one_gear_row():
+	var rows := ShopCatalog.items(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var saw := false
+	for item in rows:
+		if item.category == ShopCatalogItem.CATEGORY_GEAR:
+			saw = true
+			# Every gear row must be wizard-eligible at the ItemCatalog level.
+			var data := ItemCatalog.find(item.product_id)
+			assert_not_null(data, "product_id %s not in ItemCatalog" % item.product_id)
+			assert_true(ClassEligibility.is_class_allowed(data,
+					CharacterData.CharacterClass.WIZARD_KITTEN),
+				"gear row %s not allowed for wizard" % item.product_id)
+			assert_eq(data.source, ItemData.Source.SHOP,
+				"gear row %s not source SHOP" % item.product_id)
+	assert_true(saw, "expected at least one CATEGORY_GEAR row for wizard")
+
+func test_gear_prices_match_rarity_tiers():
+	# 50 / 250 / 1000 Gold for Common / Rare / Epic — AC4.
+	var rows := ShopCatalog.items(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var saw := {"common": false, "rare": false, "epic": false}
+	for item in rows:
+		if item.category != ShopCatalogItem.CATEGORY_GEAR:
+			continue
+		assert_eq(item.currency_type, CurrencyLedger.Currency.GOLD,
+			"gear row %s must price in Gold" % item.product_id)
+		var data := ItemCatalog.find(item.product_id)
+		match data.rarity:
+			ItemData.Rarity.COMMON:
+				assert_eq(item.price, 50)
+				saw["common"] = true
+			ItemData.Rarity.RARE:
+				assert_eq(item.price, 250)
+				saw["rare"] = true
+			ItemData.Rarity.EPIC:
+				assert_eq(item.price, 1000)
+				saw["epic"] = true
+	for k in saw:
+		assert_true(saw[k], "no gear row at rarity " + k)
+
+func test_wizard_never_sees_chonk_gear():
+	# Class isolation — Wizard must never see Chonk's Heavy Club (or any
+	# CHONK-tagged gear row).
+	var rows := ShopCatalog.items(CharacterData.CharacterClass.WIZARD_KITTEN)
+	for item in rows:
+		if item.category != ShopCatalogItem.CATEGORY_GEAR:
+			continue
+		var data := ItemCatalog.find(item.product_id)
+		assert_false(ClassEligibility.is_class_allowed(data,
+				CharacterData.CharacterClass.CHONK_KITTEN)
+				and not ClassEligibility.is_class_allowed(data,
+				CharacterData.CharacterClass.WIZARD_KITTEN),
+			"wizard saw chonk-only gear: " + item.product_id)
+
+func test_cat_tier_inherits_kitten_gear():
+	# BATTLE_CAT must see Kitten-tagged shop gear via ClassEligibility inheritance.
+	var kitten_rows := ShopCatalog.items(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var cat_rows := ShopCatalog.items(CharacterData.CharacterClass.BATTLE_CAT)
+	var kitten_gear := []
+	for r in kitten_rows:
+		if r.category == ShopCatalogItem.CATEGORY_GEAR:
+			kitten_gear.append(r.product_id)
+	var cat_gear := []
+	for r in cat_rows:
+		if r.category == ShopCatalogItem.CATEGORY_GEAR:
+			cat_gear.append(r.product_id)
+	assert_eq(cat_gear, kitten_gear,
+		"battle cat should see the same gear rows as battle kitten")
+	assert_true(cat_gear.size() > 0)
+
+func test_find_resolves_gear_product_id_without_class_context():
+	# Refresh paths (post-purchase row update) hit find() without a character.
+	var row := ShopCatalog.find("shop_archmage_staff")
+	assert_not_null(row)
+	assert_eq(row.category, ShopCatalogItem.CATEGORY_GEAR)
+	assert_eq(row.price, 1000)
+	assert_eq(row.currency_type, CurrencyLedger.Currency.GOLD)

@@ -90,7 +90,7 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	# server replays for already-owned cosmetics return false here, so a
 	# user opening the app twenty times doesn't rewrite the save file twenty
 	# times for no reason.
-	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory):
+	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory, item_inventory):
 		SaveManager.save_from_state()
 
 func _try_load_save() -> void:

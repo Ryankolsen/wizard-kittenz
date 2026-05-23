@@ -27,7 +27,17 @@ const PRICE_CENTS_EXPLORER := 499
 const PRICE_CENTS_ADVENTURER := 999
 const PRICE_CENTS_HERO := 1999
 
-static func items() -> Array[ShopCatalogItem]:
+# Slice 6 of PRD #201 — flat Gold price by rarity. Drives the Gear category
+# (CATEGORY_GEAR); product_id on each gear row is the ItemCatalog id, so
+# PurchaseGrantHandler can look the ItemData back up on grant.
+const PRICE_GEAR_COMMON := 50
+const PRICE_GEAR_RARE := 250
+const PRICE_GEAR_EPIC := 1000
+
+# character_class: a CharacterData.CharacterClass int. Default -1 means "no
+# active character" and omits the gear category (gear is class-gated). The
+# existing-rows tests pre-Slice 6 call items() with no args and keep working.
+static func items(character_class: int = -1) -> Array[ShopCatalogItem]:
 	var out: Array[ShopCatalogItem] = []
 
 	out.append(ShopCatalogItem.make(
@@ -87,12 +97,49 @@ static func items() -> Array[ShopCatalogItem]:
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_HERO,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 
+	if character_class >= 0:
+		for item_data in ItemCatalog.all_items():
+			if item_data.source != ItemData.Source.SHOP:
+				continue
+			if not ClassEligibility.is_class_allowed(item_data, character_class):
+				continue
+			out.append(_gear_row(item_data))
+
 	return out
 
 # Looks up a catalog row by product_id; null if unknown. ShopScreen and tests
 # use this to read price/category/currency without rebuilding the full list.
+# Gear rows are constructed lazily from ItemCatalog so the lookup works even
+# when the call site doesn't know the player's class (e.g. _refresh_row).
 static func find(product_id: String) -> ShopCatalogItem:
 	for item in items():
 		if item.product_id == product_id:
 			return item
+	var item_data := ItemCatalog.find(product_id)
+	if item_data != null and item_data.source == ItemData.Source.SHOP:
+		return _gear_row(item_data)
 	return null
+
+static func gear_price_for_rarity(rarity: int) -> int:
+	match rarity:
+		ItemData.Rarity.COMMON: return PRICE_GEAR_COMMON
+		ItemData.Rarity.RARE: return PRICE_GEAR_RARE
+		ItemData.Rarity.EPIC: return PRICE_GEAR_EPIC
+	return 0
+
+static func _gear_row(item_data: ItemData) -> ShopCatalogItem:
+	return ShopCatalogItem.make(
+		item_data.id,
+		item_data.display_name,
+		_gear_description(item_data),
+		CurrencyLedger.Currency.GOLD,
+		gear_price_for_rarity(item_data.rarity),
+		ShopCatalogItem.CATEGORY_GEAR)
+
+static func _gear_description(item_data: ItemData) -> String:
+	var out := ""
+	for b in item_data.bonuses:
+		if out != "":
+			out += ", "
+		out += "%s +%s" % [b.stat_name, str(b.stat_bonus)]
+	return out

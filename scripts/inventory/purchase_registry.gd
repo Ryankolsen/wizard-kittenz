@@ -16,6 +16,10 @@ const GRANT_COSMETIC_PACK := "cosmetic_pack"
 const GRANT_CLASS_UNLOCK := "class_unlock"
 const GRANT_GEM_BUNDLE := "gem_bundle"
 const GRANT_SKILL_UNLOCK := "skill_unlock"
+# Slice 6 of PRD #201. Shop gear product_ids are the ItemCatalog id directly
+# (data-driven, not enumerated in ALL_PRODUCT_IDS — gear is Gold-only and
+# never goes through BillingManager).
+const GRANT_ITEM := "item"
 
 # Tier 1 — class tier upgrades (Kitten -> Cat). The source class is the one
 # being upgraded; `ClassTierUpgrade.TIER_MAP` owns the upgrade target.
@@ -118,6 +122,9 @@ static func grant_type_for(product_id: String) -> String:
 		return GRANT_GEM_BUNDLE
 	if _SKILL_UNLOCK_TO_SKILL_ID.has(product_id):
 		return GRANT_SKILL_UNLOCK
+	var item_data := ItemCatalog.find(product_id)
+	if item_data != null and item_data.source == ItemData.Source.SHOP:
+		return GRANT_ITEM
 	return ""
 
 # Returns the Gem grant amount for a gem-bundle product id; 0 for any other

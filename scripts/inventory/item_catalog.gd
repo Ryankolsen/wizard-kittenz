@@ -101,6 +101,22 @@ static func all_items() -> Array[ItemData]:
 	items.append(ItemData.make("thick_collar", "Thick Collar", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "defense", 1.0, _CHONK))
 	items.append(ItemData.make("granite_pendant", "Granite Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "defense", 3.0, _CHONK))
 	items.append(ItemData.make("indomitable_locket", "Indomitable Locket", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 50.0, _CHONK))
+	# --- Slice 6: SHOP-only gear (one per class per rarity, mixed slots) ---
+	# These never appear in the drop pool (ItemDropResolver filters source !=
+	# DROP); ShopCatalog.items(character_class) is the only surface that
+	# renders them. Pricing lives on the catalog row, not the ItemData.
+	items.append(ItemData.make("shop_iron_dirk", "Iron Dirk", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_squires_armor", "Squire's Armor", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 4.0, _BATTLE, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_valor_band", "Valor Band", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "attack", 5.0, _BATTLE, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_apprentice_garb", "Apprentice Garb", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "max_mp", 5.0, _WIZARD, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_arcane_signet", "Arcane Signet", ItemData.Slot.ACCESSORY, ItemData.Rarity.RARE, "magic_attack", 4.0, _WIZARD, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_archmage_staff", "Archmage Staff", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "magic_attack", 10.0, _WIZARD, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_dreamer_charm", "Dreamer Charm", ItemData.Slot.ACCESSORY, ItemData.Rarity.COMMON, "mp_regen", 0.2, _SLEEPY, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_lullaby_wand", "Lullaby Wand", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "mp_regen", 0.3, _SLEEPY, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_starcloud_mantle", "Starcloud Mantle", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "regeneration", 3.0, _SLEEPY, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_oak_mallet", "Oak Mallet", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 3.0, _CHONK, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_iron_brigandine", "Iron Brigandine", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 5.0, _CHONK, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_boulder_pendant", "Boulder Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 50.0, _CHONK, ItemData.Source.SHOP))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

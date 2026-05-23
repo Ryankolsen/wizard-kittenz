@@ -46,6 +46,7 @@ var _skill_inventory_override = null
 var _paid_unlocks_override: PaidUnlockInventory = null
 var _billing_override = null
 var _character_override: CharacterData = null
+var _item_inventory_override: ItemInventory = null
 
 # product_id -> HBoxContainer row. Lets _refresh_row mutate a single row
 # (Buy → Owned) after a successful grant without rebuilding the whole list.
@@ -72,12 +73,14 @@ func _ready() -> void:
 # through to the GameState / BillingManager autoload lookups so production
 # call sites that instance the scene directly keep working unchanged.
 func setup(ledger: CurrencyLedger, skill_inventory, paid_unlocks: PaidUnlockInventory,
-		billing = null, character: CharacterData = null) -> void:
+		billing = null, character: CharacterData = null,
+		item_inventory: ItemInventory = null) -> void:
 	_ledger_override = ledger
 	_skill_inventory_override = skill_inventory
 	_paid_unlocks_override = paid_unlocks
 	_billing_override = billing
 	_character_override = character
+	_item_inventory_override = item_inventory
 	if is_inside_tree():
 		_refresh_currency()
 		_rebuild_item_list()
@@ -119,6 +122,20 @@ func _character() -> CharacterData:
 		return null
 	return gs.current_character
 
+func _item_inventory() -> ItemInventory:
+	if _item_inventory_override != null:
+		return _item_inventory_override
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.item_inventory
+
+func _character_class() -> int:
+	var c := _character()
+	if c == null:
+		return -1
+	return int(c.character_class)
+
 func _on_balance_changed(_currency: int, _new_balance: int) -> void:
 	_refresh_currency()
 
@@ -140,7 +157,7 @@ func _refresh_currency() -> void:
 func _build_item_list() -> void:
 	_rows_by_product.clear()
 	var current_category := ""
-	for item: ShopCatalogItem in ShopCatalog.items():
+	for item: ShopCatalogItem in ShopCatalog.items(_character_class()):
 		if item.category != current_category:
 			current_category = item.category
 			_add_category_header(current_category)
@@ -237,7 +254,7 @@ func _on_buy_pressed(product_id: String) -> void:
 		return
 	var granted := PurchaseGrantHandler.handle(
 		product_id, _character(), null,
-		_paid_unlocks(), ledger, _skill_inventory())
+		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory())
 	if granted:
 		_refresh_row(product_id)
 	else:
@@ -263,7 +280,7 @@ func _on_billing_purchase_succeeded(product_id: String) -> void:
 	# no-op on the same ledger instance.
 	PurchaseGrantHandler.handle(
 		product_id, _character(), null,
-		_paid_unlocks(), ledger, _skill_inventory())
+		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory())
 	_refresh_currency()
 	_refresh_row(product_id)
 
@@ -318,6 +335,10 @@ func _is_owned(item: ShopCatalogItem) -> bool:
 			return skill_inventory.has_skill(skill_id)
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE:
 			return false
+		ShopCatalogItem.CATEGORY_GEAR:
+			# Gear is consumable — repeated buys always allowed (player can
+			# stock duplicates in the bag), so the row is never "Owned".
+			return false
 	return false
 
 func _category_display_name(category: String) -> String:
@@ -326,4 +347,5 @@ func _category_display_name(category: String) -> String:
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK: return "Class Unlocks"
 		ShopCatalogItem.CATEGORY_SKILL: return "Skills"
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE: return "Gem Bundles"
+		ShopCatalogItem.CATEGORY_GEAR: return "Gear"
 	return category

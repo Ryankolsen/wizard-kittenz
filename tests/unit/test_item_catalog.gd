@@ -1,7 +1,8 @@
 extends GutTest
 
-func test_all_items_returns_seventy_two():
-	assert_eq(ItemCatalog.all_items().size(), 72)
+func test_all_items_returns_eighty_four():
+	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201.
+	assert_eq(ItemCatalog.all_items().size(), 84)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -13,14 +14,16 @@ func test_iron_sword_content():
 	assert_eq(item.bonuses[0].stat_bonus, 2.0)
 
 func test_items_for_slot_armor():
+	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
-	assert_eq(armor.size(), 24)
+	assert_eq(armor.size(), 28)
 	for item in armor:
 		assert_eq(item.slot, ItemData.Slot.ARMOR)
 
 func test_items_for_rarity_epic():
+	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6.
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 24)
+	assert_eq(epics.size(), 28)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -41,12 +44,27 @@ func test_all_items_have_bonuses():
 	for item in ItemCatalog.all_items():
 		assert_true(item.bonuses.size() > 0, "item %s has empty bonuses" % item.id)
 
-func test_all_items_source_is_drop():
-	# Slice 5 of PRD #201: catalog has no SHOP items yet; every item must
-	# default to source == DROP. Future SHOP items will be added in Slice 6.
+func test_shop_items_are_class_tagged_and_source_shop():
+	# Slice 6 of PRD #201: every "shop_*" id must be source == SHOP and
+	# carry an allowed_classes tag so ShopCatalog can filter by class.
+	var count := 0
 	for item in ItemCatalog.all_items():
+		if not item.id.begins_with("shop_"):
+			continue
+		count += 1
+		assert_eq(item.source, ItemData.Source.SHOP,
+			"item %s should be source SHOP" % item.id)
+		assert_true(item.allowed_classes.size() > 0,
+			"shop item %s missing allowed_classes" % item.id)
+	assert_eq(count, 12, "expected 12 shop_* items in catalog")
+
+func test_drop_items_remain_drop():
+	# Sanity guard: nothing flipped a pre-Slice-6 item's source on us.
+	for item in ItemCatalog.all_items():
+		if item.id.begins_with("shop_"):
+			continue
 		assert_eq(item.source, ItemData.Source.DROP,
-			"item %s has non-DROP source before SHOP slice" % item.id)
+			"non-shop item %s should be source DROP" % item.id)
 
 func test_every_class_covers_full_slot_rarity_matrix():
 	var classes := [

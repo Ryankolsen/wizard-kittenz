@@ -10,6 +10,7 @@ const CATEGORY_CLASS_UPGRADE := "class_upgrade"
 const CATEGORY_CLASS_UNLOCK := "class_unlock"
 const CATEGORY_SKILL := "skill"
 const CATEGORY_GEM_BUNDLE := "gem_bundle"
+const CATEGORY_GEAR := "gear"
 
 var product_id: String = ""
 var display_name: String = ""
