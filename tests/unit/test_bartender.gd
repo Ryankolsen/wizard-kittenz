@@ -31,17 +31,19 @@ func test_bartender_opens_bubble_on_attack_in_range():
 	assert_true(bubble is SpeechBubble, "mounted child is a SpeechBubble")
 
 
-func test_bartender_bubble_has_shop_and_exit_options():
-	# Content: bubble menu rows are exactly [Shop, Exit] for the current
-	# slice. "Get a beer" lands in #199.
+func test_bartender_options_include_get_a_beer():
+	# Content: bubble menu rows are exactly [Shop, Get a beer, Exit] in that
+	# order — Beer wedged between Shop and Exit so the existing nav muscle
+	# memory (down-once → Exit) only changes when Beer is affordable.
 	var bartender := _make_bartender()
 	bartender._on_player_entered_range()
 	bartender._on_attack_pressed()
 	var bubble := bartender.get_bubble()
 	var list: NPCOptionList = bubble._list
-	assert_eq(list.size(), 2, "bartender menu has 2 options")
+	assert_eq(list.size(), 3, "bartender menu has 3 options")
 	assert_eq(list.get(0).label, "Shop")
-	assert_eq(list.get(1).label, "Exit")
+	assert_eq(list.get(1).label, "Get a beer")
+	assert_eq(list.get(2).label, "Exit")
 
 
 func test_selecting_shop_emits_shop_requested():
@@ -110,6 +112,100 @@ func test_bubble_closes_when_player_leaves_range():
 	bartender._on_player_exited_range()
 	assert_null(bartender.get_bubble(),
 		"bubble cleared when player walks out of range")
+
+
+# --- #199: Get a beer option ----------------------------------------------
+
+func _make_bartender_with_economy(gold: int) -> Array:
+	# Returns [bartender, ledger, character] with a bartender wired to a
+	# fresh ledger + character — no GameState autoload required.
+	var bartender := _make_bartender()
+	var ledger := CurrencyLedger.new()
+	if gold > 0:
+		ledger.credit(gold, CurrencyLedger.Currency.GOLD)
+	var character := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	bartender.setup_economy(ledger, character)
+	return [bartender, ledger, character]
+
+
+func test_buying_beer_deducts_gold_and_applies_buff():
+	var trio := _make_bartender_with_economy(100)
+	var bartender: Bartender = trio[0]
+	var ledger: CurrencyLedger = trio[1]
+	var character: CharacterData = trio[2]
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	bubble.move_next()  # Shop (0) -> Beer (1)
+	bubble.confirm()
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 75,
+		"Beer costs exactly 25 gold")
+	assert_almost_eq(character.get_damage_multiplier(), 1.2, 0.001,
+		"Beer applies a +20% damage multiplier")
+
+
+func test_beer_option_disabled_when_gold_below_25():
+	var trio := _make_bartender_with_economy(10)
+	var bartender: Bartender = trio[0]
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	var list: NPCOptionList = bubble._list
+	assert_false(list.get(1).is_enabled(),
+		"Beer option is disabled when gold < 25")
+	# Initial cursor is on Shop (0). One move_next should skip Beer (1)
+	# and land on Exit (2).
+	bubble.move_next()
+	assert_eq(bubble.selection.current_index(), 2,
+		"Navigation skips disabled Beer row, lands on Exit")
+
+
+func test_confirming_disabled_beer_does_not_charge_or_buff():
+	# Belt-and-suspenders: even if the cursor were forced onto a disabled
+	# Beer row, confirming it must not debit or buff.
+	var trio := _make_bartender_with_economy(10)
+	var bartender: Bartender = trio[0]
+	var ledger: CurrencyLedger = trio[1]
+	var character: CharacterData = trio[2]
+	# Dispatch the effect directly to bypass the controller's disable-skip.
+	bartender._handle_effect("buy_beer")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 10,
+		"Gold unchanged when beer is unaffordable")
+	assert_almost_eq(character.get_damage_multiplier(), 1.0, 0.001,
+		"No buff applied when beer is unaffordable")
+
+
+func test_beer_enabled_state_reevaluated_after_shop_close():
+	# Affordability snapshots at open time would leave a stale "enabled"
+	# answer after the player spends in the shop. Reopen → predicate runs
+	# again → row reflects current balance.
+	var trio := _make_bartender_with_economy(30)
+	var bartender: Bartender = trio[0]
+	var ledger: CurrencyLedger = trio[1]
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	assert_true(bubble._list.get(1).is_enabled(),
+		"Beer enabled at 30 gold on first open")
+	# Simulate the player picking Shop → spending → shop closing.
+	bartender._handle_effect("open_shop")
+	ledger.debit(25, CurrencyLedger.Currency.GOLD)  # leaves 5 gold
+	bartender.open_menu()  # what BarRoom._on_shop_closed calls
+	var reopened := bartender.get_bubble()
+	assert_not_null(reopened, "menu reopens after shop close")
+	assert_false(reopened._list.get(1).is_enabled(),
+		"Beer now disabled — predicate re-evaluated against current gold")
+
+
+func test_beer_enabled_at_exactly_25_gold():
+	# Predicate is gold >= 25, not gold > 25. Exactly 25 is affordable.
+	var trio := _make_bartender_with_economy(25)
+	var bartender: Bartender = trio[0]
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	assert_true(bubble._list.get(1).is_enabled(),
+		"Beer enabled at exactly 25 gold")
 
 
 # --- #191: sprite asset ----------------------------------------------------
