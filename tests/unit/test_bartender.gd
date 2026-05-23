@@ -61,3 +61,39 @@ func test_exiting_range_stops_emits():
 	bartender._on_attack_pressed()
 	assert_false(emitted[0],
 		"shop_requested not emitted once player has exited range")
+
+
+# --- Sprite update (#191) --------------------------------------------------
+# The bartender gains a Sprite2D child textured with assets/sprites/bartender.png
+# (orange tabby in vest and apron). Texture is loaded at runtime to avoid a
+# missing-.import sidecar erroring scene load; the resource_path on the
+# loaded texture still reflects the canonical asset path.
+
+func test_bartender_sprite_uses_bartender_png():
+	var bartender := _make_bartender()
+	var sprite := bartender.find_child("Sprite2D", true, false) as Sprite2D
+	assert_not_null(sprite, "bartender has a Sprite2D child")
+	assert_not_null(sprite.texture, "bartender sprite has a texture assigned")
+	assert_eq(sprite.texture.resource_path,
+		"res://assets/sprites/bartender.png",
+		"Bartender uses new bartender.png sprite")
+
+
+func test_bartender_lives_in_bar_room():
+	var room: BarRoom = load("res://scenes/bar_room.tscn").instantiate()
+	add_child_autofree(room)
+	var bartender := room.find_child("Bartender", true, false)
+	assert_not_null(bartender, "bar room contains a Bartender node")
+
+
+func test_bartender_positioned_behind_bar_counter():
+	# Y-sort relationship: bartender stands behind the counter (smaller y →
+	# drawn before the counter so the counter overlaps from the front).
+	var room: BarRoom = load("res://scenes/bar_room.tscn").instantiate()
+	add_child_autofree(room)
+	var bartender := room.find_child("Bartender", true, false) as Node2D
+	var counter := room.find_child("BarCounter", true, false) as Node2D
+	assert_not_null(bartender, "bartender exists")
+	assert_not_null(counter, "counter exists")
+	assert_lt(bartender.position.y, counter.position.y,
+		"bartender sits behind (smaller y than) the bar counter for y-sort")

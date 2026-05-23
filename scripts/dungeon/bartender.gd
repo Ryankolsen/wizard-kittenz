@@ -25,16 +25,36 @@ extends Node2D
 
 signal shop_requested()
 
+# Sprite texture is loaded at runtime (rather than as an ext_resource in the
+# .tscn) for the same reason bar_room.gd applies its prop textures from
+# script: bartender.png ships without a .import sidecar in some checkouts,
+# and an ext_resource referencing a missing .import would error the whole
+# scene load — breaking every test that instantiates bartender.tscn or
+# bar_room.tscn (which embeds it).
+const SPRITE_TEXTURE_PATH := "res://assets/sprites/bartender.png"
+
 var _player_in_range: bool = false
 
 
 func _ready() -> void:
+	_apply_sprite_texture()
 	var area := get_node_or_null("ProximityArea") as Area2D
 	if area != null:
 		if not area.body_entered.is_connected(_on_body_entered):
 			area.body_entered.connect(_on_body_entered)
 		if not area.body_exited.is_connected(_on_body_exited):
 			area.body_exited.connect(_on_body_exited)
+
+
+func _apply_sprite_texture() -> void:
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		return
+	if not ResourceLoader.exists(SPRITE_TEXTURE_PATH):
+		return
+	var tex := load(SPRITE_TEXTURE_PATH) as Texture2D
+	if tex != null:
+		sprite.texture = tex
 
 
 func _unhandled_input(event: InputEvent) -> void:
