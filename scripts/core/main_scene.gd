@@ -18,9 +18,14 @@ const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
 const POWER_UP_SCENE_PATH := "res://scenes/power_up.tscn"
 const CONGRATS_SCENE_PATH := "res://scenes/congratulations_screen.tscn"
-const BARTENDER_SCENE_PATH := "res://scenes/bartender.tscn"
-const SHOP_SCENE_PATH := "res://scenes/shop_screen.tscn"
+const BAR_ROOM_SCENE_PATH := "res://scenes/bar_room.tscn"
 const BossDeathEffectScript := preload("res://scripts/vfx/boss_death_effect.gd")
+
+# Where BarRoomScene mounts when the player enters the bar. The bar scene is
+# parented to main_scene but lives far away in world space so its background,
+# bartender, and ExitZones don't visually overlap or physically interact with
+# the dungeon. The player is moved into and out of this offset on entry/exit.
+const BAR_OVERLAY_OFFSET := Vector2(-50000.0, -50000.0)
 
 var _run_controller: DungeonRunController = null
 var _watchers: Array[RoomClearWatcher] = []
@@ -38,14 +43,36 @@ var _enemies_slain_this_floor: int = 0
 var _xp_at_floor_start: int = 0
 var _gold_at_floor_start: int = 0
 var _boss_death_position: Vector2 = Vector2.ZERO
-# Holds the in-dungeon shop overlay's CanvasLayer wrapper while open so a
-# duplicate shop_requested press (mashing attack at the bartender after the
-# shop is already up) is a no-op rather than stacking a second screen on
-# top. Mirrors the BarRoom._shop_overlay re-entry guard.
-var _shop_overlay: CanvasLayer = null
+
+# Bar-room transition state. Stored as members (rather than locals) so the
+# entrance-tile detector in _process and the round-trip tests can read them.
+# _tilemap_painter is also kept around so the bar_entrance_tiles produced by
+# the last paint() call drive the entrance trigger directly (no need to
+# recompute the layout or re-scan the TileMap).
+var _tilemap: TileMap = null
+var _player: Node2D = null
+var _tilemap_painter: DungeonTilemapPainter = null
+var _bar_room_scene: Node = null
+var _player_dungeon_position: Vector2 = Vector2.ZERO
+# After the player exits the bar they're restored to the entrance tile in the
+# dungeon — which would immediately retrigger _enter_bar_room on the next
+# process frame. This flag suppresses re-entry until the player moves off the
+# entrance footprint, then re-arms.
+var _suppress_bar_entry: bool = false
+# Dungeon nodes whose process_mode we flipped to DISABLED on bar entry, so
+# enemies / pickups / the exit door don't keep ticking while the player is
+# inside the bar. Restored to PROCESS_MODE_INHERIT on bar exit.
+var _paused_dungeon_nodes: Array = []
+# Snapshot of the player camera's clamp limits. _paint_dungeon clamps the
+# camera to the dungeon tilemap so void past the walls is never visible;
+# during a bar visit we lift the clamps so the camera can follow the player
+# to BAR_OVERLAY_OFFSET, then restore them on exit.
+var _saved_camera_limits: Dictionary = {}
 
 func _ready() -> void:
 	_hud = $HUD
+	_tilemap = $TileMap
+	_player = $Player
 
 	var gs := get_node_or_null("/root/GameState")
 
@@ -103,8 +130,8 @@ func _paint_dungeon() -> void:
 	if tilemap == null:
 		return
 	_dungeon_layout = DungeonLayoutEngine.new().compute(_run_controller.dungeon)
-	var painter := DungeonTilemapPainter.new()
-	painter.paint(_dungeon_layout, tilemap, _run_controller.dungeon)
+	_tilemap_painter = DungeonTilemapPainter.new()
+	_tilemap_painter.paint(_dungeon_layout, tilemap, _run_controller.dungeon)
 	var player := get_node_or_null("Player")
 	if player != null:
 		var camera := player.get_node_or_null("Camera2D") as Camera2D
@@ -182,8 +209,6 @@ func _setup_rooms() -> void:
 			pickup.power_up_type = pu_type
 			pickup.position = _dungeon_layout.room_center_world(room.id)
 			add_child(pickup)
-		if room.type == Room.TYPE_BAR and _dungeon_layout != null:
-			_spawn_bartender_in_room(room.id)
 		var watcher := RoomClearWatcher.new()
 		# Pass the local character + session so the watcher fires PRD #52
 		# room-clear XP through the right path: solo adds XP to the local
@@ -192,47 +217,131 @@ func _setup_rooms() -> void:
 		_watchers.append(watcher)
 	_spawn_healing_box()
 
-# Instances the Bartender NPC at the bar room's world center (issue #179).
-# The bar room is a TYPE_BAR node in the dungeon graph — a safe pass-through
-# room with no enemy seed. Placing the bartender at the room center gives
-# the player an in-dungeon access point to the shop without the cross-scene
-# swap the PRD's interior-art path will eventually use (cozy-tavern overlay
-# is a follow-up polish step; this slice gets the gameplay loop closed
-# end-to-end first).
-func _spawn_bartender_in_room(room_id: int) -> void:
-	var scene: PackedScene = load(BARTENDER_SCENE_PATH)
+# Per-frame check that moves the player into the bar room scene when they
+# step onto a bar-entrance tile (issue #187). Tile-based detection rather
+# than an Area2D body_entered trigger so the test path
+# (set _player.global_position, await one process frame) is deterministic
+# without needing the physics step to fire.
+func _process(_delta: float) -> void:
+	_check_bar_entrance()
+
+
+func _check_bar_entrance() -> void:
+	if _bar_room_scene != null:
+		return
+	if _player == null or _tilemap == null or _tilemap_painter == null:
+		return
+	if _tilemap_painter.bar_entrance_tiles.is_empty():
+		return
+	var local: Vector2 = _tilemap.to_local(_player.global_position)
+	var cell: Vector2i = _tilemap.local_to_map(local)
+	var on_entrance: bool = cell in _tilemap_painter.bar_entrance_tiles
+	if _suppress_bar_entry:
+		if not on_entrance:
+			_suppress_bar_entry = false
+		return
+	if on_entrance:
+		_enter_bar_room()
+
+
+# Mounts bar_room.tscn as a child of main_scene, parks it far away in world
+# space (so the bar's background + ExitZones don't overlap dungeon geometry),
+# pauses the dungeon's enemies / pickups / exit door, and teleports the
+# player into the bar. The dungeon scene stays in the tree so HP / MP /
+# currency / killed-enemy state are preserved by the round trip — none of
+# the long-lived state lives on a node we touch here.
+func _enter_bar_room() -> void:
+	if _bar_room_scene != null:
+		return
+	var scene: PackedScene = load(BAR_ROOM_SCENE_PATH)
 	if scene == null:
 		return
-	var bartender: Bartender = scene.instantiate()
-	bartender.position = _dungeon_layout.room_center_world(room_id)
-	bartender.shop_requested.connect(_on_shop_requested)
-	add_child(bartender)
+	_player_dungeon_position = _player.global_position
+	_pause_dungeon_entities()
+	_lift_camera_limits()
+	var bar: Node2D = scene.instantiate() as Node2D
+	bar.name = "BarRoomScene"
+	bar.position = BAR_OVERLAY_OFFSET
+	if bar.has_signal("player_exited_bar"):
+		bar.player_exited_bar.connect(_on_player_exited_bar)
+	add_child(bar)
+	_player.global_position = BAR_OVERLAY_OFFSET
+	_bar_room_scene = bar
 
-# Mounts ShopScreen as a CanvasLayer overlay so the dungeon scene stays in
-# the tree underneath. Overlay mode tells ShopScreen to emit back_pressed
-# instead of doing its default change_scene_to_file, letting us tear down
-# just the overlay and leave the player standing next to the bartender.
-# Mirrors BarRoom._on_shop_requested — the standalone bar_room.tscn keeps
-# its own copy for the eventual scene-swap path; here we host the same
-# behavior in-dungeon while the swap is still TODO.
-func _on_shop_requested() -> void:
-	if _shop_overlay != null and is_instance_valid(_shop_overlay):
-		return
-	var scene: PackedScene = load(SHOP_SCENE_PATH)
-	if scene == null:
-		return
-	var shop: ShopScreen = scene.instantiate()
-	var layer := CanvasLayer.new()
-	layer.add_child(shop)
-	add_child(layer)
-	shop.set_overlay_mode(true)
-	shop.back_pressed.connect(_on_shop_closed)
-	_shop_overlay = layer
 
-func _on_shop_closed() -> void:
-	if _shop_overlay != null and is_instance_valid(_shop_overlay):
-		_shop_overlay.queue_free()
-	_shop_overlay = null
+# Disables processing on every dungeon entity that ticks (enemies chase,
+# pickups pulse, the exit door checks for the player). HUD, TileMap, and
+# the player itself are left running — the HUD still renders, the tilemap
+# is just a static rendered surface, and the player needs to move inside
+# the bar.
+func _pause_dungeon_entities() -> void:
+	_paused_dungeon_nodes.clear()
+	for child in get_children():
+		if child == _player or child == _tilemap or child == _hud:
+			continue
+		if child is BarRoom:
+			continue
+		if child.process_mode == Node.PROCESS_MODE_DISABLED:
+			continue
+		_paused_dungeon_nodes.append(child)
+		child.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+# Tears down bar_room.tscn, restores the player to the entrance tile in the
+# dungeon, and re-enables every dungeon node that was paused on entry. The
+# _suppress_bar_entry flag stops _check_bar_entrance from immediately
+# re-firing on the restored position; it re-arms once the player walks off
+# the entrance footprint.
+func _on_player_exited_bar() -> void:
+	if _bar_room_scene != null:
+		_bar_room_scene.queue_free()
+		_bar_room_scene = null
+	if _player != null:
+		_player.global_position = _player_dungeon_position
+	_restore_camera_limits()
+	_suppress_bar_entry = true
+	for n in _paused_dungeon_nodes:
+		if is_instance_valid(n):
+			n.process_mode = Node.PROCESS_MODE_INHERIT
+	_paused_dungeon_nodes.clear()
+
+
+func _lift_camera_limits() -> void:
+	var cam := _player_camera()
+	if cam == null:
+		return
+	_saved_camera_limits = {
+		"left": cam.limit_left,
+		"top": cam.limit_top,
+		"right": cam.limit_right,
+		"bottom": cam.limit_bottom,
+	}
+	# Godot Camera2D defaults — effectively no clamp.
+	cam.limit_left = -10000000
+	cam.limit_top = -10000000
+	cam.limit_right = 10000000
+	cam.limit_bottom = 10000000
+
+
+func _restore_camera_limits() -> void:
+	if _saved_camera_limits.is_empty():
+		return
+	var cam := _player_camera()
+	if cam == null:
+		_saved_camera_limits.clear()
+		return
+	cam.limit_left = _saved_camera_limits["left"]
+	cam.limit_top = _saved_camera_limits["top"]
+	cam.limit_right = _saved_camera_limits["right"]
+	cam.limit_bottom = _saved_camera_limits["bottom"]
+	_saved_camera_limits.clear()
+
+
+func _player_camera() -> Camera2D:
+	if _player == null:
+		return null
+	return _player.get_node_or_null("Camera2D") as Camera2D
+
 
 func _spawn_healing_box() -> void:
 	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
