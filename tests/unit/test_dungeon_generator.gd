@@ -58,6 +58,50 @@ func test_boss_room_has_no_outgoing_edges():
 		assert_eq(boss.connections.size(), 0,
 			"seed %d: boss has %d outgoing edges (expected 0)" % [s, boss.connections.size()])
 
+# --- Bar room (#180) ---
+
+func test_exactly_one_bar_room_per_seed():
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var bar_count := 0
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				bar_count += 1
+		assert_eq(bar_count, 1, "seed %d produced %d bar rooms (expected 1)" % [s, bar_count])
+
+func test_bar_room_is_not_start_or_boss_and_has_two_outgoing_edges():
+	for s in [1, 2, 3, 7, 42]:
+		var d := DungeonGenerator.generate(s)
+		var bar: Room = null
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				bar = r
+		assert_not_null(bar, "seed %d: bar room exists" % s)
+		assert_ne(bar, d.start_room(), "seed %d: bar is not the start room" % s)
+		assert_ne(bar, d.boss_room(), "seed %d: bar is not the boss room" % s)
+		assert_eq(bar.connections.size(), 2,
+			"seed %d: bar has %d outgoing edges (expected 2)" % [s, bar.connections.size()])
+
+func test_bar_room_has_no_enemy_or_powerup_data():
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				assert_eq(r.enemy_kind, -1, "seed %d: bar has no enemy_kind" % s)
+				assert_eq(r.power_up_type, "", "seed %d: bar has no power_up_type" % s)
+
+func test_bar_room_is_not_adjacent_to_boss():
+	# Adjacency = boss's parent in the spanning tree. The bar must not be
+	# the parent of the boss (so players have at least one room between
+	# the bar and the boss fight).
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var boss := d.boss_room()
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				assert_false(r.connections.has(boss.id),
+					"seed %d: bar should not connect directly to boss" % s)
+
 # --- Coverage beyond the 5 issue scenarios ---
 
 func test_same_seed_is_deterministic():
@@ -166,6 +210,8 @@ func test_only_combat_rooms_have_enemy_kind():
 			Room.TYPE_BOSS:
 				assert_true(DungeonGenerator.BOSS_ENEMY_KINDS.has(r.enemy_kind),
 					"boss enemy_kind in pool")
+			Room.TYPE_BAR:
+				assert_eq(r.enemy_kind, -1, "bar room has no enemy")
 
 func test_get_room_returns_null_for_unknown_id():
 	var d := DungeonGenerator.generate(1)

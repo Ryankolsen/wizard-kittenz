@@ -12,6 +12,7 @@ const TYPE_START := "start"
 const TYPE_STANDARD := "standard"
 const TYPE_POWERUP := "powerup"
 const TYPE_BOSS := "boss"
+const TYPE_BAR := "bar"
 
 var id: int = 0
 var type: String = TYPE_STANDARD
