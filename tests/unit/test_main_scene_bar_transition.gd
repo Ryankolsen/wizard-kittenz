@@ -136,3 +136,74 @@ func test_player_state_preserved_across_round_trip():
 			gold_before, "gold preserved across bar round-trip")
 	assert_eq(inst._run_controller.cleared_ids(), cleared_before,
 		"killed-enemy / room-clear state preserved across bar round-trip")
+
+
+func test_bar_room_mounts_without_extreme_offset():
+	# Issue #192: with the tile-based bar room (#190), the bar scene is
+	# self-contained and no longer needs to be parked at (-50000, -50000) to
+	# avoid colliding with the dungeon. Mounting near the player's current
+	# dungeon position keeps the bar inside the dungeon camera-limit rect, so
+	# we can drop the lift/restore camera-limit dance entirely.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	var bar = inst.get_node_or_null("BarRoomScene")
+	assert_not_null(bar, "precondition: bar mounted")
+	assert_lt(abs(bar.global_position.x), 10000.0,
+		"bar room not at extreme x offset — old BAR_OVERLAY_OFFSET hack gone")
+	assert_lt(abs(bar.global_position.y), 10000.0,
+		"bar room not at extreme y offset")
+
+
+func test_camera_limits_not_mutated_by_bar_entry():
+	# Issue #192: _lift_camera_limits / _restore_camera_limits / _saved_camera_limits
+	# are gone. Camera clamps set by _paint_dungeon (apply_camera_limits) must
+	# survive a bar entry untouched — the bar is mounted inside the dungeon's
+	# clamp rect so no lifting is needed.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var camera: Camera2D = inst._player.get_node_or_null("Camera2D") as Camera2D
+	assert_not_null(camera, "precondition: player has a Camera2D")
+	var limits_before := {
+		"left": camera.limit_left,
+		"top": camera.limit_top,
+		"right": camera.limit_right,
+		"bottom": camera.limit_bottom,
+	}
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	assert_not_null(inst.get_node_or_null("BarRoomScene"),
+		"precondition: bar mounted")
+	assert_eq(camera.limit_left, limits_before["left"],
+		"camera.limit_left untouched by bar entry")
+	assert_eq(camera.limit_top, limits_before["top"],
+		"camera.limit_top untouched by bar entry")
+	assert_eq(camera.limit_right, limits_before["right"],
+		"camera.limit_right untouched by bar entry")
+	assert_eq(camera.limit_bottom, limits_before["bottom"],
+		"camera.limit_bottom untouched by bar entry")
+
+
+func test_saved_camera_limits_field_removed():
+	# Lock the refactor in: the _saved_camera_limits field that backed the
+	# old lift/restore is gone, along with the lift/restore methods. Reading
+	# them via the "in" operator (or has_method) lets the test fail loudly
+	# if a future change reintroduces the hack.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	assert_false("_saved_camera_limits" in inst,
+		"_saved_camera_limits field removed in #192")
+	assert_false(inst.has_method("_lift_camera_limits"),
+		"_lift_camera_limits method removed in #192")
+	assert_false(inst.has_method("_restore_camera_limits"),
+		"_restore_camera_limits method removed in #192")
