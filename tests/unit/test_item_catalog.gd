@@ -1,7 +1,7 @@
 extends GutTest
 
-func test_all_items_returns_nine():
-	assert_eq(ItemCatalog.all_items().size(), 9)
+func test_all_items_returns_thirty_six():
+	assert_eq(ItemCatalog.all_items().size(), 36)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -13,13 +13,13 @@ func test_iron_sword_content():
 
 func test_items_for_slot_armor():
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
-	assert_eq(armor.size(), 3)
+	assert_eq(armor.size(), 12)
 	for item in armor:
 		assert_eq(item.slot, ItemData.Slot.ARMOR)
 
 func test_items_for_rarity_epic():
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 3)
+	assert_eq(epics.size(), 12)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
