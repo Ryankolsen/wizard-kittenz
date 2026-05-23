@@ -118,8 +118,7 @@ func _make_weapon(stat: String, bonus: float) -> ItemData:
 	item.id = "test_weapon"
 	item.display_name = "Test Weapon"
 	item.slot = ItemData.Slot.WEAPON
-	item.stat_name = stat
-	item.stat_bonus = bonus
+	item.bonuses = [StatBonus.make(stat, bonus)] as Array[StatBonus]
 	return item
 
 func test_apply_item_bonuses_adds_equipped_bonus():

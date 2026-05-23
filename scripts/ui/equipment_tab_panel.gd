@@ -149,11 +149,11 @@ func _on_equip_pressed(item_id: String) -> void:
 		return
 	var prev: ItemData = _inventory.equipped_in(item.slot)
 	if prev != null and _character != null:
-		CharacterMutator.new(_character).apply_stat_delta(prev.stat_name, -prev.stat_bonus)
+		_apply_item_delta(prev, -1.0)
 	_inventory.remove_from_bag(item_id)
 	_inventory.equip(item)
 	if _character != null:
-		CharacterMutator.new(_character).apply_stat_delta(item.stat_name, item.stat_bonus)
+		_apply_item_delta(item, 1.0)
 	_expanded.clear()
 	_rebuild()
 
@@ -164,7 +164,7 @@ func _on_unequip_pressed(slot: int) -> void:
 	if item == null:
 		return
 	if _character != null:
-		CharacterMutator.new(_character).apply_stat_delta(item.stat_name, -item.stat_bonus)
+		_apply_item_delta(item, -1.0)
 	_inventory.unequip(slot)
 	_expanded.clear()
 	_rebuild()
@@ -178,15 +178,26 @@ func _find_bag_item(item_id: String) -> ItemData:
 	return null
 
 func _stat_desc(item: ItemData) -> String:
-	if item.stat_name == "":
-		return ""
-	var bonus := item.stat_bonus
+	var lines: Array[String] = []
+	for bonus in item.bonuses:
+		if bonus == null or bonus.stat_name == "":
+			continue
+		lines.append(_format_bonus(bonus))
+	return ", ".join(lines)
+
+func _format_bonus(bonus: StatBonus) -> String:
 	var formatted: String
-	if bonus == int(bonus):
-		formatted = "+%d" % int(bonus)
+	if bonus.stat_bonus == int(bonus.stat_bonus):
+		formatted = "+%d" % int(bonus.stat_bonus)
 	else:
-		formatted = "+%.2f" % bonus
-	return "%s %s" % [formatted, item.stat_name]
+		formatted = "+%.2f" % bonus.stat_bonus
+	return "%s %s" % [formatted, bonus.stat_name]
+
+func _apply_item_delta(item: ItemData, sign: float) -> void:
+	for bonus in item.bonuses:
+		if bonus == null or bonus.stat_name == "":
+			continue
+		CharacterMutator.new(_character).apply_stat_delta(bonus.stat_name, sign * bonus.stat_bonus)
 
 func _rarity_name(rarity: int) -> String:
 	return RARITY_NAMES.get(rarity, "Common")

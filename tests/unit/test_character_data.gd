@@ -256,8 +256,7 @@ func test_item_regen_capped_at_one_for_non_sleepy_class():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var item := ItemData.new()
 	item.slot = ItemData.Slot.ACCESSORY
-	item.stat_name = "regeneration"
-	item.stat_bonus = 2
+	item.bonuses = [StatBonus.make("regeneration", 2.0)] as Array[StatBonus]
 	var inv := ItemInventory.new()
 	inv.equip(item)
 	ItemStatApplicator.apply(inv, c)

@@ -59,3 +59,52 @@ func test_apply_null_inventory_no_crash():
 	var base_attack := c.attack
 	ItemStatApplicator.apply(null, c)
 	assert_eq(c.attack, base_attack)
+
+func _make_multi_bonus_item(slot: int, bonuses: Array) -> ItemData:
+	var item := ItemData.new()
+	item.id = "test_multi"
+	item.display_name = "Test Multi"
+	item.slot = slot
+	var typed: Array[StatBonus] = []
+	for b in bonuses:
+		typed.append(b)
+	item.bonuses = typed
+	return item
+
+func test_apply_multi_bonus_item_applies_all_stats():
+	var inv := ItemInventory.new()
+	var c := _base_char()
+	var base_attack := c.attack
+	var base_magic_attack := c.magic_attack
+	inv.equip(_make_multi_bonus_item(ItemData.Slot.WEAPON, [
+		StatBonus.make("attack", 3.0),
+		StatBonus.make("magic_attack", 2.0),
+	]))
+	ItemStatApplicator.apply(inv, c)
+	assert_eq(c.attack, base_attack + 3)
+	assert_eq(c.magic_attack, base_magic_attack + 2)
+
+func test_recompute_multi_bonus_item_no_drift():
+	var inv := ItemInventory.new()
+	var c := _base_char()
+	var base := _base_char()
+	inv.equip(_make_multi_bonus_item(ItemData.Slot.WEAPON, [
+		StatBonus.make("attack", 3.0),
+		StatBonus.make("magic_attack", 2.0),
+	]))
+	for i in 5:
+		ItemStatApplicator.recompute(inv, c, base)
+	assert_eq(c.attack, base.attack + 3)
+	assert_eq(c.magic_attack, base.magic_attack + 2)
+
+func test_regen_capped_in_multi_bonus_for_non_sleepy():
+	var inv := ItemInventory.new()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var base_max_hp := c.max_hp
+	inv.equip(_make_multi_bonus_item(ItemData.Slot.ACCESSORY, [
+		StatBonus.make("regeneration", 5.0),
+		StatBonus.make("max_hp", 10.0),
+	]))
+	ItemStatApplicator.apply(inv, c)
+	assert_eq(c.regeneration, 1, "non-Sleepy regen capped at 1 even in multi-bonus item")
+	assert_eq(c.max_hp, base_max_hp + 10, "max_hp gets full bonus from multi-bonus item")

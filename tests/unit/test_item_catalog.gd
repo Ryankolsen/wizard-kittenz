@@ -8,8 +8,9 @@ func test_iron_sword_content():
 	assert_not_null(item)
 	assert_eq(item.slot, ItemData.Slot.WEAPON)
 	assert_eq(item.rarity, ItemData.Rarity.COMMON)
-	assert_eq(item.stat_name, "attack")
-	assert_eq(item.stat_bonus, 2.0)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "attack")
+	assert_eq(item.bonuses[0].stat_bonus, 2.0)
 
 func test_items_for_slot_armor():
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
@@ -31,3 +32,15 @@ func test_all_ids_unique():
 	for item in ItemCatalog.all_items():
 		assert_false(ids.has(item.id), "duplicate id %s" % item.id)
 		ids[item.id] = true
+
+func test_enchanted_blade_is_dual_stat():
+	var item := ItemCatalog.find("enchanted_blade")
+	assert_not_null(item)
+	assert_eq(item.bonuses.size(), 2)
+	var stats := {}
+	for b in item.bonuses:
+		stats[b.stat_name] = b.stat_bonus
+	assert_true(stats.has("attack"), "Enchanted Blade carries attack bonus")
+	assert_true(stats.has("magic_attack"), "Enchanted Blade carries magic_attack bonus")
+	assert_eq(stats["attack"], 4.0)
+	assert_eq(stats["magic_attack"], 4.0)

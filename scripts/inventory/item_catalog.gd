@@ -9,7 +9,10 @@ static func all_items() -> Array[ItemData]:
 	var items: Array[ItemData] = []
 	items.append(ItemData.make("iron_sword", "Iron Sword", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0))
 	items.append(ItemData.make("silver_sword", "Silver Sword", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0))
-	items.append(ItemData.make("enchanted_blade", "Enchanted Blade", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "magic_attack", 8.0))
+	items.append(ItemData.make_multi("enchanted_blade", "Enchanted Blade", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, [
+		StatBonus.make("attack", 4.0),
+		StatBonus.make("magic_attack", 4.0),
+	]))
 	items.append(ItemData.make("leather_vest", "Leather Vest", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "defense", 2.0))
 	items.append(ItemData.make("chain_mail", "Chain Mail", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "max_hp", 15.0))
 	items.append(ItemData.make("dragon_scale", "Dragon Scale", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "defense", 6.0))
