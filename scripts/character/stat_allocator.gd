@@ -14,6 +14,7 @@ const INT_INCREMENTS := {
 	"dexterity": 1,
 	"luck": 1,
 	"regeneration": 1,
+	"mp_regen": 1,
 }
 
 const FLOAT_INCREMENTS := {

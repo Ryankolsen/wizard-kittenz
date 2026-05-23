@@ -263,6 +263,33 @@ func test_item_regen_capped_at_one_for_non_sleepy_class():
 	ItemStatApplicator.apply(inv, c)
 	assert_eq(c.regeneration, 1, "non-Sleepy class regen capped at 1 from items")
 
+func test_make_new_mage_classes_have_mp_regen_baseline():
+	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_eq(wizard.mp_regen, 1.0, "Wizard Kitten starts with mp_regen = 1.0")
+	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_eq(sleepy.mp_regen, 1.0, "Sleepy Kitten starts with mp_regen = 1.0")
+
+func test_make_new_physical_classes_have_zero_mp_regen():
+	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(battle.mp_regen, 0.0, "Battle Kitten starts with mp_regen = 0.0")
+	var chonk := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
+	assert_eq(chonk.mp_regen, 0.0, "Chonk Kitten starts with mp_regen = 0.0")
+
+func test_mp_regen_survives_clone():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.mp_regen = 2.5
+	var copy := c.clone()
+	assert_eq(copy.mp_regen, 2.5, "mp_regen preserved through clone()")
+
+func test_stat_allocator_can_invest_in_mp_regen():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.skill_points = 2
+	var before := c.mp_regen
+	var ok := StatAllocator.allocate(c, {"mp_regen": 2})
+	assert_true(ok, "mp_regen allocation succeeds")
+	assert_eq(c.mp_regen, before + 2.0, "each skill point adds 1.0 mp_regen")
+	assert_eq(c.skill_points, 0, "skill points consumed")
+
 func test_save_load_roundtrips_chonk_kitten():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Biscuit")
 	var err := c.save_to(TMP_PATH)

@@ -49,3 +49,4 @@ static func _copy_stats(src: CharacterData, dst: CharacterData) -> void:
 	dst.crit_chance = src.crit_chance
 	dst.luck = src.luck
 	dst.regeneration = src.regeneration
+	dst.mp_regen = src.mp_regen

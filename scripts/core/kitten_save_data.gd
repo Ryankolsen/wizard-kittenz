@@ -29,6 +29,7 @@ var evasion: float = 0.0
 var crit_chance: float = 0.0
 var luck: int = 0
 var regeneration: int = 0
+var mp_regen: float = 0.0
 # Stored as plain Array (not PackedStringArray) so JSON.stringify round-trips
 # cleanly via Variant. Snapshot of SkillTree.unlocked_ids() at save time.
 var unlocked_skill_ids: Array = []
@@ -111,6 +112,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	s.crit_chance = c.crit_chance
 	s.luck = c.luck
 	s.regeneration = c.regeneration
+	s.mp_regen = c.mp_regen
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
 	if tracker != null:
@@ -159,6 +161,7 @@ func apply_to(c: CharacterData) -> void:
 	c.crit_chance = crit_chance
 	c.luck = luck
 	c.regeneration = regeneration
+	c.mp_regen = mp_regen
 
 func to_dict() -> Dictionary:
 	return {
@@ -182,6 +185,7 @@ func to_dict() -> Dictionary:
 		"crit_chance": crit_chance,
 		"luck": luck,
 		"regeneration": regeneration,
+		"mp_regen": mp_regen,
 		"unlocked_skill_ids": unlocked_skill_ids,
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
@@ -220,6 +224,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.crit_chance = float(d.get("crit_chance", 0.0))
 	s.luck = int(d.get("luck", 0))
 	s.regeneration = int(d.get("regeneration", 0))
+	s.mp_regen = float(d.get("mp_regen", 0.0))
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:
 		s.unlocked_skill_ids = ids.duplicate()

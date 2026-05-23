@@ -35,6 +35,11 @@ const SAVE_PATH := "user://character.tres"
 @export var crit_chance: float = 0.0
 @export var luck: int = 0
 @export var regeneration: int = 0
+# Magic-point regen rate in MP/sec. Mage classes (Wizard/Sleepy) baseline 1.0;
+# physical classes (Battle/Chonk) baseline 0.0 so the regen loop is a no-op
+# for them without class-checking. Float so item/buff bonuses can be fractional;
+# the regen tick still applies whole points only.
+@export var mp_regen: float = 0.0
 # Index into the (future) kitten sprite sheet. Pure data today — no
 # sprite swap is wired yet — but the persistence layer carries it so
 # Customize-flow choices survive save/load.
@@ -155,6 +160,17 @@ static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
 		CharacterClass.CHONK_CAT: base = 6
 	return base + (lvl - 1) * 2
 
+static func base_mp_regen_for(klass: CharacterClass, _lvl: int) -> float:
+	# Mage classes (Wizard/Sleepy) regen MP passively; physical classes do not.
+	# Cat tier mirrors the Kitten baseline — the size of the pool grows, not
+	# the recovery rate.
+	match klass:
+		CharacterClass.WIZARD_KITTEN: return 1.0
+		CharacterClass.SLEEPY_KITTEN: return 1.0
+		CharacterClass.WIZARD_CAT: return 1.0
+		CharacterClass.SLEEPY_CAT: return 1.0
+	return 0.0
+
 static func base_regeneration_for(klass: CharacterClass, _lvl: int) -> int:
 	# Regen is a Sleepy-class identity stat (issue #142). All non-Sleepy
 	# classes have a 0 baseline; Sleepy Kitten / Cat carry the only
@@ -192,6 +208,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.max_mp = mp_max
 	c.magic_points = mp_max
 	c.regeneration = base_regeneration_for(klass, 1)
+	c.mp_regen = base_mp_regen_for(klass, 1)
 	return c
 
 func apply_stat_delta(stat_name: String, delta: float) -> void:
@@ -281,6 +298,7 @@ func clone() -> CharacterData:
 	c.crit_chance = crit_chance
 	c.luck = luck
 	c.regeneration = regeneration
+	c.mp_regen = mp_regen
 	c.appearance_index = appearance_index
 	c.facing = facing
 	return c
