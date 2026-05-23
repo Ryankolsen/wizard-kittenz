@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3 uid="uid://bbr0om5cene01"]
+
+[ext_resource type="Script" path="res://scripts/dungeon/bar_room.gd" id="1_bar_room"]
+[ext_resource type="Script" path="res://scripts/dungeon/exit_zone.gd" id="2_exit_zone"]
+[ext_resource type="Texture2D" path="res://assets/sprites/bar_interior.png" id="3_bar_bg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_exit_zone"]
+size = Vector2(120, 100)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_enemy_barrier"]
+size = Vector2(1280, 720)
+
+[node name="BarRoom" type="Node2D"]
+script = ExtResource("1_bar_room")
+
+[node name="Background" type="Sprite2D" parent="."]
+texture = ExtResource("3_bar_bg")
+
+[node name="ExitZoneLeft" type="Area2D" parent="."]
+position = Vector2(-380, 320)
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("2_exit_zone")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ExitZoneLeft"]
+shape = SubResource("RectangleShape2D_exit_zone")
+
+[node name="ExitZoneRight" type="Area2D" parent="."]
+position = Vector2(380, 320)
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("2_exit_zone")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ExitZoneRight"]
+shape = SubResource("RectangleShape2D_exit_zone")
+
+[node name="EnemyBarrier" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyBarrier"]
+shape = SubResource("RectangleShape2D_enemy_barrier")
