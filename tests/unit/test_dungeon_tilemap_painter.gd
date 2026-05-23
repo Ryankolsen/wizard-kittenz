@@ -135,9 +135,9 @@ func test_apply_camera_limits_matches_used_rect():
 	assert_gt(camera.limit_bottom, camera.limit_top, "bottom > top")
 
 func test_exactly_one_bar_entrance_per_dungeon():
-	# AC: exactly one bar entrance tile is painted per dungeon, regardless of
-	# how many corridors connect to the bar room. The other corridor mouths
-	# remain plain walkable floor.
+	# AC: exactly one bar doorway (a 2x2 footprint = 4 tiles) is painted per
+	# dungeon, regardless of how many corridors connect to the bar room. The
+	# other corridor mouths remain plain walkable floor.
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
 		var dungeon := DungeonGenerator.generate(s)
 		var layout := DungeonLayoutEngine.new().compute(dungeon)
@@ -145,8 +145,8 @@ func test_exactly_one_bar_entrance_per_dungeon():
 		add_child_autofree(tilemap)
 		var painter := DungeonTilemapPainter.new()
 		painter.paint(layout, tilemap, dungeon)
-		assert_eq(painter.bar_entrance_tiles.size(), 1,
-			"seed %d painted %d entrance tiles (expected 1)" % [s, painter.bar_entrance_tiles.size()])
+		assert_eq(painter.bar_entrance_tiles.size(), 4,
+			"seed %d painted %d entrance tiles (expected 4 = single 2x2 door)" % [s, painter.bar_entrance_tiles.size()])
 
 func test_bar_room_entrance_uses_distinct_tile():
 	# AC: the bar room's corridor connection is painted with the dedicated
@@ -170,9 +170,12 @@ func test_bar_room_entrance_uses_distinct_tile():
 			"bar entrance must not use the standard floor source")
 
 func test_bar_entrance_tiles_lie_on_bar_room_perimeter():
-	# AC: each entrance tile sits on the bar room's outer edge (not interior,
-	# not in the surrounding wall ring). Confirms the placement matches the
-	# corridor's mouth rather than the room center.
+	# AC: the 2x2 door footprint sits at the bar's perimeter — two cells along
+	# the outer edge plus two extending one tile inward. All four cells lie
+	# inside the bar room's tile footprint (i.e. on walkable bar floor, not in
+	# the surrounding wall ring). At least one cell is on the literal outer
+	# edge — confirms the door sits at the corridor mouth, not floating in the
+	# room interior.
 	var pair := _make_layout(42)
 	var dungeon: Dungeon = pair[0]
 	var layout: DungeonLayout = pair[1]
@@ -193,12 +196,53 @@ func test_bar_entrance_tiles_lie_on_bar_room_perimeter():
 	var origin := Vector2i(bar_grid.x * step_tiles, bar_grid.y * step_tiles)
 	var max_x: int = origin.x + DungeonTilemapPainter.ROOM_TILES - 1
 	var max_y: int = origin.y + DungeonTilemapPainter.ROOM_TILES - 1
+	var any_on_edge: bool = false
 	for cell in painter.bar_entrance_tiles:
-		var on_x_edge: bool = cell.x == origin.x or cell.x == max_x
-		var on_y_edge: bool = cell.y == origin.y or cell.y == max_y
 		var inside: bool = cell.x >= origin.x and cell.x <= max_x and cell.y >= origin.y and cell.y <= max_y
-		assert_true(inside and (on_x_edge or on_y_edge),
-			"entrance cell %s must lie on bar room perimeter [%s, %s]" % [str(cell), str(origin), str(Vector2i(max_x, max_y))])
+		assert_true(inside,
+			"entrance cell %s must lie inside bar room footprint [%s, %s]" % [str(cell), str(origin), str(Vector2i(max_x, max_y))])
+		if cell.x == origin.x or cell.x == max_x or cell.y == origin.y or cell.y == max_y:
+			any_on_edge = true
+	assert_true(any_on_edge,
+		"at least one door cell must sit on the bar room's outer edge")
+
+func test_bar_entrance_footprint_is_contiguous_rectangle():
+	# AC: door cells form a contiguous rectangle (no gaps, no L-shape) and span
+	# at least 2x2. Lets #187's transition trigger treat bar_entrance_tiles as a
+	# single rectangular zone.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	var painter := DungeonTilemapPainter.new()
+	painter.paint(layout, tilemap, dungeon)
+
+	var cells: Array = painter.bar_entrance_tiles
+	assert_gte(cells.size(), 4, "door footprint spans at least 2x2 tiles")
+	var xs: Array = cells.map(func(c): return c.x)
+	var ys: Array = cells.map(func(c): return c.y)
+	var width: int = xs.max() - xs.min() + 1
+	var height: int = ys.max() - ys.min() + 1
+	assert_eq(cells.size(), width * height,
+		"door cells form a contiguous rectangle (%d cells, %dx%d bounding box)" % [cells.size(), width, height])
+
+func test_bar_entrance_cells_are_walkable_floor_sources():
+	# AC: every door cell paints either the bar-entrance source or remains on
+	# walkable floor — never a solid wall. Guarantees the doorway is walkable.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var dungeon := DungeonGenerator.generate(s)
+		var layout := DungeonLayoutEngine.new().compute(dungeon)
+		var tilemap := TileMap.new()
+		add_child_autofree(tilemap)
+		var painter := DungeonTilemapPainter.new()
+		painter.paint(layout, tilemap, dungeon)
+		for cell in painter.bar_entrance_tiles:
+			var source_id: int = tilemap.get_cell_source_id(0, cell)
+			assert_ne(source_id, DungeonTilemapPainter.SOURCE_WALL,
+				"seed %d door cell %s must not be a wall" % [s, str(cell)])
+			assert_ne(source_id, -1,
+				"seed %d door cell %s must be a painted (non-empty) tile" % [s, str(cell)])
 
 func test_non_bar_room_centers_unchanged_by_bar_entrance_pass():
 	# AC: bar-entrance painting only touches bar perimeter cells. Start, boss,

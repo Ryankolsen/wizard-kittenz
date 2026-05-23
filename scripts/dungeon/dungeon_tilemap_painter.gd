@@ -190,11 +190,12 @@ func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 	src.create_tile(Vector2i(0, 0))
 	ts.add_source(src, source_id)
 
-# Paint exactly one entrance cell per bar room — the perimeter cell facing the
-# bar's parent room (the room the player arrives through). The bar's other
-# corridor mouths (its two outgoing edges) stay as plain floor: still walkable,
-# just no door visual. Picking the parent-facing side keeps the door consistent
-# with the player's arrival direction across seeds.
+# Paint one entrance per bar room — a 2x2 footprint on the perimeter facing the
+# bar's parent room (the room the player arrives through). The 2x2 extends one
+# cell inward along the door-normal axis so every cell lands on bar floor
+# (walkable). The bar's other corridor mouths (its two outgoing edges) stay as
+# plain floor: still walkable, just no door visual.
+const BAR_DOOR_FOOTPRINT := 2
 func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dungeon) -> void:
 	if dungeon == null:
 		return
@@ -224,9 +225,10 @@ func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dung
 		var bar_cy: int = bar_origin.y + ROOM_TILES / 2
 		var parent_grid: Vector2i = layout.room_positions[parent_id]
 		var parent_center := parent_grid * step_tiles + Vector2i(ROOM_TILES / 2, ROOM_TILES / 2)
-		var entrance: Vector2i = _bar_entrance_cell(bar_origin, bar_cx, bar_cy, parent_center)
-		tilemap.set_cell(0, entrance, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
-		bar_entrance_tiles.append(entrance)
+		var footprint: Array = _bar_entrance_footprint(bar_origin, bar_cx, bar_cy, parent_center)
+		for cell in footprint:
+			tilemap.set_cell(0, cell, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
+			bar_entrance_tiles.append(cell)
 
 # The bar's parent is the room that lists bar_id in its outgoing connections.
 # Returns -1 if none found.
@@ -238,17 +240,45 @@ func _find_parent_id(dungeon: Dungeon, bar_id: int) -> int:
 			return r.id
 	return -1
 
-# Pick the bar-room perimeter cell facing `other_center` along the dominant
-# axis. Ties (pure-diagonal neighbours never happen in the current generator
-# since rooms are on a grid) fall back to the vertical edge.
-func _bar_entrance_cell(bar_origin: Vector2i, bar_cx: int, bar_cy: int, other_center: Vector2i) -> Vector2i:
+# Pick the 2x2 footprint of the bar-room doorway on the perimeter facing
+# `other_center` along the dominant axis. Two cells span the door's width
+# along the perimeter edge; the other two extend one tile into the bar
+# interior along the door-normal axis. All four cells land on bar floor.
+func _bar_entrance_footprint(bar_origin: Vector2i, bar_cx: int, bar_cy: int, other_center: Vector2i) -> Array:
 	var dx: int = other_center.x - bar_cx
 	var dy: int = other_center.y - bar_cy
+	var max_x: int = bar_origin.x + ROOM_TILES - 1
+	var max_y: int = bar_origin.y + ROOM_TILES - 1
+	var cells: Array = []
 	if absi(dx) >= absi(dy):
-		var edge_x: int = bar_origin.x + ROOM_TILES - 1 if dx > 0 else bar_origin.x
-		return Vector2i(edge_x, bar_cy)
-	var edge_y: int = bar_origin.y + ROOM_TILES - 1 if dy > 0 else bar_origin.y
-	return Vector2i(bar_cx, edge_y)
+		# East (dx>0) or west (dx<=0) edge. Span y in [bar_cy, bar_cy+1],
+		# extend inward along x.
+		var edge_x: int
+		var inward_x: int
+		if dx > 0:
+			edge_x = max_x
+			inward_x = max_x - 1
+		else:
+			edge_x = bar_origin.x
+			inward_x = bar_origin.x + 1
+		for y in [bar_cy, bar_cy + 1]:
+			cells.append(Vector2i(edge_x, y))
+			cells.append(Vector2i(inward_x, y))
+	else:
+		# North (dy<=0) or south (dy>0) edge. Span x in [bar_cx, bar_cx+1],
+		# extend inward along y.
+		var edge_y: int
+		var inward_y: int
+		if dy > 0:
+			edge_y = max_y
+			inward_y = max_y - 1
+		else:
+			edge_y = bar_origin.y
+			inward_y = bar_origin.y + 1
+		for x in [bar_cx, bar_cx + 1]:
+			cells.append(Vector2i(x, edge_y))
+			cells.append(Vector2i(x, inward_y))
+	return cells
 
 # Builds a per-source atlas whose texture is the floor sprite multiplied by
 # `tint`. Because TileMap doesn't support per-cell modulation, the tint is
