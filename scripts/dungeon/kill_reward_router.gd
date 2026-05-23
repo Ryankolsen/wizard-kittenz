@@ -88,7 +88,7 @@ static func route_kill(
 		# already a no-op inside send_kill_async — caller doesn't need
 		# to repeat the gate here.
 		if lobby != null:
-			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, per_player)
+			lobby.send_kill_async(enemy_data.enemy_id, local_player_id, per_player, enemy_data.is_boss)
 		return item_drop
 	# Solo path — apply XP locally and tally into the offline tracker.
 	# Passing the ledger threads the LEVEL_UP_GEM_REWARD credit through any

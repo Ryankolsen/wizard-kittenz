@@ -80,7 +80,7 @@ signal position_received(player_id: String, position: Vector2, timestamp: float)
 # into RemoteKillApplier.apply when a session is active. Decoupled via
 # signal for the same reason as position_received — lets NakamaLobby be
 # tested without a live CoopSession.
-signal kill_received(enemy_id: String, killer_id: String, xp_value: int)
+signal kill_received(enemy_id: String, killer_id: String, xp_value: int, is_boss: bool)
 # Host-initiated pause / unpause edges. Only fire on a real transition (the
 # HostPauseState rising/falling-edge gate inside apply_state suppresses
 # duplicate packets). The scene-tree bridge in GameState binds these to
@@ -226,12 +226,17 @@ func send_position_async(now: float, position: Vector2) -> void:
 # in the payload — Nakama tags every packet with the sender presence, so
 # the receiving side reads killer_id off the socket envelope (matches the
 # OP_POSITION anti-spoofing model).
-func send_kill_async(enemy_id: String, _killer_id: String, xp_value: int) -> void:
+func send_kill_async(enemy_id: String, _killer_id: String, xp_value: int, is_boss: bool = false) -> void:
 	if enemy_id == "":
 		return
 	if _socket == null or _match_id == "":
 		return
-	var payload := {"enemy_id": enemy_id, "xp": xp_value}
+	# Slice 7: is_boss travels on the wire so each receiving client can pick
+	# the right ItemDropResolver.Context (BOSS vs ENEMY) for its own local
+	# drop roll without needing to look up the enemy node (which may already
+	# be freed by the time the kill packet routes). Older clients omitting
+	# the "boss" key default to false on decode.
+	var payload := {"enemy_id": enemy_id, "xp": xp_value, "boss": is_boss}
 	await _socket.send_match_state_async(_match_id, OP_KILL, JSON.stringify(payload))
 
 # Broadcasts a local TAUNT to every match participant. Empty enemy_id is a
@@ -524,7 +529,12 @@ func _route_kill(sender_id: String, data: Dictionary) -> void:
 	if enemy_id == "":
 		return
 	var xp_value: int = int(data.get("xp", 0))
-	kill_received.emit(enemy_id, sender_id, xp_value)
+	# is_boss decode: older / forward-compat clients without the "boss" key
+	# default to false so the receiver picks the ENEMY context for its local
+	# item drop roll. False is the safe default — boss rooms are explicit and
+	# their kill packet always sets the flag.
+	var is_boss: bool = bool(data.get("boss", false))
+	kill_received.emit(enemy_id, sender_id, xp_value, is_boss)
 
 # Decodes the OP_TAUNT payload and emits taunt_received. Self-echoes
 # (sender_id == local_player_id) and empty sender_id are dropped here

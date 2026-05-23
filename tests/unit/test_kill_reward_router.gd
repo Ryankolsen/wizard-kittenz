@@ -11,8 +11,8 @@ extends GutTest
 class _RecordingLobby:
 	extends NakamaLobby
 	var sent_kills: Array = []
-	func send_kill_async(enemy_id: String, killer_id: String, xp_value: int) -> void:
-		sent_kills.append([enemy_id, killer_id, xp_value])
+	func send_kill_async(enemy_id: String, killer_id: String, xp_value: int, is_boss: bool = false) -> void:
+		sent_kills.append([enemy_id, killer_id, xp_value, is_boss])
 
 # --- Test helpers ----------------------------------------------------------
 

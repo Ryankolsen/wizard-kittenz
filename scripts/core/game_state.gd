@@ -7,6 +7,7 @@ const DungeonRunSerializerRef = preload("res://scripts/dungeon/dungeon_run_seria
 const SkillInventoryRef = preload("res://scripts/progression/skill_inventory.gd")
 const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
 const _RemoteHealApplierRef = preload("res://scripts/networking/remote_heal_applier.gd")
+const _RemoteItemDropResolverRef = preload("res://scripts/networking/remote_item_drop_resolver.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -234,10 +235,43 @@ func _on_position_received(player_id: String, position: Vector2, timestamp: floa
 # duplicate packet doesn't re-scan the scene tree for an already-freed
 # node. AC#4 ("no ghost enemies") closes here: the visible Enemy
 # CharacterBody2D disappears in lockstep with the registry update.
-func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int) -> void:
+func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int, is_boss: bool = false) -> void:
 	if not RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value):
 		return
 	RemoteEnemyDespawner.despawn(get_tree(), enemy_id)
+	# Slice 7 (PRD #201): co-op drop fan-out. Each receiving client rolls
+	# its own item drop locally against current_character — independent of
+	# whatever the killer rolled, so every party member gets a class-
+	# appropriate drop. The roll is gated behind RemoteKillApplier's
+	# rising-edge true return so a duplicate packet doesn't double-roll.
+	# The killer's own drop is handled by KillRewardRouter on the sender
+	# side and never re-rolls here (self-echo dropped at NakamaLobby
+	# routing layer via sender_id == local_player_id).
+	_resolve_remote_item_drop(is_boss)
+
+func _resolve_remote_item_drop(is_boss: bool) -> void:
+	if current_character == null:
+		return
+	var item := _RemoteItemDropResolverRef.resolve(current_character, is_boss, null)
+	if item == null:
+		return
+	# Reuse the local Player's item_dropped signal so the existing single-
+	# player drop path (HUD._on_player_item_dropped → item_inventory.add_to
+	# _bag + floating "Looted" text) takes over without duplicating the
+	# auto-bag wiring here. Group lookup mirrors RemoteHealApplier /
+	# RemoteTauntApplier — node-by-group, not by id. Between scenes (no
+	# Player in tree) the drop silently falls on the floor, matching the
+	# despawn path's "no tree, no scene-side effect" contract.
+	var tree := get_tree()
+	if tree == null:
+		return
+	var players := tree.get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var player := players[0]
+	if not player.has_signal("item_dropped"):
+		return
+	player.item_dropped.emit(item)
 
 # Inbound TAUNT bridge — wire packet → RemoteTauntApplier (data side).
 # The applier walks the "enemies" group and stamps taunt_source_id +
