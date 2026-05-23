@@ -297,6 +297,13 @@ func _find_player() -> Player:
 	return null
 
 const DROP_TEXT_COLOR := Color(1.0, 0.85, 0.3)
+# Gap between stacked drop-text spawns so an item + gold from the same kill
+# don't render on top of each other. Tuned shorter than FloatingText.DURATION
+# so the queue drains visibly within a single kill's feedback window.
+const DROP_TEXT_STAGGER_SECONDS: float = 0.25
+
+var _drop_text_queue: Array[String] = []
+var _drop_text_draining: bool = false
 
 func _bind_player_item_drop() -> void:
 	if _player == null:
@@ -321,6 +328,16 @@ func _on_player_gold_dropped(amount: int) -> void:
 	_spawn_drop_text("+%d Gold" % amount)
 
 func _spawn_drop_text(text: String) -> void:
-	if _player == null:
-		return
-	FloatingText.spawn(_player, text, DROP_TEXT_COLOR)
+	_drop_text_queue.append(text)
+	if not _drop_text_draining:
+		_drain_drop_text_queue()
+
+func _drain_drop_text_queue() -> void:
+	_drop_text_draining = true
+	while not _drop_text_queue.is_empty():
+		var text: String = _drop_text_queue.pop_front()
+		if _player != null:
+			FloatingText.spawn(_player, text, DROP_TEXT_COLOR)
+		if not _drop_text_queue.is_empty():
+			await get_tree().create_timer(DROP_TEXT_STAGGER_SECONDS).timeout
+	_drop_text_draining = false
