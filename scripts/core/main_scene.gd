@@ -18,6 +18,8 @@ const ENEMY_SCENE_PATH := "res://scenes/enemy.tscn"
 const EXIT_DOOR_SCENE_PATH := "res://scenes/exit_door.tscn"
 const POWER_UP_SCENE_PATH := "res://scenes/power_up.tscn"
 const CONGRATS_SCENE_PATH := "res://scenes/congratulations_screen.tscn"
+const BARTENDER_SCENE_PATH := "res://scenes/bartender.tscn"
+const SHOP_SCENE_PATH := "res://scenes/shop_screen.tscn"
 const BossDeathEffectScript := preload("res://scripts/vfx/boss_death_effect.gd")
 
 var _run_controller: DungeonRunController = null
@@ -36,6 +38,11 @@ var _enemies_slain_this_floor: int = 0
 var _xp_at_floor_start: int = 0
 var _gold_at_floor_start: int = 0
 var _boss_death_position: Vector2 = Vector2.ZERO
+# Holds the in-dungeon shop overlay's CanvasLayer wrapper while open so a
+# duplicate shop_requested press (mashing attack at the bartender after the
+# shop is already up) is a no-op rather than stacking a second screen on
+# top. Mirrors the BarRoom._shop_overlay re-entry guard.
+var _shop_overlay: CanvasLayer = null
 
 func _ready() -> void:
 	_hud = $HUD
@@ -175,6 +182,8 @@ func _setup_rooms() -> void:
 			pickup.power_up_type = pu_type
 			pickup.position = _dungeon_layout.room_center_world(room.id)
 			add_child(pickup)
+		if room.type == Room.TYPE_BAR and _dungeon_layout != null:
+			_spawn_bartender_in_room(room.id)
 		var watcher := RoomClearWatcher.new()
 		# Pass the local character + session so the watcher fires PRD #52
 		# room-clear XP through the right path: solo adds XP to the local
@@ -182,6 +191,48 @@ func _setup_rooms() -> void:
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
 		_watchers.append(watcher)
 	_spawn_healing_box()
+
+# Instances the Bartender NPC at the bar room's world center (issue #179).
+# The bar room is a TYPE_BAR node in the dungeon graph — a safe pass-through
+# room with no enemy seed. Placing the bartender at the room center gives
+# the player an in-dungeon access point to the shop without the cross-scene
+# swap the PRD's interior-art path will eventually use (cozy-tavern overlay
+# is a follow-up polish step; this slice gets the gameplay loop closed
+# end-to-end first).
+func _spawn_bartender_in_room(room_id: int) -> void:
+	var scene: PackedScene = load(BARTENDER_SCENE_PATH)
+	if scene == null:
+		return
+	var bartender: Bartender = scene.instantiate()
+	bartender.position = _dungeon_layout.room_center_world(room_id)
+	bartender.shop_requested.connect(_on_shop_requested)
+	add_child(bartender)
+
+# Mounts ShopScreen as a CanvasLayer overlay so the dungeon scene stays in
+# the tree underneath. Overlay mode tells ShopScreen to emit back_pressed
+# instead of doing its default change_scene_to_file, letting us tear down
+# just the overlay and leave the player standing next to the bartender.
+# Mirrors BarRoom._on_shop_requested — the standalone bar_room.tscn keeps
+# its own copy for the eventual scene-swap path; here we host the same
+# behavior in-dungeon while the swap is still TODO.
+func _on_shop_requested() -> void:
+	if _shop_overlay != null and is_instance_valid(_shop_overlay):
+		return
+	var scene: PackedScene = load(SHOP_SCENE_PATH)
+	if scene == null:
+		return
+	var shop: ShopScreen = scene.instantiate()
+	var layer := CanvasLayer.new()
+	layer.add_child(shop)
+	add_child(layer)
+	shop.set_overlay_mode(true)
+	shop.back_pressed.connect(_on_shop_closed)
+	_shop_overlay = layer
+
+func _on_shop_closed() -> void:
+	if _shop_overlay != null and is_instance_valid(_shop_overlay):
+		_shop_overlay.queue_free()
+	_shop_overlay = null
 
 func _spawn_healing_box() -> void:
 	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
