@@ -134,6 +134,76 @@ func test_apply_camera_limits_matches_used_rect():
 	assert_gt(camera.limit_right, camera.limit_left, "right > left")
 	assert_gt(camera.limit_bottom, camera.limit_top, "bottom > top")
 
+func test_bar_room_entrance_uses_distinct_tile():
+	# AC: the bar room's corridor connection is painted with the dedicated
+	# bar-entrance source, distinct from the standard floor used by every other
+	# room's perimeter.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	var painter := DungeonTilemapPainter.new()
+	painter.paint(layout, tilemap, dungeon)
+
+	assert_gt(painter.bar_entrance_tiles.size(), 0,
+		"painter must record at least one bar entrance tile")
+	for cell in painter.bar_entrance_tiles:
+		var source_id: int = tilemap.get_cell_source_id(0, cell)
+		assert_eq(source_id, DungeonTilemapPainter.SOURCE_BAR_ENTRANCE,
+			"bar entrance cell %s must use SOURCE_BAR_ENTRANCE" % str(cell))
+		assert_ne(source_id, DungeonTilemapPainter.SOURCE_FLOOR,
+			"bar entrance must not use the standard floor source")
+
+func test_bar_entrance_tiles_lie_on_bar_room_perimeter():
+	# AC: each entrance tile sits on the bar room's outer edge (not interior,
+	# not in the surrounding wall ring). Confirms the placement matches the
+	# corridor's mouth rather than the room center.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	var painter := DungeonTilemapPainter.new()
+	painter.paint(layout, tilemap, dungeon)
+
+	var bar_id: int = -1
+	for r in dungeon.rooms:
+		if r.type == Room.TYPE_BAR:
+			bar_id = r.id
+			break
+	assert_ne(bar_id, -1, "every dungeon must contain a bar room")
+
+	var step_tiles: int = DungeonTilemapPainter.ROOM_TILES + DungeonTilemapPainter.CORRIDOR_TILES
+	var bar_grid: Vector2i = layout.room_positions[bar_id]
+	var origin := Vector2i(bar_grid.x * step_tiles, bar_grid.y * step_tiles)
+	var max_x: int = origin.x + DungeonTilemapPainter.ROOM_TILES - 1
+	var max_y: int = origin.y + DungeonTilemapPainter.ROOM_TILES - 1
+	for cell in painter.bar_entrance_tiles:
+		var on_x_edge: bool = cell.x == origin.x or cell.x == max_x
+		var on_y_edge: bool = cell.y == origin.y or cell.y == max_y
+		var inside: bool = cell.x >= origin.x and cell.x <= max_x and cell.y >= origin.y and cell.y <= max_y
+		assert_true(inside and (on_x_edge or on_y_edge),
+			"entrance cell %s must lie on bar room perimeter [%s, %s]" % [str(cell), str(origin), str(Vector2i(max_x, max_y))])
+
+func test_non_bar_room_centers_unchanged_by_bar_entrance_pass():
+	# AC: bar-entrance painting only touches bar perimeter cells. Start, boss,
+	# standard, and power-up room centers keep their existing tile sources.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	DungeonTilemapPainter.new().paint(layout, tilemap, dungeon)
+
+	for r in dungeon.rooms:
+		if r.type == Room.TYPE_BAR:
+			continue
+		var center: Vector2i = DungeonTilemapPainter.room_center_tile(layout.room_positions[r.id])
+		var source_id: int = tilemap.get_cell_source_id(0, center)
+		assert_ne(source_id, DungeonTilemapPainter.SOURCE_BAR_ENTRANCE,
+			"non-bar room %d (%s) center must not use bar entrance source" % [r.id, r.type])
+
 func test_paint_without_dungeon_uses_standard_floor():
 	# Defensive: paint() with dungeon=null still works; all rooms get the
 	# standard floor variant rather than crashing on the start/boss check.

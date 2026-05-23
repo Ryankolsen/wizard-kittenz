@@ -17,6 +17,7 @@ extends RefCounted
 # edge, so painting all corridors yields a fully connected floor region.
 
 const FLOOR_TEXTURE_PATH := "res://assets/sprites/floor.png"
+const BAR_ENTRANCE_TEXTURE_PATH := "res://assets/sprites/bar_entrance.png"
 const TILE_SIZE := 16
 const ROOM_TILES := 12
 const BOSS_ROOM_TILES := 24
@@ -26,6 +27,12 @@ const SOURCE_FLOOR := 0
 const SOURCE_START := 1
 const SOURCE_BOSS := 2
 const SOURCE_WALL := 3
+const SOURCE_BAR_ENTRANCE := 4
+
+# Tile coords of every bar-entrance cell painted on the last paint() call.
+# Exposed for tests and the placement layer (the spawn / scene-transition code
+# can read this to position the in-world bar door trigger on the matching tile).
+var bar_entrance_tiles: Array = []
 
 # Paints the layout onto `tilemap`. If `dungeon` is provided, the start and
 # boss rooms receive distinct floor variants; otherwise every room gets the
@@ -73,6 +80,12 @@ func paint(layout: DungeonLayout, tilemap: TileMap, dungeon: Dungeon = null) -> 
 	_repaint_variant_room(tilemap, layout, boss_id, SOURCE_BOSS, BOSS_ROOM_TILES)
 
 	_paint_walls(tilemap, floor_cells)
+
+	# Bar room doorway markers go last so they override the corridor floor that
+	# was painted through the bar's perimeter cells. No-op when `dungeon` is null
+	# or contains no bar room (legacy callers / tests).
+	bar_entrance_tiles = []
+	_paint_bar_entrances(tilemap, layout, dungeon)
 
 func _repaint_variant_room(tilemap: TileMap, layout: DungeonLayout, rid: int, source_id: int, room_tiles: int = ROOM_TILES) -> void:
 	if rid < 0 or not layout.room_positions.has(rid):
@@ -151,7 +164,76 @@ func _build_tileset() -> TileSet:
 	_add_tinted_source(ts, SOURCE_START, Color(0.55, 0.85, 1.0))
 	_add_tinted_source(ts, SOURCE_BOSS, Color(1.0, 0.5, 0.5))
 	_add_tinted_source(ts, SOURCE_WALL, Color(0.2, 0.22, 0.28))
+	_add_bar_entrance_source(ts, SOURCE_BAR_ENTRANCE)
 	return ts
+
+# Bar entrance uses the standalone bar_entrance.png art, not a tint of floor.png
+# — it's a hand-authored doorway sprite, not a floor variant. Image is resized
+# to TILE_SIZE because TileMap stamps one source-region per cell and the painter
+# uses 16 px tiles everywhere.
+func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
+	var base := load(BAR_ENTRANCE_TEXTURE_PATH) as Texture2D
+	var src := TileSetAtlasSource.new()
+	if base == null:
+		# Defensive: in headless tests the texture may not load. Use a solid
+		# warm-brown so create_tile() still has a valid texture.
+		var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0.6, 0.35, 0.15))
+		src.texture = ImageTexture.create_from_image(img)
+	else:
+		var img: Image = base.get_image()
+		img.convert(Image.FORMAT_RGBA8)
+		if img.get_width() != TILE_SIZE or img.get_height() != TILE_SIZE:
+			img.resize(TILE_SIZE, TILE_SIZE)
+		src.texture = ImageTexture.create_from_image(img)
+	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	src.create_tile(Vector2i(0, 0))
+	ts.add_source(src, source_id)
+
+# For each corridor touching the bar room, paint the cell on the bar room's
+# perimeter that faces the connected room. The bar has exactly two outgoing
+# edges (DungeonGenerator invariant) plus one incoming edge from its parent,
+# so up to three entrance tiles per bar — each marks a corridor mouth.
+func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dungeon) -> void:
+	if dungeon == null:
+		return
+	var step_tiles: int = ROOM_TILES + CORRIDOR_TILES
+	for room in dungeon.rooms:
+		if room.type != Room.TYPE_BAR:
+			continue
+		var bar_id: int = room.id
+		if not layout.room_positions.has(bar_id):
+			continue
+		var bar_grid: Vector2i = layout.room_positions[bar_id]
+		var bar_origin := Vector2i(bar_grid.x * step_tiles, bar_grid.y * step_tiles)
+		var bar_cx: int = bar_origin.x + ROOM_TILES / 2
+		var bar_cy: int = bar_origin.y + ROOM_TILES / 2
+		for pair in layout.corridors:
+			var other_id: int = -1
+			if pair[0] == bar_id:
+				other_id = pair[1]
+			elif pair[1] == bar_id:
+				other_id = pair[0]
+			else:
+				continue
+			if not layout.room_positions.has(other_id):
+				continue
+			var other_grid: Vector2i = layout.room_positions[other_id]
+			var entrance: Vector2i = _bar_entrance_cell(bar_origin, bar_cx, bar_cy, other_grid * step_tiles + Vector2i(ROOM_TILES / 2, ROOM_TILES / 2))
+			tilemap.set_cell(0, entrance, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
+			bar_entrance_tiles.append(entrance)
+
+# Pick the bar-room perimeter cell facing `other_center` along the dominant
+# axis. Ties (pure-diagonal neighbours never happen in the current generator
+# since rooms are on a grid) fall back to the vertical edge.
+func _bar_entrance_cell(bar_origin: Vector2i, bar_cx: int, bar_cy: int, other_center: Vector2i) -> Vector2i:
+	var dx: int = other_center.x - bar_cx
+	var dy: int = other_center.y - bar_cy
+	if absi(dx) >= absi(dy):
+		var edge_x: int = bar_origin.x + ROOM_TILES - 1 if dx > 0 else bar_origin.x
+		return Vector2i(edge_x, bar_cy)
+	var edge_y: int = bar_origin.y + ROOM_TILES - 1 if dy > 0 else bar_origin.y
+	return Vector2i(bar_cx, edge_y)
 
 # Builds a per-source atlas whose texture is the floor sprite multiplied by
 # `tint`. Because TileMap doesn't support per-cell modulation, the tint is
