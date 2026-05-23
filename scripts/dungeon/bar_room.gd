@@ -25,6 +25,20 @@ signal player_exited_bar()
 const ENEMY_PUSHBACK_DISTANCE: float = 64.0
 const SHOP_SCENE_PATH := "res://scenes/shop_screen.tscn"
 
+# Tile-based layout (#190). The room is a 10x8 walkable floor surrounded by
+# a 1-tile wall ring, painted on _ready into the scene's TileMap node. Two
+# 2-tile-tall door gaps on the left/right walls let the player reach the
+# ExitZones positioned just inside the openings.
+const TILE_SIZE := 16
+const ROOM_W := 10
+const ROOM_H := 8
+const FLOOR_TEXTURE_PATH := "res://assets/sprites/floor.png"
+const BAR_COUNTER_TEXTURE_PATH := "res://assets/sprites/bar_counter.png"
+const TAVERN_TABLE_TEXTURE_PATH := "res://assets/sprites/tavern_table.png"
+
+const _SOURCE_FLOOR := 0
+const _SOURCE_WALL := 1
+
 # Holds the shop overlay's CanvasLayer wrapper while open so a duplicate
 # shop_requested press (mashing attack while the shop is already up) is a
 # no-op rather than stacking a second screen on top.
@@ -32,6 +46,8 @@ var _shop_overlay: CanvasLayer = null
 
 
 func _ready() -> void:
+	_paint_room_tilemap()
+	_apply_prop_textures()
 	for zone in get_exit_zones():
 		if not zone.player_entered.is_connected(_on_exit_zone_player_entered):
 			zone.player_entered.connect(_on_exit_zone_player_entered)
@@ -101,3 +117,119 @@ func _on_shop_closed() -> void:
 	if _shop_overlay != null and is_instance_valid(_shop_overlay):
 		_shop_overlay.queue_free()
 	_shop_overlay = null
+
+
+# Loads the prop textures at runtime and assigns them to the placed Sprite2D
+# nodes. Done in script (not as ext_resources in the .tscn) because the
+# new prop pngs (#189) ship without .import sidecars in some checkouts; an
+# ext_resource referencing a missing .import would error the whole scene
+# load. ResourceLoader.exists() gates the load so a missing asset leaves
+# the sprite blank rather than crashing.
+func _apply_prop_textures() -> void:
+	_apply_sprite_texture("BarCounter", BAR_COUNTER_TEXTURE_PATH)
+	for name in ["Table1", "Table2"]:
+		_apply_sprite_texture(name, TAVERN_TABLE_TEXTURE_PATH)
+
+
+func _apply_sprite_texture(node_name: String, path: String) -> void:
+	var sprite := get_node_or_null(node_name) as Sprite2D
+	if sprite == null:
+		return
+	if not ResourceLoader.exists(path):
+		return
+	var tex := load(path) as Texture2D
+	if tex != null:
+		sprite.texture = tex
+
+
+# Paints the room floor + perimeter walls into the scene's TileMap. Two
+# door-shaped gaps (2 cells tall) on the left and right walls give the
+# ExitZones at those positions a clear physics path so the player can walk
+# through. The TileSet is built programmatically so the scene file stays
+# code-free; tile collision uses a single physics layer whose polygon
+# covers the full tile on the wall source.
+func _paint_room_tilemap() -> void:
+	var tilemap := get_node_or_null("TileMap") as TileMap
+	if tilemap == null:
+		return
+	tilemap.tile_set = _build_tileset()
+	# Center the room on the BarRoom origin so the player teleport-in target
+	# (which lands at the scene's origin) puts them inside the room.
+	var origin := Vector2i(-ROOM_W / 2 - 1, -ROOM_H / 2 - 1)
+	var door_ys: Array = [-1, 0]  # Two vertically adjacent door cells.
+	for y in range(-1, ROOM_H + 1):
+		for x in range(-1, ROOM_W + 1):
+			var cell := Vector2i(origin.x + x + 1, origin.y + y + 1)
+			var is_perimeter: bool = (
+				x == -1 or x == ROOM_W or y == -1 or y == ROOM_H)
+			if is_perimeter:
+				# Skip wall cells that fall on a door opening; the gap stays
+				# painted-floor so the player can walk through.
+				if (x == -1 or x == ROOM_W) and cell.y in door_ys:
+					tilemap.set_cell(0, cell, _SOURCE_FLOOR, Vector2i(0, 0))
+				else:
+					tilemap.set_cell(0, cell, _SOURCE_WALL, Vector2i(0, 0))
+			else:
+				tilemap.set_cell(0, cell, _SOURCE_FLOOR, Vector2i(0, 0))
+
+
+func _build_tileset() -> TileSet:
+	var ts := TileSet.new()
+	ts.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	# Physics layer 0 = wall collision. Player.gd's CharacterBody2D mask is 2
+	# (collision_layer bit 1 set on the wall side), so layer mask bit 1 is
+	# what blocks the player.
+	ts.add_physics_layer()
+	ts.set_physics_layer_collision_layer(0, 1 << 1)
+	_add_floor_source(ts, _SOURCE_FLOOR, Color(0.55, 0.45, 0.35))
+	_add_wall_source(ts, _SOURCE_WALL, Color(0.2, 0.22, 0.28))
+	return ts
+
+
+func _add_floor_source(ts: TileSet, source_id: int, tint: Color) -> void:
+	var src := TileSetAtlasSource.new()
+	src.texture = _tinted_tile_texture(tint)
+	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	src.create_tile(Vector2i(0, 0))
+	ts.add_source(src, source_id)
+
+
+func _add_wall_source(ts: TileSet, source_id: int, tint: Color) -> void:
+	var src := TileSetAtlasSource.new()
+	src.texture = _tinted_tile_texture(tint)
+	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	src.create_tile(Vector2i(0, 0))
+	# Source must be added to the TileSet first so its tile data inherits
+	# the TileSet's physics-layer configuration; otherwise add_collision_polygon
+	# errors with "Index p_layer_id = 0 is out of bounds".
+	ts.add_source(src, source_id)
+	var data: TileData = src.get_tile_data(Vector2i(0, 0), 0)
+	data.add_collision_polygon(0)
+	var half: float = float(TILE_SIZE) / 2.0
+	data.set_collision_polygon_points(0, 0, PackedVector2Array([
+		Vector2(-half, -half),
+		Vector2(half, -half),
+		Vector2(half, half),
+		Vector2(-half, half),
+	]))
+
+
+# Builds an in-memory tinted texture so the TileSet has something to draw
+# even when floor.png isn't available (headless tests / minimal sandbox).
+# When floor.png loads, the tint is multiplied into the sprite the same way
+# the dungeon painter does — keeps the bar's visual language consistent.
+func _tinted_tile_texture(tint: Color) -> Texture2D:
+	var base := load(FLOOR_TEXTURE_PATH) as Texture2D
+	if base == null:
+		var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
+		img.fill(tint)
+		return ImageTexture.create_from_image(img)
+	var img: Image = base.get_image()
+	img.convert(Image.FORMAT_RGBA8)
+	if img.get_width() != TILE_SIZE or img.get_height() != TILE_SIZE:
+		img.resize(TILE_SIZE, TILE_SIZE)
+	for y in range(img.get_height()):
+		for x in range(img.get_width()):
+			var c: Color = img.get_pixel(x, y)
+			img.set_pixel(x, y, Color(c.r * tint.r, c.g * tint.g, c.b * tint.b, c.a))
+	return ImageTexture.create_from_image(img)

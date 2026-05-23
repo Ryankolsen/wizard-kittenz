@@ -117,3 +117,61 @@ func test_enemy_at_bar_center_still_gets_pushed():
 	bar._on_enemy_barrier_body_entered(enemy)
 	assert_ne(enemy.global_position, Vector2.ZERO,
 		"enemy at bar center still gets pushed via fallback direction")
+
+
+# --- Tile-based rebuild (#190) ---------------------------------------------
+# The bar room is no longer a 1280x720 raster background overlay; it's a
+# proper tile-based scene with floor + wall tiles, standalone prop sprites
+# (counter, tables), and visible doorways. The tests below pin the new
+# content contract: TileMap node present, props named for the test's
+# find_child queries, wall tiles carry collision, and the old TextureRect
+# / raster background is gone so callers don't accidentally depend on it.
+
+func test_bar_room_has_tilemap_node():
+	var bar := _make_bar()
+	var tilemap := bar.find_child("TileMap", true, false)
+	assert_not_null(tilemap, "bar room has a TileMap node")
+	assert_true(tilemap is TileMap, "TileMap child is a TileMap instance")
+
+
+func test_bar_room_has_bar_counter_sprite():
+	var bar := _make_bar()
+	var counter := bar.find_child("BarCounter", true, false)
+	assert_not_null(counter, "bar room has a BarCounter sprite")
+
+
+func test_bar_room_has_at_least_two_tables():
+	var bar := _make_bar()
+	var tables := bar.find_children("Table*", "", true, false)
+	assert_gte(tables.size(), 2, "bar room has at least 2 tables")
+
+
+func test_bar_room_tilemap_has_wall_collision():
+	# Wall tiles block movement: the wall atlas source must register at
+	# least one physics layer in its TileSet, otherwise a KinematicBody2D
+	# would walk straight through wall cells. Asserting tileset metadata
+	# (not actual physics step) keeps the test deterministic in headless.
+	var bar := _make_bar()
+	var tilemap: TileMap = bar.find_child("TileMap", true, false)
+	assert_not_null(tilemap.tile_set, "TileMap has a TileSet")
+	assert_gt(tilemap.tile_set.get_physics_layers_count(), 0,
+		"TileSet has at least one physics layer for wall collision")
+
+
+func test_bar_room_has_no_texturerect_background():
+	# Old raster-background implementation parented a Sprite2D/TextureRect
+	# at 1280x720. The tile-based rebuild removes both — no node may be
+	# TextureRect anywhere in the bar scene.
+	var bar := _make_bar()
+	var rects := bar.find_children("*", "TextureRect", true, false)
+	assert_eq(rects.size(), 0,
+		"no TextureRect children remain from the raster-background implementation")
+
+
+func test_bar_room_root_y_sorts_props_with_player():
+	# Y-sort on the root: standalone props (counter, tables, bartender) and
+	# the player draw in walk-behind order. The Node2D y_sort_enabled flag
+	# is what enables it — pin it so the scene doesn't silently regress.
+	var bar := _make_bar()
+	assert_true(bar.y_sort_enabled,
+		"bar root has y_sort_enabled so props layer correctly with player")
