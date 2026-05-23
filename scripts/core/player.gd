@@ -34,6 +34,7 @@ var _visual: Node2D
 var _sprite: Sprite2D
 var _wobble_time: float = 0.0
 var _regen_accum: float = 0.0
+var _mp_regen_accum: float = 0.0
 var _died_emitted: bool = false
 var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
@@ -211,7 +212,15 @@ func _tick_spells(dt: float) -> void:
 		spell.tick(dt)
 
 func _tick_regeneration(dt: float) -> void:
-	if data == null or data.regeneration <= 0 or not data.is_alive():
+	if data == null or not data.is_alive():
+		_regen_accum = 0.0
+		_mp_regen_accum = 0.0
+		return
+	_tick_hp_regen(dt)
+	_tick_mp_regen(dt)
+
+func _tick_hp_regen(dt: float) -> void:
+	if data.regeneration <= 0:
 		_regen_accum = 0.0
 		return
 	# Suppress passive regen while Regen Snooze (GROUP_REGEN) is active so the
@@ -223,6 +232,15 @@ func _tick_regeneration(dt: float) -> void:
 	if _regen_accum >= 1.0:
 		_regen_accum -= 1.0
 		data.heal(data.regeneration)
+
+func _tick_mp_regen(dt: float) -> void:
+	if data.mp_regen <= 0.0:
+		_mp_regen_accum = 0.0
+		return
+	_mp_regen_accum += dt
+	if _mp_regen_accum >= 1.0:
+		_mp_regen_accum -= 1.0
+		data.magic_points = mini(data.magic_points + int(data.mp_regen), data.max_mp)
 
 func _try_attack() -> void:
 	# PRD #85: dexterity shaves attack cooldown — re-read each call so

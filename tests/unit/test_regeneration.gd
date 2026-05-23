@@ -61,6 +61,52 @@ func test_regeneration_does_not_heal_dead_character():
 	assert_eq(c.hp, 0, "dead character does not receive regen")
 
 
+func test_mp_regen_restores_mp_after_one_second():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.magic_points = c.max_mp - 5
+	var p := _make_player(c)
+	p._tick_regeneration(1.0)
+	assert_eq(c.magic_points, c.max_mp - 4, "1 second tick restores mp_regen MP")
+
+
+func test_mp_regen_clamped_to_max_mp():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.magic_points = c.max_mp - 1
+	c.mp_regen = 5.0
+	var p := _make_player(c)
+	p._tick_regeneration(1.0)
+	assert_eq(c.magic_points, c.max_mp, "MP regen does not exceed max_mp")
+
+
+func test_mp_regen_zero_is_noop_for_physical_classes():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.magic_points = 0
+	c.max_mp = 0
+	var p := _make_player(c)
+	p._tick_regeneration(2.0)
+	assert_eq(c.magic_points, 0, "Battle Kitten MP unchanged (mp_regen = 0)")
+
+
+func test_mp_regen_sub_second_does_not_tick():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.magic_points = c.max_mp - 5
+	var start_mp := c.magic_points
+	var p := _make_player(c)
+	p._tick_regeneration(0.5)
+	assert_eq(c.magic_points, start_mp, "no MP regen before accumulator fills")
+
+
+func test_hp_and_mp_regen_both_apply_same_tick():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.regeneration = 2
+	c.hp = c.max_hp - 5
+	c.magic_points = c.max_mp - 5
+	var p := _make_player(c)
+	p._tick_regeneration(1.0)
+	assert_eq(c.hp, c.max_hp - 3, "HP regen applied")
+	assert_eq(c.magic_points, c.max_mp - 4, "MP regen applied in same tick")
+
+
 func test_allocating_regeneration_stat_has_in_game_effect():
 	# End-to-end: StatAllocator.allocate -> regeneration > 0 -> tick heals.
 	# Sleepy Kitten: regen gated to Sleepy classes (issue #142). Baseline
