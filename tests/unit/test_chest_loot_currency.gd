@@ -78,6 +78,14 @@ func _seeded_rng(seed_val: int) -> RandomNumberGenerator:
 	rng.seed = seed_val
 	return rng
 
+func _make_character(level: int) -> CharacterData:
+	# Wizard kitten is used as the canonical drop-eligible character for
+	# chest tests; class-by-class filtering is exercised in the resolver
+	# tests directly.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
+	c.level = level
+	return c
+
 func test_open_without_rng_does_not_crash():
 	# Backwards-compat: legacy callers pass only the ledger. open() must
 	# tolerate the missing rng (uses a fresh one internally via the
@@ -93,7 +101,7 @@ func test_standard_chest_item_drop_rate_around_twenty_five_percent():
 	var drops := 0
 	for i in 200:
 		var chest := Chest.make(Chest.Kind.STANDARD)
-		chest.open(CurrencyLedger.new(), 11, rng)
+		chest.open(CurrencyLedger.new(), _make_character(11), rng)
 		if chest.last_item_drop != null:
 			drops += 1
 	# 25% expected, wide tolerance for RNG variance.
@@ -109,11 +117,11 @@ func test_rare_chest_item_drop_rate_higher_than_standard():
 	var rare_drops := 0
 	for i in 200:
 		var std_chest := Chest.make(Chest.Kind.STANDARD)
-		std_chest.open(CurrencyLedger.new(), 11, rng_std)
+		std_chest.open(CurrencyLedger.new(), _make_character(11), rng_std)
 		if std_chest.last_item_drop != null:
 			std_drops += 1
 		var rare_chest := Chest.make(Chest.Kind.RARE)
-		rare_chest.open(CurrencyLedger.new(), 11, rng_rare)
+		rare_chest.open(CurrencyLedger.new(), _make_character(11), rng_rare)
 		if rare_chest.last_item_drop != null:
 			rare_drops += 1
 	assert_true(rare_drops > std_drops,
@@ -129,7 +137,7 @@ func test_open_with_item_drop_returns_item_data():
 	var found := false
 	for s in range(1, 50):
 		var c := Chest.make(Chest.Kind.RARE)
-		c.open(CurrencyLedger.new(), 11, _seeded_rng(s))
+		c.open(CurrencyLedger.new(), _make_character(11), _seeded_rng(s))
 		if c.last_item_drop != null:
 			assert_true(c.last_item_drop is ItemData,
 				"last_item_drop typed as ItemData")
@@ -141,15 +149,15 @@ func test_open_failure_does_not_set_item_drop():
 	# A null-ledger open() must not roll an item — it returns false
 	# without touching last_item_drop.
 	var chest := Chest.make(Chest.Kind.STANDARD)
-	chest.open(null, 11, _seeded_rng(1))
+	chest.open(null, _make_character(11), _seeded_rng(1))
 	assert_null(chest.last_item_drop, "no item rolled on null-ledger failure")
 
 func test_double_open_does_not_re_roll_item():
 	# The idempotence guard covers items too — the second open() returns
 	# false without mutating last_item_drop.
 	var chest := Chest.make(Chest.Kind.STANDARD)
-	chest.open(CurrencyLedger.new(), 11, _seeded_rng(1))
+	chest.open(CurrencyLedger.new(), _make_character(11), _seeded_rng(1))
 	var first_drop := chest.last_item_drop
-	chest.open(CurrencyLedger.new(), 11, _seeded_rng(999))
+	chest.open(CurrencyLedger.new(), _make_character(11), _seeded_rng(999))
 	assert_eq(chest.last_item_drop, first_drop,
 		"second open did not overwrite last_item_drop")

@@ -58,7 +58,7 @@ static func route_kill(
 	# the caller (Player) can decide between auto-equip / equip prompt /
 	# auto-bag based on inventory state.
 	var drop_context: int = ItemDropResolver.Context.BOSS if enemy_data.is_boss else ItemDropResolver.Context.ENEMY
-	var item_drop: ItemData = ItemDropResolver.resolve(data.level, drop_context, rng)
+	var item_drop: ItemData = ItemDropResolver.resolve(data, drop_context, rng)
 	# Luck rarity bump (PRD #85 / issue #90). Reuse the same rng so a
 	# seeded test can pin both the resolver roll and the bump roll. Null
 	# item, luck<=0, or EPIC-tier drops all pass through untouched inside

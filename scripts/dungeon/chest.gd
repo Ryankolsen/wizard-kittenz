@@ -40,7 +40,7 @@ func is_opened() -> bool:
 # issue #79). The dropped ItemData (or null) is stored on
 # `last_item_drop`; callers that want it read it after open() returns.
 # Standard chests roll at ~25%, rare at ~50%.
-func open(ledger: CurrencyLedger, player_level: int = 1, rng: RandomNumberGenerator = null) -> bool:
+func open(ledger: CurrencyLedger, character: CharacterData = null, rng: RandomNumberGenerator = null) -> bool:
 	if _opened:
 		return false
 	if ledger == null:
@@ -55,6 +55,10 @@ func open(ledger: CurrencyLedger, player_level: int = 1, rng: RandomNumberGenera
 			drop_context = ItemDropResolver.Context.CHEST_RARE
 		_:
 			return false
-	last_item_drop = ItemDropResolver.resolve(player_level, drop_context, rng)
+	# Null character is the pre-wiring / legacy-test path: skip the
+	# item roll entirely rather than producing a class-agnostic drop
+	# (the resolver now requires CharacterData to filter by class).
+	if character != null:
+		last_item_drop = ItemDropResolver.resolve(character, drop_context, rng)
 	_opened = true
 	return true
