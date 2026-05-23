@@ -190,10 +190,11 @@ func _add_bar_entrance_source(ts: TileSet, source_id: int) -> void:
 	src.create_tile(Vector2i(0, 0))
 	ts.add_source(src, source_id)
 
-# For each corridor touching the bar room, paint the cell on the bar room's
-# perimeter that faces the connected room. The bar has exactly two outgoing
-# edges (DungeonGenerator invariant) plus one incoming edge from its parent,
-# so up to three entrance tiles per bar — each marks a corridor mouth.
+# Paint exactly one entrance cell per bar room — the perimeter cell facing the
+# bar's parent room (the room the player arrives through). The bar's other
+# corridor mouths (its two outgoing edges) stay as plain floor: still walkable,
+# just no door visual. Picking the parent-facing side keeps the door consistent
+# with the player's arrival direction across seeds.
 func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dungeon) -> void:
 	if dungeon == null:
 		return
@@ -204,24 +205,38 @@ func _paint_bar_entrances(tilemap: TileMap, layout: DungeonLayout, dungeon: Dung
 		var bar_id: int = room.id
 		if not layout.room_positions.has(bar_id):
 			continue
+		var parent_id: int = _find_parent_id(dungeon, bar_id)
+		# Fall back to any connected room if no parent edge exists (defensive —
+		# the generator always wires a parent into the bar).
+		if parent_id == -1:
+			for pair in layout.corridors:
+				if pair[0] == bar_id and layout.room_positions.has(pair[1]):
+					parent_id = pair[1]
+					break
+				if pair[1] == bar_id and layout.room_positions.has(pair[0]):
+					parent_id = pair[0]
+					break
+		if parent_id == -1 or not layout.room_positions.has(parent_id):
+			continue
 		var bar_grid: Vector2i = layout.room_positions[bar_id]
 		var bar_origin := Vector2i(bar_grid.x * step_tiles, bar_grid.y * step_tiles)
 		var bar_cx: int = bar_origin.x + ROOM_TILES / 2
 		var bar_cy: int = bar_origin.y + ROOM_TILES / 2
-		for pair in layout.corridors:
-			var other_id: int = -1
-			if pair[0] == bar_id:
-				other_id = pair[1]
-			elif pair[1] == bar_id:
-				other_id = pair[0]
-			else:
-				continue
-			if not layout.room_positions.has(other_id):
-				continue
-			var other_grid: Vector2i = layout.room_positions[other_id]
-			var entrance: Vector2i = _bar_entrance_cell(bar_origin, bar_cx, bar_cy, other_grid * step_tiles + Vector2i(ROOM_TILES / 2, ROOM_TILES / 2))
-			tilemap.set_cell(0, entrance, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
-			bar_entrance_tiles.append(entrance)
+		var parent_grid: Vector2i = layout.room_positions[parent_id]
+		var parent_center := parent_grid * step_tiles + Vector2i(ROOM_TILES / 2, ROOM_TILES / 2)
+		var entrance: Vector2i = _bar_entrance_cell(bar_origin, bar_cx, bar_cy, parent_center)
+		tilemap.set_cell(0, entrance, SOURCE_BAR_ENTRANCE, Vector2i(0, 0))
+		bar_entrance_tiles.append(entrance)
+
+# The bar's parent is the room that lists bar_id in its outgoing connections.
+# Returns -1 if none found.
+func _find_parent_id(dungeon: Dungeon, bar_id: int) -> int:
+	for r in dungeon.rooms:
+		if r.id == bar_id:
+			continue
+		if r.connections.has(bar_id):
+			return r.id
+	return -1
 
 # Pick the bar-room perimeter cell facing `other_center` along the dominant
 # axis. Ties (pure-diagonal neighbours never happen in the current generator

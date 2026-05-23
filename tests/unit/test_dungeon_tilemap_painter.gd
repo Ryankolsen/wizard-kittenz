@@ -134,6 +134,20 @@ func test_apply_camera_limits_matches_used_rect():
 	assert_gt(camera.limit_right, camera.limit_left, "right > left")
 	assert_gt(camera.limit_bottom, camera.limit_top, "bottom > top")
 
+func test_exactly_one_bar_entrance_per_dungeon():
+	# AC: exactly one bar entrance tile is painted per dungeon, regardless of
+	# how many corridors connect to the bar room. The other corridor mouths
+	# remain plain walkable floor.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var dungeon := DungeonGenerator.generate(s)
+		var layout := DungeonLayoutEngine.new().compute(dungeon)
+		var tilemap := TileMap.new()
+		add_child_autofree(tilemap)
+		var painter := DungeonTilemapPainter.new()
+		painter.paint(layout, tilemap, dungeon)
+		assert_eq(painter.bar_entrance_tiles.size(), 1,
+			"seed %d painted %d entrance tiles (expected 1)" % [s, painter.bar_entrance_tiles.size()])
+
 func test_bar_room_entrance_uses_distinct_tile():
 	# AC: the bar room's corridor connection is painted with the dedicated
 	# bar-entrance source, distinct from the standard floor used by every other
