@@ -45,6 +45,13 @@ func _ready() -> void:
 	_stat_points_badge = $StatPointsBadge
 	_player = _find_player()
 	_bind_player_item_drop()
+	# Slice 3 of PRD #210: HUD hosts the QuickbarHUD on desktop; on touch
+	# platforms TouchControls owns its own copy, so we hide ours to avoid
+	# a double-grid render on the same canvas region. The TouchControls
+	# visibility gate stays authoritative — _is_touch_platform mirrors it.
+	var quickbar_hud := get_node_or_null("QuickbarHUD") as Control
+	if quickbar_hud != null and TouchControls.is_touch_platform():
+		quickbar_hud.visible = false
 	# Host-pause overlay (#43). Eagerly instanced so a remote host-pause
 	# packet that arrives before the player presses their own pause button
 	# still has a surface to render the "Host has paused" banner on. The

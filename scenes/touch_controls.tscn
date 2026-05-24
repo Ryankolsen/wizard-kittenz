@@ -1,8 +1,9 @@
-[gd_scene format=3 uid="uid://cwt4raxkn3p7r"]
+[gd_scene load_steps=5 format=3 uid="uid://cwt4raxkn3p7r"]
 
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1_touch_controls"]
 [ext_resource type="Script" path="res://scripts/ui/virtual_joystick.gd" id="2_joystick"]
 [ext_resource type="Script" path="res://scripts/ui/touch_action_button.gd" id="3_action_button"]
+[ext_resource type="PackedScene" path="res://scenes/quickbar_hud.tscn" id="4_quickbar_hud"]
 
 [node name="TouchControls" type="CanvasLayer"]
 layer = 2
@@ -36,21 +37,8 @@ text = "A"
 theme_override_font_sizes/font_size = 18
 mouse_filter = 2
 
-[node name="CastButton" type="Control" parent="."]
-offset_left = 396.0
-offset_top = 140.0
+[node name="QuickbarHUD" parent="." instance=ExtResource("4_quickbar_hud")]
+offset_left = 392.0
+offset_top = 116.0
 offset_right = 460.0
-offset_bottom = 188.0
-mouse_filter = 2
-script = ExtResource("3_action_button")
-action_name = &"cast_slot_1"
-label_text = "Q"
-
-[node name="Label" type="Label" parent="CastButton"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-horizontal_alignment = 1
-vertical_alignment = 1
-text = "Q"
-theme_override_font_sizes/font_size = 16
-mouse_filter = 2
+offset_bottom = 184.0

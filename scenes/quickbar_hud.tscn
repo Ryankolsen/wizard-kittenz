@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://b9quickbar3hud"]
+
+[ext_resource type="Script" path="res://scripts/ui/quickbar_hud.gd" id="1_quickbar_hud"]
+
+[node name="QuickbarHUD" type="Control"]
+custom_minimum_size = Vector2(68, 68)
+offset_right = 68.0
+offset_bottom = 68.0
+mouse_filter = 1
+script = ExtResource("1_quickbar_hud")

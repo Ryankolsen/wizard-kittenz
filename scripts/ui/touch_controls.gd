@@ -34,14 +34,17 @@ static func is_touch_platform() -> bool:
 func apply_layout(layout: String) -> void:
 	var joystick := get_node_or_null("Joystick") as Control
 	var attack := get_node_or_null("AttackButton") as Control
-	var cast := get_node_or_null("CastButton") as Control
-	if joystick == null or attack == null or cast == null:
+	# Slice 3 of PRD #210: the single CastButton was replaced with a 2×2
+	# QuickbarHUD. The mirroring still operates per-cluster so the four-slot
+	# grid pivots as one node across the viewport's horizontal center.
+	var quickbar := get_node_or_null("QuickbarHUD") as Control
+	if joystick == null or attack == null or quickbar == null:
 		return
 	var viewport_w := float(ProjectSettings.get_setting("display/window/size/viewport_width", 480))
 	if layout == ControlsSettings.LAYOUT_RIGHT_HAND:
 		_mirror_x(joystick, viewport_w)
 		_mirror_x(attack, viewport_w)
-		_mirror_x(cast, viewport_w)
+		_mirror_x(quickbar, viewport_w)
 
 func _mirror_x(node: Control, viewport_w: float) -> void:
 	var new_left := viewport_w - node.offset_right

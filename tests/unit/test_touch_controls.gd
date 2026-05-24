@@ -46,11 +46,13 @@ func test_touch_controls_scene_can_load():
 	assert_true(attack is TouchActionButton)
 	assert_eq(attack.action_name, &"attack",
 		"AttackButton must be wired to the 'attack' InputMap action")
-	var cast_btn: Node = inst.get_node_or_null("CastButton")
-	assert_not_null(cast_btn, "CastButton must exist in the scene")
-	assert_true(cast_btn is TouchActionButton)
-	assert_eq(cast_btn.action_name, &"cast_slot_1",
-		"CastButton must be wired to the 'cast_slot_1' InputMap action (slice 2 of PRD #210)")
+	# Slice 3 of PRD #210: legacy CastButton replaced by the QuickbarHUD
+	# 2×2 grid (4 slots, each emitting cast_slot_N InputMap actions).
+	assert_null(inst.get_node_or_null("CastButton"),
+		"slice 3: CastButton must be removed (replaced by QuickbarHUD)")
+	var quickbar: Node = inst.get_node_or_null("QuickbarHUD")
+	assert_not_null(quickbar, "QuickbarHUD must be present in touch_controls.tscn")
+	assert_true(quickbar is QuickbarHUD)
 	inst.free()
 
 func test_main_scene_includes_touch_controls():
