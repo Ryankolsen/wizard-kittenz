@@ -109,10 +109,19 @@ func get_quickbar():
 # Bootstraps from currently-unlocked spells in tree order so the slice is
 # demoable before Slice 5 ships persistence.
 func _init_quickbar() -> void:
-	_quickbar = _QuickbarScript.new()
-	if _spell_tree != null:
-		for spell in _spell_tree.get_unlocked_spells():
-			_quickbar.on_spell_unlocked(spell)
+	# Slice 5 of PRD #210: persistence owns the Quickbar lifecycle. When
+	# GameState has already built one (real game path — either deserialized
+	# from a save or freshly auto-filled in set_character), pick that up so
+	# manual assignments and the migration result survive the scene swap.
+	# Fall back to the slice-2 bootstrap for tests / paths that haven't
+	# wired GameState — empty Quickbar gets seeded from unlocked spells.
+	if _game_state != null and _game_state.get("current_quickbar") != null:
+		_quickbar = _game_state.current_quickbar
+	else:
+		_quickbar = _QuickbarScript.new()
+		if _spell_tree != null:
+			for spell in _spell_tree.get_unlocked_spells():
+				_quickbar.on_spell_unlocked(spell)
 	_quickbar_controller = _QuickbarControllerScript.new()
 	_quickbar_controller.name = "QuickbarController"
 	_quickbar_controller.quickbar = _quickbar
@@ -206,7 +215,7 @@ func _award_power_up_xp() -> void:
 		session.xp_broadcaster.on_enemy_killed(per_player, local_id)
 		return
 	var old_level := data.level
-	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger(), _spell_tree)
+	ProgressionSystem.add_xp(data, POWERUP_XP, _currency_ledger(), _spell_tree, _quickbar)
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
 
@@ -404,7 +413,8 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_lobby(),
 		_currency_ledger(),
 		null,
-		_spell_tree
+		_spell_tree,
+		_quickbar
 	)
 	if item_drop != null:
 		item_dropped.emit(item_drop)

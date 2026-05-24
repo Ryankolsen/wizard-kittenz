@@ -30,7 +30,7 @@ static func xp_to_next_level(level: int) -> int:
 # `level_required` is now satisfied are auto-unlocked via SkillUnlockChecker
 # after each level threshold. Tests / non-skill-tree code paths can pass null
 # and get the legacy behavior.
-static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null, tree: SkillTree = null) -> int:
+static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null, tree: SkillTree = null, quickbar: Quickbar = null) -> int:
 	if amount <= 0:
 		return 0
 	c.xp += amount
@@ -43,7 +43,16 @@ static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null,
 		# Run the unlock pass after each level so a multi-level XP dump
 		# (e.g. 1 -> 5) unlocks nodes at every threshold crossed, not just
 		# the final level. Idempotent — nodes already unlocked are skipped.
-		SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
+		var newly_unlocked: Array = SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
+		# Slice 5 of PRD #210: each newly-unlocked spell auto-fills the lowest
+		# empty Quickbar slot via on_spell_unlocked (no-op if all four full).
+		# Walking in the order returned by auto_unlock_for_level preserves
+		# tree order so multi-level dumps fill slots deterministically.
+		if quickbar != null and tree != null:
+			for id in newly_unlocked:
+				var node := tree.find(id)
+				if node != null and node.spell != null:
+					quickbar.on_spell_unlocked(node.spell)
 	return levels_gained
 
 # Stat points awarded for reaching `level`. Scales every 10 levels:

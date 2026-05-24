@@ -89,8 +89,19 @@ var last_login_date: String = ""
 # ItemCatalog.find returning null.
 var equipped_items: Dictionary = {}
 var item_bag: Array = []
+# Quickbar slot bindings (PRD #210 / slice 5). Length-4 array of spell ids;
+# empty slots serialize as "". Default empty Array (not [", ", ", "]) marks a
+# legacy save written before this field shipped — to_quickbar() walks the
+# tree's unlocked spells to auto-fill in that case. Once the migration runs
+# the next save writes the now-filled slots and never re-migrates.
+var quickbar_slots: Array = []
+# Transient: tracks whether the source dict had the quickbar_slots key. Not
+# serialized — `to_dict()` always emits the slots array. Set true by
+# from_character (which is given a live Quickbar) and by from_dict when the
+# key is present. False marks a legacy save so to_quickbar() runs migration.
+var _quickbar_present_in_save: bool = false
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -138,6 +149,9 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 				s.equipped_items[int(slot)] = eq.id
 		for it in item_inventory.bag_items():
 			s.item_bag.append(it.id)
+	if quickbar != null:
+		s.quickbar_slots = quickbar.serialize().get("slots", [])
+		s._quickbar_present_in_save = true
 	return s
 
 func apply_to(c: CharacterData) -> void:
@@ -200,6 +214,7 @@ func to_dict() -> Dictionary:
 		"skill_unlocks": skill_unlocks,
 		"equipped_items": equipped_items,
 		"item_bag": item_bag,
+		"quickbar_slots": quickbar_slots,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -269,6 +284,11 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	if bag is Array:
 		for raw in bag:
 			s.item_bag.append(String(raw))
+	if d.has("quickbar_slots"):
+		s._quickbar_present_in_save = true
+		var slots = d.get("quickbar_slots", [])
+		if slots is Array:
+			s.quickbar_slots = slots.duplicate()
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -330,6 +350,23 @@ static func _migrate_character_class(raw: int) -> int:
 	if raw >= int(CharacterData.CharacterClass.BATTLE_KITTEN) and raw <= int(CharacterData.CharacterClass.CHONK_CAT):
 		return raw
 	return CharacterData.CharacterClass.BATTLE_KITTEN
+
+# Builds a Quickbar reflecting either the saved slot bindings or — on a legacy
+# save that predates the quickbar field — an auto-filled bar derived from the
+# tree's currently-unlocked spells in tree order. The migration path mirrors
+# slice-2 Player bootstrap: walk get_unlocked_spells() and call
+# on_spell_unlocked, which fills the lowest empty slot. Returned Quickbar is
+# owned by the caller (GameState) and re-serialized by the next save, which
+# pins the migrated state and prevents a re-run on subsequent loads.
+func to_quickbar(tree: SkillTree) -> Quickbar:
+	var qb := Quickbar.new()
+	if _quickbar_present_in_save:
+		qb.deserialize({"slots": quickbar_slots}, tree)
+		return qb
+	if tree != null:
+		for spell in tree.get_unlocked_spells():
+			qb.on_spell_unlocked(spell)
+	return qb
 
 func to_currency_ledger() -> CurrencyLedger:
 	var ledger := CurrencyLedger.new()

@@ -40,7 +40,8 @@ static func route_kill(
 	lobby: NakamaLobby = null,
 	ledger: CurrencyLedger = null,
 	rng: RandomNumberGenerator = null,
-	tree: SkillTree = null
+	tree: SkillTree = null,
+	quickbar: Quickbar = null
 ) -> ItemData:
 	if data == null or enemy_data == null:
 		return null
@@ -97,7 +98,7 @@ static func route_kill(
 	# crosses a level threshold auto-unlock newly-eligible SkillNodes
 	# immediately, rather than waiting for a save/load cycle to run
 	# the unlock pass via GameState.set_character.
-	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger, tree)
+	ProgressionSystem.add_xp(data, enemy_data.xp_reward, ledger, tree, quickbar)
 	if xp_tracker != null:
 		xp_tracker.record(enemy_data.xp_reward)
 	return item_drop

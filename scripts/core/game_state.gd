@@ -46,6 +46,13 @@ var skill_inventory = SkillInventoryRef.new()
 # a null check. Hydrated from KittenSaveData.to_item_inventory() in
 # apply_merged_save; reset to a fresh inventory in clear().
 var item_inventory: ItemInventory = ItemInventory.new()
+# Per-character spell quickbar (PRD #210 / slice 5). Built once per
+# character — either deserialized from the save via to_quickbar() (live
+# bindings restored) or freshly auto-filled from the tree's unlocked
+# spells (legacy save migration + brand-new characters). Player reads
+# this in _init_quickbar instead of bootstrapping from the tree itself
+# so manual assignments survive across saves.
+var current_quickbar: Quickbar = null
 # Active co-op session. Non-null only between the lobby's Start Match
 # handler and session end (player back-out / dungeon failed). Player.gd's
 # kill flow null-checks this to branch between solo (apply XP locally)
@@ -123,6 +130,12 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	# stored seed, advances the controller to the saved room, and replays
 	# explicit clears.
 	dungeon_run_controller = DungeonRunSerializerRef.deserialize(save_data.dungeon_run_state)
+	# Build the quickbar AFTER unlocks are applied + leveled-up nodes are
+	# topped up, so the legacy-save migration path inside to_quickbar() walks
+	# the correct set of unlocked spells. The slice 5 acceptance criterion
+	# "pre-feature saves load and auto-fill from already-unlocked spells in
+	# tree order" relies on this ordering.
+	current_quickbar = save_data.to_quickbar(skill_tree)
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)
@@ -152,6 +165,13 @@ func set_character(c: CharacterData) -> void:
 	# level (tier-2 upgrade paths reuse this entry point) so a character handed
 	# in at level N has every node up through N unlocked.
 	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, c.level)
+	# Brand-new character has no persisted quickbar — auto-fill the lowest
+	# empty slots from whatever spells just got unlocked by the level-gated
+	# pass above. Mirrors the slice-2 Player bootstrap so user story 16
+	# ("first spell auto-placed in slot 1") holds without a save round-trip.
+	current_quickbar = Quickbar.new()
+	for spell in skill_tree.get_unlocked_spells():
+		current_quickbar.on_spell_unlocked(spell)
 
 func clear() -> void:
 	current_character = null
@@ -163,6 +183,7 @@ func clear() -> void:
 	currency_ledger = CurrencyLedger.new()
 	skill_inventory = SkillInventoryRef.new()
 	item_inventory = ItemInventory.new()
+	current_quickbar = null
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.
