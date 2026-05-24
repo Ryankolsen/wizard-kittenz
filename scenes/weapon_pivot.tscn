@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1weapn0pivot01"]
+
+[ext_resource type="Script" path="res://scripts/character/weapon_pivot.gd" id="1_weapon_pivot"]
+
+[node name="WeaponPivot" type="Node2D"]
+script = ExtResource("1_weapon_pivot")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]

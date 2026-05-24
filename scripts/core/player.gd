@@ -3,6 +3,10 @@ extends CharacterBody2D
 
 const _QuickbarScript = preload("res://scripts/character/quickbar.gd")
 const _QuickbarControllerScript = preload("res://scripts/character/quickbar_controller.gd")
+# Slice 1 of PRD #223 — battle kitten only routes attacks through the weapon
+# pivot system. Other classes fall through to _play_attack_flash until slices
+# 2 (wizard CAST) and 3 (sleepy/chonk SWING) land.
+const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
 
 signal died
 # Fired after KillRewardRouter.route_kill returns a non-null ItemData
@@ -47,6 +51,13 @@ var _mp_regen_accum: float = 0.0
 var _died_emitted: bool = false
 var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
+var _weapon_pivot: WeaponPivot = null
+var _attack_choreographer: AttackChoreographer = null
+# Tracks whether _hitbox is currently "live" per the choreographer's strike
+# window. Pre-#223 the hitbox was always-on and _try_attack just walked
+# overlapping areas; the choreographer now gates damage application to the
+# strike phase so hits land when the swing is visibly mid-arc.
+var _hitbox_strike_active: bool = false
 var _coop_level_up_bound: bool = false
 # Cached once in _ready; injectable via _inject_game_state() so tests can
 # drive Player without a running GameState autoload.
@@ -95,8 +106,29 @@ func _ready() -> void:
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
 	_spell_light = get_node_or_null("SpellLight") as PointLight2D
+	_init_weapon_pivot()
 	_init_quickbar()
 	_bind_coop_level_up()
+
+# Slice 1 of PRD #223: spawn a WeaponPivot child + AttackChoreographer for
+# any class with a WeaponDefinition. Slice 1 only wires battle kitten;
+# WeaponDefinition.for_class returns null for other classes and this is a
+# no-op for them (legacy _play_attack_flash path stays intact).
+func _init_weapon_pivot() -> void:
+	if data == null:
+		return
+	var def := WeaponDefinition.for_class(data.character_class)
+	if def == null:
+		return
+	_weapon_pivot = _WeaponPivotScene.instantiate()
+	add_child(_weapon_pivot)
+	_weapon_pivot.set_definition(def)
+	_attack_choreographer = AttackChoreographer.new()
+	_attack_choreographer.definition = def
+	_attack_choreographer.weapon_pivot = _weapon_pivot
+	_attack_choreographer.hitbox_enable_requested.connect(_on_strike_window_open)
+	_attack_choreographer.hitbox_disable_requested.connect(_on_strike_window_close)
+	_attack_choreographer.strike_vfx_requested.connect(_on_strike_vfx)
 
 func get_quickbar():
 	return _quickbar
@@ -172,6 +204,8 @@ func _physics_process(delta: float) -> void:
 	_maybe_broadcast_position()
 	if Input.is_action_just_pressed("attack"):
 		_try_attack()
+	if _attack_choreographer != null:
+		_attack_choreographer.tick(delta)
 	if _quickbar_controller != null:
 		_quickbar_controller._poll_inputs()
 
@@ -297,7 +331,18 @@ func _try_attack() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
+	# Slice 1 of PRD #223: battle kitten routes through the choreographer so
+	# damage + slash VFX fire at the strike phase of a visible swing. Other
+	# classes still get the immediate-damage + sprite-flash path until the
+	# remaining slices land.
+	if _attack_choreographer != null:
+		var dir: Vector2 = data.facing if data != null else Vector2.RIGHT
+		_attack_choreographer.start_attack(dir, _attack_choreographer.definition.attack_type)
+		return
 	_play_attack_flash()
+	_apply_melee_damage()
+
+func _apply_melee_damage() -> void:
 	if _hitbox == null:
 		return
 	for area in _hitbox.get_overlapping_areas():
@@ -319,6 +364,25 @@ func _try_attack() -> void:
 				_handle_enemy_killed(node)
 				_record_meta_progress()
 				SaveManager.save_from_state()
+
+# Strike-window callbacks (PRD #223 user story 11). The hitbox is gated on
+# the strike phase so the damage moment lines up with the visible swing —
+# damage is applied once at strike open, mirroring the pre-#223 single-pulse
+# semantics rather than a continuous overlap check across the whole strike
+# window (which would risk multi-hits on a slow swing).
+func _on_strike_window_open() -> void:
+	_hitbox_strike_active = true
+	_apply_melee_damage()
+
+func _on_strike_window_close() -> void:
+	_hitbox_strike_active = false
+
+func _on_strike_vfx(_direction: Vector2) -> void:
+	# The slash VFX is spawned per-enemy inside _apply_melee_damage so it
+	# attaches to the impacted node; no extra spawn needed here. Hook kept
+	# in place for slice 3 (chonk bash) where an unconditional swing VFX
+	# at the player's position may be desirable even without a hit.
+	pass
 
 # Applies the effect of a spell that has already been cast (i.e. Spell.cast
 # returned true inside Quickbar.fire_slot — cooldown started, MP/HP deducted).
