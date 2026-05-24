@@ -34,7 +34,7 @@ func total_duration() -> float:
 # (CW from vertical) so the shaft clears the kitten's face instead of crossing
 # it. The swing then arcs from up-behind through overhead to down-forward —
 # a proper overhead chop.
-const _OVERHEAD_CHOP_ANCHOR := Vector2(2, 4)
+const _OVERHEAD_CHOP_ANCHOR := Vector2(2, 10)
 const _OVERHEAD_CHOP_IDLE_ROTATION := -PI / 2.0 + 0.6108652381980153  # -PI/2 + 35°
 
 static func _apply_overhead_chop_pose(d: WeaponDefinition) -> void:
