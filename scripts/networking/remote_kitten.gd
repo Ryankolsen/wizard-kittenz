@@ -21,6 +21,8 @@ extends Node2D
 #      known location).
 #   4. CoopPlayerLayer calls queue_free on roster removal.
 
+const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
+
 @export var player_id: String = ""
 @export var kitten_name: String = ""
 @export var tint_color: Color = Color(1, 1, 1, 1)
@@ -30,6 +32,12 @@ extends Node2D
 # directly after instantiate(). Null is treated as "no sync source" and the
 # kitten freezes at its current position rather than crashing.
 var network_sync = null
+
+# PRD #223 slice 4 (#227): receive-side weapon animation. play_attack(dir)
+# drives the embedded WeaponPivot + AttackChoreographer with the same code
+# path the local Player uses. Null for classes without a WeaponDefinition.
+var weapon_pivot: WeaponPivot = null
+var attack_choreographer: AttackChoreographer = null
 
 @onready var _placeholder: Polygon2D = get_node_or_null("Placeholder")
 @onready var _label: Label = get_node_or_null("Label")
@@ -48,9 +56,37 @@ func _ready() -> void:
 		_label.text = kitten_name
 	if _sprite != null:
 		_sprite.texture = load(SpriteHelper.path_for_class(character_class))
+	_init_weapon_pivot()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if attack_choreographer != null:
+		attack_choreographer.tick(delta)
 	if network_sync == null or player_id == "":
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	position = network_sync.get_display_position_at(player_id, now)
+
+# Spawn a WeaponPivot + AttackChoreographer for the remote kitten's class.
+# Mirrors player.gd._init_weapon_pivot; no-ops for classes without a
+# WeaponDefinition (cat-tier etc.) so non-kitten remotes continue to render
+# with the legacy placeholder sprite only.
+func _init_weapon_pivot() -> void:
+	var def := WeaponDefinition.for_class(character_class)
+	if def == null:
+		return
+	weapon_pivot = _WeaponPivotScene.instantiate()
+	add_child(weapon_pivot)
+	weapon_pivot.set_definition(def)
+	attack_choreographer = AttackChoreographer.new()
+	attack_choreographer.definition = def
+	attack_choreographer.weapon_pivot = weapon_pivot
+
+# Receive-side entry point invoked when a peer broadcasts an attack/cast.
+# Direction carries the peer's facing; the kitten's own character_class
+# selects WeaponDefinition (and therefore attack_type), so no extra payload
+# is needed on the wire beyond the facing vector.
+func play_attack(direction: Vector2) -> void:
+	if attack_choreographer == null:
+		return
+	attack_choreographer.start_attack(direction,
+		attack_choreographer.definition.attack_type)
