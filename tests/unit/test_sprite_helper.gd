@@ -6,7 +6,7 @@ extends GutTest
 const WIZARD_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const BATTLE_PATH := "res://assets/sprites/battle_kitten_right.png"
 const SLEEPY_PATH := "res://assets/sprites/sleepy_kitten_right.png"
-const CHONK_PATH := "res://assets/sprites/chonk_kitten_left.png"
+const CHONK_PATH := "res://assets/sprites/chonk_kitten_right.png"
 
 func test_battle_kitten_path():
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_KITTEN), BATTLE_PATH)
@@ -26,9 +26,11 @@ func test_cat_tier_falls_back_to_wizard_kitten():
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_CAT), WIZARD_PATH)
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_CAT), WIZARD_PATH)
 
-func test_faces_left_only_for_chonk():
-	# Chonk's sprite asset faces left so the flip logic is inverted for it.
-	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_KITTEN))
+func test_faces_left_false_for_all_classes_after_chonk_right_swap():
+	# Slice 3 (PRD #223 / issue #226) swapped chonk to _right primary art so
+	# all four kitten classes match the convention; no class faces left by
+	# default.
+	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_KITTEN))
 	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.WIZARD_KITTEN))
 	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.BATTLE_KITTEN))
 	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.SLEEPY_KITTEN))

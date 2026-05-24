@@ -2,8 +2,8 @@ class_name WeaponDefinition
 extends Resource
 
 # Per-class weapon data driving WeaponPivot animation + AttackChoreographer
-# phase timings. Slice 1 of PRD #223 — only the battle preset is wired in;
-# wizard / sleepy / chonk presets land in slices 2 and 3.
+# phase timings. All four kitten classes are wired in as of slice 3
+# (PRD #223 / issue #226).
 
 enum AttackType { SWING, THRUST, CAST }
 
@@ -58,11 +58,52 @@ static func wizard() -> WeaponDefinition:
 	d.thrust_distance = 10.0
 	return d
 
-# Lookup hook for SpriteHelper / player.gd. Slice 2 adds wizard (CAST);
-# sleepy / chonk return null until slice 3.
+# Sleepy kitten preset — green staff in a SWING arc, same shape contract as
+# battle's sword (48x12 horizontal stick centered on pivot). Slightly slower
+# windup + softer arc evoke the class's drowsy character without slowing the
+# strike-window down to where it feels unresponsive.
+static func sleepy() -> WeaponDefinition:
+	var d := WeaponDefinition.new()
+	d.texture_path = "res://assets/sprites/weapon_staff_sprite.png"
+	d.attack_type = AttackType.SWING
+	d.swing_arc = 1.8
+	d.anchor_offset = Vector2(2, 4)
+	d.weapon_offset = Vector2.ZERO
+	d.windup_duration = 0.1
+	d.strike_duration = 0.12
+	d.recovery_duration = 0.18
+	d.idle_rotation = 0.4
+	return d
+
+# Chonk kitten preset — mug-bash SWING. The mug sprite is 47x48 (tall, grip
+# on the left edge) rather than the 48x12 horizontal-stick shape the other
+# three weapons share, so weapon_offset shifts the child sprite to the right
+# of the pivot. That puts the rotation origin at the mug's handle so it
+# swings around the grip instead of its geometric center — without this
+# the mug would pinwheel mid-air with the handle whipping past the paw.
+static func chonk() -> WeaponDefinition:
+	var d := WeaponDefinition.new()
+	d.texture_path = "res://assets/sprites/weapon_mug_sprite.png"
+	d.attack_type = AttackType.SWING
+	d.swing_arc = 2.3
+	d.anchor_offset = Vector2(4, 2)
+	d.weapon_offset = Vector2(20, 0)
+	d.windup_duration = 0.1
+	d.strike_duration = 0.14
+	d.recovery_duration = 0.18
+	d.idle_rotation = 0.2
+	return d
+
+# Lookup hook for SpriteHelper / player.gd. All four kitten classes return a
+# preset as of slice 3 — cat-tier and other classes still return null and
+# fall through any caller's null-guard.
 static func for_class(cc: int) -> WeaponDefinition:
 	if cc == CharacterData.CharacterClass.BATTLE_KITTEN:
 		return battle()
 	if cc == CharacterData.CharacterClass.WIZARD_KITTEN:
 		return wizard()
+	if cc == CharacterData.CharacterClass.SLEEPY_KITTEN:
+		return sleepy()
+	if cc == CharacterData.CharacterClass.CHONK_KITTEN:
+		return chonk()
 	return null

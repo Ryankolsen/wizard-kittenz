@@ -89,6 +89,30 @@ func test_cast_attack_thrusts_forward_without_rotation() -> void:
 	assert_almost_eq(pivot.rotation, idle_rot, 0.001,
 		"pivot rotation unchanged during CAST")
 
+# Slice 3 (issue #226): every kitten class has a WeaponDefinition so the
+# choreographer phase callbacks fire for all four — no class falls back to
+# the legacy _play_attack_flash shake (which has been removed). This pins
+# that for_class returns a usable definition for each kitten and that
+# start_attack drives the phase machine into STRIKE.
+func test_all_kitten_classes_route_through_choreographer_phase_machine() -> void:
+	var kitten_classes := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for cc in kitten_classes:
+		var def := WeaponDefinition.for_class(cc)
+		assert_not_null(def, "for_class returns a definition for class %s" % cc)
+		var phases_seen: Array = []
+		var c := AttackChoreographer.new()
+		c.definition = def
+		c.phase_entered.connect(func(p: int) -> void: phases_seen.append(p))
+		c.start_attack(Vector2.RIGHT, def.attack_type)
+		c.tick(def.windup_duration + 0.001)
+		assert_true(phases_seen.has(AttackChoreographer.Phase.STRIKE),
+			"class %s reaches STRIKE via the choreographer" % cc)
+
 # Interrupt mid-strike disables the hitbox so a re-attacked player can't
 # stick the hitbox open by spamming attacks.
 func test_interrupt_mid_strike_disables_hitbox() -> void:

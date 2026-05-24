@@ -3,9 +3,10 @@ extends CharacterBody2D
 
 const _QuickbarScript = preload("res://scripts/character/quickbar.gd")
 const _QuickbarControllerScript = preload("res://scripts/character/quickbar_controller.gd")
-# Slice 1 of PRD #223 — battle kitten only routes attacks through the weapon
-# pivot system. Other classes fall through to _play_attack_flash until slices
-# 2 (wizard CAST) and 3 (sleepy/chonk SWING) land.
+# PRD #223 weapon pivot system — all four kitten classes route attacks through
+# the WeaponPivot + AttackChoreographer stack (slice 3 / issue #226 finished
+# wiring sleepy and chonk). Cat-tier classes still null out of for_class and
+# get no animated weapon, but they have no playable path yet either.
 const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
 
 signal died
@@ -110,10 +111,10 @@ func _ready() -> void:
 	_init_quickbar()
 	_bind_coop_level_up()
 
-# Slice 1 of PRD #223: spawn a WeaponPivot child + AttackChoreographer for
-# any class with a WeaponDefinition. Slice 1 only wires battle kitten;
-# WeaponDefinition.for_class returns null for other classes and this is a
-# no-op for them (legacy _play_attack_flash path stays intact).
+# PRD #223: spawn a WeaponPivot child + AttackChoreographer for any class with
+# a WeaponDefinition. As of slice 3 every kitten class returns a preset from
+# for_class; this is still a defensive no-op for other character classes
+# (cat-tier etc.) that don't yet have weapon art.
 func _init_weapon_pivot() -> void:
 	if data == null:
 		return
@@ -331,15 +332,15 @@ func _try_attack() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
-	# Slice 1 of PRD #223: battle kitten routes through the choreographer so
-	# damage + slash VFX fire at the strike phase of a visible swing. Other
-	# classes still get the immediate-damage + sprite-flash path until the
-	# remaining slices land.
+	# PRD #223: all four kitten classes route through the choreographer so
+	# damage + VFX fire at the strike phase of a visible swing/cast. The
+	# choreographer is null for character classes without a WeaponDefinition
+	# (cat-tier etc.), in which case _try_attack falls through to a direct
+	# melee damage pulse with no animation.
 	if _attack_choreographer != null:
 		var dir: Vector2 = data.facing if data != null else Vector2.RIGHT
 		_attack_choreographer.start_attack(dir, _attack_choreographer.definition.attack_type)
 		return
-	_play_attack_flash()
 	_apply_melee_damage()
 
 func _apply_melee_damage() -> void:
@@ -583,18 +584,6 @@ func _offline_xp_tracker() -> OfflineXPTracker:
 
 func _currency_ledger() -> CurrencyLedger:
 	return _game_state.currency_ledger if _game_state != null else null
-
-func _play_attack_flash() -> void:
-	if _visual == null:
-		return
-	var swing := 1.0 if data == null or data.facing.x >= 0.0 else -1.0
-	var tween := create_tween()
-	tween.tween_property(_visual, "rotation", -0.2 * swing, 0.05)\
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(_visual, "rotation", 0.3 * swing, 0.06)\
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(_visual, "rotation", 0.0, 0.1)\
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _play_spell_flash() -> void:
 	if _spell_light == null:

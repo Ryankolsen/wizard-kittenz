@@ -4,12 +4,14 @@ extends RefCounted
 const _WIZARD_KITTEN_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const _BATTLE_KITTEN_PATH := "res://assets/sprites/battle_kitten_right.png"
 const _SLEEPY_KITTEN_PATH := "res://assets/sprites/sleepy_kitten_right.png"
-const _CHONK_KITTEN_PATH := "res://assets/sprites/chonk_kitten_left.png"
+const _CHONK_KITTEN_PATH := "res://assets/sprites/chonk_kitten_right.png"
 
 # Returns true when the sprite asset faces LEFT (so the flip logic should be
-# inverted — flip when moving right, not left).
-static func faces_left(cc: CharacterData.CharacterClass) -> bool:
-	return cc == CharacterData.CharacterClass.CHONK_KITTEN
+# inverted — flip when moving right, not left). As of slice 3 (PRD #223 /
+# issue #226) all four kitten classes use _right primary art, so no class
+# faces left by default. Kept as a hook for any future left-facing asset.
+static func faces_left(_cc: CharacterData.CharacterClass) -> bool:
+	return false
 
 # Cat-tier classes have no art yet — fall back to wizard kitten so the renderer
 # still gets a valid texture instead of crashing on a missing asset.
