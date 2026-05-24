@@ -372,17 +372,50 @@ func _apply_melee_damage() -> void:
 # window (which would risk multi-hits on a slow swing).
 func _on_strike_window_open() -> void:
 	_hitbox_strike_active = true
-	_apply_melee_damage()
+	# Slice 2 (PRD #223 / issue #225): wizard CAST routes damage through the
+	# larger SpellHitbox rather than the melee Hitbox — the basic attack reads
+	# as a spell pulse, not a swing.
+	if _is_cast_attack():
+		_apply_spell_basic_damage()
+	else:
+		_apply_melee_damage()
 
 func _on_strike_window_close() -> void:
 	_hitbox_strike_active = false
 
 func _on_strike_vfx(_direction: Vector2) -> void:
-	# The slash VFX is spawned per-enemy inside _apply_melee_damage so it
-	# attaches to the impacted node; no extra spawn needed here. Hook kept
-	# in place for slice 3 (chonk bash) where an unconditional swing VFX
-	# at the player's position may be desirable even without a hit.
-	pass
+	# Wizard CAST: fire the PointLight2D pulse synchronized with strike-phase
+	# entry (PRD user story 13 — preserves existing spell juice but ties it
+	# to the visible thrust apex). Slash VFX is spawned per-enemy inside the
+	# damage methods, so no extra spawn needed for SWING here.
+	if _is_cast_attack():
+		_play_spell_flash()
+
+func _is_cast_attack() -> bool:
+	if _attack_choreographer == null or _attack_choreographer.definition == null:
+		return false
+	return _attack_choreographer.definition.attack_type == WeaponDefinition.AttackType.CAST
+
+# Wizard basic-attack damage: same single-pulse-at-strike-open model as
+# _apply_melee_damage, but targets the wider SpellHitbox and labels hits
+# with the blue spell-damage color so it reads as a magical strike, not
+# a melee hit.
+func _apply_spell_basic_damage() -> void:
+	if _spell_hitbox == null:
+		return
+	for area in _spell_hitbox.get_overlapping_areas():
+		var node := area.get_parent()
+		if node is Enemy and node.data != null and node.data.is_alive():
+			var dealt := DamageResolver.apply(data, node.data)
+			if dealt == 0 and data != null and data.attack > 0:
+				FloatingText.spawn(node, "Miss")
+			elif dealt > 0:
+				FloatingText.spawn_at(node, str(dealt), Color(0.4, 0.6, 1.0))
+				(node as Enemy).flash_hit()
+			if not node.data.is_alive():
+				_handle_enemy_killed(node)
+				_record_meta_progress()
+				SaveManager.save_from_state()
 
 # Applies the effect of a spell that has already been cast (i.e. Spell.cast
 # returned true inside Quickbar.fire_slot — cooldown started, MP/HP deducted).

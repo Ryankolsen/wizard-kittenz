@@ -1,7 +1,7 @@
 class_name SpriteHelper
 extends RefCounted
 
-const _WIZARD_KITTEN_PATH := "res://assets/sprites/wizard_kitten.png"
+const _WIZARD_KITTEN_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const _BATTLE_KITTEN_PATH := "res://assets/sprites/battle_kitten_right.png"
 const _SLEEPY_KITTEN_PATH := "res://assets/sprites/sleepy_kitten_right.png"
 const _CHONK_KITTEN_PATH := "res://assets/sprites/chonk_kitten_left.png"

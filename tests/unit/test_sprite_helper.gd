@@ -1,6 +1,9 @@
 extends GutTest
 
-const WIZARD_PATH := "res://assets/sprites/wizard_kitten.png"
+# Slice 2 (PRD #223 / issue #225): wizard kitten swapped to the weaponless
+# _right sprite so the WeaponPivot's wand renders independently. The legacy
+# wizard_kitten.png is now the cat-tier fallback only.
+const WIZARD_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const BATTLE_PATH := "res://assets/sprites/battle_kitten_right.png"
 const SLEEPY_PATH := "res://assets/sprites/sleepy_kitten_right.png"
 const CHONK_PATH := "res://assets/sprites/chonk_kitten_left.png"

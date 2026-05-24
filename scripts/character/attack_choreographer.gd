@@ -31,8 +31,8 @@ func start_attack(direction: Vector2, attack_type: int = WeaponDefinition.Attack
 	_t = 0.0
 	if weapon_pivot != null:
 		match attack_type:
-			WeaponDefinition.AttackType.SWING:
-				weapon_pivot.swing(direction)
+			WeaponDefinition.AttackType.CAST, WeaponDefinition.AttackType.THRUST:
+				weapon_pivot.cast(direction)
 			_:
 				weapon_pivot.swing(direction)
 	_enter_phase(Phase.WINDUP)

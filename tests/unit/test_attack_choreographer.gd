@@ -64,6 +64,31 @@ func test_strike_vfx_requested_with_attack_direction() -> void:
 	assert_eq(_vfx_dirs.size(), 1)
 	assert_eq(_vfx_dirs[0], Vector2.LEFT)
 
+# Slice 2 (issue #225) test 1: CAST attack type drives forward thrust
+# (sprite translation) rather than rotation. Pivot rotation stays at idle
+# throughout; the child Sprite2D's position.x reaches the thrust offset at
+# strike-phase peak.
+func test_cast_attack_thrusts_forward_without_rotation() -> void:
+	var pivot_scene = preload("res://scenes/weapon_pivot.tscn")
+	var pivot: WeaponPivot = pivot_scene.instantiate()
+	add_child_autofree(pivot)
+	var def := WeaponDefinition.wizard()
+	pivot.set_definition(def)
+	var c := AttackChoreographer.new()
+	c.definition = def
+	c.weapon_pivot = pivot
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.CAST)
+	var idle_rot := pivot.rotation
+	c.tick(def.windup_duration + 0.001)
+	# At strike-phase entry, advance to strike-phase end so the sprite reaches
+	# the full thrust offset.
+	c.tick(def.strike_duration - 0.001)
+	var sprite := pivot.get_node("Sprite2D") as Sprite2D
+	assert_almost_eq(sprite.position.x, def.thrust_distance, 0.5,
+		"sprite thrusts forward by thrust_distance at strike apex")
+	assert_almost_eq(pivot.rotation, idle_rot, 0.001,
+		"pivot rotation unchanged during CAST")
+
 # Interrupt mid-strike disables the hitbox so a re-attacked player can't
 # stick the hitbox open by spamming attacks.
 func test_interrupt_mid_strike_disables_hitbox() -> void:
