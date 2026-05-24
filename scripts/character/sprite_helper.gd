@@ -7,14 +7,13 @@ const _SLEEPY_KITTEN_PATH := "res://assets/sprites/sleepy_kitten_right.png"
 const _CHONK_KITTEN_PATH := "res://assets/sprites/chonk_kitten_right.png"
 
 # Returns true when the sprite asset faces LEFT visually (so flip_h must be
-# inverted by the caller). The four kitten *_right.png assets are misnamed —
-# the artwork itself faces left. Rather than rename the files, this hook
-# reports the true visual facing so player.gd's XOR flip logic resolves
-# correctly. Non-kitten classes keep the default (no class-specific art).
+# inverted by the caller). Most kitten *_right.png assets are misnamed —
+# the artwork actually faces left. Sleepy is the exception: sleepy_kitten_right.png
+# really does face right, so its flip must NOT be inverted. This hook reports the
+# true visual facing so player.gd's XOR flip logic resolves correctly per asset.
 static func faces_left(cc: CharacterData.CharacterClass) -> bool:
 	match cc:
 		CharacterData.CharacterClass.BATTLE_KITTEN, \
-		CharacterData.CharacterClass.SLEEPY_KITTEN, \
 		CharacterData.CharacterClass.CHONK_KITTEN, \
 		CharacterData.CharacterClass.WIZARD_KITTEN:
 			return true

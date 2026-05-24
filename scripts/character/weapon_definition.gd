@@ -36,7 +36,12 @@ static func battle() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_sword_sprite.png"
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 2.1
-	d.anchor_offset = Vector2(2, 8)
+	# Anchor at shoulder height (negative y = up in Godot 2D, kitten sprite is
+	# 48px tall centered at y=0). Pivoting from the shoulder makes the windup
+	# raise the blade above the head and the strike land near the waist —
+	# previously y=8 put the pivot at the paws so the sword chopped through
+	# the feet instead of through the torso.
+	d.anchor_offset = Vector2(2, -10)
 	d.weapon_offset = Vector2(16, 0)
 	d.windup_duration = 0.08
 	d.strike_duration = 0.12
@@ -71,8 +76,15 @@ static func sleepy() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_staff_sprite.png"
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 1.8
-	d.anchor_offset = Vector2(2, 4)
-	d.weapon_offset = Vector2.ZERO
+	# Match battle's shoulder-height pivot so the staff swings through the
+	# torso, not the legs.
+	d.anchor_offset = Vector2(2, -10)
+	# Staff sprite's orb is on the LEFT end; flip horizontally so the orb
+	# leads the swing (forward end), matching how the sword's blade leads.
+	# weapon_offset extends the staff out to the side like the sword does
+	# instead of draping it across the body.
+	d.weapon_offset = Vector2(16, 0)
+	d.sprite_scale = Vector2(-1.0, 1.0)
 	d.windup_duration = 0.1
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.18
