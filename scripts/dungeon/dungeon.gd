@@ -8,6 +8,11 @@ extends RefCounted
 var rooms: Array = []
 var start_id: int = -1
 var boss_id: int = -1
+# How many dungeons the player has cleared before entering this one. Used by
+# depth-gated content (e.g. ChestSpawner's rare-unlock — #220). Defaults to 0
+# so a fresh Dungeon() is treated as the very first run; the orchestrator
+# (main_scene) sets it from MetaProgressionTracker.dungeons_completed.
+var depth: int = 0
 
 func add_room(room: Room) -> void:
 	rooms.append(room)

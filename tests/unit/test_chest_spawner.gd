@@ -84,10 +84,61 @@ func test_plan_with_only_start_room_returns_empty():
 	var placements := ChestSpawner.plan(d, _seeded_rng(1))
 	assert_eq(placements.size(), 0)
 
-func test_all_placements_are_standard_kind_until_rare_unlock_lands():
+func test_below_threshold_all_chests_are_standard():
 	var d := _make_dungeon(8)
+	d.depth = ChestSpawner.RARE_UNLOCK_DEPTH - 1
 	for seed_val in range(5):
 		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
 		for p in placements:
 			var c: Chest = p["chest"]
-			assert_eq(c.kind, Chest.Kind.STANDARD)
+			assert_eq(c.kind, Chest.Kind.STANDARD,
+				"below-threshold dungeon must never roll RARE (seed=%d)" % seed_val)
+
+func test_at_or_above_threshold_can_roll_rare():
+	var d := _make_dungeon(8)
+	d.depth = ChestSpawner.RARE_UNLOCK_DEPTH
+	var rare_count := 0
+	for seed_val in range(1, 101):
+		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
+		for p in placements:
+			var c: Chest = p["chest"]
+			if c.kind == Chest.Kind.RARE:
+				rare_count += 1
+	assert_true(rare_count > 0,
+		"at/above threshold, at least one RARE must roll over 500 placements (got %d)" % rare_count)
+
+func test_rare_rate_matches_configured_chance_within_tolerance():
+	var d := _make_dungeon(8)
+	d.depth = ChestSpawner.RARE_UNLOCK_DEPTH
+	var rare_count := 0
+	var total := 0
+	for seed_val in range(1, 101):
+		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
+		for p in placements:
+			total += 1
+			var c: Chest = p["chest"]
+			if c.kind == Chest.Kind.RARE:
+				rare_count += 1
+	var rate: float = float(rare_count) / float(total)
+	var delta: float = abs(rate - ChestSpawner.RARE_CHANCE_AFTER_UNLOCK)
+	assert_true(delta <= 0.1,
+		"rare rate %.3f should be within 0.1 of configured %.3f" % [rate, ChestSpawner.RARE_CHANCE_AFTER_UNLOCK])
+
+func test_same_seed_at_threshold_produces_identical_kinds():
+	var d := _make_dungeon(6)
+	d.depth = ChestSpawner.RARE_UNLOCK_DEPTH
+	var a := ChestSpawner.plan(d, _seeded_rng(7))
+	var b := ChestSpawner.plan(d, _seeded_rng(7))
+	assert_eq(a.size(), b.size())
+	for i in range(a.size()):
+		var ca: Chest = a[i]["chest"]
+		var cb: Chest = b[i]["chest"]
+		assert_eq(ca.kind, cb.kind, "kind must be deterministic per seed at index %d" % i)
+		assert_eq(a[i]["room_id"], b[i]["room_id"])
+		assert_eq(a[i]["position"], b[i]["position"])
+
+func test_rare_unlock_constants_are_set():
+	assert_true(ChestSpawner.RARE_UNLOCK_DEPTH >= 1,
+		"RARE_UNLOCK_DEPTH must be >= 1 so depth-0 (first dungeon) stays gold-only")
+	assert_true(ChestSpawner.RARE_CHANCE_AFTER_UNLOCK > 0.0 and ChestSpawner.RARE_CHANCE_AFTER_UNLOCK < 1.0,
+		"RARE_CHANCE_AFTER_UNLOCK must be strictly between 0 and 1")

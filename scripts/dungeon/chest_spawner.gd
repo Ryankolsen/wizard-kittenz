@@ -24,6 +24,14 @@ const TARGET_COUNT: int = 5
 # also accommodate this range comfortably.
 const POSITION_HALF_RANGE_PX: float = 70.0
 
+# Depth-gated rare unlock (PRD #217 / issue #220). Below RARE_UNLOCK_DEPTH
+# every roll stays STANDARD (gold-only early dungeons — user story 12). At/
+# above the threshold each placement independently rolls RARE with
+# RARE_CHANCE_AFTER_UNLOCK probability (user story 11). The data layer for
+# rare chests (Chest.RARE → gems) already exists, so credit happens for free.
+const RARE_UNLOCK_DEPTH: int = 3
+const RARE_CHANCE_AFTER_UNLOCK: float = 0.2
+
 static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 	var placements: Array = []
 	if dungeon == null or rng == null:
@@ -35,6 +43,7 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 		candidates.append(r)
 	if candidates.is_empty():
 		return placements
+	var rare_unlocked: bool = dungeon.depth >= RARE_UNLOCK_DEPTH
 	for _i in range(TARGET_COUNT):
 		var idx: int = rng.randi_range(0, candidates.size() - 1)
 		var room: Room = candidates[idx]
@@ -42,9 +51,16 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 			rng.randf_range(-POSITION_HALF_RANGE_PX, POSITION_HALF_RANGE_PX),
 			rng.randf_range(-POSITION_HALF_RANGE_PX, POSITION_HALF_RANGE_PX)
 		)
+		# Always draw the kind roll so adding/removing the rare branch doesn't
+		# desync the RNG stream against the position rolls. Below threshold the
+		# draw is discarded and kind pins to STANDARD.
+		var roll: float = rng.randf()
+		var kind: int = Chest.Kind.STANDARD
+		if rare_unlocked and roll < RARE_CHANCE_AFTER_UNLOCK:
+			kind = Chest.Kind.RARE
 		placements.append({
 			"room_id": room.id,
 			"position": offset,
-			"chest": Chest.make(Chest.Kind.STANDARD)
+			"chest": Chest.make(kind)
 		})
 	return placements

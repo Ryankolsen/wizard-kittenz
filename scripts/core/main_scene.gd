@@ -137,6 +137,11 @@ func _paint_dungeon() -> void:
 func _start_new_dungeon(gs) -> void:
 	var seed := _dungeon_seed_for(gs)
 	var dungeon := DungeonGenerator.generate(seed)
+	# Stamp depth so depth-gated content (ChestSpawner rare-unlock — #220)
+	# can branch off it. dungeons_completed is the count BEFORE this run
+	# finalizes, which makes it equivalent to "depth = floor number - 1".
+	if gs != null and gs.meta_tracker != null:
+		dungeon.depth = gs.meta_tracker.dungeons_completed
 	_run_controller = DungeonRunController.new()
 	_run_controller.start(dungeon)
 	_run_controller.seed = seed
