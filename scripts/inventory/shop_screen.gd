@@ -57,6 +57,12 @@ func _ready() -> void:
 	error_label.visible = false
 	_refresh_currency()
 	_build_item_list()
+	_connect_dependency_signals()
+
+# Wires the ledger + billing signals against whatever provider lookups return
+# right now. Called from _ready (production) and from setup (tests, where the
+# override ledger only exists after setup runs).
+func _connect_dependency_signals() -> void:
 	var ledger := _ledger()
 	if ledger != null and not ledger.balance_changed.is_connected(_on_balance_changed):
 		ledger.balance_changed.connect(_on_balance_changed)
@@ -84,6 +90,7 @@ func setup(ledger: CurrencyLedger, skill_inventory, paid_unlocks: PaidUnlockInve
 	if is_inside_tree():
 		_refresh_currency()
 		_rebuild_item_list()
+		_connect_dependency_signals()
 
 func _ledger() -> CurrencyLedger:
 	if _ledger_override != null:
@@ -138,6 +145,9 @@ func _character_class() -> int:
 
 func _on_balance_changed(_currency: int, _new_balance: int) -> void:
 	_refresh_currency()
+	# Affordability is per-row state, so any balance change has to re-run the
+	# button rule across every row — not just the currency labels at the top.
+	_refresh_all_rows()
 
 func _on_back_pressed() -> void:
 	back_pressed.emit()
@@ -232,7 +242,25 @@ func _apply_button_state(row: HBoxContainer, item: ShopCatalogItem) -> void:
 		btn.disabled = true
 	else:
 		btn.text = "Buy"
-		btn.disabled = false
+		btn.disabled = not _can_afford(item)
+
+# Gem bundles are paid via the billing platform, not the in-game ledger, so
+# they're always "affordable" from the shop's perspective.
+func _can_afford(item: ShopCatalogItem) -> bool:
+	if item.category == ShopCatalogItem.CATEGORY_GEM_BUNDLE:
+		return true
+	var ledger := _ledger()
+	if ledger == null:
+		return false
+	return ledger.balance(item.currency_type) >= item.price
+
+func _refresh_all_rows() -> void:
+	for product_id in _rows_by_product.keys():
+		var row: HBoxContainer = _rows_by_product[product_id]
+		var item := ShopCatalog.find(product_id)
+		if item == null:
+			continue
+		_apply_button_state(row, item)
 
 # Public for test injection — the issue's red-green-refactor sketches call
 # this directly with a product_id rather than going through a button press.
