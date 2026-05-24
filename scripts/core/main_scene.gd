@@ -342,25 +342,42 @@ func _spawn_healing_box() -> void:
 	add_child(box)
 
 
-# Slice 1 tracer for PRD #217 / issue #218: a single hardcoded chest
-# positioned a short offset from the starting room center so the player
-# walks past it on the way out. ChestSpawner (slice 2) replaces this
-# with random placement; the spawn point is intentionally close to spawn
-# so QA can validate the open / linger / fade cycle in seconds.
+# Slice 2 of PRD #217 / issue #219: ChestSpawner returns up to TARGET_COUNT
+# placements scattered across non-start rooms; we instantiate one ChestEntity
+# per placement and add it to world at (room_center + offset). The RNG is
+# seeded from the dungeon's seed so a re-roll of the same dungeon places
+# chests identically — see test_chest_spawner.gd determinism tests.
 func _spawn_chest() -> void:
 	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
 		return
 	var scene: PackedScene = load("res://scenes/chest.tscn")
 	if scene == null:
 		return
-	var chest_entity: ChestEntity = scene.instantiate() as ChestEntity
-	if chest_entity == null:
-		return
-	chest_entity.chest = Chest.make(Chest.Kind.STANDARD)
-	chest_entity.ledger = _currency_ledger()
-	var start_id := _run_controller.dungeon.start_id
-	chest_entity.position = _dungeon_layout.room_center_world(start_id) + Vector2(60.0, 0.0)
-	add_child(chest_entity)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _chest_spawn_seed()
+	var placements := ChestSpawner.plan(_run_controller.dungeon, rng)
+	var ledger := _currency_ledger()
+	for placement in placements:
+		var chest_entity: ChestEntity = scene.instantiate() as ChestEntity
+		if chest_entity == null:
+			continue
+		chest_entity.chest = placement["chest"]
+		chest_entity.ledger = ledger
+		var room_id: int = placement["room_id"]
+		var offset: Vector2 = placement["position"]
+		chest_entity.position = _dungeon_layout.room_center_world(room_id) + offset
+		add_child(chest_entity)
+
+# Stable seed for the chest spawner's RNG. Co-op clients converge on the
+# agreed dungeon seed via DungeonSeedSync so both ends place chests
+# identically; solo / pre-handshake derives a deterministic seed from the
+# dungeon's room sequence so re-entering the same run gives the same layout.
+func _chest_spawn_seed() -> int:
+	var gs := get_node_or_null("/root/GameState")
+	var agreed := _dungeon_seed_for(gs)
+	if agreed != -1:
+		return agreed
+	return hash(_run_controller.dungeon.room_type_sequence())
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
