@@ -212,6 +212,7 @@ func _setup_rooms() -> void:
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
 		_watchers.append(watcher)
 	_spawn_healing_box()
+	_spawn_chest()
 
 # Per-frame check that moves the player into the bar room scene when they
 # step onto a bar-entrance tile (issue #187). Tile-based detection rather
@@ -339,6 +340,27 @@ func _spawn_healing_box() -> void:
 	var box := HealingBox.new()
 	box.position = _dungeon_layout.room_center_world(start_id)
 	add_child(box)
+
+
+# Slice 1 tracer for PRD #217 / issue #218: a single hardcoded chest
+# positioned a short offset from the starting room center so the player
+# walks past it on the way out. ChestSpawner (slice 2) replaces this
+# with random placement; the spawn point is intentionally close to spawn
+# so QA can validate the open / linger / fade cycle in seconds.
+func _spawn_chest() -> void:
+	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
+		return
+	var scene: PackedScene = load("res://scenes/chest.tscn")
+	if scene == null:
+		return
+	var chest_entity: ChestEntity = scene.instantiate() as ChestEntity
+	if chest_entity == null:
+		return
+	chest_entity.chest = Chest.make(Chest.Kind.STANDARD)
+	chest_entity.ledger = _currency_ledger()
+	var start_id := _run_controller.dungeon.start_id
+	chest_entity.position = _dungeon_layout.room_center_world(start_id) + Vector2(60.0, 0.0)
+	add_child(chest_entity)
 
 func _coop_session() -> CoopSession:
 	var gs := get_node_or_null("/root/GameState")
