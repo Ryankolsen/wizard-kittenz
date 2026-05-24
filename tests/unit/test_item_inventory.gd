@@ -55,6 +55,21 @@ func test_remove_from_bag_by_id():
 	assert_eq(inv.bag_items().size(), 1)
 	assert_eq(inv.bag_items()[0], charm)
 
+func test_inventory_changed_fires_on_every_mutation():
+	# Slice 3 of PRD #231 (#234): live owned-state updates depend on a single
+	# signal that fires from add/remove/equip/unequip alike.
+	var inv := ItemInventory.new()
+	watch_signals(inv)
+	var iron := ItemCatalog.find("iron_sword")
+	inv.add_to_bag(iron)
+	assert_signal_emit_count(inv, "inventory_changed", 1)
+	inv.remove_from_bag("iron_sword")
+	assert_signal_emit_count(inv, "inventory_changed", 2)
+	inv.equip(iron)
+	assert_signal_emit_count(inv, "inventory_changed", 3)
+	inv.unequip(ItemData.Slot.WEAPON)
+	assert_signal_emit_count(inv, "inventory_changed", 4)
+
 func test_bag_is_unbounded():
 	var inv := ItemInventory.new()
 	var iron := ItemCatalog.find("iron_sword")

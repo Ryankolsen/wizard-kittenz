@@ -74,6 +74,9 @@ func _connect_dependency_signals() -> void:
 		if billing.has_signal("purchase_failed") \
 				and not billing.purchase_failed.is_connected(_on_billing_purchase_failed):
 			billing.purchase_failed.connect(_on_billing_purchase_failed)
+	var inv := _item_inventory()
+	if inv != null and not inv.inventory_changed.is_connected(_on_inventory_changed):
+		inv.inventory_changed.connect(_on_inventory_changed)
 
 # Dependency injection seam for tests. Each param is optional; null falls
 # through to the GameState / BillingManager autoload lookups so production
@@ -147,6 +150,11 @@ func _on_balance_changed(_currency: int, _new_balance: int) -> void:
 	_refresh_currency()
 	# Affordability is per-row state, so any balance change has to re-run the
 	# button rule across every row — not just the currency labels at the top.
+	_refresh_all_rows()
+
+func _on_inventory_changed() -> void:
+	# Gear ownership (Owned vs Buy) is sourced from ItemInventory, so any bag
+	# or equipped-slot mutation has to re-run the button rule across rows.
 	_refresh_all_rows()
 
 func _on_back_pressed() -> void:
@@ -364,8 +372,19 @@ func _is_owned(item: ShopCatalogItem) -> bool:
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE:
 			return false
 		ShopCatalogItem.CATEGORY_GEAR:
-			# Gear is consumable — repeated buys always allowed (player can
-			# stock duplicates in the bag), so the row is never "Owned".
+			# Per PRD #231: a gear row is Owned iff the item is currently
+			# in the bag OR equipped in any slot. Players re-buy after the
+			# item leaves inventory (dropped, consumed, etc.).
+			var inv := _item_inventory()
+			if inv == null:
+				return false
+			for it in inv.bag_items():
+				if it != null and it.id == item.product_id:
+					return true
+			for slot in [ItemData.Slot.WEAPON, ItemData.Slot.ARMOR, ItemData.Slot.ACCESSORY]:
+				var equipped := inv.equipped_in(slot)
+				if equipped != null and equipped.id == item.product_id:
+					return true
 			return false
 	return false
 

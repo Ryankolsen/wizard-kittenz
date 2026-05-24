@@ -54,7 +54,7 @@ func test_purchase_registry_routes_shop_id_to_grant_item():
 # --- Shop screen wiring -----------------------------------------------------
 
 func _make_screen(ledger: CurrencyLedger, inv: ItemInventory,
-		character: CharacterData):
+		character: CharacterData) -> ShopScreen:
 	var screen = load(SHOP_SCREEN_SCENE).instantiate()
 	add_child_autofree(screen)
 	var billing := FakeBilling.new()
@@ -92,3 +92,74 @@ func test_buy_common_gear_costs_50_gold():
 	screen._on_buy_pressed("shop_apprentice_garb")  # COMMON wizard gear
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 50)
 	assert_eq(inv.bag_items().size(), 1)
+
+# --- Slice 3 (#234): gear ownership rule ------------------------------------
+
+# 1. _is_owned is true when the item is in the bag.
+func test_is_owned_true_when_id_in_bag():
+	var ledger := CurrencyLedger.new()
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("shop_apprentice_garb"))
+	var screen := _make_screen(ledger, inv, _wizard())
+	var item := ShopCatalog.find("shop_apprentice_garb")
+	assert_true(screen._is_owned(item))
+
+# 2. _is_owned is false when the bag is empty.
+func test_is_owned_false_when_bag_empty():
+	var ledger := CurrencyLedger.new()
+	var screen := _make_screen(ledger, ItemInventory.new(), _wizard())
+	var item := ShopCatalog.find("shop_apprentice_garb")
+	assert_false(screen._is_owned(item))
+
+# 3. After remove_from_bag, the row is re-buyable.
+func test_is_owned_false_after_remove_from_bag():
+	var ledger := CurrencyLedger.new()
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("shop_apprentice_garb"))
+	inv.remove_from_bag("shop_apprentice_garb")
+	var screen := _make_screen(ledger, inv, _wizard())
+	var item := ShopCatalog.find("shop_apprentice_garb")
+	assert_false(screen._is_owned(item))
+
+# 4. _is_owned is true when the item is equipped (not in bag).
+func test_is_owned_true_when_equipped():
+	var ledger := CurrencyLedger.new()
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("shop_apprentice_garb"))
+	var screen := _make_screen(ledger, inv, _wizard())
+	var item := ShopCatalog.find("shop_apprentice_garb")
+	assert_true(screen._is_owned(item))
+
+func _row_button(screen: ShopScreen, product_id: String) -> Button:
+	var row: HBoxContainer = screen._rows_by_product.get(product_id)
+	if row == null:
+		return null
+	for c in row.get_children():
+		if c is Button:
+			return c
+	return null
+
+# 6. Adding the gear to the bag live-flips the row to "Owned" + disabled
+# without rebuilding the shop.
+func test_row_flips_to_owned_live_on_inventory_change():
+	var ledger := CurrencyLedger.new()
+	var inv := ItemInventory.new()
+	var screen := _make_screen(ledger, inv, _wizard())
+	var btn := _row_button(screen, "shop_apprentice_garb")
+	assert_eq(btn.text, "Buy")
+	inv.add_to_bag(ItemCatalog.find("shop_apprentice_garb"))
+	assert_eq(btn.text, "Owned")
+	assert_true(btn.disabled)
+
+# 7. Full tracer-bullet: end-to-end purchase via _on_buy_pressed flips the
+# row to Owned with no extra plumbing.
+func test_successful_purchase_flips_row_to_owned():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(100, CurrencyLedger.Currency.GOLD)
+	var inv := ItemInventory.new()
+	var screen := _make_screen(ledger, inv, _wizard())
+	var btn := _row_button(screen, "shop_apprentice_garb")
+	assert_eq(btn.text, "Buy")
+	screen._on_buy_pressed("shop_apprentice_garb")
+	assert_eq(btn.text, "Owned")
+	assert_true(btn.disabled)
