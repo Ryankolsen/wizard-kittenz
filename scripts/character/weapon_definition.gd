@@ -36,17 +36,21 @@ static func battle() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_sword_sprite.png"
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 2.1
-	# Anchor at shoulder height (negative y = up in Godot 2D, kitten sprite is
-	# 48px tall centered at y=0). Pivoting from the shoulder makes the windup
-	# raise the blade above the head and the strike land near the waist —
-	# previously y=8 put the pivot at the paws so the sword chopped through
-	# the feet instead of through the torso.
-	d.anchor_offset = Vector2(2, -10)
+	# Pivot represents where the kitten grips the sword: anchor at waist height
+	# (positive y is down in Godot 2D; kitten sprite is 48px tall centered at y=0).
+	# weapon_offset = (16, 0) puts the sprite's grip on the pivot so rotation
+	# happens around the hand, not the sword's geometric center.
+	d.anchor_offset = Vector2(2, 4)
 	d.weapon_offset = Vector2(16, 0)
 	d.windup_duration = 0.08
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.15
-	d.idle_rotation = 0.4
+	# Rest pose: sword held vertically, blade pointing UP (-PI/2 rotates the
+	# horizontal hilt-left/blade-right sprite 90° CCW so blade is skyward).
+	# The swing then arcs from up-behind through overhead to down-forward —
+	# a proper overhead chop. Previously idle_rotation = 0.4 produced a
+	# hilt-up / point-down resting pose, the opposite of what we wanted.
+	d.idle_rotation = -PI / 2.0
 	return d
 
 # Wizard kitten preset — wand thrusts forward (CAST) rather than swinging in
@@ -76,19 +80,23 @@ static func sleepy() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_staff_sprite.png"
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 1.8
-	# Match battle's shoulder-height pivot so the staff swings through the
-	# torso, not the legs.
-	d.anchor_offset = Vector2(2, -10)
-	# Staff sprite's orb is on the LEFT end; flip horizontally so the orb
-	# leads the swing (forward end), matching how the sword's blade leads.
-	# weapon_offset extends the staff out to the side like the sword does
-	# instead of draping it across the body.
-	d.weapon_offset = Vector2(16, 0)
-	d.sprite_scale = Vector2(-1.0, 1.0)
+	# Same rest pose as battle's sword: pivot at the waist (the gripping hand),
+	# staff held vertically with the orb (tip) pointing skyward, swing arcs
+	# overhead to a forward-down strike.
+	d.anchor_offset = Vector2(2, 4)
+	# Staff sprite is orb-LEFT / butt-RIGHT. The pivot represents where the
+	# kitten grips the BUTT, so weapon_offset is NEGATIVE — sprite center
+	# sits to the left of the pivot so the butt end lands on the pivot and
+	# the orb is the free end 48px away.
+	d.weapon_offset = Vector2(-16, 0)
 	d.windup_duration = 0.1
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.18
-	d.idle_rotation = 0.4
+	# +PI/2 rotates the horizontal sprite 90° CW: right-end (butt) goes DOWN,
+	# left-end (orb) goes UP. Mirrors battle's -PI/2 because battle's tip
+	# (blade) is on the sprite's right end while sleepy's tip (orb) is on
+	# the left — opposite signs keep both tips pointing up at idle.
+	d.idle_rotation = PI / 2.0
 	return d
 
 # Chonk kitten preset — mug-bash SWING. The mug sprite is 47x48 (tall, grip

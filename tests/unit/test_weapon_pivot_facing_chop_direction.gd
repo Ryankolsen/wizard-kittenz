@@ -28,20 +28,24 @@ func _blade_tip_in_parent_frame(p: WeaponPivot, half_width: float) -> Vector2:
 	var tip_in_pivot: Vector2 = sprite.transform * tip_local
 	return p.transform * tip_in_pivot
 
-func test_swing_right_blade_tip_below_pivot_at_mid_strike() -> void:
+func test_swing_right_blade_tip_below_pivot_at_strike_apex() -> void:
 	var def := WeaponDefinition.battle()
 	var p := _make(def)
 	p.swing(Vector2.RIGHT)
-	p.tick(def.windup_duration + def.strike_duration * 0.5)
+	# Sample at strike apex (end of strike phase) — that's where "chopped down"
+	# is fully realized. With the new rest pose (blade up), mid-strike is still
+	# in the upper half of the arc; the contract is "ends below," not "is below
+	# at every sample."
+	p.tick(def.windup_duration + def.strike_duration - 0.001)
 	var tip := _blade_tip_in_parent_frame(p, 24.0)
 	assert_gt(tip.y, p.position.y,
-		"right-facing tip should be below pivot at mid-strike (sanity)")
+		"right-facing tip should be below pivot at strike apex (sanity)")
 
-func test_swing_left_blade_tip_below_pivot_at_mid_strike() -> void:
+func test_swing_left_blade_tip_below_pivot_at_strike_apex() -> void:
 	var def := WeaponDefinition.battle()
 	var p := _make(def)
 	p.swing(Vector2.LEFT)
-	p.tick(def.windup_duration + def.strike_duration * 0.5)
+	p.tick(def.windup_duration + def.strike_duration - 0.001)
 	var tip := _blade_tip_in_parent_frame(p, 24.0)
 	assert_gt(tip.y, p.position.y,
 		"left-facing tip must also chop DOWN — the regression that motivated this test had tip.y < pivot.y here")
