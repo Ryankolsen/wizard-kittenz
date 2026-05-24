@@ -217,6 +217,32 @@ func test_bar_room_mounted_before_player_in_child_order():
 		"bar mounted at lower child index than player so player draws on top")
 
 
+func test_held_move_input_released_on_bar_entry():
+	# Mobile-deploy bug: the player walks onto the bar entrance while holding a
+	# movement input (a held key, or a virtual-joystick direction held still).
+	# The detector mounts the bar but the input stays pressed, so the next
+	# physics frame's Input.get_vector still returns that direction and the
+	# kitten runs off endlessly inside the bar. _enter_bar_room must release the
+	# move actions so the player stands still on entry.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	Input.action_press("move_right")
+	assert_true(Input.is_action_pressed("move_right"),
+		"precondition: a move action is held as the player enters")
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	assert_not_null(inst.get_node_or_null("BarRoomScene"), "precondition: bar mounted")
+	for action in ["move_left", "move_right", "move_up", "move_down"]:
+		assert_false(Input.is_action_pressed(action),
+			"%s released on bar entry so the player doesn't keep moving" % action)
+	# Defensive cleanup so a leaked press can't bleed into another test.
+	Input.action_release("move_right")
+
+
 func test_saved_camera_limits_field_removed():
 	# Lock the refactor in: the _saved_camera_limits field that backed the
 	# old lift/restore is gone, along with the lift/restore methods. Reading

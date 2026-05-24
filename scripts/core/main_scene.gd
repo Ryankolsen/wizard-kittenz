@@ -265,6 +265,12 @@ func _enter_bar_room() -> void:
 	if scene == null:
 		return
 	_player_dungeon_position = _player.global_position
+	# Release any held movement input before the bar mounts. Otherwise a key
+	# (or a joystick direction held still) the player was pressing to walk onto
+	# the entrance stays pressed, and the player's next _physics_process reads
+	# it via Input.get_vector and runs off endlessly inside the bar. The virtual
+	# joystick only releases on touch-end, so a held-still thumb hits this too.
+	_release_move_input()
 	_pause_dungeon_entities()
 	var bar: Node2D = scene.instantiate() as Node2D
 	bar.name = "BarRoomScene"
@@ -287,6 +293,11 @@ func _enter_bar_room() -> void:
 # the dungeon's wall colliders from blocking movement inside the bar — a
 # hidden CanvasItem with no _process tick effectively drops both visuals and
 # tile collision shapes for the duration of the visit.
+func _release_move_input() -> void:
+	for action in VirtualJoystick.MOVE_ACTIONS:
+		Input.action_release(action)
+
+
 func _pause_dungeon_entities() -> void:
 	_paused_dungeon_nodes.clear()
 	_hidden_dungeon_nodes.clear()
