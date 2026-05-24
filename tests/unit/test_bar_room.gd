@@ -188,3 +188,84 @@ func test_bar_room_root_y_sorts_props_with_player():
 	var bar := _make_bar()
 	assert_true(bar.y_sort_enabled,
 		"bar root has y_sort_enabled so props layer correctly with player")
+
+
+# --- Shop overlay modality (#232) ------------------------------------------
+# The shop overlay must absorb GUI input — otherwise clicks bleed through to
+# the HUD beneath (most visibly: Buy presses hit the Character menu button).
+# The contract: a full-rect scrim Control with MOUSE_FILTER_STOP lives under
+# the shop's CanvasLayer wrapper, is removed on close, and is not stacked on
+# reopen.
+
+func _find_scrim_in_overlay(overlay: CanvasLayer) -> Control:
+	# The scrim is a full-rect Control sibling of (or above) the ShopScreen
+	# whose mouse_filter is MOUSE_FILTER_STOP. Walk only the overlay's own
+	# subtree so the ShopScreen root (also a Control) doesn't get mistaken
+	# for the scrim — the scrim's defining trait is anchor-fill + STOP.
+	for child in overlay.get_children():
+		if child is Control and (child as Control).mouse_filter == Control.MOUSE_FILTER_STOP \
+				and (child as Control).anchor_right == 1.0 \
+				and (child as Control).anchor_bottom == 1.0:
+			return child
+	return null
+
+
+func test_shop_overlay_has_full_rect_scrim_with_mouse_filter_stop():
+	# AC: clicks under the shop must be absorbed. The scrim Control filling
+	# the screen with MOUSE_FILTER_STOP is the contractual hook — it sits
+	# under the shop so any click that misses a shop widget still doesn't
+	# bleed through to the HUD beneath.
+	var bar := _make_bar()
+	bar._on_shop_requested()
+	var overlay := bar._shop_overlay
+	assert_not_null(overlay, "shop overlay CanvasLayer was spawned")
+	var scrim := _find_scrim_in_overlay(overlay)
+	assert_not_null(scrim,
+		"overlay has a full-rect Control scrim with MOUSE_FILTER_STOP")
+
+
+func test_shop_overlay_teardown_removes_scrim() -> void:
+	# AC: Back restores HUD input. The scrim (and the whole overlay) must be
+	# gone from the bar's children — no leftover input-eater hanging around.
+	var bar := _make_bar()
+	bar._on_shop_requested()
+	var shop: ShopScreen = bar._shop_overlay.get_child(bar._shop_overlay.get_child_count() - 1)
+	# Find the actual ShopScreen in the overlay (scrim may come first).
+	for child in bar._shop_overlay.get_children():
+		if child is ShopScreen:
+			shop = child
+			break
+	shop.back_pressed.emit()
+	assert_null(bar._shop_overlay,
+		"_shop_overlay is cleared after back press")
+	# queue_free is deferred — wait a frame so the CanvasLayer is actually gone.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for child in bar.get_children():
+		assert_false(child is CanvasLayer,
+			"no leftover CanvasLayer scrim hanging around after close")
+
+
+func test_shop_overlay_reopen_does_not_stack() -> void:
+	# AC: opening, closing, then reopening produces exactly one overlay and
+	# one scrim — not two stacked modals each eating input independently.
+	var bar := _make_bar()
+	bar._on_shop_requested()
+	var first_overlay := bar._shop_overlay
+	var shop: ShopScreen = null
+	for child in first_overlay.get_children():
+		if child is ShopScreen:
+			shop = child
+			break
+	shop.back_pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	bar._on_shop_requested()
+	var canvas_layers: Array = []
+	for child in bar.get_children():
+		if child is CanvasLayer:
+			canvas_layers.append(child)
+	assert_eq(canvas_layers.size(), 1,
+		"exactly one CanvasLayer overlay after open/close/open")
+	var scrim := _find_scrim_in_overlay(bar._shop_overlay)
+	assert_not_null(scrim, "reopened overlay still has its scrim")

@@ -98,6 +98,13 @@ func _on_enemy_barrier_body_entered(body: Node) -> void:
 # in the tree underneath. Overlay mode tells ShopScreen to emit
 # back_pressed instead of doing its default change_scene_to_file, letting
 # us tear down just the overlay and leave the player standing at the bar.
+#
+# A full-rect scrim Control sits between the CanvasLayer and the shop with
+# mouse_filter = MOUSE_FILTER_STOP so any click that misses a shop widget
+# is still absorbed instead of bleeding through to the HUD's buttons (most
+# visibly the Character menu button, which was eating Buy presses — #232).
+# The overlay's CanvasLayer.layer is bumped above the HUD's default (1) so
+# GUI input routing reaches the scrim before the HUD.
 func _on_shop_requested() -> void:
 	if _shop_overlay != null and is_instance_valid(_shop_overlay):
 		return
@@ -106,6 +113,13 @@ func _on_shop_requested() -> void:
 		return
 	var shop: ShopScreen = scene.instantiate()
 	var layer := CanvasLayer.new()
+	layer.layer = 10
+	var scrim := Control.new()
+	scrim.name = "ShopScrim"
+	scrim.anchor_right = 1.0
+	scrim.anchor_bottom = 1.0
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(scrim)
 	layer.add_child(shop)
 	add_child(layer)
 	shop.set_overlay_mode(true)
