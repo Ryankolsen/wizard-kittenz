@@ -58,7 +58,12 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 		var kind: int = Chest.Kind.STANDARD
 		if rare_unlocked and roll < RARE_CHANCE_AFTER_UNLOCK:
 			kind = Chest.Kind.RARE
+		# chest_id derived purely from placement index so both co-op clients
+		# converge on the same id when run against the same seed (slice 4 /
+		# issue #221). The wire layer uses this to look up the local entity
+		# for a remote open.
 		placements.append({
+			"chest_id": "chest_%d" % _i,
 			"room_id": room.id,
 			"position": offset,
 			"chest": Chest.make(kind)

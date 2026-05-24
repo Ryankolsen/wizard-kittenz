@@ -137,6 +137,27 @@ func test_same_seed_at_threshold_produces_identical_kinds():
 		assert_eq(a[i]["room_id"], b[i]["room_id"])
 		assert_eq(a[i]["position"], b[i]["position"])
 
+func test_chest_ids_are_deterministic_from_spawner():
+	# Slice 4 (#221) co-op sync: both clients run plan() with the same
+	# (dungeon, seed) and must agree on chest_id per placement so a remote
+	# open lands on the right local entity.
+	var d := _make_dungeon(6)
+	var a := ChestSpawner.plan(d, _seeded_rng(5))
+	var b := ChestSpawner.plan(d, _seeded_rng(5))
+	assert_eq(a.size(), b.size())
+	for i in range(a.size()):
+		assert_true(a[i].has("chest_id"), "placement carries chest_id")
+		assert_eq(a[i]["chest_id"], b[i]["chest_id"],
+			"chest_id must match across runs at index %d" % i)
+	# IDs are also unique within a single plan() call so the wire-side
+	# lookup table can't collide.
+	var seen: Dictionary = {}
+	for p in a:
+		var cid: String = p["chest_id"]
+		assert_false(seen.has(cid), "chest_id %s appears twice in one plan" % cid)
+		seen[cid] = true
+
+
 func test_rare_unlock_constants_are_set():
 	assert_true(ChestSpawner.RARE_UNLOCK_DEPTH >= 1,
 		"RARE_UNLOCK_DEPTH must be >= 1 so depth-0 (first dungeon) stays gold-only")

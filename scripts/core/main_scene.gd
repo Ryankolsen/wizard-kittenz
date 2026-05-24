@@ -362,12 +362,19 @@ func _spawn_chest() -> void:
 	rng.seed = _chest_spawn_seed()
 	var placements := ChestSpawner.plan(_run_controller.dungeon, rng)
 	var ledger := _currency_ledger()
+	var session := _coop_session()
 	for placement in placements:
 		var chest_entity: ChestEntity = scene.instantiate() as ChestEntity
 		if chest_entity == null:
 			continue
 		chest_entity.chest = placement["chest"]
 		chest_entity.ledger = ledger
+		chest_entity.chest_id = placement["chest_id"]
+		# Wiring `session` flips ChestEntity into co-op mode: the chest stays
+		# CLOSED until every present player has opened it (slice 4 / #221).
+		# Solo / pre-handshake leaves session null and the chest fades on
+		# the first open (matches #218 behavior).
+		chest_entity.session = session
 		var room_id: int = placement["room_id"]
 		var offset: Vector2 = placement["position"]
 		chest_entity.position = _dungeon_layout.room_center_world(room_id) + offset

@@ -1,13 +1,17 @@
 class_name ChestEntity
 extends Node2D
 
-# In-world wrapper around the pure-data Chest (PRD #217 / issue #218,
-# slice 1). Owns the closed/open sprite swap, the post-open linger →
-# fade → free lifecycle, and a proximity gate that callers (Player input
-# handler, or main_scene tick loop) use to decide whether to surface the
-# interact prompt. Driven through public methods (open/tick/
-# should_offer_interact) so the lifecycle is testable without a
-# SceneTree, mirroring the headless tick() pattern in HealingBox.
+# In-world wrapper around the pure-data Chest. Slice 1 (#218) introduced
+# the open + linger + fade lifecycle and a single-ledger interact path.
+# Slice 4 (PRD #217 / issue #221) layers per-player open state on top so
+# co-op opens credit each client's own loot and the chest only fades once
+# every present player has opened it. Solo behavior (no session / 1-player
+# session) is unchanged from #218: the first open transitions to
+# OPENED_LINGERING immediately.
+#
+# Drive the lifecycle via public methods (open / tick /
+# should_offer_interact) so it stays testable without a SceneTree, mirroring
+# the headless tick() pattern in HealingBox.
 
 enum State { CLOSED, OPENED_LINGERING, FADING, FREED }
 
@@ -18,19 +22,43 @@ const INTERACT_RADIUS: float = 40.0
 const CLOSED_TEXTURE_PATH := "res://assets/sprites/chest_closed_sprite.png"
 const OPEN_TEXTURE_PATH := "res://assets/sprites/chest_open_sprite.png"
 
-# Emits once on the first successful open() with the rolled ItemData (or
-# null when the drop roll missed). Later VFX layers (PRD #217 user story
-# 20) can connect here without ChestEntity knowing about them.
-signal opened(item_drop)
+# Fires on every successful per-player open with (player_id, ItemData|null).
+# The wire bridge (slice 5 QA / future RPC slice) listens here and forwards
+# (chest_id, player_id) to remote clients; remote clients apply the open
+# through ChestEntity.open(player_id, ...) on their local entity matched
+# by chest_id.
+signal opened_by(player_id, item_drop)
 
 var state: int = State.CLOSED
+# Template Chest — only `kind` is consulted; per-player Chest instances are
+# minted inside open() so each player rolls their own loot independently.
 var chest: Chest = null
+# Solo fallback ledger and also the convenient slot for the local client's
+# ledger in co-op. _ledger_for() prefers `ledgers[player_id]` when set and
+# falls through to this for the empty-dict case.
 var ledger: CurrencyLedger = null
-# Set true when the FADING countdown elapses and the entity has called
-# queue_free(). Public test seam — assert on this instead of waiting for
-# the node to actually drop out of the tree.
+# Optional per-player ledger map (player_id -> CurrencyLedger). Production
+# co-op typically populates only the local player's entry — remote players'
+# ledgers live on their own clients and are credited there from the
+# replayed open. Tests populate both so they can assert independent credit.
+var ledgers: Dictionary = {}
+# Optional CoopSession. When null, behaves like solo: any single open
+# transitions to OPENED_LINGERING. When set, the chest stays CLOSED until
+# every session.player_ids entry has opened it (user story 14: shared
+# visual state).
+var session: CoopSession = null
+# Deterministic id from ChestSpawner — co-op clients use this to identify
+# the same chest across the wire (slice 5 wires the actual RPC; slice 4
+# just exposes the field).
+var chest_id: String = ""
+# Set true when the FADING countdown elapses and queue_free() fires. Public
+# test seam — assert here instead of waiting for the node to drop out of
+# the tree.
 var freed: bool = false
 
+# player_id -> true. Tracks who has already opened. Drives per-player
+# idempotence and the all-present-have-opened check that gates the fade.
+var _opened_set: Dictionary = {}
 var _sprite: Sprite2D = null
 var _linger_remaining: float = LINGER_SECONDS
 var _fade_remaining: float = FADE_SECONDS
@@ -46,14 +74,14 @@ func _physics_process(delta: float) -> void:
 	_try_interact()
 
 
-# Proximity + attack-key gate for the in-game interact path. Mirrors the
-# HealingBox proximity probe and the InteractableNPC attack-key wiring
-# without inheriting either — chests are not NPCs and don't need a
-# speech bubble. The character used for the item-drop roll is resolved
-# through the GameState autoload at open-time so the wiring is the same
-# as Bartender.
+# Proximity + attack-key gate for the in-game interact path. Resolves the
+# local player_id from the session (empty string = solo / no-session) and
+# routes through the same public open() path the wire layer uses.
 func _try_interact() -> void:
 	if state != State.CLOSED:
+		return
+	var local_pid: String = _resolve_local_player_id()
+	if not should_offer_interact(local_pid):
 		return
 	var player := _find_nearby_player()
 	if player == null:
@@ -66,7 +94,13 @@ func _try_interact() -> void:
 		character = gs.current_character
 		if ledger == null:
 			ledger = gs.currency_ledger
-	open(character, null)
+	open(local_pid, character, null)
+
+
+func _resolve_local_player_id() -> String:
+	if session != null and session.local_player_id != "":
+		return session.local_player_id
+	return ""
 
 
 func _find_nearby_player() -> Node2D:
@@ -100,33 +134,74 @@ func tick(delta: float) -> void:
 			pass
 
 
-# Returns true while the chest is still openable. Callers (player input
-# handler / proximity prompt UI) use this to gate prompt rendering so
-# walking near a fading chest does not re-offer the interact (PRD user
-# story 9).
-func should_offer_interact() -> bool:
-	return state == State.CLOSED
-
-
-# Routes to the underlying Chest.open(). On the first successful call,
-# transitions to OPENED_LINGERING, swaps the sprite, and emits opened
-# with the rolled item drop (which may be null). Returns false on every
-# later call so the lifecycle is single-shot.
-func open(character: CharacterData = null, rng: RandomNumberGenerator = null) -> bool:
+# Returns true while this chest is still openable for `player_id`. The
+# default empty-string player_id keeps callers that don't track identity
+# (older single-player UI / tests) working by only checking state. Co-op
+# callers pass the local player_id so a player who has already opened
+# this chest does not see the prompt again (user story 15).
+func should_offer_interact(player_id: String = "") -> bool:
 	if state != State.CLOSED:
 		return false
-	if chest == null or ledger == null:
+	if player_id != "" and _opened_set.has(player_id):
 		return false
-	var ok: bool = chest.open(ledger, character, rng)
+	return true
+
+
+# Per-player open. Mints a fresh Chest instance for this player, credits
+# their ledger, marks them opened, and transitions to OPENED_LINGERING
+# only once every present player (per session) has opened. Returns false
+# if the chest is no longer CLOSED, this player already opened it, or the
+# required wiring (chest / ledger) is missing.
+func open(player_id: String, character: CharacterData = null, rng: RandomNumberGenerator = null) -> bool:
+	if state != State.CLOSED:
+		return false
+	if _opened_set.has(player_id):
+		return false
+	if chest == null:
+		return false
+	var per_ledger: CurrencyLedger = _ledger_for(player_id)
+	if per_ledger == null:
+		return false
+	# Fresh per-player Chest instance — each player rolls their own loot
+	# rather than sharing one Chest's already-consumed roll. The template
+	# `chest` on the entity contributes only its `kind`.
+	var per_chest: Chest = Chest.make(chest.kind)
+	var ok: bool = per_chest.open(per_ledger, character, rng)
 	if not ok:
 		return false
-	state = State.OPENED_LINGERING
-	_linger_remaining = LINGER_SECONDS
-	_fade_remaining = FADE_SECONDS
-	_ensure_sprite()
-	_refresh_sprite_texture()
-	opened.emit(chest.last_item_drop)
+	_opened_set[player_id] = true
+	opened_by.emit(player_id, per_chest.last_item_drop)
+	if _all_present_players_have_opened():
+		state = State.OPENED_LINGERING
+		_linger_remaining = LINGER_SECONDS
+		_fade_remaining = FADE_SECONDS
+		_ensure_sprite()
+		_refresh_sprite_texture()
 	return true
+
+
+# True once every present player (per session.player_ids) has opened, or
+# unconditionally true when no session is wired (solo / older callers).
+# The solo fallback preserves #218 behavior: first open → linger → fade.
+func _all_present_players_have_opened() -> bool:
+	if session == null:
+		return not _opened_set.is_empty()
+	for pid in session.player_ids:
+		if not _opened_set.has(pid):
+			return false
+	return true
+
+
+func _ledger_for(player_id: String) -> CurrencyLedger:
+	if ledgers.has(player_id):
+		return ledgers[player_id]
+	return ledger
+
+
+# Test seam: lets `test_chest_entity.gd` assert which player_ids have
+# already credited without poking the private dict directly.
+func has_opened(player_id: String) -> bool:
+	return _opened_set.has(player_id)
 
 
 func current_sprite_texture_path() -> String:
