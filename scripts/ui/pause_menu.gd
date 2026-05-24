@@ -39,6 +39,13 @@ const ControlsSettings := preload("res://scripts/core/controls_settings_manager.
 const QuitHandler := preload("res://scripts/dungeon/quit_dungeon_handler.gd")
 const StatsTabPanelScript := preload("res://scripts/ui/stats_tab_panel.gd")
 const EquipmentTabPanelScript := preload("res://scripts/ui/equipment_tab_panel.gd")
+const _QuickbarScript := preload("res://scripts/character/quickbar.gd")
+
+# Slice 4 of PRD #210. The Skills tab needs a Quickbar to render the
+# `[1] [2] [3] [4]` assignment row. In real play we walk get_nodes_in_group
+# ("player") to fetch Player.get_quickbar(); in tests bind_quickbar(qb)
+# injects one directly so test cases don't need to instance a Player scene.
+var _quickbar = null
 
 func _ready() -> void:
 	visible = false
@@ -492,7 +499,7 @@ func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContain
 	# rows keep the "Unlocked" status suffix so existing visual contracts
 	# (and tests / future polish) still have a stable token to read.
 	if node.unlocked:
-		label.text = "%s — Unlocked" % node.display_name
+		label.text = "%s — %s" % [node.display_name, _assignment_label_text(node)]
 	else:
 		label.text = "%s — Unlocks at level %d" % [node.display_name, node.level_required]
 	col.add_child(label)
@@ -505,7 +512,104 @@ func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContain
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(desc)
 	row.add_child(col)
+	# Slice 4 of PRD #210. Unlocked rows that grant a spell get the
+	# [1] [2] [3] [4] assignment cluster. Locked rows (and unlock rows that
+	# happen to have no spell, e.g. a passive node) keep the legacy label-
+	# only layout — assignment controls would be meaningless without a
+	# spell to bind, and locked rows explicitly must not have any per AC.
+	if node.unlocked and node.spell != null:
+		row.add_child(_make_assign_cluster(node.spell))
 	return row
+
+func _make_assign_cluster(spell: Spell) -> HBoxContainer:
+	var cluster := HBoxContainer.new()
+	cluster.name = "AssignCluster"
+	for i in range(1, _QuickbarScript.SLOT_COUNT + 1):
+		var btn := Button.new()
+		btn.name = "assign_slot_%d" % i
+		btn.text = str(i)
+		btn.toggle_mode = true
+		btn.button_pressed = _slot_holds_spell(i, spell)
+		# Bind the slot index + spell into the lambda so a single handler can
+		# route every per-row press without juggling node names.
+		var slot_n := i
+		btn.pressed.connect(func() -> void: _on_assign_slot_pressed(slot_n, spell))
+		cluster.add_child(btn)
+	return cluster
+
+# Returns the live "Slot N" / "Unassigned" suffix used in the unlocked-row
+# label so user story 12 (current assignment visible in Skills tab) is
+# satisfied without forcing the reader to scan the highlighted button.
+func _assignment_label_text(node: SkillNode) -> String:
+	var qb = _resolve_quickbar()
+	if qb == null or node.spell == null:
+		return "Unlocked"
+	for i in range(1, _QuickbarScript.SLOT_COUNT + 1):
+		if qb.get_slot(i) == node.spell:
+			return "Slot %d" % i
+	return "Unassigned"
+
+func _slot_holds_spell(slot_n: int, spell: Spell) -> bool:
+	var qb = _resolve_quickbar()
+	if qb == null:
+		return false
+	return qb.get_slot(slot_n) == spell
+
+# Toggle-style press: re-tapping the slot the spell already occupies
+# unassigns it (user story 13). Otherwise route through Quickbar.assign
+# which handles the swap-with-existing case (user story 14) on its own.
+# Updates row visuals in-place rather than rebuilding — destroying the
+# button mid-press emits "freed while signal emitting" engine errors.
+func _on_assign_slot_pressed(slot_n: int, spell: Spell) -> void:
+	var qb = _resolve_quickbar()
+	if qb == null:
+		return
+	if qb.get_slot(slot_n) == spell:
+		qb.unassign(slot_n)
+	else:
+		qb.assign(slot_n, spell)
+	_refresh_assign_visuals()
+
+# Walks every SkillRow_* in SkillsList and re-syncs each assign_slot_N
+# button's checked state plus the row's "— Slot N / Unassigned" suffix.
+# Cheap (≤ 5 rows × 4 buttons) and avoids the rebuild path's free-during-
+# signal-emission hazard.
+func _refresh_assign_visuals() -> void:
+	var list := find_child("SkillsList", true, false) as VBoxContainer
+	if list == null:
+		return
+	var tree := _current_skill_tree()
+	if tree == null:
+		return
+	for row in list.get_children():
+		var sid := String(row.name).trim_prefix("SkillRow_")
+		var node := tree.find(sid)
+		if node == null or not node.unlocked or node.spell == null:
+			continue
+		var label := row.find_child("SkillRowLabel_%s" % sid, true, false) as Label
+		if label != null:
+			label.text = "%s — %s" % [node.display_name, _assignment_label_text(node)]
+		for i in range(1, _QuickbarScript.SLOT_COUNT + 1):
+			var btn := row.find_child("assign_slot_%d" % i, true, false) as Button
+			if btn != null:
+				btn.set_pressed_no_signal(_slot_holds_spell(i, node.spell))
+
+# Test-friendly seam: lets a test push a Quickbar in without instancing a
+# Player scene + adding it to a "player" group. Mirrors QuickbarHUD's
+# bind_player.
+func bind_quickbar(qb) -> void:
+	_quickbar = qb
+
+func _resolve_quickbar():
+	if _quickbar != null:
+		return _quickbar
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for p in tree.get_nodes_in_group("player"):
+		if p.has_method("get_quickbar"):
+			return p.get_quickbar()
+	return null
 
 func _on_resume_pressed() -> void:
 	close()
