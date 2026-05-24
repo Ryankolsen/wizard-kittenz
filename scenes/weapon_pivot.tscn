@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b1weapn0pivot01"]
+[gd_scene format=3 uid="uid://cdtt8wr8uwc4g"]
 
 [ext_resource type="Script" path="res://scripts/character/weapon_pivot.gd" id="1_weapon_pivot"]
 
