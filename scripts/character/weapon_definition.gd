@@ -92,10 +92,10 @@ static func sleepy() -> WeaponDefinition:
 	d.windup_duration = 0.1
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.18
-	# -PI/2 rotates the horizontal sprite 90° CCW so the right-end (orb)
-	# points UP at rest. Same sign as battle since both sprites' tips
-	# (blade / orb) live on the sprite's right end.
-	d.idle_rotation = -PI / 2.0
+	# -PI/2 would point the orb straight up, but that puts the shaft right
+	# across the kitten's face. Tilt ~35° forward (CW from vertical) so the
+	# orb leans away from the face — more natural pose, doesn't occlude.
+	d.idle_rotation = -PI / 2.0 + deg_to_rad(35.0)
 	return d
 
 # Chonk kitten preset — mug-bash SWING. The mug sprite is 47x48 (tall, grip
