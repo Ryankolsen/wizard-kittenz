@@ -34,18 +34,23 @@ func test_wizard_remote_uses_cast_attack_type() -> void:
 		"wizard remote kitten uses CAST attack_type")
 
 # Test 3 — facing direction propagates through to the pivot's mirror state.
-# Left-facing swings flip the pivot's scale.x; local rotation stays positive
-# (the parent scale produces the visual mirror).
+# Left-facing attacks mirror pivot.position.x + sprite pixels and negate
+# the rotation arc so the chop reads downward on both sides. Putting
+# scale.x = -1 on the pivot would invert the rotation's y-component
+# (Godot applies scale before rotation), so the mirror lives on sprite +
+# position + rotation-sign, not on pivot.scale.
 func test_facing_direction_propagates_to_pivot_mirror() -> void:
 	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
 	inst.play_attack(Vector2.LEFT)
-	assert_eq(inst.weapon_pivot.scale.x, -1.0,
-		"left-facing attack mirrors the pivot via scale.x = -1")
+	assert_eq(inst.weapon_pivot.scale.x, 1.0,
+		"pivot.scale.x stays 1 — see weapon_pivot.gd for the why")
 	var def: WeaponDefinition = inst.weapon_pivot.definition
+	assert_eq(inst.weapon_pivot.position.x, def.anchor_offset.x * -1.0,
+		"pivot.position.x mirrors so the weapon rests on the left flank")
 	inst.weapon_pivot.tick(def.windup_duration + def.strike_duration - 0.001)
-	var strike_rot: float = def.idle_rotation + def.swing_arc
+	var strike_rot: float = (def.idle_rotation + def.swing_arc) * -1.0
 	assert_almost_eq(inst.weapon_pivot.rotation, strike_rot, 0.05,
-		"local rotation walks the positive arc; scale.x handles the flip")
+		"left-facing strike rotation is the negation of right-facing strike")
 
 # Test 4 — play_attack accepts only direction (no extra payload required),
 # so existing position/state packets don't need new fields to drive it.

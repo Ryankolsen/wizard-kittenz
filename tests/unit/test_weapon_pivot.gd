@@ -57,16 +57,19 @@ func test_interrupt_resets_to_idle_rotation() -> void:
 	assert_eq(pivot.phase, WeaponPivot.Phase.IDLE)
 	assert_almost_eq(pivot.rotation, def.idle_rotation, 0.001)
 
-# Facing left mirrors the swing visually via scale.x = -1; local rotation
-# still walks the positive arc. The parent scale produces the visual flip,
-# which keeps swing math simple and lets idle-facing changes (no swing in
-# flight) reuse the same mirror mechanism via set_facing().
-func test_swing_left_flips_scale_and_keeps_local_arc_positive() -> void:
+# Facing left mirrors the resting pose (position + sprite pixels) and
+# negates the rotation arc so the chop still reads downward. See
+# test_weapon_pivot_facing_chop_direction for the behavior assertion
+# (blade tip below pivot at strike apex on both facings); this test just
+# pins the rotation-sign contract that produces it.
+func test_swing_left_mirrors_pose_and_negates_rotation() -> void:
 	var pivot := _make()
 	var def := pivot.definition
 	pivot.swing(Vector2.LEFT)
-	assert_eq(pivot.scale.x, -1.0)
+	assert_eq(pivot.scale.x, 1.0,
+		"pivot.scale.x stays 1 — flipping it would invert rotation y too")
+	assert_eq(pivot.position.x, def.anchor_offset.x * -1.0)
 	pivot.tick(def.windup_duration)
 	pivot.tick(def.strike_duration)
-	var expected: float = def.idle_rotation + def.swing_arc
+	var expected: float = (def.idle_rotation + def.swing_arc) * -1.0
 	assert_almost_eq(pivot.rotation, expected, 0.05)
