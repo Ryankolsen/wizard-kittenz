@@ -84,19 +84,18 @@ static func sleepy() -> WeaponDefinition:
 	# staff held vertically with the orb (tip) pointing skyward, swing arcs
 	# overhead to a forward-down strike.
 	d.anchor_offset = Vector2(2, 4)
-	# Staff sprite is orb-LEFT / butt-RIGHT. The pivot represents where the
-	# kitten grips the BUTT, so weapon_offset is NEGATIVE — sprite center
-	# sits to the left of the pivot so the butt end lands on the pivot and
-	# the orb is the free end 48px away.
-	d.weapon_offset = Vector2(-16, 0)
+	# Staff sprite is butt-LEFT / orb-RIGHT (same layout as battle's sword).
+	# weapon_offset.x = 24 puts the BUTT exactly on the pivot — combined with
+	# the sprite's half-width, that keeps the butt glued to the grip through
+	# every rotation while the orb traces a 48px-radius arc around it.
+	d.weapon_offset = Vector2(24, 0)
 	d.windup_duration = 0.1
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.18
-	# +PI/2 rotates the horizontal sprite 90° CW: right-end (butt) goes DOWN,
-	# left-end (orb) goes UP. Mirrors battle's -PI/2 because battle's tip
-	# (blade) is on the sprite's right end while sleepy's tip (orb) is on
-	# the left — opposite signs keep both tips pointing up at idle.
-	d.idle_rotation = PI / 2.0
+	# -PI/2 rotates the horizontal sprite 90° CCW so the right-end (orb)
+	# points UP at rest. Same sign as battle since both sprites' tips
+	# (blade / orb) live on the sprite's right end.
+	d.idle_rotation = -PI / 2.0
 	return d
 
 # Chonk kitten preset — mug-bash SWING. The mug sprite is 47x48 (tall, grip
