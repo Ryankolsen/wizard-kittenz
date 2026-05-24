@@ -151,6 +151,51 @@ func test_row_flips_to_owned_live_on_inventory_change():
 	assert_eq(btn.text, "Owned")
 	assert_true(btn.disabled)
 
+# --- Slice 4 (#235): row flash on successful purchase ----------------------
+
+class FlashSpy:
+	extends RefCounted
+	var calls: Array = []
+	func on_flash(product_id) -> void:
+		calls.append(product_id)
+
+func test_successful_purchase_flashes_row_once():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(100, CurrencyLedger.Currency.GOLD)
+	var inv := ItemInventory.new()
+	var screen := _make_screen(ledger, inv, _wizard())
+	var spy := FlashSpy.new()
+	screen.row_flashed.connect(spy.on_flash)
+	screen._on_buy_pressed("shop_apprentice_garb")
+	assert_eq(spy.calls.size(), 1, "flash fires exactly once per purchase")
+	assert_eq(spy.calls[0], "shop_apprentice_garb")
+
+func test_no_flash_on_insufficient_funds():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(30, CurrencyLedger.Currency.GOLD)  # garb costs 50
+	var inv := ItemInventory.new()
+	var screen := _make_screen(ledger, inv, _wizard())
+	var spy := FlashSpy.new()
+	screen.row_flashed.connect(spy.on_flash)
+	screen._on_buy_pressed("shop_apprentice_garb")
+	assert_eq(spy.calls.size(), 0)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 30,
+		"ledger untouched on insufficient funds")
+	assert_eq(inv.bag_items().size(), 0)
+
+func test_no_flash_when_already_owned():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(100, CurrencyLedger.Currency.GOLD)
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("shop_apprentice_garb"))
+	var screen := _make_screen(ledger, inv, _wizard())
+	var spy := FlashSpy.new()
+	screen.row_flashed.connect(spy.on_flash)
+	screen._on_buy_pressed("shop_apprentice_garb")
+	assert_eq(spy.calls.size(), 0, "owned-row buy is a no-op, no flash")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 100,
+		"ledger untouched on already-owned")
+
 # 7. Full tracer-bullet: end-to-end purchase via _on_buy_pressed flips the
 # row to Owned with no extra plumbing.
 func test_successful_purchase_flips_row_to_owned():

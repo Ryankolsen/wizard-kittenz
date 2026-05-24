@@ -27,6 +27,12 @@ const ERROR_AUTO_HIDE_SECONDS := 3.0
 # connect this to tear the shop down without a scene change; the legacy
 # character-creation flow ignores it and relies on the default scene swap.
 signal back_pressed()
+# Fired once from _flash_row when a row is flashed after a successful purchase.
+# Tests assert against this signal rather than the tween itself (PRD #231 §UX).
+signal row_flashed(product_id)
+
+const _FLASH_DURATION := 0.25
+const _FLASH_TINT := Color(1.6, 1.6, 1.6, 1.0)
 # When true, _on_back_pressed skips the scene change so an overlay host can
 # decide how to dispose the screen (queue_free its CanvasLayer wrapper, etc.).
 var _overlay_mode: bool = false
@@ -293,6 +299,8 @@ func _on_buy_pressed(product_id: String) -> void:
 		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory())
 	if granted:
 		_refresh_row(product_id)
+		if _rows_by_product.has(product_id):
+			_flash_row(_rows_by_product[product_id])
 	else:
 		# Rare path — debit succeeded but the grant didn't land (e.g. a class
 		# upgrade product whose target tier isn't wired in ClassTierUpgrade
@@ -333,6 +341,24 @@ func _show_error(text: String) -> void:
 func _hide_error() -> void:
 	if error_label != null:
 		error_label.visible = false
+
+# Briefly tweens the row's modulate to a brighter tint and back so the player
+# sees which row landed after a purchase. Pure visual feedback — emits
+# row_flashed for tests since tween-driven changes are awkward to assert on.
+func _flash_row(row: HBoxContainer) -> void:
+	if row == null:
+		return
+	var product_id := ""
+	for pid in _rows_by_product.keys():
+		if _rows_by_product[pid] == row:
+			product_id = pid
+			break
+	row_flashed.emit(product_id)
+	if not row.is_inside_tree():
+		return
+	var tween := row.create_tween()
+	tween.tween_property(row, "modulate", _FLASH_TINT, _FLASH_DURATION * 0.5)
+	tween.tween_property(row, "modulate", Color(1, 1, 1, 1), _FLASH_DURATION * 0.5)
 
 func _refresh_row(product_id: String) -> void:
 	if not _rows_by_product.has(product_id):
