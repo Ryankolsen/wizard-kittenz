@@ -33,19 +33,19 @@ func test_wizard_remote_uses_cast_attack_type() -> void:
 		WeaponDefinition.AttackType.CAST,
 		"wizard remote kitten uses CAST attack_type")
 
-# Test 3 — facing direction propagates through to the pivot's swing sign.
-# Left-facing swings reflect against the right-facing swing.
-func test_facing_direction_propagates_to_swing_sign() -> void:
+# Test 3 — facing direction propagates through to the pivot's mirror state.
+# Left-facing swings flip the pivot's scale.x; local rotation stays positive
+# (the parent scale produces the visual mirror).
+func test_facing_direction_propagates_to_pivot_mirror() -> void:
 	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
 	inst.play_attack(Vector2.LEFT)
-	# WeaponPivot encodes facing via _dir_sign; -1 for left, +1 for right.
-	# Verify by ticking through the strike phase and asserting the rotation
-	# moved in the negative-arc direction (mirroring the SWING contract).
+	assert_eq(inst.weapon_pivot.scale.x, -1.0,
+		"left-facing attack mirrors the pivot via scale.x = -1")
 	var def: WeaponDefinition = inst.weapon_pivot.definition
 	inst.weapon_pivot.tick(def.windup_duration + def.strike_duration - 0.001)
-	var strike_rot: float = def.idle_rotation + def.swing_arc * -1.0
+	var strike_rot: float = def.idle_rotation + def.swing_arc
 	assert_almost_eq(inst.weapon_pivot.rotation, strike_rot, 0.05,
-		"left-facing swing reaches the negative-arc strike rotation")
+		"local rotation walks the positive arc; scale.x handles the flip")
 
 # Test 4 — play_attack accepts only direction (no extra payload required),
 # so existing position/state packets don't need new fields to drive it.

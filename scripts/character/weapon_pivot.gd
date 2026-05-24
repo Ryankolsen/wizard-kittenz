@@ -16,7 +16,21 @@ enum Phase { IDLE, WINDUP, STRIKE, RECOVERY }
 var definition: WeaponDefinition
 var phase: int = Phase.IDLE
 var _t: float = 0.0
-var _dir_sign: float = 1.0
+# Visual facing of the entire pivot. scale.x = -1 mirrors position offsets,
+# the sprite, and the rotation arc in one shot — so swing/cast math can stay
+# positive in local space.
+var _facing: float = 1.0
+
+# Mirror the pivot horizontally based on the kitten's facing. Zero is a
+# no-op (idle / stationary) so callers can route input_dir.x through here
+# without an extra branch.
+func set_facing(facing_x: float) -> void:
+	if facing_x > 0.0:
+		_facing = 1.0
+	elif facing_x < 0.0:
+		_facing = -1.0
+	# else: keep prior facing
+	scale.x = _facing
 
 @onready var _sprite: Sprite2D = get_node_or_null("Sprite2D")
 
@@ -42,6 +56,7 @@ func _apply_definition() -> void:
 	position = definition.anchor_offset
 	if _sprite != null:
 		_sprite.position = definition.weapon_offset
+		_sprite.scale = definition.sprite_scale
 	rotation = definition.idle_rotation
 
 # Begin a swing in the given facing direction. Re-swinging mid-animation
@@ -50,7 +65,7 @@ func _apply_definition() -> void:
 func swing(direction: Vector2) -> void:
 	if definition == null:
 		return
-	_dir_sign = -1.0 if direction.x < 0.0 else 1.0
+	set_facing(direction.x)
 	_t = 0.0
 	phase = Phase.WINDUP
 	rotation = definition.idle_rotation
@@ -63,7 +78,7 @@ func swing(direction: Vector2) -> void:
 func cast(direction: Vector2) -> void:
 	if definition == null:
 		return
-	_dir_sign = -1.0 if direction.x < 0.0 else 1.0
+	set_facing(direction.x)
 	_t = 0.0
 	phase = Phase.WINDUP
 	rotation = definition.idle_rotation
@@ -91,7 +106,7 @@ func tick(dt: float) -> void:
 
 func _tick_swing() -> void:
 	var idle: float = definition.idle_rotation
-	var arc: float = definition.swing_arc * _dir_sign
+	var arc: float = definition.swing_arc
 	var windup_rot: float = idle - 0.3 * arc
 	var strike_rot: float = idle + arc
 	# Loop so a single large dt (e.g. tests passing total_duration in one call)
@@ -125,7 +140,7 @@ func _tick_swing() -> void:
 # translates forward along the facing direction. Windup pulls slightly back,
 # strike thrusts to thrust_distance, recovery returns to the rest offset.
 func _tick_thrust() -> void:
-	var thrust: float = definition.thrust_distance * _dir_sign
+	var thrust: float = definition.thrust_distance
 	var rest_offset: Vector2 = definition.weapon_offset
 	var windup_offset: Vector2 = rest_offset + Vector2(-0.3 * thrust, 0.0)
 	var strike_offset: Vector2 = rest_offset + Vector2(thrust, 0.0)

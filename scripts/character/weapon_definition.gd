@@ -19,6 +19,10 @@ enum AttackType { SWING, THRUST, CAST }
 # Forward translation distance in pixels for THRUST/CAST attack types. Unused
 # by SWING — its animation is rotation-based, not translation-based.
 @export var thrust_distance: float = 0.0
+# Per-weapon sprite scale. Native pixel art is authored at varying sizes
+# (the mug is 47x48, swords/wands closer to 48x12), so scale lets each
+# preset right-size its sprite without rescaling the source asset.
+@export var sprite_scale: Vector2 = Vector2.ONE
 
 func total_duration() -> float:
 	return windup_duration + strike_duration + recovery_duration
@@ -32,8 +36,8 @@ static func battle() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_sword_sprite.png"
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 2.1
-	d.anchor_offset = Vector2(2, 4)
-	d.weapon_offset = Vector2.ZERO
+	d.anchor_offset = Vector2(2, 8)
+	d.weapon_offset = Vector2(16, 0)
 	d.windup_duration = 0.08
 	d.strike_duration = 0.12
 	d.recovery_duration = 0.15
@@ -49,7 +53,7 @@ static func wizard() -> WeaponDefinition:
 	d.texture_path = "res://assets/sprites/weapon_wand_sprite.png"
 	d.attack_type = AttackType.CAST
 	d.swing_arc = 0.0
-	d.anchor_offset = Vector2(2, 2)
+	d.anchor_offset = Vector2(2, 8)
 	d.weapon_offset = Vector2.ZERO
 	d.windup_duration = 0.08
 	d.strike_duration = 0.12
@@ -87,7 +91,8 @@ static func chonk() -> WeaponDefinition:
 	d.attack_type = AttackType.SWING
 	d.swing_arc = 2.3
 	d.anchor_offset = Vector2(4, 2)
-	d.weapon_offset = Vector2(20, 0)
+	d.weapon_offset = Vector2(10, 0)
+	d.sprite_scale = Vector2(0.5, 0.5)
 	d.windup_duration = 0.1
 	d.strike_duration = 0.14
 	d.recovery_duration = 0.18

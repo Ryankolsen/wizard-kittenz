@@ -192,6 +192,8 @@ func _physics_process(delta: float) -> void:
 		if _sprite != null and input_dir.x != 0.0:
 			var moving_left := input_dir.x < 0.0
 			_sprite.flip_h = moving_left != SpriteHelper.faces_left(data.character_class)
+			if _weapon_pivot != null:
+				_weapon_pivot.set_facing(input_dir.x)
 	move_and_slide()
 	_tick_spells(delta)
 	if data != null:

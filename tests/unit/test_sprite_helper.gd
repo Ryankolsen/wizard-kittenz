@@ -26,14 +26,15 @@ func test_cat_tier_falls_back_to_wizard_kitten():
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_CAT), WIZARD_PATH)
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_CAT), WIZARD_PATH)
 
-func test_faces_left_false_for_all_classes_after_chonk_right_swap():
-	# Slice 3 (PRD #223 / issue #226) swapped chonk to _right primary art so
-	# all four kitten classes match the convention; no class faces left by
-	# default.
-	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_KITTEN))
-	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.WIZARD_KITTEN))
-	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.BATTLE_KITTEN))
-	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.SLEEPY_KITTEN))
+func test_faces_left_true_for_kitten_classes_because_right_assets_face_left_visually():
+	# The four *_right.png kitten assets are misnamed — the artwork itself
+	# faces LEFT. faces_left() reports the true visual facing so player.gd's
+	# XOR flip logic resolves correctly. Non-kitten classes have no class-
+	# specific art and keep the default (false).
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_KITTEN))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.WIZARD_KITTEN))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.BATTLE_KITTEN))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.SLEEPY_KITTEN))
 	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_CAT))
 
 func test_returned_paths_load_as_textures():
