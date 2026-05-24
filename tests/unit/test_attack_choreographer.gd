@@ -123,3 +123,84 @@ func test_interrupt_mid_strike_disables_hitbox() -> void:
 	c.interrupt()
 	assert_eq(_hitbox_log, ["on", "off"])
 	assert_eq(c.phase, AttackChoreographer.Phase.IDLE)
+
+# Slice 5 (issue #228) — rapid re-attack while still in WINDUP cleanly
+# restarts the state machine. Expected phase trace is a fresh WINDUP →
+# STRIKE → RECOVERY → IDLE following the original WINDUP, with no missing
+# phases and no double-fires of STRIKE.
+func test_reattack_during_windup_restarts_phase_sequence_cleanly() -> void:
+	var c := _make()
+	var def := c.definition
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.SWING)
+	# Mid-WINDUP — phase still WINDUP, no STRIKE yet.
+	c.tick(def.windup_duration * 0.5)
+	assert_eq(c.phase, AttackChoreographer.Phase.WINDUP)
+	# Re-attack: should interrupt the in-flight WINDUP and start a fresh one.
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.SWING)
+	# Complete the second attack end-to-end.
+	c.tick(def.windup_duration + 0.001)
+	c.tick(def.strike_duration + 0.001)
+	c.tick(def.recovery_duration + 0.001)
+	assert_eq(_phases, [
+		AttackChoreographer.Phase.WINDUP,
+		AttackChoreographer.Phase.WINDUP,
+		AttackChoreographer.Phase.STRIKE,
+		AttackChoreographer.Phase.RECOVERY,
+		AttackChoreographer.Phase.IDLE,
+	])
+
+# Slice 5 (issue #228) — re-attacking mid-STRIKE must emit hitbox_disable
+# before the next strike's hitbox_enable, so the damage window doesn't stay
+# stuck "on" across the re-attack. Trace must be on → off → on, never on → on.
+func test_reattack_mid_strike_closes_hitbox_before_reopening() -> void:
+	var c := _make()
+	var def := c.definition
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.SWING)
+	c.tick(def.windup_duration + 0.001)  # now in STRIKE, hitbox on
+	assert_eq(_hitbox_log, ["on"])
+	# Re-attack mid-STRIKE: interrupt path must emit "off" before the new
+	# strike phase emits "on" again.
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.SWING)
+	assert_eq(_hitbox_log, ["on", "off"], "hitbox closed by the interrupt")
+	c.tick(def.windup_duration + 0.001)
+	assert_eq(_hitbox_log, ["on", "off", "on"], "hitbox reopens on next strike")
+
+# Slice 5 (issue #228) — hit-window equals strike_duration. Because the
+# enable / disable signals are gated on STRIKE entry and exit (no separate
+# timer), the time between them is exactly the configured strike_duration
+# within frame tolerance.
+func test_hit_window_duration_equals_strike_duration() -> void:
+	var def := WeaponDefinition.battle()
+	var observed := _measure_hit_window(def, 0.005)
+	assert_almost_eq(observed, def.strike_duration, 0.01,
+		"hit window duration equals strike_duration within frame tolerance")
+
+# Slice 5 (issue #228) — doubling strike_duration doubles the hit window
+# (no second source of truth). Demonstrates the contract that tuning the
+# WeaponDefinition value alone tunes the hit-window with no other edits.
+func test_hit_window_scales_linearly_with_strike_duration() -> void:
+	var step := 0.005
+	var base := WeaponDefinition.battle()
+	var doubled := WeaponDefinition.battle()
+	doubled.strike_duration = base.strike_duration * 2.0
+	var w_base := _measure_hit_window(base, step)
+	var w_doubled := _measure_hit_window(doubled, step)
+	assert_almost_eq(w_doubled / w_base, 2.0, 0.1,
+		"hit window scales 2x with strike_duration")
+
+func _measure_hit_window(def: WeaponDefinition, step: float) -> float:
+	# Captured-by-reference via single-element arrays since GDScript lambdas
+	# capture primitives by value.
+	var enable_t := [-1.0]
+	var disable_t := [-1.0]
+	var t_now := [0.0]
+	var c := AttackChoreographer.new()
+	c.definition = def
+	c.hitbox_enable_requested.connect(func() -> void: enable_t[0] = t_now[0])
+	c.hitbox_disable_requested.connect(func() -> void: disable_t[0] = t_now[0])
+	c.start_attack(Vector2.RIGHT, WeaponDefinition.AttackType.SWING)
+	var total := def.total_duration() + 0.1
+	while t_now[0] < total:
+		t_now[0] += step
+		c.tick(step)
+	return disable_t[0] - enable_t[0]

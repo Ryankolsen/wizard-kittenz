@@ -27,6 +27,13 @@ var _direction: Vector2 = Vector2.RIGHT
 func start_attack(direction: Vector2, attack_type: int = WeaponDefinition.AttackType.SWING) -> void:
 	if definition == null:
 		return
+	# PRD #223 / issue #228: rapid re-attacks must clean-interrupt the in-flight
+	# sequence before restarting. Without this, a mid-STRIKE re-attack would
+	# bypass hitbox_disable_requested (start_attack jumps phase straight to
+	# WINDUP) and leave the damage window stuck "on" until the next strike's
+	# natural close — observable as double-damage chains on attack-spam.
+	if phase != Phase.IDLE:
+		interrupt()
 	_direction = direction
 	_t = 0.0
 	if weapon_pivot != null:
