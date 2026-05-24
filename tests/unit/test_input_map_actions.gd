@@ -25,7 +25,7 @@ const GAMEPLAY_ACTIONS := [
 	"move_up",
 	"move_down",
 	"attack",
-	"cast_spell",
+	"cast_slot_1",
 ]
 
 # Expected (keycode, physical_keycode) pairs per action. The values
@@ -38,7 +38,7 @@ const EXPECTED_KEYS := {
 	"move_up":    [[87, 87], [4194320, 4194320]],          # W, Up
 	"move_down":  [[83, 83], [4194322, 4194322]],          # S, Down
 	"attack":     [[32, 32], [74, 74]],                    # Space, J
-	"cast_spell": [[81, 81], [70, 70]],                    # Q, F
+	"cast_slot_1": [[49, 49], [81, 81], [70, 70]],         # 1, Q, F (slice 1 of PRD #210)
 }
 
 func test_all_gameplay_actions_registered():

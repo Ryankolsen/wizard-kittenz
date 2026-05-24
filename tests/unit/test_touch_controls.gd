@@ -49,8 +49,8 @@ func test_touch_controls_scene_can_load():
 	var cast_btn: Node = inst.get_node_or_null("CastButton")
 	assert_not_null(cast_btn, "CastButton must exist in the scene")
 	assert_true(cast_btn is TouchActionButton)
-	assert_eq(cast_btn.action_name, &"cast_spell",
-		"CastButton must be wired to the 'cast_spell' InputMap action")
+	assert_eq(cast_btn.action_name, &"cast_slot_1",
+		"CastButton must be wired to the 'cast_slot_1' InputMap action (slice 2 of PRD #210)")
 	inst.free()
 
 func test_main_scene_includes_touch_controls():

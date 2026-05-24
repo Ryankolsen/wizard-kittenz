@@ -43,7 +43,7 @@ offset_right = 460.0
 offset_bottom = 188.0
 mouse_filter = 2
 script = ExtResource("3_action_button")
-action_name = &"cast_spell"
+action_name = &"cast_slot_1"
 label_text = "Q"
 
 [node name="Label" type="Label" parent="CastButton"]

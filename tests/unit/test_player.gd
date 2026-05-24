@@ -82,3 +82,62 @@ func test_inject_game_state_coop_session_returns_null_when_not_set():
 	add_child_autofree(p)
 	assert_null(p._coop_session(),
 		"_coop_session() returns null when injected state has no session")
+
+# --- Quickbar wiring (Slice 2 of PRD #210) ---
+
+func _make_player_with_wizard_tree() -> Player:
+	var tree := SkillTree.make_wizard_kitten_tree()
+	# Hairball Hex unlocked so the bootstrap has something to fill slot 1
+	# with; Catnip Curse unlocked so test_player_does_not_cast_unassigned_...
+	# can also observe an unlocked-but-unassigned spell.
+	tree.unlock("hairball_hex")
+	tree.unlock("catnip_curse")
+	var fake := FakeGameState.new()
+	fake.skill_tree = tree
+	var data := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Trivially-affordable MP so cast() succeeds and the deduction is observable.
+	data.magic_points = 999
+	fake.current_character = data
+	var p := Player.new()
+	p._inject_game_state(fake)
+	add_child_autofree(p)
+	return p
+
+func test_player_bootstraps_quickbar_from_unlocked_spells_in_tree_order():
+	var p := _make_player_with_wizard_tree()
+	# Wizard tree first node (hairball_hex) is unlocked at level 1 by default,
+	# so the bootstrap should auto-fill slot 1 with it.
+	var qb := p.get_quickbar()
+	assert_not_null(qb, "Player must own a Quickbar instance")
+	var slot1 := qb.get_slot(1)
+	assert_not_null(slot1, "bootstrap should fill slot 1 from the first unlocked spell")
+	assert_eq(slot1.id, "hairball_hex",
+		"slot 1 should be the wizard's first unlocked spell")
+
+func test_player_casts_through_quickbar_on_cast_slot_1():
+	var p := _make_player_with_wizard_tree()
+	var qb := p.get_quickbar()
+	var hairball = qb.get_slot(1)
+	var mp_before := p.data.magic_points
+	p._quickbar_controller.try_fire_slot(1)
+	assert_lt(p.data.magic_points, mp_before,
+		"casting via Quickbar must deduct MP")
+	assert_gt(hairball.cooldown_remaining, 0.0,
+		"casting via Quickbar must start the spell cooldown")
+
+func test_player_does_not_cast_unassigned_unlocked_spell():
+	# Pin the old "first ready unlocked spell wins" behavior is gone: a spell
+	# that is unlocked but explicitly removed from every slot must NOT fire
+	# when any cast_slot_N is fired.
+	var p := _make_player_with_wizard_tree()
+	var qb := p.get_quickbar()
+	# Clear slot 1 (which the bootstrap filled with hairball_hex).
+	var hairball = qb.get_slot(1)
+	qb.unassign(1)
+	assert_null(qb.get_slot(1))
+	var mp_before := p.data.magic_points
+	p._quickbar_controller.try_fire_slot(1)
+	assert_eq(p.data.magic_points, mp_before,
+		"empty slot must not consume MP")
+	assert_eq(hairball.cooldown_remaining, 0.0,
+		"empty slot must not trigger the unlocked spell's cooldown")

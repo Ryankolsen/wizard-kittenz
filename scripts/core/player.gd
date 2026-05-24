@@ -1,6 +1,9 @@
 class_name Player
 extends CharacterBody2D
 
+const _QuickbarScript = preload("res://scripts/character/quickbar.gd")
+const _QuickbarControllerScript = preload("res://scripts/character/quickbar_controller.gd")
+
 signal died
 # Fired after KillRewardRouter.route_kill returns a non-null ItemData
 # (PRD #73 / issue #80). HUD listens and surfaces the equip-or-bag
@@ -33,6 +36,8 @@ var _attack_controller: AttackController
 var _hitbox: Area2D
 var _spell_hitbox: Area2D
 var _spell_tree: SkillTree
+var _quickbar = null
+var _quickbar_controller = null
 var _power_ups: PowerUpManager
 var _visual: Node2D
 var _sprite: Sprite2D
@@ -90,7 +95,36 @@ func _ready() -> void:
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
 	_spell_light = get_node_or_null("SpellLight") as PointLight2D
+	_init_quickbar()
 	_bind_coop_level_up()
+
+func get_quickbar():
+	return _quickbar
+
+# Slice 2 of PRD #210. Player owns one Quickbar + a child QuickbarController.
+# The controller polls cast_slot_1..cast_slot_4 InputMap actions each frame
+# and dispatches into Quickbar.fire_slot, which gates via Spell.cast
+# (cooldown / MP / HP). On a successful cast the controller re-emits
+# slot_fired(n), and Player applies the spell effect via SpellEffectResolver.
+# Bootstraps from currently-unlocked spells in tree order so the slice is
+# demoable before Slice 5 ships persistence.
+func _init_quickbar() -> void:
+	_quickbar = _QuickbarScript.new()
+	if _spell_tree != null:
+		for spell in _spell_tree.get_unlocked_spells():
+			_quickbar.on_spell_unlocked(spell)
+	_quickbar_controller = _QuickbarControllerScript.new()
+	_quickbar_controller.name = "QuickbarController"
+	_quickbar_controller.quickbar = _quickbar
+	_quickbar_controller.caster = data
+	add_child(_quickbar_controller)
+	_quickbar_controller.slot_fired.connect(_on_slot_fired)
+
+func _on_slot_fired(n: int) -> void:
+	var spell = _quickbar.get_slot(n)
+	if spell == null:
+		return
+	_apply_spell_effect(spell)
 
 func _physics_process(delta: float) -> void:
 	if data != null and not data.is_alive():
@@ -129,8 +163,8 @@ func _physics_process(delta: float) -> void:
 	_maybe_broadcast_position()
 	if Input.is_action_just_pressed("attack"):
 		_try_attack()
-	if Input.is_action_just_pressed("cast_spell"):
-		_try_cast_spell()
+	if _quickbar_controller != null:
+		_quickbar_controller._poll_inputs()
 
 # Emit `died` exactly once when hp first reaches zero. The death-screen
 # revive button calls CoopRouter.revive, which sets hp back above
@@ -277,45 +311,44 @@ func _try_attack() -> void:
 				_record_meta_progress()
 				SaveManager.save_from_state()
 
-# Cast the first ready unlocked spell. Same hitbox area as melee — keeps the
-# "swing radius" model consistent across attack types until #11 introduces
-# per-spell projectiles/areas.
-func _try_cast_spell() -> void:
-	if _spell_tree == null or _spell_hitbox == null:
+# Applies the effect of a spell that has already been cast (i.e. Spell.cast
+# returned true inside Quickbar.fire_slot — cooldown started, MP/HP deducted).
+# Selection moved out of Player in Slice 2; this method runs only the visual
+# flash, SpellEffectResolver pass, floating-text damage labels, and post-kill
+# bookkeeping. Same hitbox area as melee — keeps the "swing radius" model
+# consistent across attack types until per-spell projectiles arrive.
+func _apply_spell_effect(spell: Spell) -> void:
+	if _spell_hitbox == null:
 		return
 	var enemy_nodes := _overlapping_enemy_nodes(_spell_hitbox)
 	var enemy_data: Array = []
 	for n in enemy_nodes:
 		enemy_data.append(n.data)
-	for spell in _spell_tree.get_unlocked_spells():
-		if not spell.cast(data):
+	_play_spell_flash()
+	var hp_self_before := data.hp if data != null else 0
+	var hp_before: Array = []
+	for n in enemy_nodes:
+		hp_before.append(n.data.hp if n.data != null else 0)
+	SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id(), _heal_broadcaster())
+	if data != null:
+		var self_healed := data.hp - hp_self_before
+		if self_healed > 0:
+			FloatingText.spawn(self, str(self_healed), Color(0.2, 1.0, 0.4))
+	for i in range(enemy_nodes.size()):
+		var n: Enemy = enemy_nodes[i]
+		if n.data == null:
 			continue
-		_play_spell_flash()
-		var hp_self_before := data.hp if data != null else 0
-		var hp_before: Array = []
-		for n in enemy_nodes:
-			hp_before.append(n.data.hp if n.data != null else 0)
-		SpellEffectResolver.apply(spell, data, enemy_data, null, _taunt_broadcaster(), _local_player_id(), _heal_broadcaster())
-		if data != null:
-			var self_healed := data.hp - hp_self_before
-			if self_healed > 0:
-				FloatingText.spawn(self, str(self_healed), Color(0.2, 1.0, 0.4))
-		for i in range(enemy_nodes.size()):
-			var n: Enemy = enemy_nodes[i]
-			if n.data == null:
-				continue
-			var dealt: int = hp_before[i] - n.data.hp
-			if dealt > 0:
-				FloatingText.spawn_at(n, str(dealt), Color(0.4, 0.6, 1.0))
-		var any_killed := false
-		for n in enemy_nodes:
-			if n.data != null and not n.data.is_alive():
-				_handle_enemy_killed(n)
-				any_killed = true
-		if any_killed:
-			_record_meta_progress()
-			SaveManager.save_from_state()
-		return
+		var dealt: int = hp_before[i] - n.data.hp
+		if dealt > 0:
+			FloatingText.spawn_at(n, str(dealt), Color(0.4, 0.6, 1.0))
+	var any_killed := false
+	for n in enemy_nodes:
+		if n.data != null and not n.data.is_alive():
+			_handle_enemy_killed(n)
+			any_killed = true
+	if any_killed:
+		_record_meta_progress()
+		SaveManager.save_from_state()
 
 func _handle_enemy_killed(node: Enemy) -> void:
 	_award_kill_xp(node.data)
