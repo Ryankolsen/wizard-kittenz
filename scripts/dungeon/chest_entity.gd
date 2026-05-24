@@ -59,12 +59,17 @@ var freed: bool = false
 # player_id -> true. Tracks who has already opened. Drives per-player
 # idempotence and the all-present-have-opened check that gates the fade.
 var _opened_set: Dictionary = {}
+# player_id -> ItemData|null. Captures the per-player drop produced by the
+# most recent successful open(), so the local interact path can announce
+# loot (item + currency) through the same HUD pipeline boss kills use.
+var _drops_by_player: Dictionary = {}
 var _sprite: Sprite2D = null
 var _linger_remaining: float = LINGER_SECONDS
 var _fade_remaining: float = FADE_SECONDS
 
 
 func _ready() -> void:
+	z_index = -1
 	_ensure_sprite()
 	_refresh_sprite_texture()
 
@@ -94,7 +99,32 @@ func _try_interact() -> void:
 		character = gs.current_character
 		if ledger == null:
 			ledger = gs.currency_ledger
-	open(local_pid, character, null)
+	var per_ledger: CurrencyLedger = _ledger_for(local_pid)
+	var gold_before: int = 0
+	var gem_before: int = 0
+	if per_ledger != null:
+		gold_before = per_ledger.balance(CurrencyLedger.Currency.GOLD)
+		gem_before = per_ledger.balance(CurrencyLedger.Currency.GEM)
+	if not open(local_pid, character, null):
+		return
+	_announce_local_loot(player, per_ledger, gold_before, gem_before, _drops_by_player.get(local_pid, null))
+
+
+# Routes chest loot through the same HUD pipeline a boss kill uses
+# (Player.item_dropped + Player.gold_dropped → hud._spawn_drop_text). Gems
+# don't have a Player signal today, so they go straight to FloatingText.
+func _announce_local_loot(player: Node2D, per_ledger: CurrencyLedger, gold_before: int, gem_before: int, item_drop: ItemData) -> void:
+	if player == null:
+		return
+	if item_drop != null and player.has_signal("item_dropped"):
+		player.item_dropped.emit(item_drop)
+	if per_ledger != null:
+		var gold_gain: int = per_ledger.balance(CurrencyLedger.Currency.GOLD) - gold_before
+		if gold_gain > 0 and player.has_signal("gold_dropped"):
+			player.gold_dropped.emit(gold_gain)
+		var gem_gain: int = per_ledger.balance(CurrencyLedger.Currency.GEM) - gem_before
+		if gem_gain > 0:
+			FloatingText.spawn(player, "+%d Gems" % gem_gain, Color(0.7, 0.4, 1.0))
 
 
 func _resolve_local_player_id() -> String:
@@ -170,6 +200,7 @@ func open(player_id: String, character: CharacterData = null, rng: RandomNumberG
 	if not ok:
 		return false
 	_opened_set[player_id] = true
+	_drops_by_player[player_id] = per_chest.last_item_drop
 	opened_by.emit(player_id, per_chest.last_item_drop)
 	if _all_present_players_have_opened():
 		state = State.OPENED_LINGERING
