@@ -40,6 +40,11 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 	for r in dungeon.rooms:
 		if r.id == dungeon.start_id:
 			continue
+		# Bar rooms host the tavern entrance — a large door footprint that a
+		# chest would visibly overlap (and block). Treat the tavern as a hub,
+		# not a loot room.
+		if r.type == Room.TYPE_BAR:
+			continue
 		candidates.append(r)
 	if candidates.is_empty():
 		return placements

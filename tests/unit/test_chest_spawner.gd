@@ -57,6 +57,20 @@ func test_start_room_is_never_chosen():
 		for p in placements:
 			assert_ne(p["room_id"], d.start_id, "start room must be excluded (seed=%d)" % seed_val)
 
+func test_bar_room_is_never_chosen():
+	# Bar rooms host the tavern entrance (a large door footprint). Spawning
+	# chests on top of it looks broken and blocks the entrance — exclude bar
+	# rooms from chest placement the same way start rooms are excluded.
+	var d := _make_dungeon(6)
+	var bar_id := 99
+	var bar := Room.make(bar_id, Room.TYPE_BAR)
+	d.add_room(bar)
+	d.get_room(1).connections.append(bar_id)
+	for seed_val in range(20):
+		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
+		for p in placements:
+			assert_ne(p["room_id"], bar_id, "bar room must be excluded (seed=%d)" % seed_val)
+
 func test_same_seed_produces_identical_placements():
 	var d := _make_dungeon(6)
 	var a := ChestSpawner.plan(d, _seeded_rng(42))
