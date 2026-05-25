@@ -12,7 +12,8 @@ func _ready() -> void:
 	var port := int(_env("NAKAMA_PORT", "443"))
 	var server_key := _env("NAKAMA_SERVER_KEY", "jujwem-wemzo2-dogxUx")
 	var scheme := _env("NAKAMA_SCHEME", "https")
-	_client = Nakama.create_client(server_key, host, port, scheme)
+	var log_level := NakamaLogger.LOG_LEVEL.DEBUG if OS.is_debug_build() else NakamaLogger.LOG_LEVEL.WARNING
+	_client = Nakama.create_client(server_key, host, port, scheme, Nakama.DEFAULT_TIMEOUT, log_level)
 
 const _SAVE_COLLECTION := "saves"
 const _SAVE_KEY := "kitten"
