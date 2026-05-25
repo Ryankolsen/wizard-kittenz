@@ -67,23 +67,39 @@ layout_mode = 2
 text = "Wizard Kittenz"
 horizontal_alignment = 1
 
-[node name="ResumeButton" type="Button" parent="MainMenu/VBox"]
+[node name="CharacterGrid" type="HBoxContainer" parent="MainMenu/VBox"]
 layout_mode = 2
-text = "Resume"
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="BattleSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
+custom_minimum_size = Vector2(120, 80)
+layout_mode = 2
+text = "Battle\nNew"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
-[node name="QuickStartButton" type="Button" parent="MainMenu/VBox"]
+[node name="WizardSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
+custom_minimum_size = Vector2(120, 80)
 layout_mode = 2
-text = "Start"
+text = "Wizard\nNew"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
-[node name="CustomizeButton" type="Button" parent="MainMenu/VBox"]
+[node name="SleepySlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
+custom_minimum_size = Vector2(120, 80)
 layout_mode = 2
-text = "Customize Your Kitten"
+text = "Sleepy\nNew"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="ChonkSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
+custom_minimum_size = Vector2(120, 80)
+layout_mode = 2
+text = "Chonk\nNew"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
@@ -240,30 +256,6 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
-[node name="AppearanceRow" type="HBoxContainer" parent="Customize/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 4
-alignment = 1
-
-[node name="PrevButton" type="Button" parent="Customize/VBox/AppearanceRow"]
-layout_mode = 2
-text = "<"
-theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
-theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
-
-[node name="AppearanceLabel" type="Label" parent="Customize/VBox/AppearanceRow"]
-layout_mode = 2
-text = "Appearance 1/7"
-horizontal_alignment = 1
-
-[node name="NextButton" type="Button" parent="Customize/VBox/AppearanceRow"]
-layout_mode = 2
-text = ">"
-theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
-theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
-
 [node name="SaveButton" type="Button" parent="Customize/VBox"]
 layout_mode = 2
 text = "Save"
@@ -324,6 +316,50 @@ horizontal_alignment = 1
 modulate = Color(1, 0.4, 0.4, 1)
 
 [node name="BackButton" type="Button" parent="MultiMenu/VBox"]
+layout_mode = 2
+text = "Back"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="SlotActionPanel" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="SlotActionPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SlotTitle" type="Label" parent="SlotActionPanel/VBox"]
+layout_mode = 2
+text = "Kitten"
+horizontal_alignment = 1
+
+[node name="ContinueButton" type="Button" parent="SlotActionPanel/VBox"]
+layout_mode = 2
+text = "Continue"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="NewGameButton" type="Button" parent="SlotActionPanel/VBox"]
+layout_mode = 2
+text = "New Game"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="SlotCustomizeButton" type="Button" parent="SlotActionPanel/VBox"]
+layout_mode = 2
+text = "Customize"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="SlotBackButton" type="Button" parent="SlotActionPanel/VBox"]
 layout_mode = 2
 text = "Back"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")

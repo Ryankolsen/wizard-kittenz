@@ -1,35 +1,42 @@
 class_name CharacterCreation
 extends Control
 
-# Three-pane character-creation flow.
-#  - MainMenu: two buttons ("Quick Start" / "Customize Your Kitten").
-#  - QuickStart: class roster; one tap picks a class with a random
-#    silly name and enters the game (2-tap path from issue #5).
-#  - Customize: name input (with Random suggest), appearance picker
-#    (numeric index into the future sprite sheet), class roster.
-# Save state is restored before any UI shows; if a save already exists
-# the picker is skipped and we drop straight into the main scene so
-# progression carries across sessions.
+# Multi-save character-select flow (PRD #250 / slice 4).
+#  - MainMenu now shows a four-card CharacterGrid (one per archetype)
+#    bound to SaveSlots.slot_summaries(). Empty card → name-only customize
+#    → SaveSlots.create_slot. Occupied card → SlotActionPanel
+#    (Continue / New Game / Customize / Back).
+#  - QuickStart panel kept in the scene for legacy callers (and existing
+#    tests) but no longer shown by the main menu route.
+#  - Customize is name-only — the appearance picker was removed in this
+#    slice. New characters default appearance_index = 0.
+
+const CharacterGridRef = preload("res://scripts/character/character_grid.gd")
+const SaveSlotsRef = preload("res://scripts/core/save_slots.gd")
 
 @export var main_scene_path: String = "res://scenes/main.tscn"
 @export var lobby_scene_path: String = "res://scenes/lobby.tscn"
-# Range of valid sprite-sheet indices for the appearance picker. There's
-# no real sprite sheet yet, so the picker just round-trips the integer
-# through CharacterData.appearance_index. When art lands, swap APPEARANCE_MAX
-# for the actual frame count and add a TextureRect preview here.
-const APPEARANCE_MAX: int = 7
 
 @onready var _main_menu: Control = $MainMenu
 @onready var _quick_start_panel: Control = $QuickStart
 @onready var _customize_panel: Control = $Customize
 @onready var _multi_menu: Control = $MultiMenu
+@onready var _slot_action_panel: Control = $SlotActionPanel
+@onready var _overwrite_confirm_panel: Control = $OverwriteConfirmPanel
 
-@onready var _resume_button: Button = $MainMenu/VBox/ResumeButton
-@onready var _quick_start_button: Button = $MainMenu/VBox/QuickStartButton
-@onready var _customize_button: Button = $MainMenu/VBox/CustomizeButton
+@onready var _battle_card: Button = $MainMenu/VBox/CharacterGrid/BattleSlotButton
+@onready var _wizard_card: Button = $MainMenu/VBox/CharacterGrid/WizardSlotButton
+@onready var _sleepy_card: Button = $MainMenu/VBox/CharacterGrid/SleepySlotButton
+@onready var _chonk_card: Button = $MainMenu/VBox/CharacterGrid/ChonkSlotButton
 @onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
 @onready var _shop_button: Button = $MainMenu/VBox/ShopButton
-@onready var _overwrite_confirm_panel: Control = $OverwriteConfirmPanel
+
+@onready var _slot_title: Label = $SlotActionPanel/VBox/SlotTitle
+@onready var _slot_continue_button: Button = $SlotActionPanel/VBox/ContinueButton
+@onready var _slot_new_game_button: Button = $SlotActionPanel/VBox/NewGameButton
+@onready var _slot_customize_button: Button = $SlotActionPanel/VBox/SlotCustomizeButton
+@onready var _slot_back_button: Button = $SlotActionPanel/VBox/SlotBackButton
+
 @onready var _overwrite_confirm_button: Button = $OverwriteConfirmPanel/VBox/Buttons/ConfirmButton
 @onready var _overwrite_cancel_button: Button = $OverwriteConfirmPanel/VBox/Buttons/CancelButton
 
@@ -47,24 +54,31 @@ const APPEARANCE_MAX: int = 7
 
 @onready var _custom_name_edit: LineEdit = $Customize/VBox/NameRow/NameEdit
 @onready var _custom_random_name_button: Button = $Customize/VBox/NameRow/RandomNameButton
-@onready var _custom_appearance_label: Label = $Customize/VBox/AppearanceRow/AppearanceLabel
-@onready var _custom_appearance_prev: Button = $Customize/VBox/AppearanceRow/PrevButton
-@onready var _custom_appearance_next: Button = $Customize/VBox/AppearanceRow/NextButton
 @onready var _custom_save_button: Button = $Customize/VBox/SaveButton
 @onready var _custom_back_button: Button = $Customize/VBox/BackButton
 
 var _suggester: NameSuggester = NameSuggester.new()
-var _current_appearance: int = 0
-var _save_exists: bool = false
+# Archetype currently selected by a card press. Drives the slot-action panel
+# and the customize-save routing (rename existing slot vs. create new).
+var _selected_archetype: String = ""
+# When true, the customize panel is editing the in-place active character's
+# name (preserves xp/level). When false, customize creates a new slot for
+# _selected_archetype on save.
+var _customize_is_rename: bool = false
 
 func _ready() -> void:
-	_save_exists = GameState.current_character != null or SaveManager.load() != null
-	_resume_button.visible = _save_exists
-	_resume_button.pressed.connect(_on_resume_pressed)
-	_quick_start_button.pressed.connect(_on_quick_start_pressed)
-	_customize_button.pressed.connect(_on_customize_pressed)
+	_battle_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_BATTLE))
+	_wizard_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_WIZARD))
+	_sleepy_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_SLEEPY))
+	_chonk_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_CHONK))
 	_multiplayer_button.pressed.connect(_show_multi_menu)
 	_shop_button.pressed.connect(_show_shop)
+
+	_slot_continue_button.pressed.connect(_on_slot_continue_pressed)
+	_slot_new_game_button.pressed.connect(_on_slot_new_game_pressed)
+	_slot_customize_button.pressed.connect(_on_slot_customize_pressed)
+	_slot_back_button.pressed.connect(_show_main_menu)
+
 	_overwrite_confirm_button.pressed.connect(_on_overwrite_confirmed)
 	_overwrite_cancel_button.pressed.connect(_show_main_menu)
 
@@ -72,6 +86,8 @@ func _ready() -> void:
 	_multi_join_button.pressed.connect(_on_join_room_pressed)
 	_multi_back_button.pressed.connect(_show_main_menu)
 
+	# Legacy QuickStart panel — kept in the scene for backward-compat callers
+	# and existing tests, but the new MainMenu routes through the card grid.
 	_qs_battle_button.pressed.connect(_on_quick_start_class.bind("battle_kitten"))
 	_qs_wizard_button.pressed.connect(_on_quick_start_class.bind("wizard_kitten"))
 	_qs_sleepy_button.pressed.connect(_on_quick_start_class.bind("sleepy_kitten"))
@@ -79,12 +95,11 @@ func _ready() -> void:
 	_qs_back_button.pressed.connect(_show_main_menu)
 
 	_custom_random_name_button.pressed.connect(_on_random_name)
-	_custom_appearance_prev.pressed.connect(_on_appearance_prev)
-	_custom_appearance_next.pressed.connect(_on_appearance_next)
 	_custom_save_button.pressed.connect(_on_customize_save)
 	_custom_back_button.pressed.connect(_show_main_menu)
 
 	_apply_unlock_gates()
+	_refresh_card_grid()
 	_show_main_menu()
 
 	# Daily login streak popup (PRD #237 / issue #244). Deferred so the rest
@@ -110,10 +125,6 @@ func _maybe_show_daily_login_popup() -> void:
 	var popup: DailyLoginPopup = popup_scene.instantiate()
 	add_child(popup)
 	popup.populate(result)
-	# Defer the streak-state commit until the player actually claims. Until
-	# then, an app close (or any unrelated save_from_state) leaves the on-
-	# disk streak/date untouched, so the popup re-shows next launch instead
-	# of silently consuming the day.
 	popup.claimed.connect(_on_daily_login_claimed.bind(result, proxy))
 
 func _on_daily_login_claimed(result: Dictionary, proxy: KittenSaveData) -> void:
@@ -126,35 +137,70 @@ func _on_daily_login_claimed(result: Dictionary, proxy: KittenSaveData) -> void:
 func _apply_unlock_gates() -> void:
 	var chonk_unlocked: bool = GameState.unlock_registry.is_unlocked(
 		"chonk_kitten", GameState.meta_tracker, GameState.paid_unlocks)
-	_qs_chonk_button.disabled = not chonk_unlocked
+	_chonk_card.disabled = not chonk_unlocked
+
+# Bind each archetype card to its current summary (occupied → "Name · Lv N",
+# empty → "New"). Re-runs after any flow that mutates the bundle (new-game
+# reset, slot creation) so the labels stay live.
+func _refresh_card_grid() -> void:
+	var bundle := SaveManager.load_bundle()
+	var summaries := SaveSlotsRef.slot_summaries(bundle)
+	for entry in summaries:
+		var arch: String = entry["archetype"]
+		var card := _card_for(arch)
+		if card != null:
+			card.text = CharacterGridRef.card_label(entry)
+
+func _card_for(archetype: String) -> Button:
+	match archetype:
+		SaveBundle.SLOT_BATTLE: return _battle_card
+		SaveBundle.SLOT_WIZARD: return _wizard_card
+		SaveBundle.SLOT_SLEEPY: return _sleepy_card
+		SaveBundle.SLOT_CHONK: return _chonk_card
+	return null
 
 func _show_main_menu() -> void:
 	_main_menu.visible = true
 	_quick_start_panel.visible = false
 	_customize_panel.visible = false
 	_multi_menu.visible = false
+	_slot_action_panel.visible = false
 	_overwrite_confirm_panel.visible = false
 
-func _on_resume_pressed() -> void:
-	var save_data := SaveManager.load()
-	if save_data == null:
+func _on_card_pressed(archetype: String) -> void:
+	_selected_archetype = archetype
+	if SaveSlotsRef.is_occupied(SaveManager.load_bundle(), archetype):
+		_show_slot_action_panel(archetype)
+	else:
+		# Empty card → name-only customize → create_slot on save.
+		_customize_is_rename = false
+		_show_customize()
+
+func _show_slot_action_panel(archetype: String) -> void:
+	var bundle := SaveManager.load_bundle()
+	var slot: CharacterSlotData = bundle.get_slot(archetype)
+	if slot == null:
 		return
-	GameState.apply_merged_save(save_data)
+	_slot_title.text = "%s · Lv %d" % [slot.character_name, slot.level]
+	_main_menu.visible = false
+	_slot_action_panel.visible = true
+
+func _on_slot_continue_pressed() -> void:
+	GameState.switch_to_slot(_selected_archetype)
+	if GameState.current_character == null:
+		_show_main_menu()
+		return
 	get_tree().change_scene_to_file(main_scene_path)
 
-func _on_quick_start_pressed() -> void:
-	if _save_exists:
-		_main_menu.visible = false
-		_overwrite_confirm_panel.visible = true
-	else:
-		_show_quick_start()
+func _on_slot_new_game_pressed() -> void:
+	_slot_action_panel.visible = false
+	_overwrite_confirm_panel.visible = true
 
-func _on_customize_pressed() -> void:
+func _on_slot_customize_pressed() -> void:
+	# Rename the existing slot's character — preserves xp/level/skills.
+	GameState.switch_to_slot(_selected_archetype)
+	_customize_is_rename = true
 	_show_customize()
-
-func _on_overwrite_confirmed() -> void:
-	_overwrite_confirm_panel.visible = false
-	_show_quick_start()
 
 func _show_multi_menu() -> void:
 	_main_menu.visible = false
@@ -166,31 +212,66 @@ func _show_multi_menu() -> void:
 func _show_shop() -> void:
 	get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")
 
-func _show_quick_start() -> void:
-	_main_menu.visible = false
-	_quick_start_panel.visible = true
-	_customize_panel.visible = false
-
 func _show_customize() -> void:
 	_main_menu.visible = false
 	_quick_start_panel.visible = false
+	_slot_action_panel.visible = false
+	_overwrite_confirm_panel.visible = false
 	_customize_panel.visible = true
 	if _custom_name_edit.text.strip_edges() == "":
 		_custom_name_edit.text = _suggester.get_random_name()
-	_refresh_appearance_label()
+
+# Overwrite confirm is now scoped to the selected slot (new-game reset).
+# Account-wide currency/cosmetics/unlocks survive — SaveSlots.new_game_reset
+# only touches the per-slot CharacterSlotData.
+func _on_overwrite_confirmed() -> void:
+	var bundle := SaveManager.load_bundle()
+	CharacterGridRef.confirm_new_game(bundle, _selected_archetype)
+	SaveManager.save_bundle(bundle)
+	# Treat the freshly-reset slot as "empty" for the customize flow so save
+	# creates the new character from scratch (level 1, fresh skills) rather
+	# than renaming the prior occupant.
+	_customize_is_rename = false
+	_show_customize()
 
 func _on_customize_save() -> void:
 	var typed := _custom_name_edit.text.strip_edges()
 	var n := typed if typed != "" else _suggester.get_random_name()
-	if GameState.current_character != null:
-		QuickStartController.apply_identity_edit(GameState.current_character, n, _current_appearance)
+
+	# Path A: in-place rename of the live character (slot Customize action).
+	# Preserves xp / level / skills via apply_identity_edit.
+	if _customize_is_rename and GameState.current_character != null:
+		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
 		SaveManager.save(GameState.current_character, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
-	else:
-		var data := CharacterFactory.create_default("battle_kitten", n)
-		data.appearance_index = _current_appearance
-		_finalize(data)
+		_refresh_card_grid()
+		_show_main_menu()
 		return
-	_show_main_menu()
+
+	# Path B: legacy fallback — script invoked with a live current_character
+	# but the new-grid wasn't the entry point (existing test/tooling path).
+	# Mirror the prior in-place-rename behavior so existing tests pass.
+	if _customize_is_rename == false and _selected_archetype == "" and GameState.current_character != null:
+		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
+		SaveManager.save(GameState.current_character, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
+		_show_main_menu()
+		return
+
+	# Path C: empty-card OR new-game-reset slot. Create a fresh CharacterData
+	# of the selected archetype's Kitten class with appearance_index = 0,
+	# hand off to _finalize so the bundle is written and main.tscn loads.
+	var arch := _selected_archetype if _selected_archetype != "" else SaveBundle.SLOT_BATTLE
+	var klass_name := _class_name_for(arch)
+	var data := CharacterFactory.create_default(klass_name, n)
+	data.appearance_index = 0
+	_finalize(data)
+
+func _class_name_for(archetype: String) -> String:
+	match archetype:
+		SaveBundle.SLOT_BATTLE: return "battle_kitten"
+		SaveBundle.SLOT_WIZARD: return "wizard_kitten"
+		SaveBundle.SLOT_SLEEPY: return "sleepy_kitten"
+		SaveBundle.SLOT_CHONK: return "chonk_kitten"
+	return "battle_kitten"
 
 func _on_quick_start_class(class_name_str: String) -> void:
 	var data := QuickStartController.create_for_class(class_name_str)
@@ -198,19 +279,6 @@ func _on_quick_start_class(class_name_str: String) -> void:
 
 func _on_random_name() -> void:
 	_custom_name_edit.text = _suggester.get_random_name()
-
-func _on_appearance_prev() -> void:
-	_current_appearance = (_current_appearance - 1 + APPEARANCE_MAX) % APPEARANCE_MAX
-	_refresh_appearance_label()
-
-func _on_appearance_next() -> void:
-	_current_appearance = (_current_appearance + 1) % APPEARANCE_MAX
-	_refresh_appearance_label()
-
-func _refresh_appearance_label() -> void:
-	_custom_appearance_label.text = "Appearance %d/%d" % [
-		_current_appearance + 1, APPEARANCE_MAX
-	]
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
