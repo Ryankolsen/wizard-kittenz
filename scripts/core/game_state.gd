@@ -198,6 +198,28 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 			qb.on_spell_unlocked(spell)
 	current_quickbar = qb
 
+# Multi-save slot switching (PRD #250 / slice 3). Persist the outgoing
+# character into the bundle's current active slot first so its progress
+# survives the swap, then re-hydrate only the per-character side from the
+# target slot — account-wide live state (currency, unlocks, meta,
+# cosmetics, skill inventory, streak) stays in place because we never
+# re-run _hydrate_account here. If the target slot is empty this leaves
+# current_character null (caller is expected to push to character creation).
+func switch_to_slot(archetype: String) -> void:
+	if current_character != null:
+		SaveManager.save_from_state()
+	var bundle := SaveManager.load_bundle()
+	var target: CharacterSlotData = bundle.get_slot(archetype)
+	if target == null:
+		current_character = null
+		skill_tree = null
+		current_quickbar = null
+		item_inventory = ItemInventory.new()
+		offline_xp_tracker = OfflineXPTracker.new()
+		dungeon_run_controller = null
+		return
+	_hydrate_active_character(target)
+
 func apply_merged_save(save_data: KittenSaveData) -> void:
 	var c := CharacterData.new()
 	save_data.apply_to(c)

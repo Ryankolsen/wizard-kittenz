@@ -78,6 +78,47 @@ func test_account_hydrates_without_character():
 	assert_null(gs.current_character,
 		"current_character stays null when no slot is active (menu state)")
 
+func test_switch_to_slot_swaps_character_keeps_account():
+	# Slice 3 (#253): seed two occupied slots on disk and switch between
+	# them. Account-wide live state (gold) must survive the swap; the
+	# outgoing slot must be persisted before the new one hydrates.
+	var seed_bundle := SaveBundle.new()
+	var battle_slot := CharacterSlotData.new()
+	battle_slot.character_name = "Brawler"
+	battle_slot.character_class = CharacterData.CharacterClass.BATTLE_KITTEN
+	battle_slot.level = 5
+	seed_bundle.set_slot(CharacterData.CharacterClass.BATTLE_KITTEN, battle_slot)
+	var wiz_slot := CharacterSlotData.new()
+	wiz_slot.character_name = "Mittens"
+	wiz_slot.character_class = CharacterData.CharacterClass.WIZARD_KITTEN
+	wiz_slot.level = 3
+	seed_bundle.set_slot(CharacterData.CharacterClass.WIZARD_KITTEN, wiz_slot)
+	seed_bundle.active_slot = SaveBundle.SLOT_WIZARD
+	assert_eq(SaveManager.save_bundle(seed_bundle, SaveManager.DEFAULT_PATH), OK)
+
+	var gs := get_node("/root/GameState")
+	gs.hydrate_from_bundle(SaveManager.load_bundle())
+	gs.currency_ledger.credit(300, CurrencyLedger.Currency.GOLD)
+
+	gs.switch_to_slot(SaveBundle.SLOT_BATTLE)
+
+	assert_not_null(gs.current_character)
+	assert_eq(gs.current_character.character_class,
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		"current character should now be the battle one")
+	assert_eq(gs.current_character.level, 5,
+		"battle slot was level 5 on disk")
+	assert_eq(gs.currency_ledger.balance(CurrencyLedger.Currency.GOLD), 300,
+		"account gold should survive the slot switch")
+
+	# Persist again and reload — the wizard slot should still be at level 3,
+	# proving the outgoing slot was saved before the switch.
+	SaveManager.save_from_state()
+	var reloaded := SaveManager.load_bundle()
+	var wiz_after := reloaded.get_slot(SaveBundle.SLOT_WIZARD)
+	assert_not_null(wiz_after, "wizard slot must still exist after switch+save")
+	assert_eq(wiz_after.level, 3, "wizard slot level must be preserved")
+
 func test_empty_bundle_leaves_menu_state():
 	var bundle := SaveBundle.new()
 	var gs := get_node("/root/GameState")
