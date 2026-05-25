@@ -114,11 +114,26 @@ func _update_stats_tab_badge() -> void:
 
 func open() -> void:
 	visible = true
+	_set_touch_controls_hidden(true)
 	_show_main_menu()
 	if not is_multiplayer():
 		get_tree().paused = true
 
+# Hides (or restores) the gameplay touch overlay while the menu is open.
+# The overlay shares CanvasLayer.layer with this menu, so on touch platforms
+# its QuickbarHUD slots render on top of the panel and intercept taps on the
+# Stats-tab "+" buttons. No-op when no TouchControls are in the tree (tests,
+# desktop builds where the overlay is hidden anyway).
+func _set_touch_controls_hidden(hidden: bool) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for tc in tree.get_nodes_in_group(&"touch_controls"):
+		if tc.has_method("set_menu_open"):
+			tc.set_menu_open(hidden)
+
 func close() -> void:
+	_set_touch_controls_hidden(false)
 	# If the player presses Back → Resume while in transition mode, treat it
 	# the same as pressing Continue so the dungeon-load flow is not stranded.
 	if _transition_mode:
@@ -195,6 +210,7 @@ func open_character_submenu() -> void:
 # to drive the actual scene reload.
 func open_for_dungeon_transition() -> void:
 	_transition_mode = true
+	_set_touch_controls_hidden(true)
 	open_character_submenu()
 	if not is_multiplayer():
 		get_tree().paused = true
@@ -207,6 +223,7 @@ func open_for_dungeon_transition() -> void:
 
 func _on_transition_continue_pressed() -> void:
 	_transition_mode = false
+	_set_touch_controls_hidden(false)
 	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
 	if panel != null:
 		panel.set_continue_visible(false)

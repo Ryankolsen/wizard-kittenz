@@ -55,6 +55,33 @@ func test_touch_controls_scene_can_load():
 	assert_true(quickbar is QuickbarHUD)
 	inst.free()
 
+func test_set_menu_open_true_hides_overlay():
+	# While the pause menu is open the overlay must hide — its QuickbarHUD
+	# slots share the menu's CanvasLayer and would otherwise intercept taps
+	# on the Stats-tab "+" buttons.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	inst.force_visible = true
+	add_child_autofree(inst)
+	inst.set_menu_open(true)
+	assert_false(inst.visible, "overlay must hide while the menu is open")
+
+func test_set_menu_open_false_restores_platform_default():
+	# Closing the menu returns the overlay to its platform-gated default
+	# (here force_visible=true) rather than leaving it stuck hidden.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	inst.force_visible = true
+	add_child_autofree(inst)
+	inst.set_menu_open(true)
+	inst.set_menu_open(false)
+	assert_true(inst.visible, "overlay must return to its default on menu close")
+
+func test_ready_registers_pause_hideable_group():
+	# The PauseMenu finds the overlay via this group to hide it on open.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	assert_true(inst.is_in_group("touch_controls"),
+		"TouchControls must join the 'touch_controls' group so the pause menu can hide it")
+
 func test_main_scene_includes_touch_controls():
 	# Regression guard: the wire-up into main.tscn is the only thing
 	# that makes the controls actually visible in-game. If a future edit

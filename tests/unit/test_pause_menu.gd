@@ -68,6 +68,27 @@ func test_close_hides_menu():
 	scene.close()
 	assert_false(scene.visible, "close() must hide the overlay")
 
+func test_open_hides_touch_controls_and_close_restores():
+	# Regression for the mobile bug where the touch overlay (same CanvasLayer
+	# as the menu) sat on top of the Stats-tab "+" buttons and swallowed taps.
+	# open() must hide every node in the "touch_controls" group; close() restores.
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var fake := _FakeTouchControls.new()
+	add_child_autofree(fake)
+	fake.add_to_group("touch_controls")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_eq(fake.last_menu_open, true, "open() must tell touch controls the menu is open")
+	scene.close()
+	assert_eq(fake.last_menu_open, false, "close() must tell touch controls the menu is closed")
+
+class _FakeTouchControls extends Node:
+	var last_menu_open = null
+	func set_menu_open(menu_open: bool) -> void:
+		last_menu_open = menu_open
+
 func test_hud_has_pause_button():
 	var hud = load("res://scenes/hud.tscn").instantiate()
 	var btn = hud.find_child("PauseButton", true, false)
