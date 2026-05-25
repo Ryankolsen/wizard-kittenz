@@ -1,7 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://b3xyk7m5q9zwb"]
+[gd_scene load_steps=10 format=3 uid="uid://b3xyk7m5q9zwb"]
 
 [ext_resource type="Script" path="res://scripts/character/character_creation.gd" id="1_creation"]
 [ext_resource type="Texture2D" path="res://assets/sprites/banner.png" id="2_banner"]
+[ext_resource type="Texture2D" path="res://assets/sprites/battle_kitten_right.png" id="3_battle"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wizard_kitten_right.png" id="4_wizard"]
+[ext_resource type="Texture2D" path="res://assets/sprites/sleepy_kitten_right.png" id="5_sleepy"]
+[ext_resource type="Texture2D" path="res://assets/sprites/chonk_kitten_right.png" id="6_chonk"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_normal"]
 bg_color = Color(0, 0, 0, 0.55)
@@ -73,36 +77,216 @@ theme_override_constants/separation = 8
 alignment = 1
 
 [node name="BattleSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(120, 80)
+custom_minimum_size = Vector2(124, 156)
 layout_mode = 2
-text = "Battle\nNew"
+clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="Content" type="VBoxContainer" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
+custom_minimum_size = Vector2(0, 78)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3_battle")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
+layout_mode = 2
+text = "New"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+
+[node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = "Battle Kitten"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="LevelLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
 
 [node name="WizardSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(120, 80)
+custom_minimum_size = Vector2(124, 156)
 layout_mode = 2
-text = "Wizard\nNew"
+clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="Content" type="VBoxContainer" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
+custom_minimum_size = Vector2(0, 78)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("4_wizard")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
+layout_mode = 2
+text = "New"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+
+[node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = "Wizard Kitten"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="LevelLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
 
 [node name="SleepySlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(120, 80)
+custom_minimum_size = Vector2(124, 156)
 layout_mode = 2
-text = "Sleepy\nNew"
+clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
-[node name="ChonkSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(120, 80)
+[node name="Content" type="VBoxContainer" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
+custom_minimum_size = Vector2(0, 78)
 layout_mode = 2
-text = "Chonk\nNew"
+mouse_filter = 2
+texture = ExtResource("5_sleepy")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
+layout_mode = 2
+text = "New"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+
+[node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = "Sleepy Kitten"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="LevelLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="ChonkSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
+custom_minimum_size = Vector2(124, 156)
+layout_mode = 2
+clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="Content" type="VBoxContainer" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
+custom_minimum_size = Vector2(0, 78)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("6_chonk")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
+layout_mode = 2
+text = "New"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+
+[node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = "Chonk Kitten"
+horizontal_alignment = 1
+autowrap_mode = 3
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="LevelLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
 
 [node name="MultiplayerButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2

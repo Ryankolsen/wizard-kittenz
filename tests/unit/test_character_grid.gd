@@ -26,6 +26,49 @@ func test_card_label_for_occupied_and_empty():
 	assert_eq(CharacterGrid.card_label(by_arch[SaveBundle.SLOT_SLEEPY]), "New")
 	assert_eq(CharacterGrid.card_label(by_arch[SaveBundle.SLOT_CHONK]), "New")
 
+func test_class_display_name_humanizes_enum():
+	assert_eq(CharacterGrid.class_display_name(CharacterData.CharacterClass.WIZARD_KITTEN), "Wizard Kitten")
+	assert_eq(CharacterGrid.class_display_name(CharacterData.CharacterClass.CHONK_KITTEN), "Chonk Kitten")
+
+func test_card_lines_for_occupied_slot():
+	var bundle := SaveBundle.new()
+	bundle.set_slot(CharacterData.CharacterClass.WIZARD_KITTEN, _wizard_slot(4, "Mittens"))
+	var summaries := SaveSlots.slot_summaries(bundle)
+	var by_arch := {}
+	for entry in summaries:
+		by_arch[entry["archetype"]] = entry
+	var wiz: Dictionary = by_arch[SaveBundle.SLOT_WIZARD]
+	assert_eq(CharacterGrid.card_name_text(wiz), "Mittens")
+	assert_eq(CharacterGrid.card_class_text(wiz), "Wizard Kitten")
+	assert_eq(CharacterGrid.card_level_text(wiz), "Lv 4")
+
+func test_card_lines_for_empty_slot():
+	var bundle := SaveBundle.new()
+	var summaries := SaveSlots.slot_summaries(bundle)
+	var by_arch := {}
+	for entry in summaries:
+		by_arch[entry["archetype"]] = entry
+	var battle: Dictionary = by_arch[SaveBundle.SLOT_BATTLE]
+	assert_eq(CharacterGrid.card_name_text(battle), "New",
+		"empty slot's name line is the New prompt")
+	assert_eq(CharacterGrid.card_class_text(battle), "Battle Kitten",
+		"empty slot still advertises its class")
+	assert_eq(CharacterGrid.card_level_text(battle), "",
+		"empty slot has no level line")
+
+func test_sprite_path_per_archetype():
+	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_BATTLE), "res://assets/sprites/battle_kitten_right.png")
+	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_WIZARD), "res://assets/sprites/wizard_kitten_right.png")
+	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_SLEEPY), "res://assets/sprites/sleepy_kitten_right.png")
+	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_CHONK), "res://assets/sprites/chonk_kitten_right.png")
+	for path in [
+		CharacterGrid.sprite_path_for(SaveBundle.SLOT_BATTLE),
+		CharacterGrid.sprite_path_for(SaveBundle.SLOT_WIZARD),
+		CharacterGrid.sprite_path_for(SaveBundle.SLOT_SLEEPY),
+		CharacterGrid.sprite_path_for(SaveBundle.SLOT_CHONK),
+	]:
+		assert_true(ResourceLoader.exists(path), "sprite must exist: " + path)
+
 func test_customize_produces_named_character_default_appearance():
 	var slot := CharacterGrid.customize_create_slot(SaveBundle.SLOT_BATTLE, "Whiskers")
 	assert_not_null(slot)

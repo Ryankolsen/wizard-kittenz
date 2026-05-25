@@ -139,17 +139,27 @@ func _apply_unlock_gates() -> void:
 		"chonk_kitten", GameState.meta_tracker, GameState.paid_unlocks)
 	_chonk_card.disabled = not chonk_unlocked
 
-# Bind each archetype card to its current summary (occupied → "Name · Lv N",
-# empty → "New"). Re-runs after any flow that mutates the bundle (new-game
-# reset, slot creation) so the labels stay live.
+# Bind each archetype card to its current summary. Each card shows a portrait
+# (baked in the scene), a name line ("New" when empty), the class name, and a
+# level line ("Lv N" only when occupied). Re-runs after any flow that mutates
+# the bundle (new-game reset, slot creation) so the labels stay live.
 func _refresh_card_grid() -> void:
 	var bundle := SaveManager.load_bundle()
 	var summaries := SaveSlotsRef.slot_summaries(bundle)
 	for entry in summaries:
 		var arch: String = entry["archetype"]
 		var card := _card_for(arch)
-		if card != null:
-			card.text = CharacterGridRef.card_label(entry)
+		if card == null:
+			continue
+		var name_label := card.find_child("NameLabel", true, false) as Label
+		var class_label := card.find_child("ClassLabel", true, false) as Label
+		var level_label := card.find_child("LevelLabel", true, false) as Label
+		if name_label != null:
+			name_label.text = CharacterGridRef.card_name_text(entry)
+		if class_label != null:
+			class_label.text = CharacterGridRef.card_class_text(entry)
+		if level_label != null:
+			level_label.text = CharacterGridRef.card_level_text(entry)
 
 func _card_for(archetype: String) -> Button:
 	match archetype:
