@@ -56,28 +56,32 @@ texture = ExtResource("2_banner")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="MainMenu" type="CenterContainer" parent="."]
+[node name="MainMenu" type="ScrollContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+horizontal_scroll_mode = 0
 
 [node name="VBox" type="VBoxContainer" parent="MainMenu"]
 layout_mode = 2
-theme_override_constants/separation = 12
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="MainMenu/VBox"]
 layout_mode = 2
 text = "Wizard Kittenz"
 horizontal_alignment = 1
 
-[node name="CharacterGrid" type="HBoxContainer" parent="MainMenu/VBox"]
+[node name="CharacterGrid" type="GridContainer" parent="MainMenu/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
-alignment = 1
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 2
 
 [node name="BattleSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(124, 156)
+custom_minimum_size = Vector2(150, 140)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
@@ -98,7 +102,7 @@ theme_override_constants/separation = 2
 alignment = 1
 
 [node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
-custom_minimum_size = Vector2(0, 78)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("3_battle")
@@ -111,6 +115,7 @@ text = "New"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
+theme_override_font_sizes/font_size = 16
 
 [node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
 modulate = Color(1, 1, 1, 0.7)
@@ -130,7 +135,7 @@ mouse_filter = 2
 theme_override_font_sizes/font_size = 12
 
 [node name="WizardSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(124, 156)
+custom_minimum_size = Vector2(150, 140)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
@@ -151,7 +156,7 @@ theme_override_constants/separation = 2
 alignment = 1
 
 [node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
-custom_minimum_size = Vector2(0, 78)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("4_wizard")
@@ -164,6 +169,7 @@ text = "New"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
+theme_override_font_sizes/font_size = 16
 
 [node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
 modulate = Color(1, 1, 1, 0.7)
@@ -183,7 +189,7 @@ mouse_filter = 2
 theme_override_font_sizes/font_size = 12
 
 [node name="SleepySlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(124, 156)
+custom_minimum_size = Vector2(150, 140)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
@@ -204,7 +210,7 @@ theme_override_constants/separation = 2
 alignment = 1
 
 [node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
-custom_minimum_size = Vector2(0, 78)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("5_sleepy")
@@ -217,6 +223,7 @@ text = "New"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
+theme_override_font_sizes/font_size = 16
 
 [node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
 modulate = Color(1, 1, 1, 0.7)
@@ -236,7 +243,7 @@ mouse_filter = 2
 theme_override_font_sizes/font_size = 12
 
 [node name="ChonkSlotButton" type="Button" parent="MainMenu/VBox/CharacterGrid"]
-custom_minimum_size = Vector2(124, 156)
+custom_minimum_size = Vector2(150, 140)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
@@ -257,7 +264,7 @@ theme_override_constants/separation = 2
 alignment = 1
 
 [node name="Portrait" type="TextureRect" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
-custom_minimum_size = Vector2(0, 78)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("6_chonk")
@@ -270,6 +277,7 @@ text = "New"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
+theme_override_font_sizes/font_size = 16
 
 [node name="ClassLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
 modulate = Color(1, 1, 1, 0.7)
@@ -290,6 +298,7 @@ theme_override_font_sizes/font_size = 12
 
 [node name="MultiplayerButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2
+size_flags_horizontal = 4
 text = "Multiplayer"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
@@ -297,6 +306,7 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
 [node name="ShopButton" type="Button" parent="MainMenu/VBox"]
 layout_mode = 2
+size_flags_horizontal = 4
 text = "Shop"
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
