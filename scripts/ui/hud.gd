@@ -58,6 +58,11 @@ func _ready() -> void:
 	# overlay self-suppresses on the host's client, so this is a no-op for
 	# the host's HUD.
 	_spawn_host_pause_overlay()
+	# Dedicated boss HP bar pinned to top-center (issue #248). The bar polls
+	# the "enemies" group each frame, shows itself while a boss is alive, and
+	# hides otherwise. EnemyHealthBar.attach skips bosses, so this bar owns
+	# boss presentation without a double-render.
+	BossHealthBar.attach(self)
 
 func _spawn_host_pause_overlay() -> void:
 	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
