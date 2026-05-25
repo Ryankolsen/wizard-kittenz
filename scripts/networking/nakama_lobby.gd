@@ -117,6 +117,14 @@ signal heal_received(caster_id: String, target_id: String, effect_kind: String, 
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
+# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2 fix). Captured from
+# the match result so the lobby UI can show, on a release Android build, which
+# identity the presence stream reports as "self" and whether the create- or
+# join-room path ran. match_self_id should equal local_player_id; a divergence
+# is the suspected reason the host is misclassified as a remote joiner and the
+# Start button stays hidden.
+var match_self_id: String = ""
+var entry_path: String = ""
 # Per-match agreed dungeon seed. Host mints inside request_start_async and ships
 # the value in the OP_START_MATCH payload; remote applies in apply_state before
 # match_started.emit so any subscriber (lobby UI → CoopSession) sees an agreed
@@ -154,6 +162,10 @@ func create_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		return false
 	_match_id = match_result.match_id
 	local_player_id = local_player.player_id
+	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
+	entry_path = "create"
+	if match_result.self_user != null:
+		match_self_id = match_result.self_user.user_id
 	lobby_state = LobbyState.new(room_code)
 	local_player.is_host = true
 	lobby_state.add_player(local_player)
@@ -180,6 +192,10 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		return false
 	_match_id = match_result.match_id
 	local_player_id = local_player.player_id
+	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
+	entry_path = "join"
+	if match_result.self_user != null:
+		match_self_id = match_result.self_user.user_id
 	lobby_state = LobbyState.new(room_code)
 	lobby_state.add_player(local_player)
 	# Populate from presences already in the match (excluding self)
