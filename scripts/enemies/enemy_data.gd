@@ -92,18 +92,21 @@ static func display_name_for(k: EnemyKind) -> String:
 	return "Enemy"
 
 # Hard ceiling for any per-kind detection radius on the 480x270 viewport.
-# Half-height is 135 — anything above ~120 lets a kind aggro from off-screen,
-# which is what issue #260 exists to forbid. Aggro hold uses a 1.5x leash
-# (EnemyAIState.LEASH_MULTIPLIER), so 120 * 1.5 = 180 still fits the diagonal.
-const DETECTION_RADIUS_MAX_PX: float = 120.0
+# Pinned to the viewport half-height (135) — at the ceiling a kind aggros right
+# at the top/bottom screen edge but never from off-screen vertically, which is
+# what issue #260 forbids. The horizontal half-width (240) is wider, so the band
+# only matters on the vertical axis. Aggro hold uses a 1.5x leash
+# (EnemyAIState.LEASH_MULTIPLIER); the hold can briefly reach past 135 into the
+# corners, but onset still requires the player inside the radius.
+const DETECTION_RADIUS_MAX_PX: float = 135.0
 
 static func base_detection_radius_for(k: EnemyKind) -> float:
 	match k:
-		EnemyKind.ANGRY_PIGEON:    return 64.0  # aerial, moderate awareness
-		EnemyKind.ROGUE_ROOMBA:    return 72.0  # bounces into range quickly
-		EnemyKind.DOG_KNIGHT:      return 120.0 # aggressive charger, capped at viewport half-height
-		EnemyKind.CATNIP_DEALER:   return 60.0  # skittish but short-sighted
-		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 60.0  # floaty, dim
+		EnemyKind.ANGRY_PIGEON:    return 80.0  # aerial, moderate awareness
+		EnemyKind.ROGUE_ROOMBA:    return 90.0  # bounces into range quickly
+		EnemyKind.DOG_KNIGHT:      return 135.0 # aggressive charger, capped at viewport half-height
+		EnemyKind.CATNIP_DEALER:   return 75.0  # skittish but short-sighted
+		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 75.0  # floaty, dim
 	return EnemyAIState.DETECTION_RADIUS
 
 static func make_new(k: EnemyKind) -> EnemyData:

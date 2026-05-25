@@ -102,7 +102,7 @@ func test_dog_knight_radius_reduced():
 	# the old value so a regression to 200 (or anything above 120) fails loud.
 	var r := EnemyData.base_detection_radius_for(EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_lt(r, 200.0, "DOG_KNIGHT must drop below the legacy 200 outlier")
-	assert_lte(r, 120.0, "DOG_KNIGHT must respect the 120px viewport ceiling")
+	assert_lte(r, 135.0, "DOG_KNIGHT must respect the 135px viewport half-height ceiling")
 
 func test_detection_radii_are_standardized():
 	# Every kind must stay within [MIN, MAX] for the 480x270 viewport so no
@@ -111,11 +111,11 @@ func test_detection_radii_are_standardized():
 	var min_px := 40.0
 	var max_px := EnemyData.DETECTION_RADIUS_MAX_PX
 	var expected := {
-		EnemyData.EnemyKind.ANGRY_PIGEON: 64.0,
-		EnemyData.EnemyKind.ROGUE_ROOMBA: 72.0,
-		EnemyData.EnemyKind.DOG_KNIGHT: 120.0,
-		EnemyData.EnemyKind.CATNIP_DEALER: 60.0,
-		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: 60.0,
+		EnemyData.EnemyKind.ANGRY_PIGEON: 80.0,
+		EnemyData.EnemyKind.ROGUE_ROOMBA: 90.0,
+		EnemyData.EnemyKind.DOG_KNIGHT: 135.0,
+		EnemyData.EnemyKind.CATNIP_DEALER: 75.0,
+		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: 75.0,
 	}
 	for k in _NEW_KINDS:
 		var r: float = EnemyData.base_detection_radius_for(k)
