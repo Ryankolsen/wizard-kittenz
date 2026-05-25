@@ -32,7 +32,7 @@ var _claimed_already := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_background = $Backdrop/Center/Panel/VBox/Background
+	_background = $Backdrop/Center/Panel/Background
 	_broken_banner = $Backdrop/Center/Panel/VBox/BrokenBanner
 	_day_label = $Backdrop/Center/Panel/VBox/DayLabel
 	_focal_image = $Backdrop/Center/Panel/VBox/Focal
@@ -106,7 +106,7 @@ func _populate_preview(day: int) -> void:
 	if day <= 0:
 		return
 	for offset in [1, 2, 3]:
-		var next_day := day + offset
+		var next_day: int = day + offset
 		if next_day > 30:
 			break
 		var reward := DailyStreakSchedule.reward_for(next_day)
@@ -115,16 +115,22 @@ func _populate_preview(day: int) -> void:
 		var day_lbl := Label.new()
 		day_lbl.text = "Day %d" % next_day
 		day_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		day_lbl.add_theme_font_size_override("font_size", 10)
+		day_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		day_lbl.add_theme_constant_override("outline_size", 3)
 		cell.add_child(day_lbl)
 		var icon := TextureRect.new()
 		icon.texture = _focal_texture_for(reward)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.custom_minimum_size = Vector2(48, 48)
+		icon.custom_minimum_size = Vector2(28, 28)
 		cell.add_child(icon)
 		var amount_lbl := Label.new()
 		amount_lbl.text = _format_reward(reward)
 		amount_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		amount_lbl.add_theme_font_size_override("font_size", 10)
+		amount_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		amount_lbl.add_theme_constant_override("outline_size", 3)
 		cell.add_child(amount_lbl)
 		_preview_row.add_child(cell)
 
