@@ -106,7 +106,7 @@ var quickbar_slots: Array = []
 # key is present. False marks a legacy save so to_quickbar() runs migration.
 var _quickbar_present_in_save: bool = false
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null) -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "") -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -157,6 +157,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if quickbar != null:
 		s.quickbar_slots = quickbar.serialize().get("slots", [])
 		s._quickbar_present_in_save = true
+	s.streak_day = streak_day
+	s.last_login_date = last_login_date
 	return s
 
 func apply_to(c: CharacterData) -> void:

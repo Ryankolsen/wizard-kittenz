@@ -3,10 +3,10 @@ extends RefCounted
 
 const DEFAULT_PATH := "user://save.json"
 
-static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null) -> Error:
+static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "") -> Error:
 	if c == null:
 		return ERR_INVALID_PARAMETER
-	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv, item_inventory, quickbar)
+	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv, item_inventory, quickbar, streak_day, last_login_date)
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return FileAccess.get_open_error()
@@ -34,7 +34,8 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 		gs.skill_tree, gs.meta_tracker, gs.offline_xp_tracker,
 		gs.cosmetic_inventory, gs.paid_unlocks, run_state,
 		gs.currency_ledger, gs.skill_inventory, gs.item_inventory,
-		gs.current_quickbar
+		gs.current_quickbar,
+		gs.streak_day, gs.last_login_date
 	)
 
 # Note: shadows the global `load()` for `SaveManager.load()` calls — that's the

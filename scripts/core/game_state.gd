@@ -77,6 +77,12 @@ var account_manager: AccountManager = AccountManager.new()
 # scene reloads when the player advances between rooms. Cleared on dungeon
 # completion or give-up so a fresh run gets a new dungeon.
 var dungeon_run_controller: DungeonRunController = null
+# Daily-login streak bookkeeping (PRD #237). Live mirror of the save fields
+# so the engine (#241) can read/write them through GameState and
+# save_from_state can persist them without an extra round-trip. Hydrated
+# from KittenSaveData in apply_merged_save; reset in clear().
+var streak_day: int = 0
+var last_login_date: String = ""
 
 func _ready() -> void:
 	_try_load_save()
@@ -136,6 +142,8 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	# "pre-feature saves load and auto-fill from already-unlocked spells in
 	# tree order" relies on this ordering.
 	current_quickbar = save_data.to_quickbar(skill_tree)
+	streak_day = save_data.streak_day
+	last_login_date = save_data.last_login_date
 
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)
@@ -195,6 +203,8 @@ func clear() -> void:
 		_disconnect_lobby_signals(lobby)
 	lobby = null
 	dungeon_run_controller = null
+	streak_day = 0
+	last_login_date = ""
 
 # Lobby setter — routes the inbound position_received signal into
 # coop_session.network_sync. The character creation / lobby UI scene calls

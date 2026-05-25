@@ -87,6 +87,42 @@ func _ready() -> void:
 	_apply_unlock_gates()
 	_show_main_menu()
 
+	# Daily login streak popup (PRD #237 / issue #244). Deferred so the rest
+	# of _ready (menu visibility, button wiring) completes before the popup
+	# mounts — matches the PRD's "after load, NOT mid-load" trigger. Gated on
+	# current_character so brand-new installs see the popup only after their
+	# first character is created and the save round-trips.
+	_maybe_show_daily_login_popup.call_deferred()
+
+func _maybe_show_daily_login_popup() -> void:
+	if GameState.current_character == null:
+		return
+	var proxy := KittenSaveData.new()
+	proxy.streak_day = GameState.streak_day
+	proxy.last_login_date = GameState.last_login_date
+	var result: Dictionary = DailyStreakEngine.resolve(proxy, DateToday.iso_today())
+	var action := int(result.get("action", DailyStreakEngine.Action.ALREADY_CLAIMED))
+	if action == DailyStreakEngine.Action.ALREADY_CLAIMED:
+		return
+	var popup_scene: PackedScene = load("res://scenes/daily_login_popup.tscn")
+	if popup_scene == null:
+		return
+	var popup: DailyLoginPopup = popup_scene.instantiate()
+	add_child(popup)
+	popup.populate(result)
+	# Defer the streak-state commit until the player actually claims. Until
+	# then, an app close (or any unrelated save_from_state) leaves the on-
+	# disk streak/date untouched, so the popup re-shows next launch instead
+	# of silently consuming the day.
+	popup.claimed.connect(_on_daily_login_claimed.bind(result, proxy))
+
+func _on_daily_login_claimed(result: Dictionary, proxy: KittenSaveData) -> void:
+	GameState.streak_day = proxy.streak_day
+	GameState.last_login_date = proxy.last_login_date
+	var reward: Dictionary = result.get("reward", {})
+	DailyRewardApplier.apply(reward, GameState.currency_ledger, GameState.offline_xp_tracker)
+	SaveManager.save_from_state()
+
 func _apply_unlock_gates() -> void:
 	var chonk_unlocked: bool = GameState.unlock_registry.is_unlocked(
 		"chonk_kitten", GameState.meta_tracker, GameState.paid_unlocks)
