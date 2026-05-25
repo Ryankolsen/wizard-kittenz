@@ -74,6 +74,10 @@ func wants_to_fire() -> bool:
 func tick(delta: float, enemy) -> void:
 	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
 		return
+	# Aggro gate (issue #261): IDLE spray bottle must not accrue fire cadence
+	# or queue a cone, even with cooldown elapsed and player reference set.
+	if not EnemyBehavior.is_aggroed(enemy):
+		return
 	_fire_elapsed += delta
 	if enemy == null:
 		return

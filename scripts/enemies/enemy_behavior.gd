@@ -11,6 +11,19 @@ extends RefCounted
 # one without a registered subclass yet — returns a non-null base instance.
 # Per-kind subclasses land in follow-up issues (#161-#165).
 
+# Shared aggro predicate (issue #261). Single source of truth for "this enemy
+# is engaged with a player" used by every per-kind ability gate so a freshly-
+# loaded level can't be bombarded by off-screen specials. CHASE/ATTACK are
+# aggroed; IDLE (out of detection range) and DEAD are not. Duck-typed against
+# `enemy.state` so test mocks set an int field — no SceneTree required.
+static func is_aggroed(enemy) -> bool:
+	if enemy == null:
+		return false
+	var s = enemy.get("state")
+	if s == null:
+		return false
+	return s == EnemyAIState.State.CHASE or s == EnemyAIState.State.ATTACK
+
 func tick(_delta: float, _enemy) -> void:
 	pass
 

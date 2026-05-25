@@ -49,6 +49,11 @@ func tick(delta: float, enemy) -> void:
 	if is_charging:
 		_advance_charge(delta, enemy)
 		return
+	# Aggro gate (issue #261): only accrue cooldown / initiate a dive while
+	# CHASE or ATTACK. A committed charge above is allowed to complete even
+	# after the player leaves range.
+	if not EnemyBehavior.is_aggroed(enemy):
+		return
 	_cooldown_elapsed += delta
 	# Auto-trigger when a player is in sight. Reads enemy._player_ref directly
 	# (the same cached chase target Enemy._find_player populates) so the

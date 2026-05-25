@@ -107,6 +107,10 @@ static func floating_text_label(debuff_type: String) -> String:
 func tick(delta: float, enemy) -> void:
 	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
 		return
+	# Aggro gate (issue #261): an IDLE dealer must not accrue fire cadence or
+	# queue a projectile — fixes the "shot the moment the level loads" issue.
+	if not EnemyBehavior.is_aggroed(enemy):
+		return
 	_fire_elapsed += delta
 	if enemy == null:
 		return

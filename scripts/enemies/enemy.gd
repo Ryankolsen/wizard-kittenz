@@ -302,6 +302,11 @@ func _observe_rogue_roomba() -> void:
 func _drive_dog_knight() -> void:
 	if not (_behavior is DogKnightBehavior):
 		return
+	# Aggro gate (issue #261). Belt-and-suspenders alongside the in-tick
+	# cooldown gate: even if a stale cooldown carried over from a previous
+	# aggro window, _drive_dog_knight refuses to begin a charge while IDLE.
+	if not EnemyBehavior.is_aggroed(self):
+		return
 	var dkb := _behavior as DogKnightBehavior
 	if not dkb.wants_to_charge():
 		return

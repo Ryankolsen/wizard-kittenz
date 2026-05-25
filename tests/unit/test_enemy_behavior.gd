@@ -67,6 +67,13 @@ class _MockEnemy:
 	var global_position: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
 	var state: int = 1  # EnemyAIState.State.CHASE
+	var _player_ref: Node2D = null
+
+
+# Bare Node2D stand-in used by aggro-gate tests that need a player reference
+# attached to a mock enemy without dragging in PowerUpManager.
+class _MockPlayer extends Node2D:
+	pass
 
 func test_angry_pigeon_charge_timer_counts_down():
 	# Issue #161 acceptance #1: charge ~every 4 seconds. Driving four 1.0s
@@ -583,3 +590,158 @@ func test_haunted_spray_bottle_preferred_range_hold():
 	assert_eq(far_dir, Vector2(1.0, 0.0), "at 140px the bottle should approach")
 	var near_dir := b.desired_direction(Vector2.ZERO, Vector2(70.0, 0.0))
 	assert_eq(near_dir, Vector2(-1.0, 0.0), "at 70px the bottle should back away")
+
+
+# ---------------------------------------------------------------------------
+# Aggro gate (issue #261) — shared predicate + per-kind IDLE gating.
+# ---------------------------------------------------------------------------
+
+func test_aggro_gate_predicate():
+	# Single source of truth: CHASE (1) / ATTACK (2) are aggroed; IDLE (0) /
+	# DEAD (3) are not. Mirrors EnemyAIState.State exactly so every per-kind
+	# special-ability gate reads the same boolean.
+	var idle := _MockEnemy.new()
+	idle.state = 0
+	var chase := _MockEnemy.new()
+	chase.state = 1
+	var attack := _MockEnemy.new()
+	attack.state = 2
+	var dead := _MockEnemy.new()
+	dead.state = 3
+	assert_false(EnemyBehavior.is_aggroed(idle), "IDLE must not count as aggroed")
+	assert_true(EnemyBehavior.is_aggroed(chase), "CHASE must count as aggroed")
+	assert_true(EnemyBehavior.is_aggroed(attack), "ATTACK must count as aggroed")
+	assert_false(EnemyBehavior.is_aggroed(dead), "DEAD must not count as aggroed")
+	assert_false(EnemyBehavior.is_aggroed(null), "null enemy must not count as aggroed")
+
+
+func test_angry_pigeon_idle_does_not_charge():
+	# Cooldown elapses with a player ref present but state IDLE — the dive
+	# must not initiate, and wants_to_charge must stay false because cooldown
+	# never accrues outside aggro.
+	var b := AngryPigeonBehavior.new()
+	var e := _MockEnemy.new()
+	e.state = 0  # IDLE
+	var p := _MockPlayer.new()
+	p.global_position = Vector2(40.0, 0.0)
+	e._player_ref = p
+	for _i in range(6):
+		b.tick(1.0, e)
+	assert_false(b.is_charging, "IDLE pigeon must not begin a dive bomb")
+	assert_false(b.wants_to_charge(), "IDLE pigeon must not accrue charge cooldown")
+
+
+func test_angry_pigeon_chase_still_charges():
+	# Regression guard: with the gate in place, the existing CHASE-state path
+	# still initiates the dive once cooldown elapses and a player ref is set.
+	var b := AngryPigeonBehavior.new()
+	var e := _MockEnemy.new()
+	e.state = 1  # CHASE
+	var p := _MockPlayer.new()
+	p.global_position = Vector2(40.0, 0.0)
+	e._player_ref = p
+	# 4 ticks of 1.0s lands exactly on CHARGE_COOLDOWN; begin_charge fires on
+	# tick 4 and a 5th tick would advance/complete the charge (player is only
+	# 40px away vs. 120px/s step), so cap the loop short of completion.
+	for _i in range(4):
+		b.tick(1.0, e)
+	assert_true(b.is_charging, "CHASE pigeon should still initiate dive after cooldown")
+
+
+func test_angry_pigeon_committed_charge_completes_after_leaving_range():
+	# Acceptance: a charge begun while aggroed completes even if the player
+	# leaves detection range mid-dive. Begin charge in CHASE, flip to IDLE,
+	# and the in-progress charge must still advance to completion.
+	var b := AngryPigeonBehavior.new()
+	var e := _MockEnemy.new()
+	e.state = 1  # CHASE
+	e.global_position = Vector2.ZERO
+	b.begin_charge(Vector2(120.0, 0.0))
+	e.state = 0  # IDLE — player left range mid-dive
+	for _i in range(3):
+		b.tick(0.5, e)
+		if not b.is_charging:
+			break
+	assert_false(b.is_charging, "in-progress charge must complete even after de-aggro")
+	assert_true(b.charge_completed, "charge_completed should be set on arrival")
+
+
+func test_dog_knight_idle_does_not_charge():
+	# Same pattern as pigeon: IDLE dog accrues no cooldown, so wants_to_charge
+	# never trips and _drive_dog_knight (the begin_charge caller) is gated.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	e.state = 0  # IDLE
+	for _i in range(6):
+		b.tick(1.0, e)
+	assert_false(b.wants_to_charge(), "IDLE dog must not accrue charge cooldown")
+	assert_false(b.is_charging, "IDLE dog must not begin a charge")
+
+
+func test_dog_knight_chase_still_wants_charge():
+	# Regression: cooldown still accrues in CHASE so the existing trigger fires.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	e.state = 1  # CHASE
+	for _i in range(5):
+		b.tick(1.0, e)
+	assert_true(b.wants_to_charge(), "CHASE dog should still want to charge after cooldown")
+
+
+func test_catnip_dealer_idle_does_not_fire():
+	# Issue #261 — player in projectile range but enemy IDLE: no fire queued.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockDealerEnemy.new()
+	e.state = 0  # IDLE
+	var p := _MockDealerPlayer.new()
+	p.global_position = Vector2(120.0, 0.0)
+	e._player_ref = p
+	for _i in range(30):
+		b.tick(0.1, e)
+	assert_eq(b.pending_fire_target, null,
+		"IDLE dealer must not queue a projectile even with player in range")
+	assert_false(b.wants_to_fire(),
+		"IDLE dealer must not accrue fire cadence")
+
+
+func test_catnip_dealer_chase_still_fires():
+	# Regression mirror of test_catnip_dealer_fire_publishes_target_when_in_range
+	# now that the gate exists. Same setup, explicit CHASE.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockDealerEnemy.new()
+	e.state = 1  # CHASE
+	var p := _MockDealerPlayer.new()
+	p.global_position = Vector2(150.0, 0.0)
+	e._player_ref = p
+	for _i in range(26):
+		b.tick(0.1, e)
+	assert_not_null(b.pending_fire_target,
+		"CHASE dealer should still publish a fire target after cooldown")
+
+
+func test_spray_bottle_idle_does_not_fire():
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockSprayEnemy.new()
+	e.state = 0  # IDLE
+	var p := _MockSprayPlayer.new()
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	for _i in range(25):
+		b.tick(0.1, e)
+	assert_eq(b.pending_fire_aim, null,
+		"IDLE spray bottle must not queue a cone even with player in range")
+	assert_false(b.wants_to_fire(),
+		"IDLE spray bottle must not accrue fire cadence")
+
+
+func test_spray_bottle_chase_still_fires():
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockSprayEnemy.new()
+	e.state = 1  # CHASE
+	var p := _MockSprayPlayer.new()
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	for _i in range(21):
+		b.tick(0.1, e)
+	assert_not_null(b.pending_fire_aim,
+		"CHASE spray bottle should still queue a cone after cooldown")

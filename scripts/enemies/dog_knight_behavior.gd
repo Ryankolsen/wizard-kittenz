@@ -72,6 +72,11 @@ func tick(delta: float, enemy) -> void:
 	if is_charging:
 		_advance_charge(delta, enemy)
 		return
+	# Aggro gate (issue #261): cooldown only accrues while CHASE or ATTACK so
+	# an IDLE dog can't quietly charge up off-screen and then trigger the
+	# instant a player wanders into range.
+	if not EnemyBehavior.is_aggroed(enemy):
+		return
 	_cooldown_elapsed += delta
 
 func _advance_charge(delta: float, enemy) -> void:
