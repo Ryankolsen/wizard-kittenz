@@ -31,6 +31,16 @@ var _hud: CanvasLayer = null
 static func format_boss_hp(boss_name: String, hp: int, max_hp: int) -> String:
 	return "%s  %d/%d" % [boss_name, hp, max_hp]
 
+# Room gate: the boss bar only shows once the player is physically inside the
+# boss room. The boss enemy spawns at dungeon load, so existence alone isn't
+# enough — we test the player's world position against the boss's room_bounds
+# (world-space Rect2 set by RoomSpawnPlanner). Empty/arealess bounds means we
+# can't tell where the room is, so stay hidden rather than show prematurely.
+static func should_show(room_bounds: Rect2, player_pos: Vector2) -> bool:
+	if not room_bounds.has_area():
+		return false
+	return room_bounds.has_point(player_pos)
+
 # Instantiates the bar under the HUD CanvasLayer. The HUD's _ready calls
 # this exactly once; subsequent polls reuse the same node and toggle
 # visibility based on whether a boss is currently alive.
@@ -82,6 +92,10 @@ func _process(_dt: float) -> void:
 	if data == null:
 		visible = false
 		return
+	var player := _find_player()
+	if player == null or not should_show(data.room_bounds, player.global_position):
+		visible = false
+		return
 	visible = true
 	if _fill != null:
 		_fill.size.x = BAR_WIDTH * HUD.hp_bar_ratio(data.hp, data.max_hp)
@@ -96,5 +110,13 @@ func _find_boss() -> Node:
 			continue
 		var d = n.get("data")
 		if d != null and d.is_boss and d.hp > 0:
+			return n
+	return null
+
+func _find_player() -> Node2D:
+	if not is_inside_tree():
+		return null
+	for n in get_tree().get_nodes_in_group("player"):
+		if n is Node2D:
 			return n
 	return null
