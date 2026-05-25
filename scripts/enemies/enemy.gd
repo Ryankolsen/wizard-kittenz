@@ -61,6 +61,10 @@ func _ready() -> void:
 	# on the player-projectile layer so it remains hittable.
 	if _behavior is HauntedSprayBottleBehavior and (_behavior as HauntedSprayBottleBehavior).ignores_wall_collision:
 		collision_mask = 0
+	# Floating HP bar (issue #247). Regular enemies only — boss enemies get
+	# the dedicated HUD-pinned bar from #248, so attach() skips when
+	# data.is_boss to avoid double presentation.
+	EnemyHealthBar.attach(self)
 
 func _physics_process(delta: float) -> void:
 	if data == null:
