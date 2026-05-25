@@ -9,7 +9,10 @@ extends Node2D
 
 const BAR_WIDTH: float = 32.0
 const BAR_HEIGHT: float = 4.0
-const Y_OFFSET: float = -18.0
+# Enemy sprites are centered on the origin and up to ~48px tall, so the top
+# edge sits ~24px above the origin. Clear that plus a small gap so the bar
+# floats just above the sprite instead of over its face.
+const Y_OFFSET: float = -32.0
 const BG_COLOR: Color = Color(0.1, 0.1, 0.1, 0.85)
 const FILL_COLOR: Color = Color(0.85, 0.25, 0.25, 1.0)
 
