@@ -1,14 +1,13 @@
 class_name RogueRoombaBehavior
 extends EnemyBehavior
 
-# Rogue Roomba behavior (issue #162). Wall-bounce movement (reflects velocity
-# off collision normals instead of re-steering), periodic FloorHazard damage
-# trail segments dropped at the roomba's position, and a one-shot berserk
-# entry at ≤30% HP that bumps speed and tints the sprite red. Pure-logic state
-# lives on this RefCounted so trail timing, berserk threshold detection, and
-# the reflection math are testable without a SceneTree — the Enemy node side
-# observes `pending_trail_spawn` / `berserk_entry_count` to spawn the hazard
-# and apply the tint / speed buff / FloatingText.
+# Rogue Roomba behavior (issue #162, retuned in #262). Originally wall-bounced
+# (reflected velocity off collision normals), replaced with per-frame homing
+# toward the player: the Enemy node's base `_chase` already steers via
+# `move_speed`, so the override flag is off and we just expose a pure
+# `desired_direction` helper for tests / future motion consumers. Periodic
+# FloorHazard damage trail and one-shot berserk (≤30% HP → speed ×1.5 + red
+# tint) are preserved; berserk now scales the chase move_speed directly.
 
 const TRAIL_INTERVAL: float = 0.3
 const TRAIL_DURATION: float = 2.0
@@ -28,14 +27,15 @@ var berserk_entry_count: int = 0
 
 var _trail_elapsed: float = 0.0
 
-static func reflect_velocity(velocity: Vector2, normal: Vector2) -> Vector2:
-	return velocity.bounce(normal)
-
-func is_overriding_motion() -> bool:
-	# Roomba uses its own velocity vector and wall-bounce reflection rather
-	# than re-steering toward the player each frame — Enemy node delegates
-	# the move_and_slide / slide-collision loop while we skip the chase path.
-	return true
+# Pure helper: unit-length direction from the roomba to the player. Re-evaluated
+# every physics frame by the base _chase path (no override), which is what
+# makes the chase "homing" instead of a one-time aim. Returns Vector2.ZERO when
+# already on the player so the caller can leave velocity untouched.
+func desired_direction(self_pos: Vector2, player_pos: Vector2) -> Vector2:
+	var to_player := player_pos - self_pos
+	if to_player == Vector2.ZERO:
+		return Vector2.ZERO
+	return to_player.normalized()
 
 func tick(delta: float, enemy) -> void:
 	# DEAD is the sink — no trail accrual, no berserk check post-death.

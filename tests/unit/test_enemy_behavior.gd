@@ -167,12 +167,29 @@ class _MockRoombaEnemy:
 	var state: int = 1  # EnemyAIState.State.CHASE
 	var data: _MockRoombaData = _MockRoombaData.new()
 
-func test_rogue_roomba_reflect_velocity_off_left_normal():
-	# Issue #162 acceptance #1: bouncing velocity (1, 0) off a wall whose
-	# inward normal is (-1, 0) should reverse the X component → (-1, 0).
-	# Pure static helper so the bounce math is verifiable without physics.
-	var reflected := RogueRoombaBehavior.reflect_velocity(Vector2(1, 0), Vector2(-1, 0))
-	assert_eq(reflected, Vector2(-1, 0), "velocity should reflect across the wall normal")
+func test_rogue_roomba_homes_toward_player():
+	# Issue #262 acceptance #1: per-frame homing — desired_direction is a unit
+	# vector from the roomba to the player's current position. Player at
+	# (100, 0), roomba at (0, 0) → (1, 0).
+	var b := RogueRoombaBehavior.new()
+	var dir := b.desired_direction(Vector2.ZERO, Vector2(100, 0))
+	assert_eq(dir, Vector2(1, 0), "homing direction should point at the player")
+
+func test_rogue_roomba_resteers_after_player_moves():
+	# Issue #262 acceptance #1: not a one-time aim. Moving the player produces
+	# a fresh heading on the next call — proves the helper re-evaluates.
+	var b := RogueRoombaBehavior.new()
+	var first := b.desired_direction(Vector2.ZERO, Vector2(100, 0))
+	var second := b.desired_direction(Vector2.ZERO, Vector2(0, 100))
+	assert_eq(first, Vector2(1, 0), "initial heading right")
+	assert_eq(second, Vector2(0, 1), "heading updates when player moves")
+
+func test_rogue_roomba_no_longer_overrides_motion_with_bounce():
+	# Issue #262 acceptance #2: the wall-bounce override path is gone. The
+	# behavior must defer to the base _chase loop so per-frame homing happens
+	# — `is_overriding_motion()` returns the EnemyBehavior default (false).
+	var b := RogueRoombaBehavior.new()
+	assert_false(b.is_overriding_motion(), "roomba no longer overrides base motion")
 
 
 func test_rogue_roomba_trail_timer_fires_periodically():
