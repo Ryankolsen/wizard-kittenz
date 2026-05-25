@@ -82,6 +82,11 @@ var gem_balance: int = 0
 # day and pays the first bonus. Stored on KittenSaveData (not on the
 # tracker) because it's a per-save anchor, not a meta-progression milestone.
 var last_login_date: String = ""
+# Daily-login streak position (PRD #237 / issue #239). 1–30 while a streak is
+# active; 0 means "no streak yet" (new save) or "streak reset" — the engine
+# advances this on a successful claim. Stored on KittenSaveData so it shares
+# the per-save lifecycle with last_login_date. Legacy saves default to 0.
+var streak_day: int = 0
 # Items System (PRD #73 / issue #78). equipped_items maps slot int
 # (ItemData.Slot) to item id string. item_bag is an array of item id strings.
 # Both default to empty so legacy saves predating items round-trip cleanly
@@ -211,6 +216,7 @@ func to_dict() -> Dictionary:
 		"gold_balance": gold_balance,
 		"gem_balance": gem_balance,
 		"last_login_date": last_login_date,
+		"streak_day": streak_day,
 		"skill_unlocks": skill_unlocks,
 		"equipped_items": equipped_items,
 		"item_bag": item_bag,
@@ -270,6 +276,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.gold_balance = int(d.get("gold_balance", 0))
 	s.gem_balance = int(d.get("gem_balance", 0))
 	s.last_login_date = String(d.get("last_login_date", ""))
+	s.streak_day = int(d.get("streak_day", 0))
 	var skills = d.get("skill_unlocks", [])
 	if skills is Array:
 		for raw in skills:
