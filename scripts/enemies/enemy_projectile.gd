@@ -20,6 +20,14 @@ var _travelled: float = 0.0
 var _hit: bool = false
 var _direction: Vector2 = Vector2.ZERO
 
+# Issue #265: optional injected wall predicate. Takes a world-space Vector2 and
+# returns true if that position overlaps a wall tile of the painted dungeon.
+# Left unset for tests / for projectile kinds that should pass through walls
+# (none today). When valid, `should_despawn()` returns true once the predicate
+# answers true at the projectile's current position.
+var is_wall_at: Callable = Callable()
+var _hit_wall: bool = false
+
 func configure(p_target: Vector2, p_speed: float, p_radius: float,
 		p_color: Color, p_max_range: float, p_on_hit: Callable) -> void:
 	target_position = p_target
@@ -47,16 +55,21 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, radius, color)
 
 # Linear movement. Zero speed is a safe no-op (acceptance #5 / test 5).
+# Issue #265: after stepping, sample the injected wall predicate at the new
+# position so `should_despawn()` reflects this tick's geometry.
 func simulate_move(delta: float) -> void:
 	if speed <= 0.0 or _direction == Vector2.ZERO:
 		return
 	var step := speed * delta
 	position += _direction * step
 	_travelled += step
+	if not _hit_wall and is_wall_at.is_valid() and bool(is_wall_at.call(position)):
+		_hit_wall = true
 
-# True after a hit (one-shot) or after exceeding max_range.
+# True after a hit (one-shot), after exceeding max_range, or after the
+# projectile reached a wall tile (issue #265).
 func should_despawn() -> bool:
-	return _hit or _travelled >= max_range
+	return _hit or _hit_wall or _travelled >= max_range
 
 # Fire the on_hit callback exactly once, then mark for despawn. Public so
 # tests can drive the hit path without setting up an Area2D / SceneTree.

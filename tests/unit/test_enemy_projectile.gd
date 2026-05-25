@@ -96,3 +96,35 @@ func test_callback_unset_is_safe():
 	var p := _make(Vector2(100, 0), 50.0)
 	p._on_player_hit(RefCounted.new())
 	assert_true(p.should_despawn(), "hit without on_hit should still despawn")
+
+
+func test_projectile_despawns_on_wall():
+	# Issue #265: injected wall predicate returning true causes despawn after
+	# a movement tick, even though max_range hasn't been reached.
+	var p := _make(Vector2(1000, 0), 100.0, 400.0)
+	p.is_wall_at = func(_pos: Vector2) -> bool: return true
+	assert_false(p.should_despawn(), "fresh projectile should not despawn")
+	p.simulate_move(0.1)
+	assert_true(p.should_despawn(), "projectile over wall should despawn")
+
+
+func test_projectile_continues_over_floor():
+	# Issue #265: wall predicate returning false everywhere means projectile
+	# only despawns at max_range — no false positives over open floor.
+	var p := _make(Vector2(1000, 0), 100.0, 80.0)
+	p.is_wall_at = func(_pos: Vector2) -> bool: return false
+	p.simulate_move(0.5)
+	assert_false(p.should_despawn(), "50px over open floor should not despawn")
+	p.simulate_move(0.5)
+	assert_true(p.should_despawn(), "max_range should still despawn over open floor")
+
+
+func test_wall_check_absent_is_safe():
+	# Issue #265: with no wall predicate injected, behavior matches today —
+	# despawn only via hit / max_range, no crash on the missing Callable.
+	var p := _make(Vector2(1000, 0), 100.0, 80.0)
+	assert_false(p.is_wall_at.is_valid(), "default is_wall_at should be unset")
+	p.simulate_move(0.5)
+	assert_false(p.should_despawn(), "no wall predicate, under max_range, no despawn")
+	p.simulate_move(0.5)
+	assert_true(p.should_despawn(), "max_range still despawns with no wall predicate")

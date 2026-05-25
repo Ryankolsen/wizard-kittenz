@@ -364,12 +364,27 @@ func _observe_catnip_dealer() -> void:
 		_spawn_catnip_burst(cdb.pending_burst_position)
 		cdb.pending_burst_position = null
 
+# Issue #265: build the wall-overlap predicate consumed by EnemyProjectile.
+# Looks for the dungeon TileMap on the enemy's parent (main_scene's $TileMap)
+# and queries get_cell_source_id against SOURCE_WALL at the projectile's
+# current world position. Returns an empty Callable if no tilemap is reachable
+# (bar room, tests, transient parents) — projectile then falls back to its
+# hit / max_range predicates only, matching pre-#265 behavior.
+func _make_wall_predicate(parent: Node) -> Callable:
+	var tilemap := parent.get_node_or_null("TileMap") as TileMap
+	if tilemap == null:
+		return Callable()
+	return func(world_pos: Vector2) -> bool:
+		var cell: Vector2i = tilemap.local_to_map(tilemap.to_local(world_pos))
+		return tilemap.get_cell_source_id(0, cell) == DungeonTilemapPainter.SOURCE_WALL
+
 func _spawn_catnip_projectile(target_pos: Vector2, debuff_type: String) -> void:
 	var parent := get_parent()
 	if parent == null:
 		return
 	var proj := EnemyProjectile.new()
 	proj.position = global_position
+	proj.is_wall_at = _make_wall_predicate(parent)
 	# Close over the dealer behavior so the on-hit observer publishes the burst
 	# position back through pending_burst_position next frame.
 	var behavior_ref := _behavior
@@ -429,6 +444,7 @@ func _spawn_spray_projectile(origin: Vector2, direction: Vector2) -> void:
 		return
 	var proj := EnemyProjectile.new()
 	proj.position = origin
+	proj.is_wall_at = _make_wall_predicate(parent)
 	var target := origin + direction * HauntedSprayBottleBehavior.PROJECTILE_MAX_RANGE
 	var on_hit := func(player_node):
 		_apply_spray_wet(player_node)
