@@ -76,10 +76,10 @@ var dungeon_run_state: Dictionary = {}
 # to rehydrate one via to_currency_ledger() at load time.
 var gold_balance: int = 0
 var gem_balance: int = 0
-# Last calendar date (ISO yyyy-mm-dd) on which the daily-login Gem bonus
-# (PRD #53 / issue #68) was awarded. Empty string means the player has
-# never received one — DailyLoginBonus.try_award treats that as a brand-new
-# day and pays the first bonus. Stored on KittenSaveData (not on the
+# Last calendar date (ISO yyyy-mm-dd) on which the daily-login streak was
+# claimed (PRD #237 / issue #241). Empty string means the player has never
+# claimed — DailyStreakEngine.resolve treats that as a first-ever login and
+# starts a fresh streak at Day 1. Stored on KittenSaveData (not on the
 # tracker) because it's a per-save anchor, not a meta-progression milestone.
 var last_login_date: String = ""
 # Daily-login streak position (PRD #237 / issue #239). 1–30 while a streak is
