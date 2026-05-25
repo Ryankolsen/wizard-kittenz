@@ -38,6 +38,35 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 		gs.streak_day, gs.last_login_date
 	)
 
+# Bundle persistence (PRD #250 / Slice 1). Writes a SaveBundle as a single
+# combined JSON document. The bundle owns its own version + slot layout, so we
+# just round-trip its dict here.
+static func save_bundle(bundle: SaveBundle, path: String = DEFAULT_PATH) -> Error:
+	if bundle == null:
+		return ERR_INVALID_PARAMETER
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_string(JSON.stringify(bundle.to_dict()))
+	f.close()
+	return OK
+
+# Always returns a SaveBundle (never null). Missing file, parse failure, or a
+# legacy pre-rework flat save all yield a fresh empty bundle so the new save
+# structure starts clean (PRD #250 "reset on upgrade").
+static func load_bundle(path: String = DEFAULT_PATH) -> SaveBundle:
+	if not FileAccess.file_exists(path):
+		return SaveBundle.new()
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return SaveBundle.new()
+	var text := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(text)
+	if not parsed is Dictionary:
+		return SaveBundle.new()
+	return SaveBundle.from_dict(parsed)
+
 # Note: shadows the global `load()` for `SaveManager.load()` calls — that's the
 # name the issue specifies. Global `load()` is still reachable from elsewhere.
 static func load(path: String = DEFAULT_PATH) -> KittenSaveData:
