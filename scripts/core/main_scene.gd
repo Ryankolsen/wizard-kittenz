@@ -296,6 +296,14 @@ func _enter_bar_room() -> void:
 func _release_move_input() -> void:
 	for action in VirtualJoystick.MOVE_ACTIONS:
 		Input.action_release(action)
+	# Releasing the InputMap actions alone leaves the virtual joystick's
+	# captured touch and displaced thumb intact — the overlay persists across
+	# the bar mount, so a finger still held from walking onto the entrance
+	# would re-press the direction on the next drag and the thumb stays stuck.
+	# Reset clears that state so the stick recenters and "forgets" the touch.
+	var touch_controls := get_node_or_null("TouchControls") as TouchControls
+	if touch_controls != null:
+		touch_controls.reset_joystick()
 
 
 func _pause_dungeon_entities() -> void:

@@ -243,6 +243,32 @@ func test_held_move_input_released_on_bar_entry():
 	Input.action_release("move_right")
 
 
+func test_virtual_joystick_state_reset_on_bar_entry():
+	# Releasing the InputMap actions alone isn't enough: the TouchControls
+	# overlay (and its joystick) survives the bar mount. A finger still held
+	# on the stick from walking onto the entrance leaves the joystick with a
+	# captured touch and a displaced thumb — so it renders stuck and re-presses
+	# the direction on the next drag. _enter_bar_room must also reset the stick.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var joystick: VirtualJoystick = inst.get_node("TouchControls/Joystick")
+	# Simulate a finger held on the stick, driving a direction.
+	joystick._active_touch_index = 0
+	joystick._thumb_offset = Vector2(joystick.base_radius, 0)
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	assert_not_null(inst.get_node_or_null("BarRoomScene"), "precondition: bar mounted")
+	assert_eq(joystick._active_touch_index, -1,
+		"bar entry forgets the captured touch so a held finger can't keep tracking")
+	assert_eq(joystick._thumb_offset, Vector2.ZERO,
+		"bar entry recenters the thumb so the stick doesn't render stuck")
+
+
 func test_saved_camera_limits_field_removed():
 	# Lock the refactor in: the _saved_camera_limits field that backed the
 	# old lift/restore is gone, along with the lift/restore methods. Reading

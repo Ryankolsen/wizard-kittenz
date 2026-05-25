@@ -168,3 +168,31 @@ func test_pipeline_tiny_jiggle_inside_deadzone_yields_no_strength():
 	for action in ["move_left", "move_right", "move_up", "move_down"]:
 		assert_eq(float(s[action]), 0.0,
 			"deadzone jiggle should not move (got %s=%s)" % [action, s[action]])
+
+# --- reset() (bar-entry context switch) ----------------------------------
+
+# When the player walks onto the bar entrance with a finger still held on
+# the stick, the overlay survives the bar mount. reset() must drop the
+# captured touch and recenter the thumb so a held-still finger can't keep
+# driving movement, and the InputMap actions must be released.
+
+func test_reset_clears_captured_touch_and_thumb_offset():
+	var joystick: VirtualJoystick = add_child_autofree(VirtualJoystick.new())
+	# Simulate an active touch holding a direction.
+	joystick._active_touch_index = 0
+	joystick._thumb_offset = Vector2(BASE, 0)
+	joystick.reset()
+	assert_eq(joystick._active_touch_index, -1,
+		"reset must forget the captured touch so a held finger can't keep tracking")
+	assert_eq(joystick._thumb_offset, Vector2.ZERO,
+		"reset must recenter the thumb so the stick doesn't render stuck")
+
+func test_reset_releases_held_move_actions():
+	var joystick: VirtualJoystick = add_child_autofree(VirtualJoystick.new())
+	Input.action_press(&"move_right", 1.0)
+	assert_true(Input.is_action_pressed(&"move_right"),
+		"precondition: move_right held before reset")
+	joystick.reset()
+	for action in VirtualJoystick.MOVE_ACTIONS:
+		assert_false(Input.is_action_pressed(action),
+			"reset must release %s so movement stops in the new context" % action)

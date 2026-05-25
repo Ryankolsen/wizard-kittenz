@@ -15,9 +15,31 @@ const ControlsSettings := preload("res://scripts/core/controls_settings_manager.
 
 @export var force_visible: bool = false
 
+# Group the pause menu walks to hide these controls while it is open. The
+# overlay lives on the same CanvasLayer.layer as the PauseMenu, so on touch
+# platforms its QuickbarHUD slots (MOUSE_FILTER_PASS) would otherwise sit on
+# top of the menu and swallow taps meant for the panel beneath it.
+const PAUSE_HIDEABLE_GROUP := &"touch_controls"
+
 func _ready() -> void:
+	add_to_group(PAUSE_HIDEABLE_GROUP)
 	visible = should_show(force_visible)
 	apply_layout(ControlsSettings.load_layout())
+
+# Called by the PauseMenu when it opens/closes. While the menu is open the
+# overlay hides entirely; on close it returns to its platform-gated default
+# rather than blindly showing (so desktop stays clean).
+func set_menu_open(menu_open: bool) -> void:
+	visible = false if menu_open else should_show(force_visible)
+
+# Clears the virtual joystick's captured touch and held direction. Used on
+# scene-context changes (bar entry) so a finger still resting on the stick
+# from walking onto the entrance doesn't keep driving movement in the new
+# context. No-op if the joystick node is absent (headless test scenes).
+func reset_joystick() -> void:
+	var joystick := get_node_or_null("Joystick") as VirtualJoystick
+	if joystick != null:
+		joystick.reset()
 
 static func should_show(force: bool) -> bool:
 	if force:

@@ -67,6 +67,18 @@ func _handle_touch_released(event: InputEventScreenTouch) -> void:
 	_release_all_move_actions()
 	queue_redraw()
 
+# Forcibly clear all joystick state without waiting for a touch-end event.
+# Called on scene-context changes (e.g. entering the bar room) where the
+# player's finger may still be held on the stick: drops the captured touch
+# so a held-still thumb can't keep driving movement, recenters the visual
+# thumb, and releases the InputMap actions. The player must lift and
+# re-press to regain control — a clean slate in the new context.
+func reset() -> void:
+	_active_touch_index = -1
+	_thumb_offset = Vector2.ZERO
+	_release_all_move_actions()
+	queue_redraw()
+
 func _update_offset(touch_pos: Vector2) -> void:
 	_thumb_offset = compute_clamped_offset(touch_pos, _base_center(), base_radius)
 	var direction := compute_direction(_thumb_offset, base_radius, deadzone_fraction)
