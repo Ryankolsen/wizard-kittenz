@@ -30,6 +30,7 @@ const SaveSlotsRef = preload("res://scripts/core/save_slots.gd")
 @onready var _chonk_card: Button = $MainMenu/VBox/CharacterGrid/ChonkSlotButton
 @onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
 @onready var _shop_button: Button = $MainMenu/VBox/ShopButton
+@onready var _main_title: Label = $MainMenu/VBox/Title
 
 @onready var _slot_title: Label = $SlotActionPanel/VBox/SlotTitle
 @onready var _slot_continue_button: Button = $SlotActionPanel/VBox/ContinueButton
@@ -65,13 +66,18 @@ var _selected_archetype: String = ""
 # name (preserves xp/level). When false, customize creates a new slot for
 # _selected_archetype on save.
 var _customize_is_rename: bool = false
+# When true, the four-card grid is acting as the co-op picker (issue #255):
+# an occupied card switches to that slot and proceeds to the lobby; an empty
+# card routes through creation first, then back to the lobby instead of into
+# solo play. Toggled by the Multiplayer button, reset on return to main menu.
+var _multiplayer_pick_mode: bool = false
 
 func _ready() -> void:
 	_battle_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_BATTLE))
 	_wizard_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_WIZARD))
 	_sleepy_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_SLEEPY))
 	_chonk_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_CHONK))
-	_multiplayer_button.pressed.connect(_show_multi_menu)
+	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
 	_shop_button.pressed.connect(_show_shop)
 
 	_slot_continue_button.pressed.connect(_on_slot_continue_pressed)
@@ -170,6 +176,10 @@ func _card_for(archetype: String) -> Button:
 	return null
 
 func _show_main_menu() -> void:
+	# Returning to the main menu always drops co-op pick mode — backing out of
+	# the grid, the lobby create/join panel, or a customize flow re-arms the
+	# cards for solo play.
+	_set_multiplayer_pick_mode(false)
 	_main_menu.visible = true
 	_quick_start_panel.visible = false
 	_customize_panel.visible = false
@@ -177,14 +187,44 @@ func _show_main_menu() -> void:
 	_slot_action_panel.visible = false
 	_overwrite_confirm_panel.visible = false
 
+# Toggles the grid between solo and co-op picker modes. Pressing Multiplayer a
+# second time (while still on the grid) cancels back to solo.
+func _on_multiplayer_pressed() -> void:
+	_set_multiplayer_pick_mode(not _multiplayer_pick_mode)
+
+func _set_multiplayer_pick_mode(on: bool) -> void:
+	_multiplayer_pick_mode = on
+	if _main_title != null:
+		_main_title.text = "Co-op — pick a character" if on else "Wizard Kittenz"
+	if _multiplayer_button != null:
+		_multiplayer_button.text = "Cancel co-op" if on else "Multiplayer"
+
 func _on_card_pressed(archetype: String) -> void:
 	_selected_archetype = archetype
-	if SaveSlotsRef.is_occupied(SaveManager.load_bundle(), archetype):
+	var bundle := SaveManager.load_bundle()
+	if _multiplayer_pick_mode:
+		_on_multiplayer_card_pressed(archetype, bundle)
+		return
+	if SaveSlotsRef.is_occupied(bundle, archetype):
 		_show_slot_action_panel(archetype)
 	else:
 		# Empty card → name-only customize → create_slot on save.
 		_customize_is_rename = false
 		_show_customize()
+
+# Co-op picker routing (issue #255): an occupied card sets that slot active and
+# proceeds to the lobby create/join panel; an empty card can't join, so it
+# drops into creation first (staying in pick mode so save returns to the lobby).
+func _on_multiplayer_card_pressed(archetype: String, bundle: SaveBundle) -> void:
+	if not can_enter_multiplayer(bundle, archetype):
+		_customize_is_rename = false
+		_show_customize()
+		return
+	GameState.switch_to_slot(archetype)
+	if GameState.current_character == null:
+		_show_main_menu()
+		return
+	_show_multi_menu()
 
 func _show_slot_action_panel(archetype: String) -> void:
 	var bundle := SaveManager.load_bundle()
@@ -293,17 +333,16 @@ func _on_random_name() -> void:
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
 	GameState.dungeon_run_controller = null
+	# Co-op picker created an empty slot's character: persist it as a real
+	# bundle slot (so its progress is the active slot for co-op rewards) and
+	# return to the lobby create/join panel rather than launching solo play.
+	if _multiplayer_pick_mode:
+		SaveManager.save_from_state()
+		_refresh_card_grid()
+		_show_multi_menu()
+		return
 	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
 	get_tree().change_scene_to_file(main_scene_path)
-
-func _ensure_character_for_multiplayer() -> CharacterData:
-	if GameState.current_character != null:
-		return GameState.current_character
-	# Quick-start as Battle Kitten for multiplayer if no character exists
-	var data := QuickStartController.create_for_class("battle_kitten")
-	GameState.set_character(data)
-	SaveManager.save(data, SaveManager.DEFAULT_PATH, GameState.skill_tree, GameState.meta_tracker, GameState.offline_xp_tracker, GameState.cosmetic_inventory, GameState.paid_unlocks)
-	return data
 
 func _ensure_session_async() -> NakamaSession:
 	if NakamaService.session != null:
@@ -311,9 +350,12 @@ func _ensure_session_async() -> NakamaSession:
 	return await NakamaService.authenticate_device_async(OS.get_unique_id())
 
 func _on_create_room_pressed() -> void:
+	var c := GameState.current_character
+	if c == null:
+		_multi_status_label.text = "Pick a character first"
+		return
 	_multi_create_button.disabled = true
 	_multi_status_label.text = "Connecting…"
-	var c := _ensure_character_for_multiplayer()
 	var session := await _ensure_session_async()
 	if session == null:
 		_multi_status_label.text = "Auth failed — check your connection"
@@ -345,9 +387,12 @@ func _on_join_room_pressed() -> void:
 	if not RoomCodeValidator.is_valid(raw_code):
 		_multi_status_label.text = "Invalid code — must be 5 uppercase letters/digits"
 		return
+	var c := GameState.current_character
+	if c == null:
+		_multi_status_label.text = "Pick a character first"
+		return
 	_multi_join_button.disabled = true
 	_multi_status_label.text = "Joining…"
-	var c := _ensure_character_for_multiplayer()
 	var session := await _ensure_session_async()
 	if session == null:
 		_multi_status_label.text = "Auth failed — check your connection"
@@ -374,6 +419,14 @@ func _on_join_room_pressed() -> void:
 	GameState.set_lobby(lobby)
 	GameState.local_player_id = session.user_id
 	get_tree().change_scene_to_file(lobby_scene_path)
+
+# Multiplayer-entry guard (issue #255). The four-card grid doubles as the
+# co-op picker: an occupied slot proceeds to the lobby, an empty slot must
+# create a character first (no joining with no character). Pure-data so the
+# guard contract is unit-testable without booting the scene; the card handler
+# routes on the result.
+static func can_enter_multiplayer(bundle: SaveBundle, archetype: String) -> bool:
+	return SaveSlotsRef.is_occupied(bundle, archetype)
 
 # Kept for backwards compatibility with existing tests / call sites.
 # New flow uses CharacterFactory.create_default and QuickStartController

@@ -239,13 +239,6 @@ func test_all_four_quick_start_buttons_select_correct_class():
 			"QuickStart %s must select %s" % [btn_name, _BUTTON_TO_CLASS[btn_name]])
 
 
-func test_multiplayer_fallback_defaults_to_battle_kitten():
-	var scene = _instantiate_creation_scene()
-	var data = scene._ensure_character_for_multiplayer()
-	assert_eq(data.character_class, CharacterData.CharacterClass.BATTLE_KITTEN)
-	assert_eq(GameState.current_character.character_class,
-		CharacterData.CharacterClass.BATTLE_KITTEN)
-
 func test_no_legacy_class_buttons_remain():
 	var scene := _instantiate_creation_scene()
 	for legacy in ["MageButton", "ThiefButton", "NinjaButton"]:

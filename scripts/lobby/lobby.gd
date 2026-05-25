@@ -60,9 +60,7 @@ func _on_match_started(_match_id: String) -> void:
 	var lobby: NakamaLobby = GameState.lobby
 	if lobby == null or lobby.lobby_state == null:
 		return
-	var chars: Dictionary = {}
-	if GameState.current_character != null:
-		chars[GameState.local_player_id] = GameState.current_character
+	var chars: Dictionary = GameState.build_coop_chars_map()
 	GameState.coop_session = CoopSession.new(
 		lobby.lobby_state, chars,
 		GameState.meta_tracker,

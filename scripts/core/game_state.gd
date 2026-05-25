@@ -283,6 +283,18 @@ func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	await NakamaService.upload_save_async(p_session, merged_bundle.to_dict())
 	save_synced.emit(merged_flat)
 
+# Builds the per-player_id character map a CoopSession is constructed from
+# (issue #255). Keyed by this client's local_player_id; the value is the live
+# active-slot character so its real level/stats drive PartyScaler.compute_floor
+# and the in-match scaling — not a default level-1 battle kitten. The lobby's
+# match-start handler hands this to CoopSession.new. Returns an empty map when
+# there's no active character or no known local id (pre-handshake / solo).
+func build_coop_chars_map() -> Dictionary:
+	var chars: Dictionary = {}
+	if current_character != null and local_player_id != "":
+		chars[local_player_id] = current_character
+	return chars
+
 func set_character(c: CharacterData) -> void:
 	current_character = c
 	skill_tree = _build_tree_for(c)
