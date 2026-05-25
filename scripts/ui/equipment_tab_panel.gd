@@ -96,27 +96,25 @@ func _make_slot_row(slot: int, slot_label: String) -> Control:
 		col.add_child(unequip_btn)
 	return col
 
+# Bag items live in a plain VBoxContainer — the pause menu's outer
+# TabScroll already scrolls all tab content, so a nested ScrollContainer
+# here would produce a scroll-bar-inside-a-scroll-bar.
 func _make_bag_list() -> Control:
-	var scroll := ScrollContainer.new()
-	scroll.name = "BagScroll"
-	scroll.custom_minimum_size = Vector2(0, 80)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var list := VBoxContainer.new()
 	list.name = "BagList"
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(list)
 	if _inventory == null:
-		return scroll
+		return list
 	var items := _inventory.bag_items()
 	if items.is_empty():
 		var empty := Label.new()
 		empty.name = "BagEmpty"
 		empty.text = "Bag is empty"
 		list.add_child(empty)
-		return scroll
+		return list
 	for i in items.size():
 		list.add_child(_make_bag_row(items[i], i))
-	return scroll
+	return list
 
 func _make_bag_row(item: ItemData, index: int) -> Control:
 	var row := HBoxContainer.new()
