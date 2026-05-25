@@ -161,14 +161,11 @@ func create_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		join_failed.emit("Failed to create room: " + match_result.get_exception().message)
 		return false
 	_match_id = match_result.match_id
-	local_player_id = local_player.player_id
 	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
 	entry_path = "create"
 	if match_result.self_user != null:
 		match_self_id = match_result.self_user.user_id
-	lobby_state = LobbyState.new(room_code)
-	local_player.is_host = true
-	lobby_state.add_player(local_player)
+	_seed_local_player(local_player, match_self_id, room_code, true)
 	await NakamaService.register_room_async(_session, room_code, _match_id)
 	# Broadcast our info to any late-joiners watching this match
 	await send_player_info_async(local_player)
@@ -191,13 +188,11 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		join_failed.emit("Failed to join: " + match_result.get_exception().message)
 		return false
 	_match_id = match_result.match_id
-	local_player_id = local_player.player_id
 	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
 	entry_path = "join"
 	if match_result.self_user != null:
 		match_self_id = match_result.self_user.user_id
-	lobby_state = LobbyState.new(room_code)
-	lobby_state.add_player(local_player)
+	_seed_local_player(local_player, match_self_id, room_code, false)
 	# Populate from presences already in the match (excluding self)
 	var existing: Array = []
 	for p in match_result.presences:
@@ -209,6 +204,23 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 	await send_player_info_async(local_player)
 	lobby_updated.emit(lobby_state)
 	return true
+
+# Seeds lobby_state with the local player and pins the lobby's notion of
+# "who am I". Prefers the match result's self_user id (Nakama's authoritative
+# self-presence) over local_player.player_id: in release Android builds the
+# latter — sourced from session.user_id at lobby-creation time — can arrive
+# empty (#267), which left host() pointing at an empty-id player (Start button
+# never shown for the actual host) and made apply_joins re-add the local
+# presence as a duplicate non-host roster row. Public for testability — the
+# socket-driven create/join paths can't be exercised in a unit test, but this
+# pure seeding step can. as_host stamps the host flag (create=true, join=false).
+func _seed_local_player(local_player: LobbyPlayer, self_user_id: String, room_code: String, as_host: bool) -> void:
+	var resolved := self_user_id if self_user_id != "" else local_player.player_id
+	local_player_id = resolved
+	local_player.player_id = resolved
+	local_player.is_host = as_host
+	lobby_state = LobbyState.new(room_code)
+	lobby_state.add_player(local_player)
 
 func send_player_info_async(player: LobbyPlayer) -> void:
 	if _socket == null or _match_id == "":

@@ -208,6 +208,38 @@ func test_lobby_state_dict_round_trip():
 	assert_true(rt.find_player("u1").ready)
 	assert_false(rt.find_player("u2").ready)
 
+# --- NakamaLobby._seed_local_player (#267 host-identity fix) ------------------
+
+func test_seed_local_player_prefers_self_user_id_over_empty_player_id():
+	# Release-build bug (#267): local_player.player_id arrives empty (the
+	# session.user_id read came back blank), but the match result's self_user
+	# id is populated. The lobby must adopt the authoritative self id so host()
+	# resolves to the real id and the Start button shows for the host.
+	var lobby := NakamaLobby.new()
+	var lp := LobbyPlayer.make("", "Mittens", "Mage")
+	lobby._seed_local_player(lp, "73afa042", "AB1C2", true)
+	assert_eq(lobby.local_player_id, "73afa042", "lobby adopts self_user id")
+	assert_eq(lobby.lobby_state.host().player_id, "73afa042", "host resolves to real id")
+
+func test_seed_local_player_dedups_self_presence_join():
+	# With the local id correctly pinned, the self presence arriving through
+	# the presence stream must be skipped — otherwise the host is re-added as a
+	# second, non-host roster row (the ghost "username" row in the bug report).
+	var lobby := NakamaLobby.new()
+	var lp := LobbyPlayer.make("", "Mittens", "Mage")
+	lobby._seed_local_player(lp, "73afa042", "AB1C2", true)
+	lobby.apply_joins([{"user_id": "73afa042", "username": "sVxGSasbay"}])
+	assert_eq(lobby.lobby_state.player_count(), 1, "self presence deduped — no ghost row")
+
+func test_seed_local_player_falls_back_to_player_id_when_self_empty():
+	# When the match result has no self id, fall back to the player's own id
+	# rather than blanking the lobby identity.
+	var lobby := NakamaLobby.new()
+	var lp := LobbyPlayer.make("fallback-id", "Mittens", "Mage")
+	lobby._seed_local_player(lp, "", "AB1C2", false)
+	assert_eq(lobby.local_player_id, "fallback-id")
+	assert_eq(lobby.lobby_state.find_player("fallback-id").is_host, false, "join path is not host")
+
 # --- NakamaLobby.apply_joins --------------------------------------------------
 
 func test_apply_joins_adds_player_to_lobby_state():
