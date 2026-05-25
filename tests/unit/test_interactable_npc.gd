@@ -35,7 +35,7 @@ func test_base_mounts_bubble_with_subclass_options():
 	var bubble := npc.get_bubble()
 	assert_not_null(bubble, "bubble mounted after in-range attack press")
 	assert_eq(bubble._list.size(), 2, "bubble shows the two subclass options")
-	assert_eq(bubble._list.get(0).label, "First")
+	assert_eq(bubble._list.get_at(0).label, "First")
 
 
 func test_base_dispatches_effect_id_to_subclass():
@@ -60,6 +60,21 @@ func test_base_dispatches_second_option_when_navigated():
 	bubble.confirm()
 	assert_eq(npc.last_effect_id, "do_second",
 		"navigating to row 1 then confirming dispatches that row's effect_id")
+
+
+func test_base_opens_bubble_via_attack_polling():
+	# Touch regression: the touch attack button only calls Input.action_press,
+	# which updates polling state but never synthesizes an InputEvent. The NPC
+	# must poll Input.is_action_just_pressed("attack") (like chest_entity /
+	# player) rather than rely on _unhandled_input, or interaction is dead on
+	# deployed touch builds while still working with a keyboard locally.
+	var npc := _make_npc()
+	npc._on_player_entered_range()
+	Input.action_press("attack")
+	npc._physics_process(0.0)
+	Input.action_release("attack")
+	assert_not_null(npc.get_bubble(),
+		"polling Input.is_action_just_pressed('attack') opens the bubble (touch path)")
 
 
 func test_base_does_not_open_bubble_when_out_of_range():

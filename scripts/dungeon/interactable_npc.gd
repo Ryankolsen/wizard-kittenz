@@ -21,10 +21,17 @@ extends Node2D
 #                          the overlay)
 #   player exits range   → bubble auto-closes
 #
-# The base also gates _unhandled_input: while a bubble is mounted, the NPC
-# itself ignores attack presses (the bubble's own _unhandled_input handles
-# Confirm). Without the gate, pressing attack to confirm would also try to
-# open a second bubble on the same frame.
+# Input is read by POLLING (Input.is_action_just_pressed) in _physics_process,
+# not via _unhandled_input. This matters on touch: the on-screen attack button
+# drives the "attack" action through Input.action_press(), which updates the
+# polled action state but never synthesizes an InputEvent — so an event-based
+# _unhandled_input handler fires on a desktop keyboard yet stays silent on a
+# deployed phone. chest_entity / player already poll for exactly this reason.
+#
+# The poll gates itself: while a bubble is mounted the NPC ignores attack (the
+# bubble polls its own Confirm), and because a freshly-mounted bubble doesn't
+# receive _physics_process until the next frame, the press that opens the menu
+# can't also confirm a row on the same frame.
 
 const SPEECH_BUBBLE_SCENE_PATH := "res://scenes/speech_bubble.tscn"
 
@@ -41,14 +48,13 @@ func _ready() -> void:
 			area.body_exited.connect(_on_body_exited)
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _physics_process(_delta: float) -> void:
 	if not _player_in_range:
 		return
 	if _bubble != null:
 		return
-	if event.is_action_pressed("attack"):
+	if Input.is_action_just_pressed("attack"):
 		_on_attack_pressed()
-		get_viewport().set_input_as_handled()
 
 
 # Returns the currently-mounted bubble or null. Test seam — lets tests inspect

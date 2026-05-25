@@ -81,20 +81,22 @@ func dismiss() -> void:
 	queue_free()
 
 
-func _unhandled_input(event: InputEvent) -> void:
+# Input is POLLED (Input.is_action_just_pressed) rather than read from
+# _unhandled_input. On touch the joystick and attack button drive these actions
+# via Input.action_press(), which updates polled state but emits no InputEvent —
+# so an event handler navigates/confirms only on a desktop keyboard and is dead
+# on a deployed phone. Polling matches the NPC base + chest_entity + player and
+# works on both. The elif chain keeps a single press to one action per frame.
+func _physics_process(_delta: float) -> void:
 	if selection == null:
 		return
-	if event.is_action_pressed("move_up"):
+	if Input.is_action_just_pressed("move_up"):
 		move_prev()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("move_down"):
+	elif Input.is_action_just_pressed("move_down"):
 		move_next()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("attack"):
-		# Mark handled BEFORE confirm() — confirm may dispatch an effect that
-		# dismisses this bubble (removes it from the tree), after which
-		# get_viewport() returns null.
-		get_viewport().set_input_as_handled()
+	elif Input.is_action_just_pressed("attack"):
+		# confirm() may dispatch an effect that dismisses this bubble (frees it),
+		# so do nothing with self afterward — we return immediately.
 		confirm()
 
 
