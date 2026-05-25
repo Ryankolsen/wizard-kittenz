@@ -95,3 +95,38 @@ func test_static_helpers_match_make_new():
 		assert_eq(e.xp_reward, EnemyData.base_xp_for(k))
 		assert_eq(e.gold_reward, EnemyData.base_gold_for(k))
 		assert_eq(e.enemy_name, EnemyData.display_name_for(k))
+
+func test_dog_knight_radius_reduced():
+	# Issue #260: the prior 200px outlier let DOG_KNIGHT aggro from off-screen
+	# on a 480x270 viewport. Pin both the new ceiling and the strict drop from
+	# the old value so a regression to 200 (or anything above 120) fails loud.
+	var r := EnemyData.base_detection_radius_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	assert_lt(r, 200.0, "DOG_KNIGHT must drop below the legacy 200 outlier")
+	assert_lte(r, 120.0, "DOG_KNIGHT must respect the 120px viewport ceiling")
+
+func test_detection_radii_are_standardized():
+	# Every kind must stay within [MIN, MAX] for the 480x270 viewport so no
+	# enemy aggros from off-screen. Exact per-kind values are pinned here so
+	# a tweak is a deliberate, reviewed change rather than a silent drift.
+	var min_px := 40.0
+	var max_px := EnemyData.DETECTION_RADIUS_MAX_PX
+	var expected := {
+		EnemyData.EnemyKind.ANGRY_PIGEON: 64.0,
+		EnemyData.EnemyKind.ROGUE_ROOMBA: 72.0,
+		EnemyData.EnemyKind.DOG_KNIGHT: 120.0,
+		EnemyData.EnemyKind.CATNIP_DEALER: 60.0,
+		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: 60.0,
+	}
+	for k in _NEW_KINDS:
+		var r: float = EnemyData.base_detection_radius_for(k)
+		assert_gte(r, min_px, "kind %d radius %f below floor" % [k, r])
+		assert_lte(r, max_px, "kind %d radius %f above viewport ceiling" % [k, r])
+		assert_eq(r, expected[k], "kind %d expected pinned radius" % k)
+
+func test_make_new_stamps_detection_radius():
+	# Guards the spawn path: every kind's instance must carry the static
+	# helper's value verbatim, otherwise EnemyAI runs on a different number
+	# than the test pins above.
+	for k in _NEW_KINDS:
+		var e := EnemyData.make_new(k)
+		assert_eq(e.detection_radius, EnemyData.base_detection_radius_for(k))
