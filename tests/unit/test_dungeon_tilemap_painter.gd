@@ -113,6 +113,64 @@ func test_walls_border_floor():
 	assert_true(has_wall_neighbor,
 		"start room corner must have at least one wall neighbor")
 
+func test_painted_tileset_has_physics_layer():
+	# Issue #263: enemies need to collide with wall tiles, which requires the
+	# TileSet to declare at least one physics layer. The painter has historically
+	# built a no-physics TileSet — this test locks the new contract in.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	DungeonTilemapPainter.new().paint(layout, tilemap, dungeon)
+	assert_gt(tilemap.tile_set.get_physics_layers_count(), 0,
+		"painted TileSet must declare at least one physics layer")
+
+
+func test_wall_tile_has_collision_polygon_on_walls_bit():
+	# Issue #263: the SOURCE_WALL tile carries a square collision polygon on
+	# the dedicated walls physics layer. Verifies both the polygon attachment
+	# and that the layer's collision_layer bit matches the named walls bit so
+	# enemy collision_mask wiring agrees with the painter.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	DungeonTilemapPainter.new().paint(layout, tilemap, dungeon)
+	var ts: TileSet = tilemap.tile_set
+	assert_eq(ts.get_physics_layer_collision_layer(0),
+		EnemyBehavior.WALL_COLLISION_MASK,
+		"physics layer 0 must use the named walls bit")
+	var wall_src := ts.get_source(DungeonTilemapPainter.SOURCE_WALL) as TileSetAtlasSource
+	assert_not_null(wall_src, "SOURCE_WALL atlas source must exist")
+	var data: TileData = wall_src.get_tile_data(Vector2i(0, 0), 0)
+	assert_not_null(data, "SOURCE_WALL tile data must exist")
+	assert_gt(data.get_collision_polygons_count(0), 0,
+		"SOURCE_WALL must carry at least one collision polygon on the walls layer")
+	var points: PackedVector2Array = data.get_collision_polygon_points(0, 0)
+	assert_gt(points.size(), 2, "collision polygon must have non-trivial points")
+
+
+func test_non_wall_tiles_have_no_collision_polygon():
+	# Issue #263: floor/start/boss/bar-entrance tiles are walkable — they must
+	# not carry collision polygons, or enemies would jam against floor cells.
+	var pair := _make_layout(42)
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var tilemap := TileMap.new()
+	add_child_autofree(tilemap)
+	DungeonTilemapPainter.new().paint(layout, tilemap, dungeon)
+	var ts: TileSet = tilemap.tile_set
+	for sid in [DungeonTilemapPainter.SOURCE_FLOOR,
+			DungeonTilemapPainter.SOURCE_START,
+			DungeonTilemapPainter.SOURCE_BOSS]:
+		var src := ts.get_source(sid) as TileSetAtlasSource
+		var data: TileData = src.get_tile_data(Vector2i(0, 0), 0)
+		assert_eq(data.get_collision_polygons_count(0), 0,
+			"source %d (floor variant) must not carry a collision polygon" % sid)
+
+
 func test_apply_camera_limits_matches_used_rect():
 	# AC: camera limits clamp to painted tilemap extents in pixels.
 	var pair := _make_layout(42)

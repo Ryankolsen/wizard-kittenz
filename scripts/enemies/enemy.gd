@@ -55,11 +55,12 @@ func _ready() -> void:
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
-	# Haunted Spray Bottle (issue #165) floats over terrain — clear the
-	# collision_mask so move_and_slide ignores wall tiles. The hurtbox stays
-	# on the player-projectile layer so it remains hittable.
-	if _behavior is HauntedSprayBottleBehavior and (_behavior as HauntedSprayBottleBehavior).ignores_wall_collision:
-		collision_mask = 0
+	# Wall collision wiring (issue #263). Normal kinds mask the dedicated walls
+	# bit so move_and_slide is blocked by the dungeon painter's wall tiles;
+	# HauntedSprayBottle (issue #165) opts out via wall_mask_for returning 0,
+	# preserving the float-over-terrain contract. The hurtbox stays on the
+	# player-projectile layer so the bottle remains hittable.
+	collision_mask = EnemyBehavior.wall_mask_for(_behavior)
 	# Floating HP bar (issue #247). Regular enemies only — boss enemies get
 	# the dedicated HUD-pinned bar from #248, so attach() skips when
 	# data.is_boss to avoid double presentation.

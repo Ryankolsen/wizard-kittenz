@@ -559,6 +559,53 @@ func test_haunted_spray_bottle_wet_effect_refreshes_on_rehit():
 	assert_eq(manager.active_count(), 1, "refresh should not stack a second WetEffect")
 
 
+func test_wall_mask_for_normal_behavior_sets_walls_bit():
+	# Issue #263: normal kinds collide with dungeon wall tiles so move_and_slide
+	# is blocked. The mask must include the dedicated walls bit.
+	assert_eq(EnemyBehavior.wall_mask_for(EnemyBehavior.new()),
+		EnemyBehavior.WALL_COLLISION_MASK,
+		"default behavior must mask the walls bit")
+	assert_eq(EnemyBehavior.wall_mask_for(AngryPigeonBehavior.new()),
+		EnemyBehavior.WALL_COLLISION_MASK,
+		"pigeon must mask the walls bit")
+	assert_eq(EnemyBehavior.wall_mask_for(RogueRoombaBehavior.new()),
+		EnemyBehavior.WALL_COLLISION_MASK,
+		"roomba must mask the walls bit")
+
+
+func test_wall_mask_for_haunted_spray_bottle_is_zero():
+	# Issue #263 + #165: the spray bottle floats over terrain. Its mask must
+	# stay clear of the walls bit so move_and_slide doesn't trap it.
+	var b := HauntedSprayBottleBehavior.new()
+	assert_true(b.ignores_wall_collision,
+		"precondition: spray bottle declares ignores_wall_collision")
+	assert_eq(EnemyBehavior.wall_mask_for(b), 0,
+		"behaviors that ignore wall collision must return mask 0")
+
+
+func test_player_does_not_mask_walls_by_default():
+	# Issue #263: players walk through walls (until #264 adds toggleable
+	# phasing). The Player scene's CharacterBody2D must leave the walls bit
+	# unmasked so move_and_slide ignores dungeon wall tiles.
+	var scene: PackedScene = load("res://scenes/player.tscn")
+	assert_not_null(scene, "player.tscn must load")
+	var player := scene.instantiate() as CharacterBody2D
+	add_child_autofree(player)
+	assert_eq(player.collision_mask & EnemyBehavior.WALL_COLLISION_MASK, 0,
+		"player CharacterBody2D must not mask the dedicated walls bit")
+
+
+func test_wall_collision_mask_uses_dedicated_bit_not_actor_bit():
+	# Issue #263: the walls bit must not collide with the default actor layer
+	# (bit 0). Players land on bit 0 by default, so masking only the walls bit
+	# guarantees players are not blocked.
+	assert_ne(EnemyBehavior.WALL_PHYSICS_LAYER_BIT, 0,
+		"walls bit must not be the default actor bit (0)")
+	assert_eq(EnemyBehavior.WALL_COLLISION_MASK,
+		1 << EnemyBehavior.WALL_PHYSICS_LAYER_BIT,
+		"WALL_COLLISION_MASK must be derived from WALL_PHYSICS_LAYER_BIT")
+
+
 func test_haunted_spray_bottle_ignores_wall_collision_flag():
 	# Acceptance #6 (tests #5): the float-over-terrain flag is on the behavior
 	# itself so the Enemy node can clear collision_mask on _ready.

@@ -199,11 +199,14 @@ func _paint_room_tilemap() -> void:
 func _build_tileset() -> TileSet:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	# Physics layer 0 = wall collision. Player.gd's CharacterBody2D mask is 2
-	# (collision_layer bit 1 set on the wall side), so layer mask bit 1 is
-	# what blocks the player.
+	# Physics layer 0 = wall collision on the dedicated walls bit
+	# (EnemyBehavior.WALL_COLLISION_MASK, issue #263). Shared with the dungeon
+	# painter so enemy/player wiring is uniform across both tile sources —
+	# Player.gd's Hitbox masks bit 1, and post-#263 enemies mask the same bit
+	# to be blocked by walls. The pushback Area2D below is belt-and-suspenders
+	# for behaviors that bypass move_and_slide (e.g., HauntedSprayBottle floats).
 	ts.add_physics_layer()
-	ts.set_physics_layer_collision_layer(0, 1 << 1)
+	ts.set_physics_layer_collision_layer(0, EnemyBehavior.WALL_COLLISION_MASK)
 	_add_floor_source(ts, _SOURCE_FLOOR, Color(0.55, 0.45, 0.35))
 	_add_wall_source(ts, _SOURCE_WALL, Color(0.2, 0.22, 0.28))
 	return ts

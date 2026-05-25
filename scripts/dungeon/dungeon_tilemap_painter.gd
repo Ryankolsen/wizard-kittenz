@@ -160,10 +160,16 @@ func _paint_walls(tilemap: TileMap, floor_cells: Dictionary) -> void:
 func _build_tileset() -> TileSet:
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	# Issue #263: a single physics layer carries the wall collision polygon
+	# on the dedicated walls bit (EnemyBehavior.WALL_COLLISION_MASK). Normal
+	# enemies mask this bit so move_and_slide is blocked by wall tiles; the
+	# player and the haunted spray bottle leave it unmasked and pass through.
+	ts.add_physics_layer()
+	ts.set_physics_layer_collision_layer(0, EnemyBehavior.WALL_COLLISION_MASK)
 	_add_tinted_source(ts, SOURCE_FLOOR, Color(1.0, 1.0, 1.0))
 	_add_tinted_source(ts, SOURCE_START, Color(0.55, 0.85, 1.0))
 	_add_tinted_source(ts, SOURCE_BOSS, Color(1.0, 0.5, 0.5))
-	_add_tinted_source(ts, SOURCE_WALL, Color(0.2, 0.22, 0.28))
+	_add_tinted_source(ts, SOURCE_WALL, Color(0.2, 0.22, 0.28), true)
 	_add_bar_entrance_source(ts, SOURCE_BAR_ENTRANCE)
 	return ts
 
@@ -305,7 +311,7 @@ func _bar_entrance_footprint(bar_origin: Vector2i, bar_cx: int, bar_cy: int, oth
 # Builds a per-source atlas whose texture is the floor sprite multiplied by
 # `tint`. Because TileMap doesn't support per-cell modulation, the tint is
 # baked into the source texture at TileSet construction time.
-func _add_tinted_source(ts: TileSet, source_id: int, tint: Color) -> void:
+func _add_tinted_source(ts: TileSet, source_id: int, tint: Color, with_wall_collision: bool = false) -> void:
 	var base := load(FLOOR_TEXTURE_PATH) as Texture2D
 	var src := TileSetAtlasSource.new()
 	if base == null:
@@ -324,4 +330,17 @@ func _add_tinted_source(ts: TileSet, source_id: int, tint: Color) -> void:
 		src.texture = ImageTexture.create_from_image(img)
 	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
 	src.create_tile(Vector2i(0, 0))
+	# Add the source to the TileSet first so its TileData inherits the physics
+	# layer config; add_collision_polygon errors out otherwise (matches the
+	# bar_room.gd:228 ordering for the same reason).
 	ts.add_source(src, source_id)
+	if with_wall_collision:
+		var data: TileData = src.get_tile_data(Vector2i(0, 0), 0)
+		data.add_collision_polygon(0)
+		var half: float = float(TILE_SIZE) / 2.0
+		data.set_collision_polygon_points(0, 0, PackedVector2Array([
+			Vector2(-half, -half),
+			Vector2(half, -half),
+			Vector2(half, half),
+			Vector2(-half, half),
+		]))
