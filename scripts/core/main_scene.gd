@@ -313,6 +313,12 @@ func _pause_dungeon_entities() -> void:
 	for child in get_children():
 		if child == _player or child == _hud:
 			continue
+		# TouchControls drives movement + casting; the player walks around
+		# inside the bar, so the joystick/buttons must keep processing input.
+		# It's a CanvasLayer (not a CanvasItem), so the hide-pass below skips
+		# it — disabling its process_mode would leave a visible-but-dead stick.
+		if child is TouchControls:
+			continue
 		if child is BarRoom:
 			continue
 		if child.process_mode != Node.PROCESS_MODE_DISABLED:

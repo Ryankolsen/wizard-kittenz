@@ -269,6 +269,28 @@ func test_virtual_joystick_state_reset_on_bar_entry():
 		"bar entry recenters the thumb so the stick doesn't render stuck")
 
 
+func test_touch_controls_keep_processing_inside_bar():
+	# Mobile-deploy bug: _pause_dungeon_entities disables process_mode on every
+	# main_scene child except the player + HUD. TouchControls was caught in that
+	# sweep, so inside the bar the joystick froze (visible but dead — it's a
+	# CanvasLayer so the hide-pass skipped it) and the player couldn't move.
+	# The overlay must stay live so the player can walk + cast inside the bar.
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	await get_tree().process_frame
+
+	var touch := inst.get_node_or_null("TouchControls")
+	assert_not_null(touch, "precondition: TouchControls under main_scene")
+
+	var entrance_cell: Vector2i = inst._tilemap_painter.bar_entrance_tiles[0]
+	inst._player.global_position = inst._tilemap.map_to_local(entrance_cell)
+	await get_tree().process_frame
+
+	assert_not_null(inst.get_node_or_null("BarRoomScene"), "precondition: bar mounted")
+	assert_ne(touch.process_mode, Node.PROCESS_MODE_DISABLED,
+		"TouchControls must keep processing input inside the bar so the joystick works")
+
+
 func test_saved_camera_limits_field_removed():
 	# Lock the refactor in: the _saved_camera_limits field that backed the
 	# old lift/restore is gone, along with the lift/restore methods. Reading
