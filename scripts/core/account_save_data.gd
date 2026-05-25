@@ -17,6 +17,29 @@ var cleared_dungeons: Array = []
 var streak_day: int = 0
 var last_login_date: String = ""
 
+# Snapshot live account-wide state. Used by SaveManager.save_from_state to
+# assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
+# meta_tracker carries the cleared_dungeons / dungeons_completed / max_level
+# fields that previously rode on KittenSaveData.
+static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "") -> AccountSaveData:
+	var a := AccountSaveData.new()
+	if currency_ledger != null:
+		a.gold_balance = currency_ledger.balance(CurrencyLedger.Currency.GOLD)
+		a.gem_balance = currency_ledger.balance(CurrencyLedger.Currency.GEM)
+	if cosmetic_inv != null:
+		a.cosmetic_packs = cosmetic_inv.owned_pack_ids.duplicate()
+	if paid_unlocks != null:
+		a.paid_class_unlocks = paid_unlocks.owned_class_ids.duplicate()
+	if skill_inv != null:
+		a.skill_unlocks = skill_inv.owned_skill_ids.duplicate()
+	if meta_tracker != null:
+		a.dungeons_completed = meta_tracker.dungeons_completed
+		a.max_level_per_class = meta_tracker.max_level_per_class.duplicate()
+		a.cleared_dungeons = meta_tracker.cleared_dungeons.duplicate()
+	a.streak_day = streak_day
+	a.last_login_date = last_login_date
+	return a
+
 func to_dict() -> Dictionary:
 	return {
 		"gold_balance": gold_balance,

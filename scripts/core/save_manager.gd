@@ -26,17 +26,25 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 	if gs == null or gs.current_character == null:
 		return ERR_INVALID_PARAMETER
+	# Slice 2 (PRD #250): writes a SaveBundle, not a flat KittenSaveData.
+	# Load the existing bundle first so other archetype slots survive — only
+	# the active slot + account fields are overwritten from live state.
+	var bundle := load_bundle(path)
+	bundle.account = AccountSaveData.from_state(
+		gs.currency_ledger, gs.cosmetic_inventory, gs.paid_unlocks,
+		gs.skill_inventory, gs.meta_tracker,
+		gs.streak_day, gs.last_login_date
+	)
 	var run_state: Dictionary = {}
 	if gs.dungeon_run_controller != null:
 		run_state = DungeonRunSerializer.serialize(gs.dungeon_run_controller, gs.dungeon_run_controller.seed)
-	return save(
-		gs.current_character, path,
-		gs.skill_tree, gs.meta_tracker, gs.offline_xp_tracker,
-		gs.cosmetic_inventory, gs.paid_unlocks, run_state,
-		gs.currency_ledger, gs.skill_inventory, gs.item_inventory,
-		gs.current_quickbar,
-		gs.streak_day, gs.last_login_date
+	var slot := CharacterSlotData.from_state(
+		gs.current_character, gs.skill_tree, gs.item_inventory,
+		gs.current_quickbar, run_state, gs.offline_xp_tracker
 	)
+	bundle.set_slot(gs.current_character.character_class, slot)
+	bundle.active_slot = SaveBundle.slot_key_for_class(gs.current_character.character_class)
+	return save_bundle(bundle, path)
 
 # Bundle persistence (PRD #250 / Slice 1). Writes a SaveBundle as a single
 # combined JSON document. The bundle owns its own version + slot layout, so we
@@ -80,4 +88,10 @@ static func load(path: String = DEFAULT_PATH) -> KittenSaveData:
 	var parsed = JSON.parse_string(text)
 	if not parsed is Dictionary:
 		return null
+	# Bundle detection (PRD #250 / slice 2): files written via save_from_state
+	# are SaveBundles. Synthesize a flat KittenSaveData so existing callers
+	# (Nakama sync, character_creation, every legacy test) keep working off
+	# the same shape they used pre-rework.
+	if parsed.has("version") and parsed.has("slots"):
+		return KittenSaveData.from_bundle(SaveBundle.from_dict(parsed))
 	return KittenSaveData.from_dict(parsed)

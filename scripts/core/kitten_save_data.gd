@@ -377,6 +377,60 @@ func to_quickbar(tree: SkillTree) -> Quickbar:
 			qb.on_spell_unlocked(spell)
 	return qb
 
+# Backward-compatibility synthesis (PRD #250 / slice 2). The on-disk save
+# format is now a SaveBundle, but legacy callers (Nakama sync, character
+# creation, every test that calls SaveManager.load) still expect a flat
+# KittenSaveData. Flatten the bundle by copying account fields + the active
+# slot's character fields into a single KittenSaveData. With no active slot
+# the returned save is account-only (character fields stay at defaults).
+static func from_bundle(bundle: SaveBundle) -> KittenSaveData:
+	var s := KittenSaveData.new()
+	if bundle == null:
+		return s
+	var account := bundle.account
+	if account != null:
+		s.gold_balance = account.gold_balance
+		s.gem_balance = account.gem_balance
+		s.paid_class_unlocks = account.paid_class_unlocks.duplicate()
+		s.cosmetic_packs = account.cosmetic_packs.duplicate()
+		s.skill_unlocks = account.skill_unlocks.duplicate()
+		s.max_level_per_class = account.max_level_per_class.duplicate()
+		s.dungeons_completed = account.dungeons_completed
+		s.cleared_dungeons = account.cleared_dungeons.duplicate()
+		s.streak_day = account.streak_day
+		s.last_login_date = account.last_login_date
+	var slot: CharacterSlotData = bundle.get_slot(bundle.active_slot) if bundle.active_slot != "" else null
+	if slot != null:
+		s.character_name = slot.character_name
+		s.character_class = slot.character_class
+		s.appearance_index = slot.appearance_index
+		s.level = slot.level
+		s.xp = slot.xp
+		s.hp = slot.hp
+		s.max_hp = slot.max_hp
+		s.attack = slot.attack
+		s.defense = slot.defense
+		s.speed = slot.speed
+		s.skill_points = slot.skill_points
+		s.magic_attack = slot.magic_attack
+		s.magic_points = slot.magic_points
+		s.max_mp = slot.max_mp
+		s.magic_resistance = slot.magic_resistance
+		s.dexterity = slot.dexterity
+		s.evasion = slot.evasion
+		s.crit_chance = slot.crit_chance
+		s.luck = slot.luck
+		s.regeneration = slot.regeneration
+		s.mp_regen = slot.mp_regen
+		s.unlocked_skill_ids = slot.unlocked_skill_ids.duplicate()
+		s.equipped_items = slot.equipped_items.duplicate()
+		s.item_bag = slot.item_bag.duplicate()
+		s.dungeon_run_state = slot.dungeon_run_state.duplicate(true)
+		s.offline_xp_earned = slot.offline_xp_earned
+		s.quickbar_slots = slot.quickbar_slots.duplicate()
+		s._quickbar_present_in_save = true
+	return s
+
 func to_currency_ledger() -> CurrencyLedger:
 	var ledger := CurrencyLedger.new()
 	if gold_balance > 0:

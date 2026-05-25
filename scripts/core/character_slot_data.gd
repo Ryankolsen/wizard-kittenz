@@ -33,6 +33,49 @@ var quickbar_slots: Array = []
 var dungeon_run_state: Dictionary = {}
 var offline_xp_earned: int = 0
 
+# Snapshot live per-character state into a slot. Used by SaveManager.save_from_state
+# to assemble the active slot of the SaveBundle (PRD #250 / slice 2). Each
+# arg is optional so callers writing a minimal slot (character_creation's
+# initial save) don't have to thread null placeholders.
+static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemInventory = null, qb: Quickbar = null, run_state: Dictionary = {}, xp_tracker: OfflineXPTracker = null) -> CharacterSlotData:
+	var s := CharacterSlotData.new()
+	s.character_name = c.character_name
+	s.character_class = int(c.character_class)
+	s.appearance_index = c.appearance_index
+	s.level = c.level
+	s.xp = c.xp
+	s.hp = c.hp
+	s.max_hp = c.max_hp
+	s.attack = c.attack
+	s.defense = c.defense
+	s.speed = c.speed
+	s.skill_points = c.skill_points
+	s.magic_attack = c.magic_attack
+	s.magic_points = c.magic_points
+	s.max_mp = c.max_mp
+	s.magic_resistance = c.magic_resistance
+	s.dexterity = c.dexterity
+	s.evasion = c.evasion
+	s.crit_chance = c.crit_chance
+	s.luck = c.luck
+	s.regeneration = c.regeneration
+	s.mp_regen = c.mp_regen
+	if tree != null:
+		s.unlocked_skill_ids = tree.unlocked_ids()
+	if item_inv != null:
+		for slot_kind in [ItemData.Slot.WEAPON, ItemData.Slot.ARMOR, ItemData.Slot.ACCESSORY]:
+			var eq: ItemData = item_inv.equipped_in(slot_kind)
+			if eq != null:
+				s.equipped_items[int(slot_kind)] = eq.id
+		for it in item_inv.bag_items():
+			s.item_bag.append(it.id)
+	if qb != null:
+		s.quickbar_slots = qb.serialize().get("slots", [])
+	s.dungeon_run_state = run_state.duplicate(true)
+	if xp_tracker != null:
+		s.offline_xp_earned = xp_tracker.pending_xp
+	return s
+
 func to_dict() -> Dictionary:
 	return {
 		"character_name": character_name,

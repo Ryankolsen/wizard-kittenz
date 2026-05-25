@@ -108,9 +108,95 @@ func _on_purchase_succeeded(product_id: String) -> void:
 		SaveManager.save_from_state()
 
 func _try_load_save() -> void:
-	var save_data := SaveManager.load()
-	if save_data != null:
-		apply_merged_save(save_data)
+	# Slice 2 (PRD #250): the on-disk save is a SaveBundle. Account-wide
+	# fields hydrate every load (even with no active character — lands on
+	# menu with gold/cosmetics/etc. intact). The active slot's character
+	# hydrates only when one exists.
+	hydrate_from_bundle(SaveManager.load_bundle())
+
+func hydrate_from_bundle(bundle: SaveBundle) -> void:
+	if bundle == null:
+		return
+	_hydrate_account(bundle.account)
+	var slot: CharacterSlotData = bundle.get_slot(bundle.active_slot) if bundle.active_slot != "" else null
+	if slot != null:
+		_hydrate_active_character(slot)
+
+func _hydrate_account(account: AccountSaveData) -> void:
+	if account == null:
+		return
+	cosmetic_inventory = CosmeticInventory.new()
+	cosmetic_inventory.owned_pack_ids = account.cosmetic_packs.duplicate()
+	paid_unlocks = PaidUnlockInventory.new()
+	paid_unlocks.owned_class_ids = account.paid_class_unlocks.duplicate()
+	currency_ledger = CurrencyLedger.new()
+	if account.gold_balance > 0:
+		currency_ledger.credit(account.gold_balance, CurrencyLedger.Currency.GOLD)
+	if account.gem_balance > 0:
+		currency_ledger.credit(account.gem_balance, CurrencyLedger.Currency.GEM)
+	skill_inventory = SkillInventoryRef.new()
+	skill_inventory.owned_skill_ids = account.skill_unlocks.duplicate()
+	meta_tracker = MetaProgressionTracker.new()
+	meta_tracker.dungeons_completed = account.dungeons_completed
+	meta_tracker.max_level_per_class = account.max_level_per_class.duplicate()
+	for id in account.cleared_dungeons:
+		var s_id := String(id)
+		if s_id != "" and not meta_tracker.cleared_dungeons.has(s_id):
+			meta_tracker.cleared_dungeons.append(s_id)
+	streak_day = account.streak_day
+	last_login_date = account.last_login_date
+
+func _hydrate_active_character(slot: CharacterSlotData) -> void:
+	var c := CharacterData.new()
+	c.character_name = slot.character_name
+	c.character_class = slot.character_class
+	c.appearance_index = slot.appearance_index
+	c.level = slot.level
+	c.xp = slot.xp
+	c.hp = slot.hp
+	c.max_hp = slot.max_hp
+	c.attack = slot.attack
+	c.defense = slot.defense
+	c.speed = slot.speed
+	c.skill_points = slot.skill_points
+	c.magic_attack = slot.magic_attack
+	c.magic_points = slot.magic_points
+	c.max_mp = slot.max_mp
+	c.magic_resistance = slot.magic_resistance
+	c.dexterity = slot.dexterity
+	c.evasion = slot.evasion
+	c.crit_chance = slot.crit_chance
+	c.luck = slot.luck
+	c.regeneration = slot.regeneration
+	c.mp_regen = slot.mp_regen
+	current_character = c
+	skill_tree = _build_tree_for(c)
+	skill_tree.apply_unlocked_ids(slot.unlocked_skill_ids)
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level)
+	offline_xp_tracker = OfflineXPTracker.new()
+	offline_xp_tracker.pending_xp = slot.offline_xp_earned
+	item_inventory = ItemInventory.new()
+	for slot_key in slot.equipped_items.keys():
+		var item := ItemCatalog.find(String(slot.equipped_items[slot_key]))
+		if item != null:
+			item_inventory.equip(item)
+	for raw_id in slot.item_bag:
+		var item2 := ItemCatalog.find(String(raw_id))
+		if item2 != null:
+			item_inventory.add_to_bag(item2)
+	CharacterMutator.new(current_character).apply_item_bonuses(item_inventory)
+	dungeon_run_controller = DungeonRunSerializerRef.deserialize(slot.dungeon_run_state)
+	# Quickbar: build AFTER unlocks/level top-up so the legacy-save fallback
+	# inside Quickbar walks the correct unlocked spell set. An empty
+	# quickbar_slots array (saved before the field existed) auto-fills from
+	# the tree; once any slot is bound the next save pins the layout.
+	var qb := Quickbar.new()
+	if slot.quickbar_slots.size() > 0:
+		qb.deserialize({"slots": slot.quickbar_slots}, skill_tree)
+	else:
+		for spell in skill_tree.get_unlocked_spells():
+			qb.on_spell_unlocked(spell)
+	current_quickbar = qb
 
 func apply_merged_save(save_data: KittenSaveData) -> void:
 	var c := CharacterData.new()
