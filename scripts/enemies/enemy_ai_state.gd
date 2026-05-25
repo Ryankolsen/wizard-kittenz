@@ -16,6 +16,10 @@ const DETECTION_RADIUS: float = 80.0
 const MELEE_RANGE: float = 20.0
 const ATTACK_COOLDOWN: float = 0.8
 const CHASE_SPEED: float = 40.0
+# De-aggro hysteresis: once aggroed, the enemy holds CHASE/ATTACK out to
+# detection_radius * LEASH_MULTIPLIER before releasing back to IDLE. Stops
+# single-pixel oscillation at the detection ring (PRD #258, slice 1).
+const LEASH_MULTIPLIER: float = 1.5
 
 # Decides the next state given the current state, distance to the player, and
 # current hp. The DEAD state is a sink — once dead, the enemy never resumes
@@ -30,6 +34,12 @@ static func next_state(current: int, distance: float, hp: int, detection_radius:
 	if distance <= MELEE_RANGE:
 		return State.ATTACK
 	if distance <= detection_radius:
+		return State.CHASE
+	# Hysteresis: already-aggroed enemies hold CHASE through the leash band
+	# (detection_radius, detection_radius * LEASH_MULTIPLIER]. Onset from IDLE
+	# still requires entering the plain detection ring.
+	if (current == State.CHASE or current == State.ATTACK) \
+			and distance <= detection_radius * LEASH_MULTIPLIER:
 		return State.CHASE
 	return State.IDLE
 

@@ -286,6 +286,50 @@ func test_next_state_respects_custom_detection_radius():
 	var s2 := EnemyAIState.next_state(_State.IDLE, just_inside, 5)
 	assert_eq(s2, _State.IDLE, "default radius: same distance is still outside")
 
+func test_chase_holds_through_leash_band():
+	# Slice 1 (PRD #258): once aggroed, an enemy stays in CHASE through the
+	# hysteresis band detection_radius < d <= detection_radius * LEASH_MULTIPLIER
+	# instead of flipping back to IDLE the moment the player steps one pixel out.
+	var just_outside := EnemyAIState.DETECTION_RADIUS + 1.0
+	var s := EnemyAIState.next_state(_State.CHASE, just_outside, 5)
+	assert_eq(s, _State.CHASE, "in leash band -> still CHASE (no flicker)")
+
+func test_chase_drops_to_idle_past_leash():
+	# Slice 1: outside the leash band, aggro releases and we return to IDLE.
+	var past_leash := EnemyAIState.DETECTION_RADIUS * EnemyAIState.LEASH_MULTIPLIER + 1.0
+	var s := EnemyAIState.next_state(_State.CHASE, past_leash, 5)
+	assert_eq(s, _State.IDLE, "past leash -> IDLE")
+
+func test_idle_onset_still_uses_plain_radius():
+	# Slice 1: hysteresis only kicks in for an already-aggroed enemy. From IDLE,
+	# a player just outside detection_radius still doesn't trigger aggro even
+	# though they're inside the leash band — the leash is a hold, not a lure.
+	var just_outside := EnemyAIState.DETECTION_RADIUS + 1.0
+	var s := EnemyAIState.next_state(_State.IDLE, just_outside, 5)
+	assert_eq(s, _State.IDLE, "leash band does not pull IDLE into CHASE")
+
+func test_dead_is_sink_even_inside_leash():
+	# Slice 1: leash logic must not resurrect a DEAD enemy whose corpse happens
+	# to be within the (now wider) leash band.
+	var in_band := EnemyAIState.DETECTION_RADIUS + 1.0
+	var s := EnemyAIState.next_state(_State.DEAD, in_band, 5)
+	assert_eq(s, _State.DEAD, "DEAD remains a sink across the leash band")
+
+func test_leash_multiplier_greater_than_one():
+	# Guard: a typo making LEASH_MULTIPLIER <= 1.0 would invert hysteresis
+	# (de-aggro at or inside detection_radius) and produce worse flicker than
+	# before. Keep the geometry honest.
+	assert_gt(EnemyAIState.LEASH_MULTIPLIER, 1.0,
+		"leash band must be wider than the detection ring")
+
+func test_attack_also_respects_leash():
+	# Slice 1: ATTACK is "already aggroed" too — if a player kites just past
+	# detection_radius mid-attack the enemy should chase, not drop combat.
+	var just_outside := EnemyAIState.DETECTION_RADIUS + 1.0
+	var s := EnemyAIState.next_state(_State.ATTACK, just_outside, 5)
+	assert_ne(s, _State.IDLE,
+		"in leash band, an attacking enemy stays engaged (CHASE/ATTACK, not IDLE)")
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.
