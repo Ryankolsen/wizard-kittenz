@@ -60,12 +60,34 @@ var _attack_choreographer: AttackChoreographer = null
 # strike phase so hits land when the swing is visibly mid-arc.
 var _hitbox_strike_active: bool = false
 var _coop_level_up_bound: bool = false
+# Per-player phasing capability (issue #264). When true the player ignores
+# the dedicated walls physics bit (EnemyBehavior.WALL_COLLISION_MASK from
+# #263) and walks through dungeon wall tiles; when false that bit is added
+# to collision_mask so move_and_slide is blocked by walls. Defaults to true
+# so the pre-#264 pass-through behavior is preserved. Per-instance — the
+# setter only mutates `self.collision_mask`, never any other Player in co-op.
+var _can_phase_through_walls: bool = true
 # Cached once in _ready; injectable via _inject_game_state() so tests can
 # drive Player without a running GameState autoload.
 var _game_state = null
 
 func _inject_game_state(gs) -> void:
 	_game_state = gs
+
+# Phasing capability (issue #264). Public setter for the toggleable wall-
+# collision capability. `enabled = true` means the player phases through
+# walls (walls bit cleared from collision_mask); `false` engages collision
+# (walls bit set). Idempotent — re-applying the same value leaves the mask
+# in the expected single state, so callers don't need to guard.
+func set_can_phase_through_walls(enabled: bool) -> void:
+	_can_phase_through_walls = enabled
+	if enabled:
+		collision_mask &= ~EnemyBehavior.WALL_COLLISION_MASK
+	else:
+		collision_mask |= EnemyBehavior.WALL_COLLISION_MASK
+
+func can_phase_through_walls() -> bool:
+	return _can_phase_through_walls
 
 func _ready() -> void:
 	if _game_state == null:
