@@ -256,22 +256,32 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 func _on_nakama_authenticated(p_session: NakamaSession) -> void:
 	account_manager.sign_in(p_session.user_id)
 	local_player_id = p_session.user_id
-	var local := SaveManager.load()
+	# Slice 6 (PRD #250): sync the whole SaveBundle as one combined document,
+	# not the flat KittenSaveData. Account-wide unlocks union, per-slot offline
+	# XP folds in at equal level, slots-on-one-side carry through.
+	var local_bundle := SaveManager.load_bundle()
 	var server_dict: Dictionary = await NakamaService.fetch_save_async(p_session)
-	var server: KittenSaveData = null
+	var server_bundle: SaveBundle = null
 	if not server_dict.is_empty():
-		server = KittenSaveData.from_dict(server_dict)
-	var merged := SaveSyncOrchestrator.sync(local, server, offline_xp_tracker)
-	if merged == null:
+		server_bundle = SaveBundle.from_dict(server_dict)
+	var merged_bundle: SaveBundle = SaveSyncOrchestrator.sync_bundle(local_bundle, server_bundle, offline_xp_tracker)
+	if merged_bundle == null:
 		return
-	# Zero the pending-XP field before hydrating and uploading — the delta is
-	# already baked into merged.xp (via merge_xp or the local-wins clone), so
-	# the "since last sync" window resets to zero on both stores.
-	merged.offline_xp_earned = 0
-	apply_merged_save(merged)
-	SaveManager.save_from_state()
-	await NakamaService.upload_save_async(p_session, merged.to_dict())
-	save_synced.emit(merged)
+	# Zero per-slot offline_xp_earned on the merged bundle — the delta is
+	# already baked into each slot's xp (via the equal-level fold or the
+	# level-resolve clone), so the "since last sync" window resets on both
+	# stores.
+	for key in merged_bundle.slots.keys():
+		var s: CharacterSlotData = merged_bundle.slots[key]
+		if s != null:
+			s.offline_xp_earned = 0
+	SaveManager.save_bundle(merged_bundle)
+	# Rehydrate live state from the merged bundle so the in-memory account /
+	# active character match what we just wrote to disk + are about to upload.
+	var merged_flat := KittenSaveData.from_bundle(merged_bundle)
+	apply_merged_save(merged_flat)
+	await NakamaService.upload_save_async(p_session, merged_bundle.to_dict())
+	save_synced.emit(merged_flat)
 
 func set_character(c: CharacterData) -> void:
 	current_character = c

@@ -83,3 +83,109 @@ static func sync(local: KittenSaveData, server: KittenSaveData, tracker: Offline
 # KittenSaveData is already a flat JSON-shaped record.
 static func _clone(s: KittenSaveData) -> KittenSaveData:
 	return KittenSaveData.from_dict(s.to_dict())
+
+# ----- Bundle-level sync (PRD #250 / slice 6) -------------------------------
+#
+# Cases match the kitten path:
+# - both null: nothing exists anywhere → null. Tracker is NOT cleared.
+# - local null, server non-null: brand-new device, server is canonical →
+#   clone(server). Tracker is left alone.
+# - local non-null, server null: brand-new account / first sync-up →
+#   clone(local). Tracker clears.
+# - both non-null: account-wide merge (union/max) + per-slot merge (level
+#   resolve + offline-xp fold at equal level). Tracker clears.
+# Bundle-level sync (PRD #250 / slice 6): one combined document covering both
+# account-wide fields (union/max) and per-slot fields (level resolve +
+# offline-xp fold at equal level). Returns a fresh SaveBundle the caller can
+# mutate without stealth-mutating either input.
+static func sync_bundle(local: SaveBundle, server: SaveBundle, tracker: OfflineXPTracker = null) -> SaveBundle:
+	if local == null and server == null:
+		return null
+	if local == null:
+		return _clone_bundle(server)
+	if server == null:
+		var only_local := _clone_bundle(local)
+		if tracker != null:
+			tracker.clear()
+		return only_local
+	var merged := SaveBundle.new()
+	merged.version = max(local.version, server.version)
+	merged.account = _merge_account(local.account, server.account)
+	# active_slot: prefer local (the device the player is currently on); fall
+	# back to server if local has none.
+	merged.active_slot = local.active_slot if local.active_slot != "" else server.active_slot
+	# Per-slot merge across the union of slot keys.
+	var keys := {}
+	for k in local.slots.keys():
+		keys[k] = true
+	for k in server.slots.keys():
+		keys[k] = true
+	for key in keys.keys():
+		var ls: CharacterSlotData = local.slots.get(key, null)
+		var ss: CharacterSlotData = server.slots.get(key, null)
+		merged.slots[key] = _merge_slot(ls, ss)
+	if tracker != null:
+		tracker.clear()
+	return merged
+
+static func _merge_account(local: AccountSaveData, server: AccountSaveData) -> AccountSaveData:
+	if local == null and server == null:
+		return AccountSaveData.new()
+	if local == null:
+		return AccountSaveData.from_dict(server.to_dict())
+	if server == null:
+		return AccountSaveData.from_dict(local.to_dict())
+	var out := AccountSaveData.new()
+	# Owned-unlock sets: union so a purchase on either device is never lost.
+	out.paid_class_unlocks = _union_array(local.paid_class_unlocks, server.paid_class_unlocks)
+	out.cosmetic_packs = _union_array(local.cosmetic_packs, server.cosmetic_packs)
+	out.skill_unlocks = _union_array(local.skill_unlocks, server.skill_unlocks)
+	out.cleared_dungeons = _union_array(local.cleared_dungeons, server.cleared_dungeons)
+	# Monotonic counters: max.
+	out.streak_day = max(local.streak_day, server.streak_day)
+	out.dungeons_completed = max(local.dungeons_completed, server.dungeons_completed)
+	# Per-class max level.
+	for k in local.max_level_per_class.keys():
+		out.max_level_per_class[k] = int(local.max_level_per_class[k])
+	for k in server.max_level_per_class.keys():
+		var sv := int(server.max_level_per_class[k])
+		out.max_level_per_class[k] = max(int(out.max_level_per_class.get(k, 0)), sv)
+	# last_login_date: later date wins (ISO 8601 sorts lexicographically).
+	out.last_login_date = local.last_login_date if local.last_login_date >= server.last_login_date else server.last_login_date
+	# gold / gem: last-write-wins via last_login_date. Concurrent spend/earn
+	# reconciliation is explicitly out of scope per PRD #250.
+	var local_is_newer := local.last_login_date >= server.last_login_date
+	out.gold_balance = local.gold_balance if local_is_newer else server.gold_balance
+	out.gem_balance = local.gem_balance if local_is_newer else server.gem_balance
+	return out
+
+static func _merge_slot(local: CharacterSlotData, server: CharacterSlotData) -> CharacterSlotData:
+	# Slot present on only one side carries through.
+	if local == null and server == null:
+		return null
+	if local == null:
+		return CharacterSlotData.from_dict(server.to_dict())
+	if server == null:
+		return CharacterSlotData.from_dict(local.to_dict())
+	# Both sides have this slot: reuse level-based resolve + merge_xp.
+	if local.level == server.level:
+		var out := CharacterSlotData.from_dict(server.to_dict())
+		if local.offline_xp_earned > 0:
+			out.xp = server.xp + local.offline_xp_earned
+		return out
+	if local.level > server.level:
+		return CharacterSlotData.from_dict(local.to_dict())
+	return CharacterSlotData.from_dict(server.to_dict())
+
+static func _clone_bundle(b: SaveBundle) -> SaveBundle:
+	return SaveBundle.from_dict(b.to_dict())
+
+static func _union_array(a: Array, b: Array) -> Array:
+	var out: Array = []
+	for item in a:
+		if not out.has(item):
+			out.append(item)
+	for item in b:
+		if not out.has(item):
+			out.append(item)
+	return out
