@@ -32,104 +32,222 @@ const _CharacterAvatarScript := preload("res://scripts/ui/character_avatar.gd")
 # Sized to match the row's text height so it doesn't dominate the row.
 const _THUMB_SIZE := Vector2(24, 24)
 
+# Floor for the scrollable bag region. The bag ScrollContainer expands to
+# fill whatever the right column has left after the compact equipped strip,
+# so this is just a minimum so it never collapses to nothing. The game runs
+# at 480x270, so the whole tab is only ~100px tall — keeping the equipped
+# slots as a short horizontal strip (rather than stacked rows) leaves the
+# bag the most usable height (PRD #268 follow-up).
+const _BAG_SCROLL_MIN_HEIGHT := 24
+
+# Square size of each equipped-slot tile in the horizontal strip.
+const _TILE_SIZE := Vector2(30, 30)
+
+# Small font for the "Equipped" / "Bag" section labels so they don't eat
+# the tiny ~100px tab height.
+const _SECTION_FONT_SIZE := 10
+
+# Short labels shown on a tile when it has no thumbnail (empty slot, or an
+# armor/accessory item that has no image yet).
+const _SLOT_ABBREV := {
+	ItemData.Slot.WEAPON: "Wpn",
+	ItemData.Slot.ARMOR: "Arm",
+	ItemData.Slot.ACCESSORY: "Acc",
+}
+
 var _inventory: ItemInventory = null
 var _character: CharacterData = null
 # Which equipped-slot rows are currently expanded to reveal their
 # Unequip button. Keyed by slot int. Reset on every refresh so opening
 # the panel fresh always shows compact rows.
 var _expanded: Dictionary = {}
-# Sits above the slot rows and renders the player's kitten holding the
-# equipped weapon (PRD #268 / issue #270). Created once and preserved
-# across _rebuild() so its signal subscription to inventory.loadout_changed
-# survives every panel refresh.
+# Persistent two-column skeleton, built once and preserved across every
+# _rebuild() so the avatar's loadout_changed subscription survives. Left
+# column holds the avatar; right column pins the equipped slots above a
+# bounded ScrollContainer for the bag.
 # Untyped because Godot's headless parser may resolve this script before
 # CharacterAvatar's class_name has been registered project-wide; the script
 # is loaded via the _CharacterAvatarScript preload above instead.
 var _avatar = null
+var _layout: HBoxContainer = null
+var _equipped_box: VBoxContainer = null
+var _bag_box: VBoxContainer = null
 
 func refresh(inventory: ItemInventory, character: CharacterData) -> void:
 	_inventory = inventory
 	_character = character
 	_expanded.clear()
-	_ensure_avatar()
+	_ensure_skeleton()
 	if _avatar != null:
 		var cc: int = character.character_class if character != null else -1
 		_avatar.bind(cc, inventory)
 	_rebuild()
 
-func _ensure_avatar() -> void:
-	if _avatar != null:
+# Builds the persistent column structure exactly once. The dynamic rows
+# live inside _equipped_box / _bag_box, which _rebuild() repopulates; the
+# skeleton and the avatar are never freed, so signal wiring is stable.
+func _ensure_skeleton() -> void:
+	if _layout != null:
 		return
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	_layout = HBoxContainer.new()
+	_layout.name = "ItemsLayout"
+	_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_layout.add_theme_constant_override("separation", 8)
+	add_child(_layout)
+
+	var avatar_col := VBoxContainer.new()
+	avatar_col.name = "AvatarColumn"
+	avatar_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	avatar_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_avatar = _CharacterAvatarScript.new()
 	_avatar.name = "CharacterAvatar"
-	add_child(_avatar)
-	move_child(_avatar, 0)
+	_avatar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	avatar_col.add_child(_avatar)
+	_layout.add_child(avatar_col)
 
-# Bound to ItemInventory.loadout_changed so external mutations (loot
-# prompt, save load) reflect immediately if the panel is open. Caller
-# binds via refresh() — the panel deliberately doesn't manage the
-# connection lifecycle itself, so a stale instance never holds a
-# reference to a freed inventory.
+	var menu_col := VBoxContainer.new()
+	menu_col.name = "MenuColumn"
+	menu_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	menu_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_layout.add_child(menu_col)
+
+	# Pinned region: equipped strip + the "Bag" header. Stays put while the
+	# bag list scrolls beneath it.
+	_equipped_box = VBoxContainer.new()
+	_equipped_box.name = "EquippedSection"
+	_equipped_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_equipped_box.add_theme_constant_override("separation", 2)
+	menu_col.add_child(_equipped_box)
+
+	var bag_scroll := ScrollContainer.new()
+	bag_scroll.name = "BagScroll"
+	bag_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Always show the vertical scrollbar so it's obvious the bag scrolls —
+	# the previous single-column layout hid that affordance.
+	bag_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	bag_scroll.custom_minimum_size = Vector2(0, _BAG_SCROLL_MIN_HEIGHT)
+	bag_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bag_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	menu_col.add_child(bag_scroll)
+
+	_bag_box = VBoxContainer.new()
+	_bag_box.name = "BagSection"
+	_bag_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bag_scroll.add_child(_bag_box)
+
+# Repopulates the equipped slots and bag list. The skeleton/avatar persist;
+# only the dynamic rows inside _equipped_box / _bag_box are rebuilt.
 func _rebuild() -> void:
 	# queue_free (not free) so a rebuild triggered from a child Button's
 	# pressed signal doesn't free that Button mid-emission — Godot errors
 	# with "Object was freed or unreferenced while a signal is being
 	# emitted from it" on the synchronous free path.
-	for child in get_children():
-		if child == _avatar:
-			continue
-		remove_child(child)
-		child.queue_free()
-	_add_section_label("Equipped")
-	for entry in SLOTS:
-		add_child(_make_slot_row(entry["slot"], entry["label"]))
-	_add_section_label("Bag")
-	add_child(_make_bag_list())
+	_clear_children(_equipped_box)
+	_clear_children(_bag_box)
+	_build_equipped_section()
+	# "Bag" header is pinned (lives in _equipped_box, above the scroll) so the
+	# scroll viewport is spent entirely on item rows.
+	_add_section_label(_equipped_box, "Bag")
+	_bag_box.add_child(_make_bag_list())
 
-func _add_section_label(text: String) -> void:
+# Equipped slots render as one compact row: the "Equipped" label followed by
+# three icon tiles. Tapping a filled tile toggles a one-line detail row
+# (name + Unequip) beneath the strip; only one slot is expanded at a time so
+# the pinned region stays short and the bag keeps most of the height.
+func _build_equipped_section() -> void:
+	var strip := HBoxContainer.new()
+	strip.name = "EquippedStrip"
+	strip.add_theme_constant_override("separation", 6)
+	var heading := Label.new()
+	heading.name = "Section_Equipped"
+	heading.text = "Equipped"
+	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	heading.add_theme_font_size_override("font_size", _SECTION_FONT_SIZE)
+	strip.add_child(heading)
+	for entry in SLOTS:
+		strip.add_child(_make_slot_tile(entry["slot"], entry["label"]))
+	_equipped_box.add_child(strip)
+	for entry in SLOTS:
+		var slot: int = entry["slot"]
+		if not _expanded.get(slot, false):
+			continue
+		var item: ItemData = _inventory.equipped_in(slot) if _inventory != null else null
+		if item != null:
+			_equipped_box.add_child(_make_equipped_detail(slot, entry["label"], item))
+
+func _clear_children(parent: Node) -> void:
+	for child in parent.get_children():
+		parent.remove_child(child)
+		child.queue_free()
+
+func _add_section_label(parent: Node, text: String) -> void:
 	var l := Label.new()
 	l.name = "Section_" + text
 	l.text = text
-	add_child(l)
+	l.add_theme_font_size_override("font_size", _SECTION_FONT_SIZE)
+	parent.add_child(l)
 
-func _make_slot_row(slot: int, slot_label: String) -> Control:
-	var col := VBoxContainer.new()
-	col.name = "SlotCol_%d" % slot
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var row := HBoxContainer.new()
-	row.name = "SlotRow_%d" % slot
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+# One equipped-slot tile. Weapons show their resolver thumbnail; empty
+# slots and (image-less) armor/accessory show a short text abbreviation.
+# The full name/rarity/bonus lives in the tooltip and in the expand detail.
+func _make_slot_tile(slot: int, slot_label: String) -> Control:
 	var item: ItemData = _inventory.equipped_in(slot) if _inventory != null else null
+	var tile := Button.new()
+	tile.name = "SlotTile_%d" % slot
+	tile.custom_minimum_size = _TILE_SIZE
+	# Empty slots are inert (disabled, not hidden) so the strip keeps a
+	# stable three-tile shape regardless of what's equipped.
+	tile.disabled = item == null
+	tile.tooltip_text = _slot_tooltip(slot_label, item)
 	var thumb := _make_thumbnail("SlotThumb_%d" % slot, item)
 	if thumb != null:
-		row.add_child(thumb)
-	var label := Button.new()
-	label.name = "SlotLabel_%d" % slot
-	label.flat = true
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if item == null:
-		label.text = "%s: Empty" % slot_label
+		thumb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(thumb)
 	else:
-		label.text = "%s: %s (%s) — %s" % [slot_label, item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
-	# Tapping the row toggles an Unequip button for filled slots only —
-	# empty slots are inert. Disabled (rather than hidden) on empty so
-	# the row's hit area stays consistent across states.
-	label.disabled = item == null
+		var lbl := Label.new()
+		lbl.name = "SlotTileLabel_%d" % slot
+		lbl.text = _SLOT_ABBREV.get(slot, "?")
+		lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(lbl)
 	var slot_id := slot
-	label.pressed.connect(func(): _on_slot_row_pressed(slot_id))
-	row.add_child(label)
-	col.add_child(row)
-	if item != null and _expanded.get(slot, false):
-		var unequip_btn := Button.new()
-		unequip_btn.name = "UnequipButton_%d" % slot
-		unequip_btn.text = "Unequip"
-		unequip_btn.pressed.connect(func(): _on_unequip_pressed(slot_id))
-		col.add_child(unequip_btn)
-	return col
+	tile.pressed.connect(func(): _on_slot_tile_pressed(slot_id))
+	return tile
 
-# Bag items live in a plain VBoxContainer — the pause menu's outer
-# TabScroll already scrolls all tab content, so a nested ScrollContainer
-# here would produce a scroll-bar-inside-a-scroll-bar.
+func _slot_tooltip(slot_label: String, item: ItemData) -> String:
+	if item == null:
+		return "%s: Empty" % slot_label
+	return "%s: %s (%s) — %s" % [slot_label, item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
+
+func _make_equipped_detail(slot: int, slot_label: String, item: ItemData) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "EquippedDetail_%d" % slot
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl := Label.new()
+	lbl.name = "EquippedDetailLabel_%d" % slot
+	lbl.text = _slot_tooltip(slot_label, item)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(lbl)
+	var btn := Button.new()
+	btn.name = "UnequipButton_%d" % slot
+	btn.text = "Unequip"
+	var slot_id := slot
+	btn.pressed.connect(func(): _on_unequip_pressed(slot_id))
+	row.add_child(btn)
+	return row
+
+# Bag items live in a plain VBoxContainer that fills the right column's
+# bounded BagScroll (see _ensure_skeleton). The equipped slots are pinned
+# above the scroll, so the bag scrolls independently while the avatar and
+# equipped loadout stay in view.
 func _make_bag_list() -> Control:
 	var list := VBoxContainer.new()
 	list.name = "BagList"
@@ -158,6 +276,11 @@ func _make_bag_row(item: ItemData, index: int) -> Control:
 	label.name = "BagLabel_%d" % index
 	label.text = "%s (%s) — %s" % [item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Ellipsize rather than force the panel wider than the 480px screen when
+	# an item's name + bonuses run long; the full text stays in the tooltip.
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.tooltip_text = label.text
 	row.add_child(label)
 	var btn := Button.new()
 	btn.name = "EquipButton_%d" % index
@@ -167,10 +290,15 @@ func _make_bag_row(item: ItemData, index: int) -> Control:
 	row.add_child(btn)
 	return row
 
-func _on_slot_row_pressed(slot: int) -> void:
+func _on_slot_tile_pressed(slot: int) -> void:
 	if _inventory == null or _inventory.equipped_in(slot) == null:
 		return
-	_expanded[slot] = not _expanded.get(slot, false)
+	# Single-expand: tapping a tile opens its detail and closes any other.
+	# Tapping the already-open tile closes it.
+	var was_open: bool = _expanded.get(slot, false)
+	_expanded.clear()
+	if not was_open:
+		_expanded[slot] = true
 	_rebuild()
 
 func _on_equip_pressed(item_id: String) -> void:

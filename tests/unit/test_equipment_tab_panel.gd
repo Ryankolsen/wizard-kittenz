@@ -15,25 +15,25 @@ func _make_panel() -> EquipmentTabPanel:
 func _make_char() -> CharacterData:
 	return CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 
-func test_refresh_renders_three_slot_rows_when_empty():
+func test_refresh_renders_three_slot_tiles_when_empty():
 	var inv := ItemInventory.new()
 	var panel := _make_panel()
 	panel.refresh(inv, _make_char())
 	for slot in [ItemData.Slot.WEAPON, ItemData.Slot.ARMOR, ItemData.Slot.ACCESSORY]:
-		var label := panel.find_child("SlotLabel_%d" % slot, true, false) as Button
-		assert_not_null(label, "slot %d label must exist" % slot)
-		assert_true(label.text.to_lower().contains("empty"),
-			"empty slot %d must read 'Empty'" % slot)
+		var tile := panel.find_child("SlotTile_%d" % slot, true, false) as Button
+		assert_not_null(tile, "slot %d tile must exist" % slot)
+		assert_true(tile.tooltip_text.to_lower().contains("empty"),
+			"empty slot %d tooltip must read 'Empty'" % slot)
 
-func test_equipped_slot_row_shows_name_and_rarity():
+func test_equipped_slot_tile_tooltip_shows_name_and_rarity():
 	var inv := ItemInventory.new()
 	inv.equip(ItemCatalog.find("silver_sword"))
 	var panel := _make_panel()
 	panel.refresh(inv, _make_char())
-	var label := panel.find_child("SlotLabel_%d" % ItemData.Slot.WEAPON, true, false) as Button
-	assert_not_null(label)
-	assert_true(label.text.contains("Silver Sword"), "weapon row must show item name")
-	assert_true(label.text.contains("Rare"), "weapon row must show rarity")
+	var tile := panel.find_child("SlotTile_%d" % ItemData.Slot.WEAPON, true, false) as Button
+	assert_not_null(tile)
+	assert_true(tile.tooltip_text.contains("Silver Sword"), "weapon tile tooltip must show item name")
+	assert_true(tile.tooltip_text.contains("Rare"), "weapon tile tooltip must show rarity")
 
 func test_bag_items_render_with_equip_button():
 	var inv := ItemInventory.new()
@@ -87,10 +87,10 @@ func test_tap_slot_reveals_unequip_then_unequip_clears_slot():
 	var base_attack := c.attack - 2  # post-equip
 	var panel := _make_panel()
 	panel.refresh(inv, c)
-	var label := panel.find_child("SlotLabel_%d" % ItemData.Slot.WEAPON, true, false) as Button
-	label.pressed.emit()
+	var tile := panel.find_child("SlotTile_%d" % ItemData.Slot.WEAPON, true, false) as Button
+	tile.pressed.emit()
 	var unequip := panel.find_child("UnequipButton_%d" % ItemData.Slot.WEAPON, true, false) as Button
-	assert_not_null(unequip, "tapping slot row must reveal Unequip button")
+	assert_not_null(unequip, "tapping slot tile must reveal Unequip button")
 	unequip.pressed.emit()
 	assert_eq(inv.equipped_in(ItemData.Slot.WEAPON), null,
 		"unequip must clear the slot")
@@ -98,13 +98,13 @@ func test_tap_slot_reveals_unequip_then_unequip_clears_slot():
 	assert_eq(inv.bag_items()[0].id, "iron_sword")
 	assert_eq(c.attack, base_attack, "stat must roll back to pre-equip baseline")
 
-func test_empty_slot_row_is_disabled():
+func test_empty_slot_tile_is_disabled():
 	var inv := ItemInventory.new()
 	var panel := _make_panel()
 	panel.refresh(inv, _make_char())
-	var label := panel.find_child("SlotLabel_%d" % ItemData.Slot.WEAPON, true, false) as Button
-	assert_not_null(label)
-	assert_true(label.disabled, "empty slot row must be disabled (no unequip target)")
+	var tile := panel.find_child("SlotTile_%d" % ItemData.Slot.WEAPON, true, false) as Button
+	assert_not_null(tile)
+	assert_true(tile.disabled, "empty slot tile must be disabled (no unequip target)")
 
 func test_equipped_weapon_row_shows_thumbnail():
 	var inv := ItemInventory.new()
