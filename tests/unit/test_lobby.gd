@@ -291,6 +291,33 @@ func test_apply_leaves_emits_lobby_updated():
 	lobby.apply_leaves([{"user_id": "u1"}])
 	assert_signal_emitted(lobby, "lobby_updated")
 
+func test_apply_leaves_never_removes_local_player():
+	# Release-build host bug (#267): a presence LEAVE carrying the host's own
+	# user_id (mobile sockets emit one on a transient drop/reconnect) must NOT
+	# delete the host from their own roster — apply_joins skips self, so a
+	# removed host could never be re-added, leaving host() null and the Start
+	# button hidden forever. apply_leaves mirrors apply_joins' self-skip.
+	var lobby := NakamaLobby.new()
+	var lp := LobbyPlayer.make("", "Mittens", "Mage")
+	lobby._seed_local_player(lp, "73afa042", "AB1C2", true)
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_leaves([{"user_id": "73afa042"}])  # self-leave
+	assert_eq(lobby.lobby_state.player_count(), 2, "self-leave does not drop the host")
+	var host := lobby.lobby_state.host()
+	assert_not_null(host, "host entry survives a self-leave")
+	assert_eq(host.player_id, "73afa042", "host is still the local player")
+
+func test_apply_leaves_still_removes_remote_player_alongside_self_leave():
+	# The self-skip must be surgical: a batch naming both the local player and a
+	# genuine remote leaver still drops the remote one.
+	var lobby := NakamaLobby.new()
+	var lp := LobbyPlayer.make("", "Mittens", "Mage")
+	lobby._seed_local_player(lp, "73afa042", "AB1C2", true)
+	lobby.apply_joins([{"user_id": "u1", "username": "kitty"}])
+	lobby.apply_leaves([{"user_id": "73afa042"}, {"user_id": "u1"}])
+	assert_eq(lobby.lobby_state.player_count(), 1, "remote leaver removed, host kept")
+	assert_not_null(lobby.lobby_state.host(), "host still present")
+
 # --- NakamaLobby.apply_state --------------------------------------------------
 
 func test_apply_state_player_info_updates_kitten_name_and_class():

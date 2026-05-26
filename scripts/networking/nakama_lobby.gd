@@ -125,6 +125,14 @@ var local_player_id: String = ""
 # Start button stays hidden.
 var match_self_id: String = ""
 var entry_path: String = ""
+# TEMP DIAGNOSTIC (#267) — presence-event counters so the lobby readout can
+# show, on the release Android build, how many join/leave presences were
+# applied and how many leaves naming the local player were blocked. A non-zero
+# blocked count confirms the self-leave path (the suspected roster-emptier) is
+# what fired on the device. Remove with the rest of the #267 instrumentation.
+var _diag_joins_applied: int = 0
+var _diag_leaves_applied: int = 0
+var _diag_self_leaves_blocked: int = 0
 # Per-match agreed dungeon seed. Host mints inside request_start_async and ships
 # the value in the OP_START_MATCH payload; remote applies in apply_state before
 # match_started.emit so any subscriber (lobby UI → CoopSession) sees an agreed
@@ -433,9 +441,17 @@ func apply_joins(presences: Array) -> void:
 		if lobby_state.find_player(uid) != null:
 			continue
 		lobby_state.add_player(LobbyPlayer.make(uid, uname, ""))
+		_diag_joins_applied += 1  # TEMP DIAGNOSTIC (#267)
 	lobby_updated.emit(lobby_state)
 
 # Applies a batch of leaving presences. Emits lobby_updated.
+#
+# Never removes the local player from their own roster (#267): a presence
+# LEAVE carrying our own user_id — which mobile/release sockets emit on a
+# transient drop/reconnect that the stable editor connection never triggers —
+# would delete the host's own entry, and apply_joins (which skips self) could
+# never re-add it, leaving host() null and the Start button hidden forever.
+# This is the missing mirror of apply_joins' self-skip.
 func apply_leaves(presences: Array) -> void:
 	if lobby_state == null:
 		return
@@ -446,8 +462,14 @@ func apply_leaves(presences: Array) -> void:
 	var pre_host_id: String = pre_host.player_id if pre_host != null else ""
 	for p in presences:
 		var uid: String = String(p.get("user_id", ""))
-		if uid != "":
-			lobby_state.remove_player(uid)
+		if uid == "" or uid == local_player_id:
+			# TEMP DIAGNOSTIC (#267) — record blocked self-leaves so the
+			# on-screen readout confirms this path fired on the device.
+			if uid == local_player_id:
+				_diag_self_leaves_blocked += 1
+			continue
+		if lobby_state.remove_player(uid):
+			_diag_leaves_applied += 1  # TEMP DIAGNOSTIC (#267)
 	# Auto-release on host-disconnect: if the lobby was host-paused and the
 	# host just left, drop the pause so the remaining players aren't stuck
 	# behind a "Host has paused" overlay forever. The issue spec ("if the
