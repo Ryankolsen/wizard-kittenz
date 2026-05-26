@@ -26,18 +26,40 @@ const RARITY_NAMES := {
 	ItemData.Rarity.EPIC: "Epic",
 }
 
+const _CharacterAvatarScript := preload("res://scripts/ui/character_avatar.gd")
+
 var _inventory: ItemInventory = null
 var _character: CharacterData = null
 # Which equipped-slot rows are currently expanded to reveal their
 # Unequip button. Keyed by slot int. Reset on every refresh so opening
 # the panel fresh always shows compact rows.
 var _expanded: Dictionary = {}
+# Sits above the slot rows and renders the player's kitten holding the
+# equipped weapon (PRD #268 / issue #270). Created once and preserved
+# across _rebuild() so its signal subscription to inventory.loadout_changed
+# survives every panel refresh.
+# Untyped because Godot's headless parser may resolve this script before
+# CharacterAvatar's class_name has been registered project-wide; the script
+# is loaded via the _CharacterAvatarScript preload above instead.
+var _avatar = null
 
 func refresh(inventory: ItemInventory, character: CharacterData) -> void:
 	_inventory = inventory
 	_character = character
 	_expanded.clear()
+	_ensure_avatar()
+	if _avatar != null:
+		var cc: int = character.character_class if character != null else -1
+		_avatar.bind(cc, inventory)
 	_rebuild()
+
+func _ensure_avatar() -> void:
+	if _avatar != null:
+		return
+	_avatar = _CharacterAvatarScript.new()
+	_avatar.name = "CharacterAvatar"
+	add_child(_avatar)
+	move_child(_avatar, 0)
 
 # Bound to ItemInventory.loadout_changed so external mutations (loot
 # prompt, save load) reflect immediately if the panel is open. Caller
@@ -50,6 +72,8 @@ func _rebuild() -> void:
 	# with "Object was freed or unreferenced while a signal is being
 	# emitted from it" on the synchronous free path.
 	for child in get_children():
+		if child == _avatar:
+			continue
 		remove_child(child)
 		child.queue_free()
 	_add_section_label("Equipped")

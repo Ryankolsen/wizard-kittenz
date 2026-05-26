@@ -188,8 +188,10 @@ func is_multiplayer() -> bool:
 # shows the CharacterSubmenu panel, and refreshes the stat labels from
 # GameState.current_character. Safe to call without first calling open()
 # — tests exercise the submenu independently of the root open flow.
-# Always lands on the Stats tab so a player re-entering the submenu gets
-# a predictable starting view rather than wherever they were last time.
+# Lands on the Items (Inventory) tab by default per PRD #268 — the visual
+# avatar there is the most informative landing view. Stats/Skills tabs
+# remain reachable via the tab buttons. The dungeon-transition flow
+# overrides this and switches back to Stats explicitly.
 func open_character_submenu() -> void:
 	visible = true
 	var main := find_child("MainMenu", true, false) as Control
@@ -198,7 +200,8 @@ func open_character_submenu() -> void:
 	var submenu := find_child("CharacterSubmenu", true, false) as Control
 	if submenu != null:
 		submenu.visible = true
-	_show_stats_tab()
+	_show_inventory_tab()
+	_refresh_equipment_panel()
 	_refresh_character_stats()
 
 # Opens the pause menu in dungeon-transition mode (PRD #52 / #61). Lands
@@ -212,6 +215,11 @@ func open_for_dungeon_transition() -> void:
 	_transition_mode = true
 	_set_touch_controls_hidden(true)
 	open_character_submenu()
+	# open_character_submenu lands on the Items tab by default; the
+	# transition flow needs the Stats tab so the player sees the
+	# Continue button and any unspent points to allocate.
+	_show_stats_tab()
+	_refresh_character_stats()
 	if not is_multiplayer():
 		get_tree().paused = true
 	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript

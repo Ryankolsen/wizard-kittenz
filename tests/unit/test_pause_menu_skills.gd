@@ -51,14 +51,19 @@ func test_skills_tab_button_switches_to_skills():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
 	scene.open_character_submenu()
+	# Default landing tab is Items (Inventory) per PRD #268 — both Stats
+	# and Skills start hidden until their buttons are pressed.
 	var skills = scene.find_child("SkillsPanel", true, false) as Control
 	var stats = scene.find_child("StatsPanel", true, false) as Control
-	assert_true(stats.visible, "Stats tab must be the default landing tab")
+	var inventory = scene.find_child("InventoryTab", true, false) as Control
+	assert_true(inventory.visible, "Items (Inventory) tab must be the default landing tab")
+	assert_false(stats.visible, "Stats tab must start hidden on submenu open")
 	assert_false(skills.visible, "Skills tab must start hidden on submenu open")
 	var btn = scene.find_child("SkillsTabButton", true, false) as Button
 	btn.pressed.emit()
 	assert_true(skills.visible, "pressing Skills tab must reveal SkillsPanel")
 	assert_false(stats.visible, "Stats tab must hide when Skills is selected")
+	assert_false(inventory.visible, "Items tab must hide when Skills is selected")
 	gs.clear()
 
 # #130 AC1: Battle Kitten level 1 sees "level 3" in the hissy_fit row label.
