@@ -28,6 +28,10 @@ const RARITY_NAMES := {
 
 const _CharacterAvatarScript := preload("res://scripts/ui/character_avatar.gd")
 
+# Small square thumbnail next to weapon rows (PRD #268 / issue #271).
+# Sized to match the row's text height so it doesn't dominate the row.
+const _THUMB_SIZE := Vector2(24, 24)
+
 var _inventory: ItemInventory = null
 var _character: CharacterData = null
 # Which equipped-slot rows are currently expanded to reveal their
@@ -96,6 +100,9 @@ func _make_slot_row(slot: int, slot_label: String) -> Control:
 	row.name = "SlotRow_%d" % slot
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var item: ItemData = _inventory.equipped_in(slot) if _inventory != null else null
+	var thumb := _make_thumbnail("SlotThumb_%d" % slot, item)
+	if thumb != null:
+		row.add_child(thumb)
 	var label := Button.new()
 	label.name = "SlotLabel_%d" % slot
 	label.flat = true
@@ -144,6 +151,9 @@ func _make_bag_row(item: ItemData, index: int) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "BagRow_%d" % index
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var thumb := _make_thumbnail("BagThumb_%d" % index, item)
+	if thumb != null:
+		row.add_child(thumb)
 	var label := Label.new()
 	label.name = "BagLabel_%d" % index
 	label.text = "%s (%s) — %s" % [item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
@@ -220,6 +230,22 @@ func _apply_item_delta(item: ItemData, sign: float) -> void:
 		if bonus == null or bonus.stat_name == "":
 			continue
 		CharacterMutator.new(_character).apply_stat_delta(bonus.stat_name, sign * bonus.stat_bonus)
+
+# Returns a TextureRect for the given item's resolver-derived image, or
+# null when the item has no resolvable image (armor/accessory/empty slot).
+# Routing imagery through ItemImageResolver keeps #269 as the single source
+# of truth for item -> texture mapping.
+func _make_thumbnail(node_name: String, item: ItemData) -> TextureRect:
+	var tex_path := ItemImageResolver.texture_path_for_item(item)
+	if tex_path == "":
+		return null
+	var rect := TextureRect.new()
+	rect.name = node_name
+	rect.texture = load(tex_path)
+	rect.custom_minimum_size = _THUMB_SIZE
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	return rect
 
 func _rarity_name(rarity: int) -> String:
 	return RARITY_NAMES.get(rarity, "Common")

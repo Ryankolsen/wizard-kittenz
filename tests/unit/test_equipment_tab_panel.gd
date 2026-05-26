@@ -106,6 +106,42 @@ func test_empty_slot_row_is_disabled():
 	assert_not_null(label)
 	assert_true(label.disabled, "empty slot row must be disabled (no unequip target)")
 
+func test_equipped_weapon_row_shows_thumbnail():
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.WEAPON, true, false) as TextureRect
+	assert_not_null(thumb, "equipped weapon row must include a thumbnail node")
+	assert_not_null(thumb.texture, "thumbnail texture must be set")
+	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_sword_sprite.png")
+
+func test_bag_weapon_row_shows_thumbnail():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("apprentice_wand"))
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Test")
+	var panel := _make_panel()
+	panel.refresh(inv, c)
+	var thumb := panel.find_child("BagThumb_0", true, false) as TextureRect
+	assert_not_null(thumb, "bag weapon row must include a thumbnail node")
+	assert_not_null(thumb.texture)
+	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_wand_sprite.png")
+
+func test_armor_row_has_no_thumbnail_texture():
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("chain_mail"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.ARMOR, true, false) as TextureRect
+	assert_null(thumb, "armor row must not include a weapon thumbnail node")
+
+func test_empty_weapon_slot_has_no_thumbnail_texture():
+	var inv := ItemInventory.new()
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.WEAPON, true, false) as TextureRect
+	assert_null(thumb, "empty weapon slot must not include a thumbnail node")
+
 func test_null_inventory_does_not_crash():
 	var panel := _make_panel()
 	panel.refresh(null, _make_char())
