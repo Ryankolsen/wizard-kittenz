@@ -41,11 +41,15 @@ const _THUMB_SIZE := Vector2(24, 24)
 const _BAG_SCROLL_MIN_HEIGHT := 24
 
 # Square size of each equipped-slot tile in the horizontal strip.
-const _TILE_SIZE := Vector2(30, 30)
+const _TILE_SIZE := Vector2(36, 36)
 
 # Small font for the "Equipped" / "Bag" section labels so they don't eat
 # the tiny ~100px tab height.
 const _SECTION_FONT_SIZE := 10
+
+# Tile abbreviation font — small enough that "Wpn"/"Arm"/"Acc" fits inside a
+# 36px tile instead of overflowing into the neighbouring tile.
+const _TILE_LABEL_FONT_SIZE := 9
 
 # Short labels shown on a tile when it has no thumbnail (empty slot, or an
 # armor/accessory item that has no image yet).
@@ -53,6 +57,20 @@ const _SLOT_ABBREV := {
 	ItemData.Slot.WEAPON: "Wpn",
 	ItemData.Slot.ARMOR: "Arm",
 	ItemData.Slot.ACCESSORY: "Acc",
+}
+
+# Tile backgrounds: a filled slot reads brighter than an empty one, and the
+# filled border is rarity-coloured so an equipped (even art-less) item is
+# obviously occupied. Empty slots get a dim bg + faint border.
+const _TILE_BG_FILLED := Color(0.14, 0.17, 0.24, 0.95)
+const _TILE_BG_EMPTY := Color(0.08, 0.09, 0.12, 0.6)
+const _TILE_BORDER_EMPTY := Color(0.42, 0.45, 0.52, 0.5)
+const _TILE_LABEL_FILLED := Color(1, 1, 1, 0.95)
+const _TILE_LABEL_EMPTY := Color(0.62, 0.64, 0.7, 0.7)
+const _RARITY_COLORS := {
+	ItemData.Rarity.COMMON: Color(0.72, 0.74, 0.78, 0.95),
+	ItemData.Rarity.RARE: Color(0.36, 0.56, 0.95, 0.95),
+	ItemData.Rarity.EPIC: Color(0.74, 0.42, 0.96, 0.95),
 }
 
 var _inventory: ItemInventory = null
@@ -196,13 +214,17 @@ func _add_section_label(parent: Node, text: String) -> void:
 # The full name/rarity/bonus lives in the tooltip and in the expand detail.
 func _make_slot_tile(slot: int, slot_label: String) -> Control:
 	var item: ItemData = _inventory.equipped_in(slot) if _inventory != null else null
+	var filled := item != null
 	var tile := Button.new()
 	tile.name = "SlotTile_%d" % slot
 	tile.custom_minimum_size = _TILE_SIZE
 	# Empty slots are inert (disabled, not hidden) so the strip keeps a
 	# stable three-tile shape regardless of what's equipped.
-	tile.disabled = item == null
+	tile.disabled = not filled
 	tile.tooltip_text = _slot_tooltip(slot_label, item)
+	# Exposed for tests + a quick read of occupancy without inspecting styling.
+	tile.set_meta("equipped", filled)
+	_style_tile(tile, item)
 	var thumb := _make_thumbnail("SlotThumb_%d" % slot, item)
 	if thumb != null:
 		thumb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -216,10 +238,29 @@ func _make_slot_tile(slot: int, slot_label: String) -> Control:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.add_theme_font_size_override("font_size", _TILE_LABEL_FONT_SIZE)
+		lbl.add_theme_color_override("font_color", _TILE_LABEL_FILLED if filled else _TILE_LABEL_EMPTY)
 		tile.add_child(lbl)
 	var slot_id := slot
 	tile.pressed.connect(func(): _on_slot_tile_pressed(slot_id))
 	return tile
+
+# Paints the tile so a filled slot (brighter bg, rarity-coloured border) is
+# unmistakably distinct from an empty one (dim bg, faint border) — even when
+# the item has no thumbnail yet. The same style is applied to every button
+# state so hover/pressed/disabled don't revert to the default theme look.
+func _style_tile(tile: Button, item: ItemData) -> void:
+	var filled := item != null
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = _TILE_BG_FILLED if filled else _TILE_BG_EMPTY
+	sb.set_border_width_all(2 if filled else 1)
+	sb.border_color = _rarity_color(item.rarity) if filled else _TILE_BORDER_EMPTY
+	sb.set_corner_radius_all(3)
+	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
+		tile.add_theme_stylebox_override(state, sb)
+
+func _rarity_color(rarity: int) -> Color:
+	return _RARITY_COLORS.get(rarity, _RARITY_COLORS[ItemData.Rarity.COMMON])
 
 func _slot_tooltip(slot_label: String, item: ItemData) -> String:
 	if item == null:

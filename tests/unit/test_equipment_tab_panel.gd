@@ -142,6 +142,27 @@ func test_empty_weapon_slot_has_no_thumbnail_texture():
 	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.WEAPON, true, false) as TextureRect
 	assert_null(thumb, "empty weapon slot must not include a thumbnail node")
 
+# An equipped armor/accessory has no thumbnail art yet, so it must still be
+# visually distinguishable from an empty slot: the tile carries an "equipped"
+# flag and a distinct (rarity-coloured) border versus an empty slot.
+func test_equipped_artless_slot_is_distinct_from_empty():
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("chain_mail"))  # armor, RARE, no thumbnail
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var filled := panel.find_child("SlotTile_%d" % ItemData.Slot.ARMOR, true, false) as Button
+	var empty := panel.find_child("SlotTile_%d" % ItemData.Slot.ACCESSORY, true, false) as Button
+	assert_not_null(filled, "armor tile must exist")
+	assert_not_null(empty, "accessory tile must exist")
+	assert_true(filled.get_meta("equipped", false), "equipped armor tile must be flagged equipped")
+	assert_false(empty.get_meta("equipped", false), "empty accessory tile must not be flagged equipped")
+	var filled_sb := filled.get_theme_stylebox("normal") as StyleBoxFlat
+	var empty_sb := empty.get_theme_stylebox("normal") as StyleBoxFlat
+	assert_not_null(filled_sb, "filled tile must have a StyleBoxFlat normal style")
+	assert_not_null(empty_sb, "empty tile must have a StyleBoxFlat normal style")
+	assert_ne(filled_sb.border_color, empty_sb.border_color,
+		"filled and empty tiles must have distinct border colours")
+
 func test_null_inventory_does_not_crash():
 	var panel := _make_panel()
 	panel.refresh(null, _make_char())
