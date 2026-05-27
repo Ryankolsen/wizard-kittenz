@@ -117,22 +117,6 @@ signal heal_received(caster_id: String, target_id: String, effect_kind: String, 
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
-# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2 fix). Captured from
-# the match result so the lobby UI can show, on a release Android build, which
-# identity the presence stream reports as "self" and whether the create- or
-# join-room path ran. match_self_id should equal local_player_id; a divergence
-# is the suspected reason the host is misclassified as a remote joiner and the
-# Start button stays hidden.
-var match_self_id: String = ""
-var entry_path: String = ""
-# TEMP DIAGNOSTIC (#267) — presence-event counters so the lobby readout can
-# show, on the release Android build, how many join/leave presences were
-# applied and how many leaves naming the local player were blocked. A non-zero
-# blocked count confirms the self-leave path (the suspected roster-emptier) is
-# what fired on the device. Remove with the rest of the #267 instrumentation.
-var _diag_joins_applied: int = 0
-var _diag_leaves_applied: int = 0
-var _diag_self_leaves_blocked: int = 0
 # Per-match agreed dungeon seed. Host mints inside request_start_async and ships
 # the value in the OP_START_MATCH payload; remote applies in apply_state before
 # match_started.emit so any subscriber (lobby UI → CoopSession) sees an agreed
@@ -169,11 +153,10 @@ func create_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		join_failed.emit("Failed to create room: " + match_result.get_exception().message)
 		return false
 	_match_id = match_result.match_id
-	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
-	entry_path = "create"
+	var self_user_id: String = ""
 	if match_result.self_user != null:
-		match_self_id = match_result.self_user.user_id
-	_seed_local_player(local_player, match_self_id, room_code, true)
+		self_user_id = match_result.self_user.user_id
+	_seed_local_player(local_player, self_user_id, room_code, true)
 	await NakamaService.register_room_async(_session, room_code, _match_id)
 	# Broadcast our info to any late-joiners watching this match
 	await send_player_info_async(local_player)
@@ -196,11 +179,10 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 		join_failed.emit("Failed to join: " + match_result.get_exception().message)
 		return false
 	_match_id = match_result.match_id
-	# TEMP DIAGNOSTIC (issue #267, Phase 1 — remove in Phase 2).
-	entry_path = "join"
+	var self_user_id: String = ""
 	if match_result.self_user != null:
-		match_self_id = match_result.self_user.user_id
-	_seed_local_player(local_player, match_self_id, room_code, false)
+		self_user_id = match_result.self_user.user_id
+	_seed_local_player(local_player, self_user_id, room_code, false)
 	# Populate from presences already in the match (excluding self)
 	var existing: Array = []
 	for p in match_result.presences:
@@ -441,7 +423,6 @@ func apply_joins(presences: Array) -> void:
 		if lobby_state.find_player(uid) != null:
 			continue
 		lobby_state.add_player(LobbyPlayer.make(uid, uname, ""))
-		_diag_joins_applied += 1  # TEMP DIAGNOSTIC (#267)
 	lobby_updated.emit(lobby_state)
 
 # Applies a batch of leaving presences. Emits lobby_updated.
@@ -463,13 +444,8 @@ func apply_leaves(presences: Array) -> void:
 	for p in presences:
 		var uid: String = String(p.get("user_id", ""))
 		if uid == "" or uid == local_player_id:
-			# TEMP DIAGNOSTIC (#267) — record blocked self-leaves so the
-			# on-screen readout confirms this path fired on the device.
-			if uid == local_player_id:
-				_diag_self_leaves_blocked += 1
 			continue
-		if lobby_state.remove_player(uid):
-			_diag_leaves_applied += 1  # TEMP DIAGNOSTIC (#267)
+		lobby_state.remove_player(uid)
 	# Auto-release on host-disconnect: if the lobby was host-paused and the
 	# host just left, drop the pause so the remaining players aren't stuck
 	# behind a "Host has paused" overlay forever. The issue spec ("if the
