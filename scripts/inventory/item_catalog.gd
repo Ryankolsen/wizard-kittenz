@@ -18,9 +18,9 @@ const _GENERIC := [
 
 static func all_items() -> Array[ItemData]:
 	var items: Array[ItemData] = []
-	items.append(ItemData.make("iron_sword", "Iron Sword", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE))
-	items.append(ItemData.make("silver_sword", "Silver Sword", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0, _BATTLE))
-	items.append(ItemData.make_multi("enchanted_blade", "Enchanted Blade", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, [
+	items.append(ItemData.make("iron_sword", "Slippery Mackerel", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE))
+	items.append(ItemData.make("silver_sword", "Alley-Cat Cutlass", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0, _BATTLE))
+	items.append(ItemData.make_multi("enchanted_blade", "Clawbur", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, [
 		StatBonus.make("attack", 4.0),
 		StatBonus.make("magic_attack", 4.0),
 	], _BATTLE))
@@ -62,9 +62,9 @@ static func all_items() -> Array[ItemData]:
 	items.append(ItemData.make("heart_of_the_boulder", "Heart of the Boulder", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "magic_resistance", 5.0, _CHONK))
 	# --- Slice 4 expansion: +9 per class ---
 	# Battle Kitten — second wave
-	items.append(ItemData.make("rusted_dagger", "Rusted Dagger", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE))
-	items.append(ItemData.make("knights_sabre", "Knight's Sabre", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0, _BATTLE))
-	items.append(ItemData.make("dragonslayer_greatsword", "Dragonslayer Greatsword", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "attack", 9.0, _BATTLE))
+	items.append(ItemData.make("rusted_dagger", "Pointy Stick", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE))
+	items.append(ItemData.make("knights_sabre", "Tin-Knight Sabre", ItemData.Slot.WEAPON, ItemData.Rarity.RARE, "attack", 5.0, _BATTLE))
+	items.append(ItemData.make("dragonslayer_greatsword", "Catana", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "attack", 9.0, _BATTLE))
 	items.append(ItemData.make("scout_jerkin", "Scout Jerkin", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "evasion", 0.03, _BATTLE))
 	items.append(ItemData.make("knights_breastplate", "Knight's Breastplate", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 4.0, _BATTLE))
 	items.append(ItemData.make("warlord_aegis", "Warlord Aegis", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_hp", 30.0, _BATTLE))
@@ -105,7 +105,7 @@ static func all_items() -> Array[ItemData]:
 	# These never appear in the drop pool (ItemDropResolver filters source !=
 	# DROP); ShopCatalog.items(character_class) is the only surface that
 	# renders them. Pricing lives on the catalog row, not the ItemData.
-	items.append(ItemData.make("shop_iron_dirk", "Iron Dirk", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE, ItemData.Source.SHOP))
+	items.append(ItemData.make("shop_iron_dirk", "Butter Knife", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 2.0, _BATTLE, ItemData.Source.SHOP))
 	items.append(ItemData.make("shop_squires_armor", "Squire's Armor", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 4.0, _BATTLE, ItemData.Source.SHOP))
 	items.append(ItemData.make("shop_valor_band", "Valor Band", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "attack", 5.0, _BATTLE, ItemData.Source.SHOP))
 	items.append(ItemData.make("shop_apprentice_garb", "Apprentice Garb", ItemData.Slot.ARMOR, ItemData.Rarity.COMMON, "max_mp", 5.0, _WIZARD, ItemData.Source.SHOP))

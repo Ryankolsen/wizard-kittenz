@@ -32,7 +32,7 @@ func test_equipped_slot_tile_tooltip_shows_name_and_rarity():
 	panel.refresh(inv, _make_char())
 	var tile := panel.find_child("SlotTile_%d" % ItemData.Slot.WEAPON, true, false) as Button
 	assert_not_null(tile)
-	assert_true(tile.tooltip_text.contains("Silver Sword"), "weapon tile tooltip must show item name")
+	assert_true(tile.tooltip_text.contains("Alley-Cat Cutlass"), "weapon tile tooltip must show item name")
 	assert_true(tile.tooltip_text.contains("Rare"), "weapon tile tooltip must show rarity")
 
 func test_bag_items_render_with_equip_button():
@@ -114,7 +114,7 @@ func test_equipped_weapon_row_shows_thumbnail():
 	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.WEAPON, true, false) as TextureRect
 	assert_not_null(thumb, "equipped weapon row must include a thumbnail node")
 	assert_not_null(thumb.texture, "thumbnail texture must be set")
-	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_sword_sprite.png")
+	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_slippery_mackerel.png")
 
 func test_bag_weapon_row_shows_thumbnail():
 	var inv := ItemInventory.new()

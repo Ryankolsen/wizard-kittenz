@@ -7,7 +7,7 @@ extends GutTest
 # contract at the node level; pixel-accurate placement is verified in
 # the manual QA slice.
 
-const SwordTex := "res://assets/sprites/weapon_sword_sprite.png"
+const SwordTex := "res://assets/sprites/weapon_slippery_mackerel.png"
 const WandTex := "res://assets/sprites/weapon_wand_sprite.png"
 const MugTex := "res://assets/sprites/weapon_mug_sprite.png"
 

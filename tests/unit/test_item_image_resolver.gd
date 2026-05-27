@@ -1,9 +1,17 @@
 extends GutTest
 
-func test_iron_sword_resolves_to_sword_sprite():
+func test_iron_sword_resolves_to_slippery_mackerel_sprite():
 	assert_eq(
 		ItemImageResolver.texture_path_for_item(ItemCatalog.find("iron_sword")),
-		"res://assets/sprites/weapon_sword_sprite.png"
+		"res://assets/sprites/weapon_slippery_mackerel.png"
+	)
+
+func test_unconverted_weapon_falls_back_to_class_default():
+	# apprentice_wand has no per-id sprite yet (wizard slice still pending),
+	# so the resolver must fall back to the class-default wand sprite.
+	assert_eq(
+		ItemImageResolver.texture_path_for_item(ItemCatalog.find("apprentice_wand")),
+		"res://assets/sprites/weapon_wand_sprite.png"
 	)
 
 func test_apprentice_wand_resolves_to_wand_sprite():

@@ -13,6 +13,17 @@ func test_iron_sword_content():
 	assert_eq(item.bonuses[0].stat_name, "attack")
 	assert_eq(item.bonuses[0].stat_bonus, 2.0)
 
+func test_battle_weapon_new_names():
+	# Slice 1 of PRD #273: Battle's 7 weapons get themed display names while
+	# ids/stats stay unchanged (test_iron_sword_content covers stat invariance).
+	assert_eq(ItemCatalog.find("iron_sword").display_name, "Slippery Mackerel")
+	assert_eq(ItemCatalog.find("rusted_dagger").display_name, "Pointy Stick")
+	assert_eq(ItemCatalog.find("shop_iron_dirk").display_name, "Butter Knife")
+	assert_eq(ItemCatalog.find("silver_sword").display_name, "Alley-Cat Cutlass")
+	assert_eq(ItemCatalog.find("knights_sabre").display_name, "Tin-Knight Sabre")
+	assert_eq(ItemCatalog.find("enchanted_blade").display_name, "Clawbur")
+	assert_eq(ItemCatalog.find("dragonslayer_greatsword").display_name, "Catana")
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
