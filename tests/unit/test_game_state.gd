@@ -26,6 +26,21 @@ func test_clear_resets_to_null():
 	gs.clear()
 	assert_null(gs.current_character)
 
+func test_set_character_starts_with_empty_inventory():
+	# item_inventory is a persistent autoload field. Creating a brand-new
+	# character must not inherit the previous character's equipped gear —
+	# otherwise e.g. a fresh Wizard shows up holding the prior Battle kitten's
+	# sword (cross-character contamination).
+	var gs := get_node("/root/GameState")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Whiskers"))
+	gs.item_inventory.equip(ItemCatalog.find("iron_sword"))
+	assert_not_null(gs.item_inventory.equipped_in(ItemData.Slot.WEAPON), "battle weapon equipped")
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Mittens"))
+	assert_null(gs.item_inventory.equipped_in(ItemData.Slot.WEAPON),
+		"a freshly created character must not inherit the prior character's weapon")
+	assert_true(gs.item_inventory.bag_items().is_empty(),
+		"a freshly created character's bag must start empty")
+
 # --- apply_merged_save --------------------------------------------------------
 
 func test_apply_merged_save_hydrates_character():

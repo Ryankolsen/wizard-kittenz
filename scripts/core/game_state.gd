@@ -297,6 +297,13 @@ func build_coop_chars_map() -> Dictionary:
 
 func set_character(c: CharacterData) -> void:
 	current_character = c
+	# item_inventory is a persistent autoload field. Reset it for a brand-new
+	# character so it doesn't inherit the previous character's equipped gear
+	# (a fresh Wizard would otherwise show up holding the prior Battle kitten's
+	# sword). The save-load paths (_hydrate_active_character / apply_merged_save)
+	# rebuild item_inventory from the slot themselves, so this only affects the
+	# character-creation entry point.
+	item_inventory = ItemInventory.new()
 	skill_tree = _build_tree_for(c)
 	# Issue #126 AC1: a freshly-created level-1 character enters their first
 	# dungeon with the level_required == 1 node already unlocked. Runs for any
