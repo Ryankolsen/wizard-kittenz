@@ -49,23 +49,24 @@ func _ensure_built() -> void:
 
 # Direct render path. Used by tests and by bind()'s refresh loop.
 # A null weapon_item leaves the body in place and hides the weapon sprite —
-# kitten standing empty-handed.
+# kitten standing empty-handed. Pose + texture come from HeldWeaponResolver
+# so this control and combat (Player._init_weapon_pivot) cannot disagree
+# (PRD #280 / issue #281).
 func set_loadout(character_class: int, weapon_item: ItemData) -> void:
 	_ensure_built()
 	_character_class = character_class
 	_body.texture = load(SpriteHelper.path_for_class(character_class))
 	var weapon_sprite := _weapon_pivot.get_node_or_null("Sprite2D") as Sprite2D
-	if weapon_item == null:
+	var resolved := HeldWeaponResolver.resolve(weapon_item, character_class)
+	if not resolved[HeldWeaponResolver.ARMED_KEY]:
 		if weapon_sprite != null:
 			weapon_sprite.visible = false
 			weapon_sprite.texture = null
 		return
-	var def: WeaponDefinition = null
-	if not weapon_item.allowed_classes.is_empty():
-		def = WeaponDefinition.for_class(weapon_item.allowed_classes[0])
+	var def: WeaponDefinition = resolved[HeldWeaponResolver.DEFINITION_KEY]
 	if def != null:
 		_weapon_pivot.set_definition(def)
-	var tex_path := ItemImageResolver.texture_path_for_item(weapon_item)
+	var tex_path: String = resolved[HeldWeaponResolver.TEXTURE_KEY]
 	if weapon_sprite == null:
 		return
 	if tex_path == "":

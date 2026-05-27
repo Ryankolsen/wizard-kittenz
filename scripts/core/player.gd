@@ -133,25 +133,92 @@ func _ready() -> void:
 	_init_quickbar()
 	_bind_coop_level_up()
 
-# PRD #223: spawn a WeaponPivot child + AttackChoreographer for any class with
-# a WeaponDefinition. As of slice 3 every kitten class returns a preset from
-# for_class; this is still a defensive no-op for other character classes
-# (cat-tier etc.) that don't yet have weapon art.
+# PRD #280 / issue #281: the combat weapon is now driven by the player's
+# actually equipped weapon (HeldWeaponResolver), not the class default. The
+# WeaponPivot is spawned eagerly so we can swap textures/pose live on equip
+# without re-instancing nodes; the choreographer is built lazily on the
+# first armed refresh so unarmed kittens fall through to the existing
+# no-animation melee path in _try_attack.
 func _init_weapon_pivot() -> void:
 	if data == null:
 		return
-	var def := WeaponDefinition.for_class(data.character_class)
-	if def == null:
+	if WeaponDefinition.for_class(data.character_class) == null:
+		# Cat-tier and other classes with no class weapon at all stay on the
+		# pre-#223 no-pivot path.
 		return
 	_weapon_pivot = _WeaponPivotScene.instantiate()
 	add_child(_weapon_pivot)
-	_weapon_pivot.set_definition(def)
-	_attack_choreographer = AttackChoreographer.new()
+	_bind_inventory_loadout()
+	_refresh_combat_weapon()
+
+# Subscribe to ItemInventory.loadout_changed so equipping/unequipping mid-
+# dungeon swaps the combat weapon live (PRD #280 user stories 7/8).
+func _bind_inventory_loadout() -> void:
+	var inv := _item_inventory()
+	if inv == null:
+		return
+	if not inv.loadout_changed.is_connected(_on_loadout_changed):
+		inv.loadout_changed.connect(_on_loadout_changed)
+
+func _on_loadout_changed() -> void:
+	_refresh_combat_weapon()
+
+func _item_inventory() -> ItemInventory:
+	if _game_state == null:
+		return null
+	return _game_state.get("item_inventory") as ItemInventory
+
+# Re-resolve the held weapon and reconcile the WeaponPivot + AttackChoreographer
+# with that state. Armed → pose the pivot, show the sprite, ensure the
+# choreographer is built and pointing at the current definition. Unarmed →
+# hide the weapon sprite and tear down the choreographer so _try_attack falls
+# back to the direct melee pulse (the shake attack lands in slice 2).
+func _refresh_combat_weapon() -> void:
+	if _weapon_pivot == null or data == null:
+		return
+	var equipped: ItemData = null
+	var inv := _item_inventory()
+	if inv != null:
+		equipped = inv.equipped_in(ItemData.Slot.WEAPON)
+	var resolved := HeldWeaponResolver.resolve(equipped, data.character_class)
+	var weapon_sprite := _weapon_pivot.get_node_or_null("Sprite2D") as Sprite2D
+	if not resolved[HeldWeaponResolver.ARMED_KEY]:
+		if weapon_sprite != null:
+			weapon_sprite.visible = false
+			weapon_sprite.texture = null
+		_teardown_choreographer()
+		return
+	var def: WeaponDefinition = resolved[HeldWeaponResolver.DEFINITION_KEY]
+	if def != null:
+		_weapon_pivot.set_definition(def)
+	var tex_path: String = resolved[HeldWeaponResolver.TEXTURE_KEY]
+	if weapon_sprite != null:
+		if tex_path != "":
+			weapon_sprite.texture = load(tex_path)
+			weapon_sprite.visible = true
+		else:
+			weapon_sprite.visible = false
+			weapon_sprite.texture = null
+	_ensure_choreographer(def)
+
+func _ensure_choreographer(def: WeaponDefinition) -> void:
+	if def == null:
+		return
+	if _attack_choreographer == null:
+		_attack_choreographer = AttackChoreographer.new()
+		_attack_choreographer.weapon_pivot = _weapon_pivot
+		_attack_choreographer.hitbox_enable_requested.connect(_on_strike_window_open)
+		_attack_choreographer.hitbox_disable_requested.connect(_on_strike_window_close)
+		_attack_choreographer.strike_vfx_requested.connect(_on_strike_vfx)
 	_attack_choreographer.definition = def
-	_attack_choreographer.weapon_pivot = _weapon_pivot
-	_attack_choreographer.hitbox_enable_requested.connect(_on_strike_window_open)
-	_attack_choreographer.hitbox_disable_requested.connect(_on_strike_window_close)
-	_attack_choreographer.strike_vfx_requested.connect(_on_strike_vfx)
+
+func _teardown_choreographer() -> void:
+	if _attack_choreographer == null:
+		return
+	if _attack_choreographer.phase != AttackChoreographer.Phase.IDLE:
+		_attack_choreographer.interrupt()
+	_attack_choreographer = null
+	_hitbox_strike_active = false
 
 func get_quickbar():
 	return _quickbar
