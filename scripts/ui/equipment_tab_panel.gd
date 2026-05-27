@@ -32,14 +32,6 @@ const _CharacterAvatarScript := preload("res://scripts/ui/character_avatar.gd")
 # Sized to match the row's text height so it doesn't dominate the row.
 const _THUMB_SIZE := Vector2(24, 24)
 
-# Floor for the scrollable bag region. The bag ScrollContainer expands to
-# fill whatever the right column has left after the compact equipped strip,
-# so this is just a minimum so it never collapses to nothing. The game runs
-# at 480x270, so the whole tab is only ~100px tall — keeping the equipped
-# slots as a short horizontal strip (rather than stacked rows) leaves the
-# bag the most usable height (PRD #268 follow-up).
-const _BAG_SCROLL_MIN_HEIGHT := 24
-
 # Square size of each equipped-slot tile in the horizontal strip.
 const _TILE_SIZE := Vector2(36, 36)
 
@@ -81,8 +73,10 @@ var _character: CharacterData = null
 var _expanded: Dictionary = {}
 # Persistent two-column skeleton, built once and preserved across every
 # _rebuild() so the avatar's loadout_changed subscription survives. Left
-# column holds the avatar; right column pins the equipped slots above a
-# bounded ScrollContainer for the bag.
+# column holds the avatar; right column stacks the equipped slots above the
+# bag. The bag is laid out at its full natural height (no inner scroll) —
+# the whole Character submenu scrolls as one page via the outer TabScroll,
+# so the bag list is no longer trapped in a cramped ~24px window.
 # Untyped because Godot's headless parser may resolve this script before
 # CharacterAvatar's class_name has been registered project-wide; the script
 # is loaded via the _CharacterAvatarScript preload above instead.
@@ -133,29 +127,20 @@ func _ensure_skeleton() -> void:
 	menu_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_layout.add_child(menu_col)
 
-	# Pinned region: equipped strip + the "Bag" header. Stays put while the
-	# bag list scrolls beneath it.
+	# Equipped strip + the "Bag" header.
 	_equipped_box = VBoxContainer.new()
 	_equipped_box.name = "EquippedSection"
 	_equipped_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_equipped_box.add_theme_constant_override("separation", 2)
 	menu_col.add_child(_equipped_box)
 
-	var bag_scroll := ScrollContainer.new()
-	bag_scroll.name = "BagScroll"
-	bag_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	# Always show the vertical scrollbar so it's obvious the bag scrolls —
-	# the previous single-column layout hid that affordance.
-	bag_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
-	bag_scroll.custom_minimum_size = Vector2(0, _BAG_SCROLL_MIN_HEIGHT)
-	bag_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bag_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	menu_col.add_child(bag_scroll)
-
+	# Bag list, laid out at full natural height directly in the column. No
+	# inner ScrollContainer: the outer TabScroll scrolls the whole page, so
+	# the bag stays put and grows as tall as its contents need.
 	_bag_box = VBoxContainer.new()
 	_bag_box.name = "BagSection"
 	_bag_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bag_scroll.add_child(_bag_box)
+	menu_col.add_child(_bag_box)
 
 # Repopulates the equipped slots and bag list. The skeleton/avatar persist;
 # only the dynamic rows inside _equipped_box / _bag_box are rebuilt.
@@ -167,8 +152,6 @@ func _rebuild() -> void:
 	_clear_children(_equipped_box)
 	_clear_children(_bag_box)
 	_build_equipped_section()
-	# "Bag" header is pinned (lives in _equipped_box, above the scroll) so the
-	# scroll viewport is spent entirely on item rows.
 	_add_section_label(_equipped_box, "Bag")
 	_bag_box.add_child(_make_bag_list())
 
@@ -285,10 +268,9 @@ func _make_equipped_detail(slot: int, slot_label: String, item: ItemData) -> Con
 	row.add_child(btn)
 	return row
 
-# Bag items live in a plain VBoxContainer that fills the right column's
-# bounded BagScroll (see _ensure_skeleton). The equipped slots are pinned
-# above the scroll, so the bag scrolls independently while the avatar and
-# equipped loadout stay in view.
+# Bag items live in a plain VBoxContainer in the right column (see
+# _ensure_skeleton). It grows to its full content height; the outer
+# TabScroll scrolls the whole page when the loadout runs long.
 func _make_bag_list() -> Control:
 	var list := VBoxContainer.new()
 	list.name = "BagList"

@@ -65,15 +65,10 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
 [node name="VBox" type="VBoxContainer" parent="Center/CharacterSubmenu"]
 theme_override_constants/separation = 6
 
-[node name="Title" type="Label" parent="Center/CharacterSubmenu/VBox"]
-horizontal_alignment = 1
-text = "Character"
-theme_override_font_sizes/font_size = 24
-
 [node name="ClassLabel" type="Label" parent="Center/CharacterSubmenu/VBox"]
 horizontal_alignment = 1
 text = ""
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 16
 
 [node name="TabBar" type="HBoxContainer" parent="Center/CharacterSubmenu/VBox"]
 alignment = 1
@@ -95,7 +90,7 @@ text = "Skills"
 text = "Inventory"
 
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
-custom_minimum_size = Vector2(0, 100)
+custom_minimum_size = Vector2(0, 130)
 size_flags_vertical = 0
 horizontal_scroll_mode = 0
 

@@ -168,3 +168,17 @@ func test_null_inventory_does_not_crash():
 	panel.refresh(null, _make_char())
 	assert_not_null(panel.find_child("Section_Equipped", true, false),
 		"sections must still render with a null inventory")
+
+# Regression: the bag must NOT have its own ScrollContainer. The whole
+# Character submenu scrolls as one page (via the outer TabScroll), so the
+# bag lays out at full height — the previous nested scroll trapped the item
+# list in a cramped ~24px window that made bag items hard to see.
+func test_bag_has_no_inner_scroll_container():
+	var inv := ItemInventory.new()
+	for i in range(8):
+		inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var scrolls := panel.find_children("*", "ScrollContainer", true, false)
+	assert_eq(scrolls.size(), 0,
+		"equipment panel must contain no ScrollContainer — the whole page scrolls instead")
