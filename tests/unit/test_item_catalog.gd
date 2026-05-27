@@ -24,6 +24,23 @@ func test_battle_weapon_new_names():
 	assert_eq(ItemCatalog.find("enchanted_blade").display_name, "Clawbur")
 	assert_eq(ItemCatalog.find("dragonslayer_greatsword").display_name, "Catana")
 
+func test_wizard_weapon_new_names():
+	# Slice 2 of PRD #273: Wizard's 7 weapons get themed display names while
+	# ids/stats stay unchanged.
+	assert_eq(ItemCatalog.find("apprentice_wand").display_name, "Birthday Sparkler")
+	assert_eq(ItemCatalog.find("novice_wand").display_name, "Firefly Jar")
+	assert_eq(ItemCatalog.find("arcane_staff").display_name, "Crackle Wand")
+	assert_eq(ItemCatalog.find("runed_staff").display_name, "Stormtwig Staff")
+	assert_eq(ItemCatalog.find("starfire_rod").display_name, "Comet Caller")
+	assert_eq(ItemCatalog.find("voidcaller_staff").display_name, "Wand of the Big Bang")
+	assert_eq(ItemCatalog.find("shop_archmage_staff").display_name, "Archmage's Astrolabe")
+	# Stat invariance: rename is display-only — apprentice_wand still grants
+	# magic_attack +3.0.
+	var aw := ItemCatalog.find("apprentice_wand")
+	assert_eq(aw.bonuses.size(), 1)
+	assert_eq(aw.bonuses[0].stat_name, "magic_attack")
+	assert_eq(aw.bonuses[0].stat_bonus, 3.0)
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)

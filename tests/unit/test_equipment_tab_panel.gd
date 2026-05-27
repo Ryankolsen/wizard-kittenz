@@ -125,7 +125,7 @@ func test_bag_weapon_row_shows_thumbnail():
 	var thumb := panel.find_child("BagThumb_0", true, false) as TextureRect
 	assert_not_null(thumb, "bag weapon row must include a thumbnail node")
 	assert_not_null(thumb.texture)
-	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_wand_sprite.png")
+	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_birthday_sparkler.png")
 
 func test_armor_row_has_no_thumbnail_texture():
 	var inv := ItemInventory.new()

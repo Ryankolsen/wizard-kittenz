@@ -44,13 +44,13 @@ Filenames are slugs of the **new name** (human-readable while generating). The i
 
 | Art | Sprite | Wired | New name                 | id (was)              | Tier    | File                              | Prompt `[DESCRIPTION]`                                                                 |
 |-----|--------|-------|--------------------------|-----------------------|---------|-----------------------------------|----------------------------------------------------------------------------------------|
-| ☐   | ☐      | ☐     | **Birthday Sparkler**    | `apprentice_wand`     | Common  | `weapon_birthday_sparkler.png`    | `a single lit handheld birthday sparkler firework shedding tiny sparks`                |
-| ☐   | ☐      | ☐     | **Firefly Jar**          | `novice_wand`         | Common  | `weapon_firefly_jar.png`          | `a stick with a small glass jar of glowing green fireflies tied to the end`            |
-| ☐   | ☐      | ☐     | **Crackle Wand**         | `arcane_staff`        | Rare    | `weapon_crackle_wand.png`         | `a polished wand spitting little arcs of blue lightning from a crystal tip`            |
-| ☐   | ☐      | ☐     | **Stormtwig Staff**      | `runed_staff`         | Rare    | `weapon_stormtwig_staff.png`      | `a gnarled dark branch crackling with glowing blue runes and static`                   |
-| ☐   | ☐      | ☐     | **Comet Caller**         | `starfire_rod`        | Epic    | `weapon_comet_caller.png`         | `a sleek rod tipped with a blazing orange-yellow comet trailing fire and sparks`       |
-| ☐   | ☐      | ☐     | **Wand of the Big Bang** | `voidcaller_staff`    | Epic    | `weapon_wand_of_the_big_bang.png` | `a black staff topped with a swirling purple cosmic void orb crackling with starlight` |
-| ☐   | ☐      | ☐     | **Archmage's Astrolabe** | `shop_archmage_staff` | Epic 🛒 | `weapon_archmage_astrolabe.png`   | `an ornate golden staff with a radiant blue crystal ringed by tiny orbiting planets`   |
+| ☑   | ☑      | ☑     | **Birthday Sparkler**    | `apprentice_wand`     | Common  | `weapon_birthday_sparkler.png`    | `a single lit handheld birthday sparkler firework shedding tiny sparks`                |
+| ☑   | ☑      | ☑     | **Firefly Jar**          | `novice_wand`         | Common  | `weapon_firefly_jar.png`          | `a stick with a small glass jar of glowing green fireflies tied to the end`            |
+| ☑   | ☑      | ☑     | **Crackle Wand**         | `arcane_staff`        | Rare    | `weapon_crackle_wand.png`         | `a polished wand spitting little arcs of blue lightning from a crystal tip`            |
+| ☑   | ☑      | ☑     | **Stormtwig Staff**      | `runed_staff`         | Rare    | `weapon_stormtwig_staff.png`      | `a gnarled dark branch crackling with glowing blue runes and static`                   |
+| ☑   | ☑      | ☑     | **Comet Caller**         | `starfire_rod`        | Epic    | `weapon_comet_caller.png`         | `a sleek rod tipped with a blazing orange-yellow comet trailing fire and sparks`       |
+| ☑   | ☑      | ☑     | **Wand of the Big Bang** | `voidcaller_staff`    | Epic    | `weapon_wand_of_the_big_bang.png` | `a black staff topped with a swirling purple cosmic void orb crackling with starlight` |
+| ☑   | ☑      | ☑     | **Archmage's Astrolabe** | `shop_archmage_staff` | Epic 🛒 | `weapon_archmage_astrolabe.png`   | `an ornate golden staff with a radiant blue crystal ringed by tiny orbiting planets`   |
 
 ## 💤 Sleepy Kitten — healing (cozy nonsense → dream magic)
 
