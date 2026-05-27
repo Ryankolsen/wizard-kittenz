@@ -24,6 +24,14 @@ const _PER_ID_SPRITES := {
 	"starfire_rod": "res://assets/sprites/weapon_comet_caller.png",
 	"voidcaller_staff": "res://assets/sprites/weapon_wand_of_the_big_bang.png",
 	"shop_archmage_staff": "res://assets/sprites/weapon_archmage_astrolabe.png",
+	# Sleepy Kitten — slice 3
+	"healing_wand": "res://assets/sprites/weapon_mushroom_on_a_stick.png",
+	"feather_wand": "res://assets/sprites/weapon_lollipop_wand.png",
+	"dreamcatcher_staff": "res://assets/sprites/weapon_dreamcatcher_staff.png",
+	"cloud_staff": "res://assets/sprites/weapon_cloud_puff_wand.png",
+	"shop_lullaby_wand": "res://assets/sprites/weapon_warm_milk_ladle.png",
+	"lullaby_scepter": "res://assets/sprites/weapon_moonbeam_scepter.png",
+	"starlight_caduceus": "res://assets/sprites/weapon_caduceus_of_catnaps.png",
 }
 
 static func texture_path_for_item(item: ItemData) -> String:

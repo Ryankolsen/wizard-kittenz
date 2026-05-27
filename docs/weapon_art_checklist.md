@@ -56,13 +56,13 @@ Filenames are slugs of the **new name** (human-readable while generating). The i
 
 | Art | Sprite | Wired | New name                | id (was)             | Tier    | File                             | Prompt `[DESCRIPTION]`                                                                        |
 |-----|--------|-------|-------------------------|----------------------|---------|----------------------------------|-----------------------------------------------------------------------------------------------|
-| ☐   | ☐      | ☐     | **Mushroom-on-a-Stick** | `healing_wand`       | Common  | `weapon_mushroom_on_a_stick.png` | `a cute wand topped with a plump red-and-white spotted mushroom`                              |
-| ☐   | ☐      | ☐     | **Lollipop Wand**       | `feather_wand`       | Common  | `weapon_lollipop_wand.png`       | `a glossy rainbow swirl lollipop on a white stick used as a wand`                             |
-| ☐   | ☐      | ☐     | **Dreamcatcher Staff**  | `dreamcatcher_staff` | Rare    | `weapon_dreamcatcher_staff.png`  | `a wooden staff with a woven dreamcatcher hoop, dangling beads and feathers`                  |
-| ☐   | ☐      | ☐     | **Cloud-Puff Wand**     | `cloud_staff`        | Rare    | `weapon_cloud_puff_wand.png`     | `a pale wand topped with a small fluffy floating white cloud`                                 |
-| ☐   | ☐      | ☐     | **Warm-Milk Ladle**     | `shop_lullaby_wand`  | Rare 🛒 | `weapon_warm_milk_ladle.png`     | `a cozy wooden ladle brimming with steaming warm milk, sleepy steam wisps`                    |
-| ☐   | ☐      | ☐     | **Moonbeam Scepter**    | `lullaby_scepter`    | Epic    | `weapon_moonbeam_scepter.png`    | `an ornate pastel scepter topped with a glowing crescent moon and floating Zzz symbols`       |
-| ☐   | ☐      | ☐     | **Caduceus of Catnaps** | `starlight_caduceus` | Epic    | `weapon_caduceus_of_catnaps.png` | `an elegant twin-snake caduceus staff crowned with a radiant glowing star, soft dreamy light` |
+| ☑   | ☑      | ☑     | **Mushroom-on-a-Stick** | `healing_wand`       | Common  | `weapon_mushroom_on_a_stick.png` | `a cute wand topped with a plump red-and-white spotted mushroom`                              |
+| ☑   | ☑      | ☑     | **Lollipop Wand**       | `feather_wand`       | Common  | `weapon_lollipop_wand.png`       | `a glossy rainbow swirl lollipop on a white stick used as a wand`                             |
+| ☑   | ☑      | ☑     | **Dreamcatcher Staff**  | `dreamcatcher_staff` | Rare    | `weapon_dreamcatcher_staff.png`  | `a wooden staff with a woven dreamcatcher hoop, dangling beads and feathers`                  |
+| ☑   | ☑      | ☑     | **Cloud-Puff Wand**     | `cloud_staff`        | Rare    | `weapon_cloud_puff_wand.png`     | `a pale wand topped with a small fluffy floating white cloud`                                 |
+| ☑   | ☑      | ☑     | **Warm-Milk Ladle**     | `shop_lullaby_wand`  | Rare 🛒 | `weapon_warm_milk_ladle.png`     | `a cozy wooden ladle brimming with steaming warm milk, sleepy steam wisps`                    |
+| ☑   | ☑      | ☑     | **Moonbeam Scepter**    | `lullaby_scepter`    | Epic    | `weapon_moonbeam_scepter.png`    | `an ornate pastel scepter topped with a glowing crescent moon and floating Zzz symbols`       |
+| ☑   | ☑      | ☑     | **Caduceus of Catnaps** | `starlight_caduceus` | Epic    | `weapon_caduceus_of_catnaps.png` | `an elegant twin-snake caduceus staff crowned with a radiant glowing star, soft dreamy light` |
 
 ## 🍺 Chonk Kitten — Jonie's beers (upright orientation)
 

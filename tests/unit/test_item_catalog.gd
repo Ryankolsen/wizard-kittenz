@@ -41,6 +41,23 @@ func test_wizard_weapon_new_names():
 	assert_eq(aw.bonuses[0].stat_name, "magic_attack")
 	assert_eq(aw.bonuses[0].stat_bonus, 3.0)
 
+func test_sleepy_weapon_new_names():
+	# Slice 3 of PRD #273: Sleepy's 7 weapons get themed display names while
+	# ids/stats stay unchanged. dreamcatcher_staff keeps its original name.
+	assert_eq(ItemCatalog.find("healing_wand").display_name, "Mushroom-on-a-Stick")
+	assert_eq(ItemCatalog.find("feather_wand").display_name, "Lollipop Wand")
+	assert_eq(ItemCatalog.find("dreamcatcher_staff").display_name, "Dreamcatcher Staff")
+	assert_eq(ItemCatalog.find("cloud_staff").display_name, "Cloud-Puff Wand")
+	assert_eq(ItemCatalog.find("shop_lullaby_wand").display_name, "Warm-Milk Ladle")
+	assert_eq(ItemCatalog.find("lullaby_scepter").display_name, "Moonbeam Scepter")
+	assert_eq(ItemCatalog.find("starlight_caduceus").display_name, "Caduceus of Catnaps")
+	# Stat invariance: rename is display-only — healing_wand still grants
+	# magic_attack +2.0.
+	var hw := ItemCatalog.find("healing_wand")
+	assert_eq(hw.bonuses.size(), 1)
+	assert_eq(hw.bonuses[0].stat_name, "magic_attack")
+	assert_eq(hw.bonuses[0].stat_bonus, 2.0)
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
