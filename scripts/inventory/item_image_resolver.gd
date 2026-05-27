@@ -32,6 +32,14 @@ const _PER_ID_SPRITES := {
 	"shop_lullaby_wand": "res://assets/sprites/weapon_warm_milk_ladle.png",
 	"lullaby_scepter": "res://assets/sprites/weapon_moonbeam_scepter.png",
 	"starlight_caduceus": "res://assets/sprites/weapon_caduceus_of_catnaps.png",
+	# Chonk Kitten — slice 4
+	"heavy_club": "res://assets/sprites/weapon_cheap_tavern_pint.png",
+	"oak_cudgel": "res://assets/sprites/weapon_wooden_tankard.png",
+	"shop_oak_mallet": "res://assets/sprites/weapon_sloshing_pint_glass.png",
+	"spiked_mace": "res://assets/sprites/weapon_iron_banded_stein.png",
+	"bone_crusher": "res://assets/sprites/weapon_hefty_stein.png",
+	"earthshaker_hammer": "res://assets/sprites/weapon_mighty_keg.png",
+	"mountain_maul": "res://assets/sprites/weapon_golden_chalice_of_ale.png",
 }
 
 static func texture_path_for_item(item: ItemData) -> String:

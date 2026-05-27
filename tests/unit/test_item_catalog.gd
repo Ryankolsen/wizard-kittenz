@@ -58,6 +58,23 @@ func test_sleepy_weapon_new_names():
 	assert_eq(hw.bonuses[0].stat_name, "magic_attack")
 	assert_eq(hw.bonuses[0].stat_bonus, 2.0)
 
+func test_chonk_weapon_new_names():
+	# Slice 4 of PRD #273: Chonk's 7 weapons get themed beer display names
+	# while ids/stats stay unchanged.
+	assert_eq(ItemCatalog.find("heavy_club").display_name, "Cheap Tavern Pint")
+	assert_eq(ItemCatalog.find("oak_cudgel").display_name, "Wooden Tankard")
+	assert_eq(ItemCatalog.find("shop_oak_mallet").display_name, "Sloshing Pint Glass")
+	assert_eq(ItemCatalog.find("spiked_mace").display_name, "Iron-Banded Stein")
+	assert_eq(ItemCatalog.find("bone_crusher").display_name, "Hefty Stein")
+	assert_eq(ItemCatalog.find("earthshaker_hammer").display_name, "Mighty Keg")
+	assert_eq(ItemCatalog.find("mountain_maul").display_name, "Golden Chalice of Ale")
+	# Stat invariance: rename is display-only — heavy_club still grants
+	# attack +3.0.
+	var hc := ItemCatalog.find("heavy_club")
+	assert_eq(hc.bonuses.size(), 1)
+	assert_eq(hc.bonuses[0].stat_name, "attack")
+	assert_eq(hc.bonuses[0].stat_bonus, 3.0)
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)

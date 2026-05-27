@@ -68,13 +68,13 @@ Filenames are slugs of the **new name** (human-readable while generating). The i
 
 | Art | Sprite | Wired | New name                  | id (was)             | Tier      | File                               | Prompt `[DESCRIPTION]`                                                 |
 |-----|--------|-------|---------------------------|----------------------|-----------|------------------------------------|------------------------------------------------------------------------|
-| ☐   | ☐      | ☐     | **Cheap Tavern Pint**     | `heavy_club`         | Common    | `weapon_cheap_tavern_pint.png`     | `a chipped clay mug of flat cheap beer with thin foam`                 |
-| ☐   | ☐      | ☐     | **Wooden Tankard**        | `oak_cudgel`         | Common    | `weapon_wooden_tankard.png`        | `a plain wooden tankard with a simple handle and modest foam`          |
-| ☐   | ☐      | ☐     | **Sloshing Pint Glass**   | `shop_oak_mallet`    | Common 🛒 | `weapon_sloshing_pint_glass.png`   | `a tall glass pint of golden ale, a little beer spilling over the rim` |
-| ☐   | ☐      | ☐     | **Iron-Banded Stein**     | `spiked_mace`        | Rare      | `weapon_iron_banded_stein.png`     | `a sturdy wooden stein wrapped in iron bands, thick frothy foam`       |
-| ☐   | ☐      | ☐     | **Hefty Stein**           | `bone_crusher`       | Rare      | `weapon_hefty_stein.png`           | `a big heavy decorated ceramic stein overflowing with foam`            |
-| ☐   | ☐      | ☐     | **Mighty Keg**            | `earthshaker_hammer` | Epic      | `weapon_mighty_keg.png`            | `a giant wooden beer keg on a handle, swung like a war-hammer`         |
-| ☐   | ☐      | ☐     | **Golden Chalice of Ale** | `mountain_maul`      | Epic      | `weapon_golden_chalice_of_ale.png` | `an ornate glowing golden goblet frothing with magical golden beer`    |
+| ☑   | ☑      | ☑     | **Cheap Tavern Pint**     | `heavy_club`         | Common    | `weapon_cheap_tavern_pint.png`     | `a chipped clay mug of flat cheap beer with thin foam`                 |
+| ☑   | ☑      | ☑     | **Wooden Tankard**        | `oak_cudgel`         | Common    | `weapon_wooden_tankard.png`        | `a plain wooden tankard with a simple handle and modest foam`          |
+| ☑   | ☑      | ☑     | **Sloshing Pint Glass**   | `shop_oak_mallet`    | Common 🛒 | `weapon_sloshing_pint_glass.png`   | `a tall glass pint of golden ale, a little beer spilling over the rim` |
+| ☑   | ☑      | ☑     | **Iron-Banded Stein**     | `spiked_mace`        | Rare      | `weapon_iron_banded_stein.png`     | `a sturdy wooden stein wrapped in iron bands, thick frothy foam`       |
+| ☑   | ☑      | ☑     | **Hefty Stein**           | `bone_crusher`       | Rare      | `weapon_hefty_stein.png`           | `a big heavy decorated ceramic stein overflowing with foam`            |
+| ☑   | ☑      | ☑     | **Mighty Keg**            | `earthshaker_hammer` | Epic      | `weapon_mighty_keg.png`            | `a giant wooden beer keg on a handle, swung like a war-hammer`         |
+| ☑   | ☑      | ☑     | **Golden Chalice of Ale** | `mountain_maul`      | Epic      | `weapon_golden_chalice_of_ale.png` | `an ornate glowing golden goblet frothing with magical golden beer`    |
 
 ---
 
