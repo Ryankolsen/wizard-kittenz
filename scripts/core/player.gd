@@ -54,6 +54,12 @@ var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
 var _weapon_pivot: WeaponPivot = null
 var _attack_choreographer: AttackChoreographer = null
+# PRD #280 / issue #282: when unarmed, _try_attack routes here instead of
+# the weapon choreographer. Eagerly built alongside _weapon_pivot so live
+# unequip mid-dungeon doesn't have to allocate a controller on the first
+# attack. Class-default null for cat-tier (no _weapon_pivot, no shake —
+# those classes have no playable path yet).
+var _unarmed_shake: UnarmedShakeAttack = null
 # Tracks whether _hitbox is currently "live" per the choreographer's strike
 # window. Pre-#223 the hitbox was always-on and _try_attack just walked
 # overlapping areas; the choreographer now gates damage application to the
@@ -148,6 +154,9 @@ func _init_weapon_pivot() -> void:
 		return
 	_weapon_pivot = _WeaponPivotScene.instantiate()
 	add_child(_weapon_pivot)
+	_unarmed_shake = UnarmedShakeAttack.new()
+	_unarmed_shake.hitbox_enable_requested.connect(_on_strike_window_open)
+	_unarmed_shake.hitbox_disable_requested.connect(_on_strike_window_close)
 	_bind_inventory_loadout()
 	_refresh_combat_weapon()
 
@@ -298,6 +307,8 @@ func _physics_process(delta: float) -> void:
 		_try_attack()
 	if _attack_choreographer != null:
 		_attack_choreographer.tick(delta)
+	if _unarmed_shake != null:
+		_unarmed_shake.tick(delta)
 	if _quickbar_controller != null:
 		_quickbar_controller._poll_inputs()
 
@@ -345,16 +356,28 @@ func _award_power_up_xp() -> void:
 	if LevelUpEffect.is_real_level_up(old_level, data.level):
 		_trigger_level_up_effect(data.level)
 
-# Render-time sway while Ale is active. Visual-only; doesn't affect physics
-# velocity or hitbox position. Resets to (0,0) when ale drops off.
+# Render-time sway while Ale is active, plus the unarmed bare-paw shake burst
+# (PRD #280) when in flight. Visual-only; doesn't affect physics velocity or
+# hitbox position. The two effects sum so an unarmed drunk kitten still
+# vibrates on each attack on top of the ongoing sway. Resets to (0,0) when
+# both are inactive.
 func _apply_ale_wobble(delta: float) -> void:
 	if _visual == null:
 		return
-	if _power_ups.is_active(PowerUpEffect.TYPE_ALE):
+	var ale_active := _power_ups.is_active(PowerUpEffect.TYPE_ALE)
+	var shake_active := _unarmed_shake != null and _unarmed_shake.is_active()
+	if ale_active:
 		_wobble_time += delta
-		_visual.position = AleEffect.get_movement_offset(_wobble_time)
-	elif _visual.position != Vector2.ZERO:
+	else:
 		_wobble_time = 0.0
+	if ale_active or shake_active:
+		var offset := Vector2.ZERO
+		if ale_active:
+			offset += AleEffect.get_movement_offset(_wobble_time)
+		if shake_active:
+			offset += _unarmed_shake.get_offset()
+		_visual.position = offset
+	elif _visual.position != Vector2.ZERO:
 		_visual.position = Vector2.ZERO
 
 # Render-time blue tint while the wet debuff (#160) is active. Visual-only; the
@@ -431,6 +454,13 @@ func _try_attack() -> void:
 	if _attack_choreographer != null:
 		var dir: Vector2 = data.facing if data != null else Vector2.RIGHT
 		_attack_choreographer.start_attack(dir, _attack_choreographer.definition.attack_type)
+		return
+	# PRD #280 / issue #282: unarmed but class supports weapons — drive the
+	# bare-paw shake controller. It reuses the same strike-window signals as
+	# the choreographer so damage still lands at the strike beat via
+	# _on_strike_window_open → _apply_melee_damage.
+	if _unarmed_shake != null:
+		_unarmed_shake.start_attack()
 		return
 	_apply_melee_damage()
 
