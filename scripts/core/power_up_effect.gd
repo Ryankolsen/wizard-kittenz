@@ -16,6 +16,21 @@ const TYPE_CATNIP := "catnip"
 const TYPE_ALE := "ale"
 const TYPE_MUSHROOMS := "mushrooms"
 const TYPE_WET := "wet"
+const TYPE_SLOWNESS := "slowness"
+const TYPE_CONFUSION := "confusion"
+
+# Single declarative source of truth for every kind: default duration +
+# is_pickup. make() dispatches construction by id and reads the default
+# duration from here, so "declared but not in the factory" gaps (the old
+# wet/slowness/confusion case) cannot recur.
+const _REGISTRY := {
+	TYPE_CATNIP: {"default_duration": 8.0, "is_pickup": true},
+	TYPE_ALE: {"default_duration": 10.0, "is_pickup": true},
+	TYPE_MUSHROOMS: {"default_duration": 6.0, "is_pickup": true},
+	TYPE_WET: {"default_duration": 4.0, "is_pickup": false},
+	TYPE_SLOWNESS: {"default_duration": 3.0, "is_pickup": false},
+	TYPE_CONFUSION: {"default_duration": 3.0, "is_pickup": false},
+}
 
 var type: String = ""
 var duration: float = 0.0
@@ -48,15 +63,45 @@ func _on_apply(_t) -> void:
 func _on_remove(_t) -> void:
 	pass
 
-# Factory for the three power-up kinds. Unknown id returns null so callers
-# can no-op on a stale save / typo without crashing — same shape as
-# CharacterFactory.create_default fallback.
-static func make(type_id: String) -> PowerUpEffect:
+# Total factory over every registered kind. `duration < 0` resolves to the
+# registry default for that kind; an explicit duration is passed through
+# (debuffs / caller-tuned buffs). Unknown id returns null so callers can
+# no-op on a stale save / typo without crashing — the dungeon spawner
+# relies on this late-gate.
+static func make(type_id: String, duration: float = -1.0) -> PowerUpEffect:
+	if not _REGISTRY.has(type_id):
+		return null
+	var dur: float = duration if duration >= 0.0 else float(_REGISTRY[type_id]["default_duration"])
 	match type_id:
 		TYPE_CATNIP:
-			return CatnipEffect.new()
+			var catnip := CatnipEffect.new()
+			catnip.duration = dur
+			catnip.remaining = dur
+			return catnip
 		TYPE_ALE:
-			return AleEffect.new()
+			var ale := AleEffect.new()
+			ale.duration = dur
+			ale.remaining = dur
+			return ale
 		TYPE_MUSHROOMS:
-			return MushroomEffect.new()
+			var mushrooms := MushroomEffect.new()
+			mushrooms.duration = dur
+			mushrooms.remaining = dur
+			return mushrooms
+		TYPE_WET:
+			return WetEffect.new(dur)
+		TYPE_SLOWNESS:
+			return SlownessEffect.new(dur)
+		TYPE_CONFUSION:
+			return ConfusionEffect.new(dur)
 	return null
+
+static func is_pickup(type_id: String) -> bool:
+	if not _REGISTRY.has(type_id):
+		return false
+	return bool(_REGISTRY[type_id]["is_pickup"])
+
+static func default_duration(type_id: String) -> float:
+	if not _REGISTRY.has(type_id):
+		return -1.0
+	return float(_REGISTRY[type_id]["default_duration"])
