@@ -28,8 +28,8 @@ const SaveSlotsRef = preload("res://scripts/core/save_slots.gd")
 @onready var _wizard_card: Button = $MainMenu/VBox/CharacterGrid/WizardSlotButton
 @onready var _sleepy_card: Button = $MainMenu/VBox/CharacterGrid/SleepySlotButton
 @onready var _chonk_card: Button = $MainMenu/VBox/CharacterGrid/ChonkSlotButton
-@onready var _multiplayer_button: Button = $MainMenu/VBox/MultiplayerButton
-@onready var _shop_button: Button = $MainMenu/VBox/ShopButton
+@onready var _multiplayer_button: Button = $MainMenu/VBox/TopButtons/MultiplayerButton
+@onready var _shop_button: Button = $MainMenu/VBox/TopButtons/ShopButton
 @onready var _main_title: Label = $MainMenu/VBox/Title
 
 @onready var _slot_title: Label = $SlotActionPanel/VBox/SlotTitle
