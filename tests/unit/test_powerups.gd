@@ -135,6 +135,27 @@ func test_mushroom_revert_preserves_concurrent_defense_change():
 	manager.tick(effect.duration)
 	assert_eq(c.defense, base_defense + 5, "external defense change survives mushroom removal")
 
+func test_apply_default_duration_for_pickup_kind():
+	# PRD #284 Slice 2 test 2 — omitting duration on a pickup kind still uses
+	# the registry default. Catnip is +50% speed with the 8s default.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var base_speed := c.speed
+	var manager := PowerUpManager.new()
+	var effect := manager.apply("catnip", c)
+	assert_not_null(effect)
+	assert_almost_eq(c.speed, base_speed * 1.5, 0.001, "default-duration catnip applies +50% speed")
+	assert_eq(effect.duration, CatnipEffect.DURATION, "default duration matches registry")
+
+func test_apply_passes_caller_tuned_duration_for_pickup_kind():
+	# Caller-tuned duration on a pickup kind (used by the debuff seam for the
+	# debuff kinds; symmetrical for pickups so the apply signature is one path).
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var manager := PowerUpManager.new()
+	var effect := manager.apply("catnip", c, 2.5)
+	assert_eq(effect.duration, 2.5, "explicit duration passed through to effect")
+	assert_eq(effect.remaining, 2.5, "remaining initialized to explicit duration")
+
+
 func test_powerup_factory_makes_correct_type():
 	var catnip := PowerUpEffect.make("catnip")
 	var ale := PowerUpEffect.make("ale")

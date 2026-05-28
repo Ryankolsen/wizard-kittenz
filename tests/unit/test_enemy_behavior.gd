@@ -438,17 +438,26 @@ func test_catnip_dealer_misfire_no_op_without_spells():
 	assert_eq(pd.hp, 10, "misfire should not change HP")
 
 
-func test_catnip_dealer_make_debuff_effect_maps_to_subclasses():
-	# Confusion / slowness construct their respective PowerUpEffect; misfire
-	# returns null since there's no time-bounded state to push onto the
-	# PowerUpManager (the side effect, if any, fires at apply-time only).
-	assert_true(CatnipDealerBehavior.make_debuff_effect(
-		CatnipDealerBehavior.DEBUFF_CONFUSION) is ConfusionEffect)
-	assert_true(CatnipDealerBehavior.make_debuff_effect(
-		CatnipDealerBehavior.DEBUFF_SLOWNESS) is SlownessEffect)
-	assert_null(CatnipDealerBehavior.make_debuff_effect(
-		CatnipDealerBehavior.DEBUFF_MISFIRE),
-		"misfire should not construct a PowerUpEffect")
+func test_catnip_dealer_make_debuff_description_returns_type_id_and_duration():
+	# PRD #284 Slice 2 test 5 — behavior seam returns a (type_id, duration)
+	# description, NOT a PowerUpEffect. The manager handles construction via
+	# the single apply path.
+	var conf := CatnipDealerBehavior.make_debuff_description(
+		CatnipDealerBehavior.DEBUFF_CONFUSION)
+	assert_eq(conf.get("type_id"), PowerUpEffect.TYPE_CONFUSION,
+		"confusion description carries the confusion type id")
+	assert_eq(conf.get("duration"), CatnipDealerBehavior.DEBUFF_DURATION,
+		"confusion description carries the tuned duration")
+	var slow := CatnipDealerBehavior.make_debuff_description(
+		CatnipDealerBehavior.DEBUFF_SLOWNESS)
+	assert_eq(slow.get("type_id"), PowerUpEffect.TYPE_SLOWNESS,
+		"slowness description carries the slowness type id")
+	assert_eq(slow.get("duration"), CatnipDealerBehavior.DEBUFF_DURATION)
+	# Misfire: empty Dictionary — no time-bounded state to push onto the manager.
+	var misfire := CatnipDealerBehavior.make_debuff_description(
+		CatnipDealerBehavior.DEBUFF_MISFIRE)
+	assert_true(misfire.is_empty(),
+		"misfire should not produce a debuff description")
 
 
 func test_catnip_dealer_for_kind_dispatches_subclass():
@@ -495,8 +504,12 @@ func test_catnip_dealer_fire_publishes_target_when_in_range():
 class _MockSprayPlayer extends Node2D:
 	var data = null
 	var _manager: PowerUpManager = PowerUpManager.new()
-	func apply_debuff(effect: PowerUpEffect) -> void:
-		_manager.apply_effect(effect, data)
+	func apply_debuff(description: Dictionary) -> void:
+		if description.is_empty():
+			return
+		var type_id: String = description.get("type_id", "")
+		var duration: float = description.get("duration", -1.0)
+		_manager.apply(type_id, data, duration)
 
 class _MockSprayPlayerData:
 	var speed: float = 100.0
@@ -533,27 +546,41 @@ func test_haunted_spray_bottle_fire_timer_fires():
 	assert_true(b.wants_to_fire(), "wants_to_fire should be true after 2.1s")
 
 
+func test_haunted_spray_bottle_make_wet_description():
+	# PRD #284 Slice 2 test 5 — seam returns a (type_id, duration) description,
+	# not a WetEffect instance.
+	var desc := HauntedSprayBottleBehavior.make_wet_description()
+	assert_eq(desc.get("type_id"), PowerUpEffect.TYPE_WET,
+		"wet description carries the wet type id")
+	assert_eq(desc.get("duration"), HauntedSprayBottleBehavior.WET_DURATION,
+		"wet description carries the spray bottle's tuned duration")
+
+
 func test_haunted_spray_bottle_wet_effect_applied_on_hit():
-	# Acceptance #3 (tests #3): WetEffect mutates speed (30% reduction).
+	# Routed through the unified apply path: the wet description applied by the
+	# manager mutates the target's speed (-30%).
 	var pd := _MockSprayPlayerData.new()
 	pd.speed = 100.0
-	var effect := HauntedSprayBottleBehavior.make_wet_effect()
-	effect.apply_to(pd)
+	var manager := PowerUpManager.new()
+	var desc := HauntedSprayBottleBehavior.make_wet_description()
+	manager.apply(desc.type_id, pd, desc.duration)
 	assert_almost_eq(pd.speed, 70.0, 0.0001, "speed should be reduced 30% while Wet")
 
 
 func test_haunted_spray_bottle_wet_effect_refreshes_on_rehit():
-	# Acceptance #3 (tests #4): a second hit while the first is still active
-	# refreshes the timer rather than stacking another effect.
+	# A second hit while the first is still active refreshes the timer rather
+	# than stacking another effect — same refresh-not-stack semantics whether
+	# the description is applied once or many times.
 	var pd := _MockSprayPlayerData.new()
 	var manager := PowerUpManager.new()
-	manager.apply_effect(HauntedSprayBottleBehavior.make_wet_effect(), pd)
+	var desc := HauntedSprayBottleBehavior.make_wet_description()
+	manager.apply(desc.type_id, pd, desc.duration)
 	manager.tick(2.0)
 	var active := manager.get_active(WetEffect.TYPE)
 	assert_not_null(active, "WetEffect should still be active 2.0s in")
 	assert_true(active.remaining < HauntedSprayBottleBehavior.WET_DURATION,
 		"timer should have decayed before refresh")
-	manager.apply_effect(HauntedSprayBottleBehavior.make_wet_effect(), pd)
+	manager.apply(desc.type_id, pd, desc.duration)
 	assert_almost_eq(active.remaining, HauntedSprayBottleBehavior.WET_DURATION, 0.0001,
 		"re-hit should refresh remaining to the full WET_DURATION")
 	assert_eq(manager.active_count(), 1, "refresh should not stack a second WetEffect")

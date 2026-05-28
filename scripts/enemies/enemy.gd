@@ -411,9 +411,9 @@ func _apply_catnip_debuff(player_node, debuff_type: String) -> void:
 		if player_node.has_method("get") and player_node.get("data") != null:
 			CatnipDealerBehavior.apply_misfire(player_node.get("data"))
 	else:
-		var effect := CatnipDealerBehavior.make_debuff_effect(debuff_type)
-		if effect != null and player_node.has_method("apply_debuff"):
-			player_node.apply_debuff(effect)
+		var description := CatnipDealerBehavior.make_debuff_description(debuff_type)
+		if not description.is_empty() and player_node.has_method("apply_debuff"):
+			player_node.apply_debuff(description)
 	if label != "" and player_node is Node:
 		FloatingText.spawn(player_node, label, Color(0.5, 0.85, 0.3))
 
@@ -461,9 +461,9 @@ func _spawn_spray_projectile(origin: Vector2, direction: Vector2) -> void:
 func _apply_spray_wet(player_node) -> void:
 	if player_node == null:
 		return
-	var effect := HauntedSprayBottleBehavior.make_wet_effect()
+	var description := HauntedSprayBottleBehavior.make_wet_description()
 	if player_node.has_method("apply_debuff"):
-		player_node.apply_debuff(effect)
+		player_node.apply_debuff(description)
 	if player_node is Node:
 		FloatingText.spawn(player_node, "WET", HauntedSprayBottleBehavior.PROJECTILE_COLOR)
 

@@ -63,10 +63,12 @@ static func compute_cone_directions(aim_dir: Vector2) -> Array:
 	var spread := deg_to_rad(CONE_ANGLE_DEG)
 	return [base, base.rotated(spread), base.rotated(-spread)]
 
-# Factory for the on-hit debuff. Static so tests and the Enemy-side observer
-# share the duration constant in one place.
-static func make_wet_effect() -> WetEffect:
-	return WetEffect.new(WET_DURATION)
+# Description of the on-hit debuff — a (type_id, duration) pair routed through
+# Player.apply_debuff → PowerUpManager.apply. The behavior never constructs the
+# concrete effect class itself, so adding/renaming an effect kind doesn't
+# require touching enemy scripts. Same shape as CatnipDealerBehavior.
+static func make_wet_description() -> Dictionary:
+	return {"type_id": PowerUpEffect.TYPE_WET, "duration": WET_DURATION}
 
 func wants_to_fire() -> bool:
 	return _fire_elapsed >= FIRE_INTERVAL

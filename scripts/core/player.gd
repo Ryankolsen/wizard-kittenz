@@ -326,15 +326,19 @@ func collect_power_up(type_id: String) -> void:
 	_power_ups.apply(type_id, data)
 	_award_power_up_xp()
 
-# Issue #160. Enemies / hazards push a constructed effect (so they control the
-# duration) instead of a string id — debuffs aren't in the PowerUpEffect.make
-# factory because they aren't player-side pickups. Refresh-not-stack semantics
-# match collect_power_up: re-applying the same debuff type extends the timer
-# rather than stacking the magnitude.
-func apply_debuff(effect: PowerUpEffect) -> void:
-	if data == null or effect == null:
+# Issue #160 / PRD #284. Enemies / hazards push a `(type_id, duration)`
+# description so they control the timer without referencing effect class
+# internals. Routes through the single PowerUpManager.apply path; the manager's
+# refresh-not-stack semantics give re-hits a timer extension rather than a
+# magnitude stack.
+func apply_debuff(description: Dictionary) -> void:
+	if data == null or description.is_empty():
 		return
-	_power_ups.apply_effect(effect, data)
+	var type_id: String = description.get("type_id", "")
+	if type_id == "":
+		return
+	var duration: float = description.get("duration", -1.0)
+	_power_ups.apply(type_id, data, duration)
 
 # PRD #52: every power-up pickup pays POWERUP_XP. Co-op fans through
 # the same broadcaster-split path as kills so each party member gets

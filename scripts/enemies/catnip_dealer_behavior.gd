@@ -79,16 +79,17 @@ func pick_debuff(rng: RandomNumberGenerator) -> String:
 	var idx := rng.randi_range(0, DEBUFF_TYPES.size() - 1)
 	return DEBUFF_TYPES[idx]
 
-# Constructs the PowerUpEffect for confusion / slowness. Returns null for
-# misfire — the misfire path is handled by apply_misfire (no PowerUpEffect
-# is pushed onto the manager since there's no time-bounded state to track).
-static func make_debuff_effect(debuff_type: String) -> PowerUpEffect:
+# Description of the debuff to push at the player — a (type_id, duration) pair
+# routed through Player.apply_debuff → PowerUpManager.apply. Empty Dictionary
+# for misfire (no time-bounded state to track; apply_misfire handles its own
+# side effect at hit time).
+static func make_debuff_description(debuff_type: String) -> Dictionary:
 	match debuff_type:
 		DEBUFF_CONFUSION:
-			return ConfusionEffect.new(DEBUFF_DURATION)
+			return {"type_id": PowerUpEffect.TYPE_CONFUSION, "duration": DEBUFF_DURATION}
 		DEBUFF_SLOWNESS:
-			return SlownessEffect.new(DEBUFF_DURATION)
-	return null
+			return {"type_id": PowerUpEffect.TYPE_SLOWNESS, "duration": DEBUFF_DURATION}
+	return {}
 
 # Misfire: no spell unlocked / equipped → no-op (acceptance #5). Duck-typed so
 # a bare CharacterData with no spell tree (test mock or pre-spell save) passes

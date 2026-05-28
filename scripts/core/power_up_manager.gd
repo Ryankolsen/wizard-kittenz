@@ -12,30 +12,20 @@ extends RefCounted
 
 var _active: Dictionary = {}
 
-func apply(type_id: String, target) -> PowerUpEffect:
+# Single apply entry. `duration < 0` resolves to the registry default for the
+# kind (pickup path); an explicit value is passed through (debuff path, where
+# the enemy behavior tunes the timer). Refresh-not-stack: re-applying an
+# already-active kind refreshes the in-flight effect's remaining timer and
+# discards the would-be new instance, so two pickups / re-hits don't double
+# the magnitude.
+func apply(type_id: String, target, duration: float = -1.0) -> PowerUpEffect:
 	if _active.has(type_id):
 		var existing: PowerUpEffect = _active[type_id]
 		existing.refresh()
 		return existing
-	var effect: PowerUpEffect = PowerUpEffect.make(type_id)
+	var effect: PowerUpEffect = PowerUpEffect.make(type_id, duration)
 	if effect == null:
 		return null
-	effect.apply_to(target)
-	_active[type_id] = effect
-	return effect
-
-# Apply a caller-constructed effect (debuffs / future custom-duration buffs
-# that the string-id factory can't express). Same refresh-not-stack semantics
-# as apply(): if `effect.type` is already active, the in-flight effect's
-# duration is refreshed and the passed instance is discarded.
-func apply_effect(effect: PowerUpEffect, target) -> PowerUpEffect:
-	if effect == null:
-		return null
-	var type_id := effect.type
-	if _active.has(type_id):
-		var existing: PowerUpEffect = _active[type_id]
-		existing.refresh()
-		return existing
 	effect.apply_to(target)
 	_active[type_id] = effect
 	return effect
