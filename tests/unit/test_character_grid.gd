@@ -49,8 +49,8 @@ func test_card_lines_for_empty_slot():
 	for entry in summaries:
 		by_arch[entry["archetype"]] = entry
 	var battle: Dictionary = by_arch[SaveBundle.SLOT_BATTLE]
-	assert_eq(CharacterGrid.card_name_text(battle), "New",
-		"empty slot's name line is the New prompt")
+	assert_eq(CharacterGrid.card_name_text(battle), "New Game",
+		"empty slot's name line is the New Game prompt")
 	assert_eq(CharacterGrid.card_class_text(battle), "Battle Kitten",
 		"empty slot still advertises its class")
 	assert_eq(CharacterGrid.card_level_text(battle), "",

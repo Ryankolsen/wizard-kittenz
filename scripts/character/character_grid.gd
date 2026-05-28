@@ -28,10 +28,10 @@ static func class_display_name(klass: int) -> String:
 	var raw: String = CharacterData.CharacterClass.keys()[idx]
 	return raw.replace("_", " ").to_lower().capitalize()
 
-# Card title line: the character's name when occupied, else the "New" prompt.
+# Card title line: the character's name when occupied, else the "New Game" prompt.
 static func card_name_text(summary: Dictionary) -> String:
 	if not summary.get("occupied", false):
-		return "New"
+		return "New Game"
 	return String(summary.get("name", ""))
 
 # Card class line: the archetype's display name, shown for occupied and empty

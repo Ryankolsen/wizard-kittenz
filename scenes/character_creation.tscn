@@ -73,6 +73,22 @@ layout_mode = 2
 text = "Wizard Kittenz"
 horizontal_alignment = 1
 
+[node name="MultiplayerButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Multiplayer"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
+[node name="ShopButton" type="Button" parent="MainMenu/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Shop"
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
+
 [node name="CharacterGrid" type="GridContainer" parent="MainMenu/VBox"]
 layout_mode = 2
 size_flags_horizontal = 4
@@ -111,7 +127,7 @@ stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/BattleSlotButton/Content"]
 layout_mode = 2
-text = "New"
+text = "New Game"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
@@ -165,7 +181,7 @@ stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/WizardSlotButton/Content"]
 layout_mode = 2
-text = "New"
+text = "New Game"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
@@ -219,7 +235,7 @@ stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/SleepySlotButton/Content"]
 layout_mode = 2
-text = "New"
+text = "New Game"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
@@ -273,7 +289,7 @@ stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="MainMenu/VBox/CharacterGrid/ChonkSlotButton/Content"]
 layout_mode = 2
-text = "New"
+text = "New Game"
 horizontal_alignment = 1
 autowrap_mode = 3
 mouse_filter = 2
@@ -295,22 +311,6 @@ text = ""
 horizontal_alignment = 1
 mouse_filter = 2
 theme_override_font_sizes/font_size = 12
-
-[node name="MultiplayerButton" type="Button" parent="MainMenu/VBox"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Multiplayer"
-theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
-theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
-
-[node name="ShopButton" type="Button" parent="MainMenu/VBox"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Shop"
-theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
-theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_pressed")
 
 [node name="QuickStart" type="CenterContainer" parent="."]
 visible = false
