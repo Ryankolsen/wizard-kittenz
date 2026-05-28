@@ -113,8 +113,11 @@ func _ensure_skeleton() -> void:
 
 	var avatar_col := VBoxContainer.new()
 	avatar_col.name = "AvatarColumn"
-	avatar_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	avatar_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Pin to top so a tall bag doesn't push the avatar to the middle of the
+	# scroll region — with a long inventory the avatar would otherwise be
+	# centered against the full content height.
+	avatar_col.alignment = BoxContainer.ALIGNMENT_BEGIN
+	avatar_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_avatar = _CharacterAvatarScript.new()
 	_avatar.name = "CharacterAvatar"
 	_avatar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
