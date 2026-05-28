@@ -17,7 +17,7 @@ const SaveSlotsRef = preload("res://scripts/core/save_slots.gd")
 @export var main_scene_path: String = "res://scenes/main.tscn"
 @export var lobby_scene_path: String = "res://scenes/lobby.tscn"
 
-@onready var _main_menu: Control = $MainMenu
+@onready var _main_menu: ScrollContainer = $MainMenu
 @onready var _quick_start_panel: Control = $QuickStart
 @onready var _customize_panel: Control = $Customize
 @onready var _multi_menu: Control = $MultiMenu
@@ -31,6 +31,7 @@ const SaveSlotsRef = preload("res://scripts/core/save_slots.gd")
 @onready var _multiplayer_button: Button = $MainMenu/VBox/TopButtons/MultiplayerButton
 @onready var _shop_button: Button = $MainMenu/VBox/TopButtons/ShopButton
 @onready var _main_title: Label = $MainMenu/VBox/Title
+@onready var _scroll_hint: Label = $ScrollHint
 
 @onready var _slot_title: Label = $SlotActionPanel/VBox/SlotTitle
 @onready var _slot_continue_button: Button = $SlotActionPanel/VBox/ContinueButton
@@ -107,6 +108,7 @@ func _ready() -> void:
 	_apply_unlock_gates()
 	_refresh_card_grid()
 	_show_main_menu()
+	_wire_scroll_hint()
 
 	# Daily login streak popup (PRD #237 / issue #244). Deferred so the rest
 	# of _ready (menu visibility, button wiring) completes before the popup
@@ -433,3 +435,34 @@ static func can_enter_multiplayer(bundle: SaveBundle, archetype: String) -> bool
 # directly; this thin wrapper preserves the old API surface.
 static func select_class(klass: CharacterData.CharacterClass, character_name: String = "Kitten") -> CharacterData:
 	return CharacterData.make_new(klass, character_name)
+
+# Scroll-down indicator on the main menu. The CharacterGrid's lower row
+# (Sleepy/Chonk) sits below the fold on short viewports, and the default
+# scrollbar is easy to miss — this floating hint at the bottom-center pulses
+# while there's more to scroll and hides itself at the bottom or when the
+# main menu is not the active panel.
+func _wire_scroll_hint() -> void:
+	if _scroll_hint == null or _main_menu == null:
+		return
+	var vbar := _main_menu.get_v_scroll_bar()
+	if vbar != null:
+		vbar.value_changed.connect(func(_v: float) -> void: _update_scroll_hint())
+		vbar.changed.connect(_update_scroll_hint)
+	_main_menu.resized.connect(_update_scroll_hint)
+	_main_menu.visibility_changed.connect(_update_scroll_hint)
+	var tween := create_tween().set_loops()
+	tween.tween_property(_scroll_hint, "modulate:a", 0.45, 0.8).set_trans(Tween.TRANS_SINE)
+	tween.tween_property(_scroll_hint, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
+	_update_scroll_hint.call_deferred()
+
+func _update_scroll_hint() -> void:
+	if _scroll_hint == null or _main_menu == null:
+		return
+	if not _main_menu.visible:
+		_scroll_hint.visible = false
+		return
+	var vbar := _main_menu.get_v_scroll_bar()
+	if vbar == null:
+		_scroll_hint.visible = false
+		return
+	_scroll_hint.visible = (vbar.max_value - vbar.page) > (vbar.value + 1.0)
