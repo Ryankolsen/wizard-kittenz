@@ -18,6 +18,13 @@ var description: String = ""
 var currency_type: int = CurrencyLedger.Currency.GOLD
 var price: int = 0
 var category: String = ""
+# Gear rows (CATEGORY_GEAR) populate these from the underlying ItemData so
+# ShopScreen can render the broken-up layout (per-bonus labels + tinted
+# rarity word) via ItemDisplayFormatter without re-resolving the ItemData.
+# Non-gear rows leave rarity at the -1 sentinel and bonus_lines empty — see
+# PRD #292 Slice 3 (#295).
+var rarity: int = -1
+var bonus_lines: Array[String] = []
 
 static func make(p_product_id: String, p_display_name: String, p_description: String,
 		p_currency_type: int, p_price: int, p_category: String) -> ShopCatalogItem:

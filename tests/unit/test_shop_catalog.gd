@@ -141,3 +141,40 @@ func test_find_resolves_gear_product_id_without_class_context():
 	assert_eq(row.category, ShopCatalogItem.CATEGORY_GEAR)
 	assert_eq(row.price, 1000)
 	assert_eq(row.currency_type, CurrencyLedger.Currency.GOLD)
+
+# --- Slice 3 of PRD #292: shop gear rows use the formatter ------------------
+
+func test_gear_row_rarity_field_populated_from_item_data():
+	# shop_archmage_staff is Epic in ItemCatalog (line 113), so the row's
+	# rarity field must mirror that — Slice 2 (#294) tints the equipped tile
+	# from this same source, Slice 3 surfaces it to the shop row.
+	var row := ShopCatalog.find("shop_archmage_staff")
+	assert_not_null(row)
+	assert_eq(row.rarity, ItemData.Rarity.EPIC)
+
+func test_gear_row_bonus_lines_humanized_via_formatter():
+	# Acceptance: "+N Magic Attack" — humanized, not "magic_attack +N.0".
+	var row := ShopCatalog.find("shop_archmage_staff")
+	assert_not_null(row)
+	assert_eq(row.bonus_lines.size(), 1)
+	assert_eq(row.bonus_lines[0], "+10 Magic Attack")
+
+func test_gem_bundle_row_unchanged_by_formatter_path():
+	# Regression guard: non-gear rows keep their free-form description and an
+	# unset/default rarity sentinel. The formatter must be gear-only.
+	var row := ShopCatalog.find(PurchaseRegistry.GEM_BUNDLE_STARTER)
+	assert_not_null(row)
+	assert_eq(row.rarity, -1)
+	assert_eq(row.bonus_lines.size(), 0)
+	assert_true(row.description.find("Gems") >= 0,
+		"gem bundle description should still describe gems: " + row.description)
+
+func test_gear_row_description_no_longer_uses_run_on_format():
+	# The old "magic_attack +10.0" string must not appear anywhere on the gear
+	# row — AC: "old attack +2.0 style description no longer appears for gear".
+	var row := ShopCatalog.find("shop_archmage_staff")
+	assert_not_null(row)
+	assert_eq(row.description.find("magic_attack"), -1,
+		"gear row leaked raw stat key: " + row.description)
+	assert_eq(row.description.find("+10.0"), -1,
+		"gear row leaked unhumanized number format: " + row.description)

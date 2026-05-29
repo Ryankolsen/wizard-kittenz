@@ -212,12 +212,29 @@ func _add_item_row(item: ShopCatalogItem) -> void:
 	name_label.text = item.display_name
 	name_desc.add_child(name_label)
 
-	var desc_label := Label.new()
-	desc_label.text = item.description
-	desc_label.modulate = Color(0.7, 0.7, 0.7, 1)
-	desc_label.add_theme_font_size_override("font_size", 11)
-	desc_label.autowrap_mode = 3
-	name_desc.add_child(desc_label)
+	if item.category == ShopCatalogItem.CATEGORY_GEAR:
+		# Broken-up layout (PRD #292 / Slice 3): tinted rarity word on its own
+		# line, then one Label per humanized bonus. Mirrors the equipped-detail
+		# stack so a player sees the same shape in the shop and the bag.
+		var rarity_label := Label.new()
+		rarity_label.text = ItemDisplayFormatter.RARITY_LABELS.get(item.rarity, "")
+		rarity_label.add_theme_color_override("font_color",
+			ItemDisplayFormatter.RARITY_COLORS.get(item.rarity,
+				ItemDisplayFormatter.RARITY_COLORS[ItemData.Rarity.COMMON]))
+		rarity_label.add_theme_font_size_override("font_size", 11)
+		name_desc.add_child(rarity_label)
+		for line in item.bonus_lines:
+			var bonus_label := Label.new()
+			bonus_label.text = line
+			bonus_label.add_theme_font_size_override("font_size", 11)
+			name_desc.add_child(bonus_label)
+	else:
+		var desc_label := Label.new()
+		desc_label.text = item.description
+		desc_label.modulate = Color(0.7, 0.7, 0.7, 1)
+		desc_label.add_theme_font_size_override("font_size", 11)
+		desc_label.autowrap_mode = 3
+		name_desc.add_child(desc_label)
 
 	row.add_child(name_desc)
 

@@ -117,6 +117,82 @@ func test_row_refreshes_to_owned_after_purchase():
 	assert_eq(btn.text, "Owned")
 	assert_true(btn.disabled)
 
+# --- Slice 3 of PRD #292: gear rows use the formatter -----------------------
+
+func _wizard_character() -> CharacterData:
+	var c := CharacterData.new()
+	c.character_class = CharacterData.CharacterClass.WIZARD_KITTEN
+	return c
+
+func _labels_under(node: Node) -> Array:
+	var out: Array = []
+	for child in node.get_children():
+		if child is Label:
+			out.append(child)
+		if child.get_child_count() > 0:
+			out.append_array(_labels_under(child))
+	return out
+
+func test_gear_row_renders_one_label_per_bonus_line():
+	# shop_archmage_staff is wizard-eligible Epic w/ magic_attack +10 — the
+	# formatter emits "+10 Magic Attack", which the row must surface as a
+	# distinct Label (not a run-on description).
+	var screen := _make_screen(CurrencyLedger.new(), SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _wizard_character())
+	var row: HBoxContainer = screen._rows_by_product.get("shop_archmage_staff")
+	assert_not_null(row, "expected a row for shop_archmage_staff")
+	var labels := _labels_under(row)
+	var saw_bonus := false
+	for l in labels:
+		if l.text == "+10 Magic Attack":
+			saw_bonus = true
+	assert_true(saw_bonus, "expected a Label with text '+10 Magic Attack'")
+
+func test_gear_row_renders_tinted_rarity_label():
+	# Rarity word lives on its own Label tinted with the formatter's EPIC color,
+	# matching the equipped-tile borders (PRD #292 AC).
+	var screen := _make_screen(CurrencyLedger.new(), SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _wizard_character())
+	var row: HBoxContainer = screen._rows_by_product.get("shop_archmage_staff")
+	assert_not_null(row)
+	var labels := _labels_under(row)
+	var rarity_label: Label = null
+	for l in labels:
+		if l.text == "Epic":
+			rarity_label = l
+			break
+	assert_not_null(rarity_label, "expected a Label with text 'Epic'")
+	var expected := ItemDisplayFormatter.RARITY_COLORS[ItemData.Rarity.EPIC]
+	assert_eq(rarity_label.get_theme_color("font_color"), expected,
+		"rarity label must use formatter EPIC color")
+
+func test_gear_row_does_not_show_runon_description():
+	# Regression guard: AC "old attack +2.0 style description no longer appears
+	# for gear" — no label may contain the raw stat key or the unhumanized
+	# number format.
+	var screen := _make_screen(CurrencyLedger.new(), SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _wizard_character())
+	var row: HBoxContainer = screen._rows_by_product.get("shop_archmage_staff")
+	assert_not_null(row)
+	for l in _labels_under(row):
+		assert_eq(l.text.find("magic_attack"), -1,
+			"gear row label leaked raw stat key: " + l.text)
+		assert_eq(l.text.find("+10.0"), -1,
+			"gear row label leaked unhumanized number: " + l.text)
+
+func test_gem_bundle_row_still_uses_single_description_label():
+	# Non-gear rows render their description verbatim — formatter must be
+	# gear-only (regression guard).
+	var screen := _make_screen(CurrencyLedger.new(), SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _wizard_character())
+	var row: HBoxContainer = screen._rows_by_product.get(PurchaseRegistry.GEM_BUNDLE_STARTER)
+	assert_not_null(row)
+	var saw_desc := false
+	for l in _labels_under(row):
+		if l.text.find("100 Gems") >= 0:
+			saw_desc = true
+	assert_true(saw_desc, "gem bundle should still render '100 Gems' description")
+
 # Gem-bundle replay (BillingManager re-emits succeeded on restart) is no-op
 # the second time thanks to CurrencyLedger.try_grant_bundle's session guard.
 func test_purchase_succeeded_replay_does_not_double_credit():

@@ -128,18 +128,18 @@ static func gear_price_for_rarity(rarity: int) -> int:
 	return 0
 
 static func _gear_row(item_data: ItemData) -> ShopCatalogItem:
-	return ShopCatalogItem.make(
+	# Description is left empty for gear — ShopScreen renders per-bonus labels
+	# from bonus_lines instead, so any single-string description here would be
+	# dead weight (and would risk re-introducing the "magic_attack +10.0"
+	# regression PRD #292 closes). Rarity + humanized bonus_lines flow from
+	# ItemDisplayFormatter, the same source equipment panel rows use.
+	var row := ShopCatalogItem.make(
 		item_data.id,
 		item_data.display_name,
-		_gear_description(item_data),
+		"",
 		CurrencyLedger.Currency.GOLD,
 		gear_price_for_rarity(item_data.rarity),
 		ShopCatalogItem.CATEGORY_GEAR)
-
-static func _gear_description(item_data: ItemData) -> String:
-	var out := ""
-	for b in item_data.bonuses:
-		if out != "":
-			out += ", "
-		out += "%s +%s" % [b.stat_name, str(b.stat_bonus)]
-	return out
+	row.rarity = item_data.rarity
+	row.bonus_lines = ItemDisplayFormatter.bonus_lines(item_data)
+	return row
