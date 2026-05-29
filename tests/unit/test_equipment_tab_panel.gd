@@ -127,13 +127,17 @@ func test_bag_weapon_row_shows_thumbnail():
 	assert_not_null(thumb.texture)
 	assert_eq(thumb.texture.resource_path, "res://assets/sprites/weapon_birthday_sparkler.png")
 
-func test_armor_row_has_no_thumbnail_texture():
+func test_armor_row_shows_rarity_tier_thumbnail():
+	# PRD #288 / issue #290: armor/accessory rows now render a rarity-tier
+	# sprite via ItemImageResolver. chain_mail is RARE → armor_rare.png.
 	var inv := ItemInventory.new()
 	inv.equip(ItemCatalog.find("chain_mail"))
 	var panel := _make_panel()
 	panel.refresh(inv, _make_char())
 	var thumb := panel.find_child("SlotThumb_%d" % ItemData.Slot.ARMOR, true, false) as TextureRect
-	assert_null(thumb, "armor row must not include a weapon thumbnail node")
+	assert_not_null(thumb, "armor row must include a thumbnail node")
+	assert_not_null(thumb.texture, "armor thumbnail texture must be set")
+	assert_eq(thumb.texture.resource_path, "res://assets/sprites/armor_rare.png")
 
 func test_empty_weapon_slot_has_no_thumbnail_texture():
 	var inv := ItemInventory.new()

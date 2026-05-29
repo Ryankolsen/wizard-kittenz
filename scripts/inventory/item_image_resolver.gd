@@ -5,7 +5,8 @@ extends RefCounted
 # Weapons first look up a per-id sprite (the new themed art per
 # docs/weapon_art_checklist.md); if the file doesn't exist yet, fall back
 # to the class-default sprite from WeaponDefinition.for_class().
-# Armor/accessory items have no image in this version.
+# Armor/accessory items resolve via a per-id override (empty for now),
+# then a slot+rarity tier image gated on ResourceLoader.exists.
 
 const _PER_ID_SPRITES := {
 	# Battle Kitten — slice 1
@@ -26,18 +27,43 @@ const _PER_ID_SPRITES := {
 	"shop_archmage_staff": "res://assets/sprites/weapon_archmage_astrolabe.png",
 }
 
+# Per-id override for armor/accessory bespoke art. Empty for now; entries
+# here win over the slot+rarity tier image when the override file exists.
+const _GEAR_PER_ID_OVERRIDES := {}
+
+const _TIER_SPRITES := {
+	ItemData.Slot.ARMOR: {
+		ItemData.Rarity.COMMON: "res://assets/sprites/armor_common.png",
+		ItemData.Rarity.RARE: "res://assets/sprites/armor_rare.png",
+		ItemData.Rarity.EPIC: "res://assets/sprites/armor_epic.png",
+	},
+	ItemData.Slot.ACCESSORY: {
+		ItemData.Rarity.COMMON: "res://assets/sprites/accessory_common.png",
+		ItemData.Rarity.RARE: "res://assets/sprites/accessory_rare.png",
+		ItemData.Rarity.EPIC: "res://assets/sprites/accessory_epic.png",
+	},
+}
+
 static func texture_path_for_item(item: ItemData) -> String:
 	if item == null:
 		return ""
-	if item.slot != ItemData.Slot.WEAPON:
-		return ""
-	if _PER_ID_SPRITES.has(item.id):
-		var path: String = _PER_ID_SPRITES[item.id]
-		if ResourceLoader.exists(path):
-			return path
-	if item.allowed_classes.is_empty():
-		return ""
-	var def := WeaponDefinition.for_class(item.allowed_classes[0])
-	if def == null:
-		return ""
-	return def.texture_path
+	if item.slot == ItemData.Slot.WEAPON:
+		if _PER_ID_SPRITES.has(item.id):
+			var path: String = _PER_ID_SPRITES[item.id]
+			if ResourceLoader.exists(path):
+				return path
+		if item.allowed_classes.is_empty():
+			return ""
+		var def := WeaponDefinition.for_class(item.allowed_classes[0])
+		if def == null:
+			return ""
+		return def.texture_path
+	if _GEAR_PER_ID_OVERRIDES.has(item.id):
+		var override_path: String = _GEAR_PER_ID_OVERRIDES[item.id]
+		if ResourceLoader.exists(override_path):
+			return override_path
+	var slot_tiers: Dictionary = _TIER_SPRITES.get(item.slot, {})
+	var tier_path: String = slot_tiers.get(item.rarity, "")
+	if tier_path != "" and ResourceLoader.exists(tier_path):
+		return tier_path
+	return ""
