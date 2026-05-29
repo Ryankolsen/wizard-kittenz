@@ -20,12 +20,6 @@ const SLOTS := [
 	{"slot": ItemData.Slot.ACCESSORY, "label": "Accessory"},
 ]
 
-const RARITY_NAMES := {
-	ItemData.Rarity.COMMON: "Common",
-	ItemData.Rarity.RARE: "Rare",
-	ItemData.Rarity.EPIC: "Epic",
-}
-
 const _CharacterAvatarScript := preload("res://scripts/ui/character_avatar.gd")
 
 # Small square thumbnail next to weapon rows (PRD #268 / issue #271).
@@ -59,11 +53,6 @@ const _TILE_BG_EMPTY := Color(0.08, 0.09, 0.12, 0.6)
 const _TILE_BORDER_EMPTY := Color(0.42, 0.45, 0.52, 0.5)
 const _TILE_LABEL_FILLED := Color(1, 1, 1, 0.95)
 const _TILE_LABEL_EMPTY := Color(0.62, 0.64, 0.7, 0.7)
-const _RARITY_COLORS := {
-	ItemData.Rarity.COMMON: Color(0.72, 0.74, 0.78, 0.95),
-	ItemData.Rarity.RARE: Color(0.36, 0.56, 0.95, 0.95),
-	ItemData.Rarity.EPIC: Color(0.74, 0.42, 0.96, 0.95),
-}
 
 var _inventory: ItemInventory = null
 var _character: CharacterData = null
@@ -246,26 +235,60 @@ func _style_tile(tile: Button, item: ItemData) -> void:
 		tile.add_theme_stylebox_override(state, sb)
 
 func _rarity_color(rarity: int) -> Color:
-	return _RARITY_COLORS.get(rarity, _RARITY_COLORS[ItemData.Rarity.COMMON])
+	return ItemDisplayFormatter.RARITY_COLORS.get(rarity, ItemDisplayFormatter.RARITY_COLORS[ItemData.Rarity.COMMON])
 
 func _slot_tooltip(slot_label: String, item: ItemData) -> String:
 	if item == null:
 		return "%s: Empty" % slot_label
-	return "%s: %s (%s) — %s" % [slot_label, item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
+	# Multi-line, no " — " or "(Rarity)" parenthetical — see PRD #292.
+	var parts: Array[String] = ["%s: %s" % [slot_label, ItemDisplayFormatter.display_name(item)],
+		ItemDisplayFormatter.rarity_label(item)]
+	for line in ItemDisplayFormatter.bonus_lines(item):
+		parts.append(line)
+	return "\n".join(parts)
 
-func _make_equipped_detail(slot: int, slot_label: String, item: ItemData) -> Control:
+# Vertical stack: name / tinted rarity / one label per bonus. Used by both
+# the bag rows and the equipped tap-to-expand detail so they share an
+# identical layout (PRD #292 acceptance criteria).
+func _build_item_text_column(prefix: String, item: ItemData) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.name = "%sText" % prefix
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 0)
+
+	var name_lbl := Label.new()
+	name_lbl.name = "%sName" % prefix
+	name_lbl.text = ItemDisplayFormatter.display_name(item)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Wrap long names across multiple lines rather than ellipsizing — the
+	# PRD explicitly forbids name truncation.
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(name_lbl)
+
+	var rarity_lbl := Label.new()
+	rarity_lbl.name = "%sRarity" % prefix
+	rarity_lbl.text = ItemDisplayFormatter.rarity_label(item)
+	rarity_lbl.add_theme_color_override("font_color", ItemDisplayFormatter.rarity_color(item))
+	col.add_child(rarity_lbl)
+
+	var lines := ItemDisplayFormatter.bonus_lines(item)
+	for i in lines.size():
+		var bonus_lbl := Label.new()
+		bonus_lbl.name = "%sBonus_%d" % [prefix, i]
+		bonus_lbl.text = lines[i]
+		col.add_child(bonus_lbl)
+	return col
+
+func _make_equipped_detail(slot: int, _slot_label: String, item: ItemData) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "EquippedDetail_%d" % slot
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var lbl := Label.new()
-	lbl.name = "EquippedDetailLabel_%d" % slot
-	lbl.text = _slot_tooltip(slot_label, item)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(lbl)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.add_child(_build_item_text_column("EquippedDetail_%d_" % slot, item))
 	var btn := Button.new()
 	btn.name = "UnequipButton_%d" % slot
 	btn.text = "Unequip"
+	btn.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var slot_id := slot
 	btn.pressed.connect(func(): _on_unequip_pressed(slot_id))
 	row.add_child(btn)
@@ -295,22 +318,16 @@ func _make_bag_row(item: ItemData, index: int) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "BagRow_%d" % index
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	var thumb := _make_thumbnail("BagThumb_%d" % index, item)
 	if thumb != null:
+		thumb.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		row.add_child(thumb)
-	var label := Label.new()
-	label.name = "BagLabel_%d" % index
-	label.text = "%s (%s) — %s" % [item.display_name, _rarity_name(item.rarity), _stat_desc(item)]
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Ellipsize rather than force the panel wider than the 480px screen when
-	# an item's name + bonuses run long; the full text stays in the tooltip.
-	label.clip_text = true
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	label.tooltip_text = label.text
-	row.add_child(label)
+	row.add_child(_build_item_text_column("Bag_%d_" % index, item))
 	var btn := Button.new()
 	btn.name = "EquipButton_%d" % index
 	btn.text = "Equip"
+	btn.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var item_id := item.id
 	btn.pressed.connect(func(): _on_equip_pressed(item_id))
 	row.add_child(btn)
@@ -363,22 +380,6 @@ func _find_bag_item(item_id: String) -> ItemData:
 			return it
 	return null
 
-func _stat_desc(item: ItemData) -> String:
-	var lines: Array[String] = []
-	for bonus in item.bonuses:
-		if bonus == null or bonus.stat_name == "":
-			continue
-		lines.append(_format_bonus(bonus))
-	return ", ".join(lines)
-
-func _format_bonus(bonus: StatBonus) -> String:
-	var formatted: String
-	if bonus.stat_bonus == int(bonus.stat_bonus):
-		formatted = "+%d" % int(bonus.stat_bonus)
-	else:
-		formatted = "+%.2f" % bonus.stat_bonus
-	return "%s %s" % [formatted, bonus.stat_name]
-
 func _apply_item_delta(item: ItemData, sign: float) -> void:
 	for bonus in item.bonuses:
 		if bonus == null or bonus.stat_name == "":
@@ -400,6 +401,3 @@ func _make_thumbnail(node_name: String, item: ItemData) -> TextureRect:
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	return rect
-
-func _rarity_name(rarity: int) -> String:
-	return RARITY_NAMES.get(rarity, "Common")

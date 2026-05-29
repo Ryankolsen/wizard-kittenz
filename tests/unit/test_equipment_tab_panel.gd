@@ -177,6 +177,92 @@ func test_null_inventory_does_not_crash():
 # Character submenu scrolls as one page (via the outer TabScroll), so the
 # bag lays out at full height — the previous nested scroll trapped the item
 # list in a cramped ~24px window that made bag items hard to see.
+# PRD #292 / issue #294: bag rows + equipped detail are rendered as a
+# vertical stack (name / tinted rarity / one label per bonus) via
+# ItemDisplayFormatter, replacing the cramped run-on label.
+
+func _labels_in(root: Node) -> Array:
+	var out: Array = []
+	for child in root.find_children("*", "Label", true, false):
+		out.append(child)
+	return out
+
+func test_bag_row_renders_name_on_its_own_label():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))  # "Slippery Mackerel", Common, +2 Attack
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var row := panel.find_child("BagRow_0", true, false)
+	assert_not_null(row)
+	var found_name := false
+	for lbl in _labels_in(row):
+		if lbl.text == "Slippery Mackerel":
+			found_name = true
+			break
+	assert_true(found_name, "bag row must include a label whose text is exactly the display name")
+
+func test_bag_row_renders_one_label_per_bonus_line():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("enchanted_blade"))  # +4 Attack, +4 Magic Attack
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var row := panel.find_child("BagRow_0", true, false)
+	assert_not_null(row)
+	var texts: Array = []
+	for lbl in _labels_in(row):
+		texts.append(lbl.text)
+	assert_true(texts.has("+4 Attack"), "row must contain a separate '+4 Attack' label, got %s" % str(texts))
+	assert_true(texts.has("+4 Magic Attack"), "row must contain a separate '+4 Magic Attack' label, got %s" % str(texts))
+
+func test_bag_row_rarity_label_uses_rarity_color():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("silver_sword"))  # Rare
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var row := panel.find_child("BagRow_0", true, false)
+	assert_not_null(row)
+	var rare_lbl: Label = null
+	for lbl in _labels_in(row):
+		if lbl.text == "Rare":
+			rare_lbl = lbl
+			break
+	assert_not_null(rare_lbl, "bag row must include a 'Rare' label")
+	assert_eq(rare_lbl.get_theme_color("font_color"),
+		ItemDisplayFormatter.RARITY_COLORS[ItemData.Rarity.RARE])
+
+func test_bag_row_has_no_runon_separator_or_paren_rarity():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))  # Common
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var row := panel.find_child("BagRow_0", true, false)
+	assert_not_null(row)
+	for lbl in _labels_in(row):
+		assert_false(lbl.text.contains(" — "),
+			"no label in the row may contain the run-on em-dash separator, found in '%s'" % lbl.text)
+		assert_false(lbl.text.contains("(Common)"),
+			"no label may contain the '(Common)' parenthetical, found in '%s'" % lbl.text)
+
+func test_equipped_detail_uses_same_vertical_layout():
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("silver_sword"))  # Rare, +5 Attack
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var tile := panel.find_child("SlotTile_%d" % ItemData.Slot.WEAPON, true, false) as Button
+	tile.pressed.emit()
+	var detail := panel.find_child("EquippedDetail_%d" % ItemData.Slot.WEAPON, true, false)
+	assert_not_null(detail, "expanding a slot must reveal a detail row")
+	var texts: Array = []
+	for lbl in _labels_in(detail):
+		texts.append(lbl.text)
+		assert_false(lbl.text.contains(" — "), "equipped detail label must not use ' — '")
+		assert_false(lbl.text.contains("(Rare)"), "equipped detail label must not use '(Rare)'")
+	assert_true(texts.has("Alley-Cat Cutlass"), "detail must include name label, got %s" % str(texts))
+	assert_true(texts.has("Rare"), "detail must include rarity label, got %s" % str(texts))
+	assert_true(texts.has("+5 Attack"), "detail must include per-bonus label, got %s" % str(texts))
+	var unequip := detail.find_child("UnequipButton_%d" % ItemData.Slot.WEAPON, true, false) as Button
+	assert_not_null(unequip, "detail row must still expose an Unequip button")
+
 func test_bag_has_no_inner_scroll_container():
 	var inv := ItemInventory.new()
 	for i in range(8):
