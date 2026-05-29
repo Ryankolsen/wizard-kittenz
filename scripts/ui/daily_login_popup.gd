@@ -32,14 +32,14 @@ var _claimed_already := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_background = $Backdrop/Center/Panel/Background
-	_broken_banner = $Backdrop/Center/Panel/VBox/BrokenBanner
-	_day_label = $Backdrop/Center/Panel/VBox/DayLabel
-	_focal_image = $Backdrop/Center/Panel/VBox/Focal
-	_reward_label = $Backdrop/Center/Panel/VBox/RewardLabel
-	_preview_row = $Backdrop/Center/Panel/VBox/Preview
-	_claim_button = $Backdrop/Center/Panel/VBox/ClaimButton
-	_panel = $Backdrop/Center/Panel
+	_background = $Backdrop/Panel/Background
+	_broken_banner = $Backdrop/Panel/VBox/BrokenBanner
+	_day_label = $Backdrop/Panel/VBox/DayLabel
+	_focal_image = $Backdrop/Panel/VBox/ScrollContent/InnerVBox/Focal
+	_reward_label = $Backdrop/Panel/VBox/ScrollContent/InnerVBox/RewardLabel
+	_preview_row = $Backdrop/Panel/VBox/ScrollContent/InnerVBox/Preview
+	_claim_button = $Backdrop/Panel/VBox/ClaimButton
+	_panel = $Backdrop/Panel
 	_claim_button.pressed.connect(_on_claim_pressed)
 
 # Populate from a DailyStreakEngine.resolve() result. Safe to call before or

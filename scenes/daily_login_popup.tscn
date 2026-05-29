@@ -10,9 +10,9 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.85, 0.75, 0.35, 1)
 content_margin_left = 8.0
-content_margin_top = 8.0
+content_margin_top = 4.0
 content_margin_right = 8.0
-content_margin_bottom = 8.0
+content_margin_bottom = 4.0
 
 [node name="DailyLoginPopup" type="CanvasLayer"]
 layer = 5
@@ -25,25 +25,26 @@ anchor_bottom = 1.0
 color = Color(0, 0, 0, 0.6)
 mouse_filter = 0
 
-[node name="Center" type="CenterContainer" parent="Backdrop"]
+[node name="Panel" type="PanelContainer" parent="Backdrop"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-
-[node name="Panel" type="PanelContainer" parent="Backdrop/Center"]
-custom_minimum_size = Vector2(452, 246)
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -8.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_daily")
 
-[node name="Background" type="TextureRect" parent="Backdrop/Center/Panel"]
+[node name="Background" type="TextureRect" parent="Backdrop/Panel"]
 expand_mode = 1
 stretch_mode = 6
 
-[node name="Scrim" type="ColorRect" parent="Backdrop/Center/Panel"]
+[node name="Scrim" type="ColorRect" parent="Backdrop/Panel"]
 color = Color(0, 0, 0, 0.38)
 
-[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel"]
-theme_override_constants/separation = 4
+[node name="VBox" type="VBoxContainer" parent="Backdrop/Panel"]
+theme_override_constants/separation = 2
 
-[node name="TitleLabel" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="TitleLabel" type="Label" parent="Backdrop/Panel/VBox"]
 horizontal_alignment = 1
 text = "Daily Reward"
 theme_override_font_sizes/font_size = 14
@@ -51,14 +52,14 @@ theme_override_colors/font_color = Color(0.85, 0.75, 0.35, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 3
 
-[node name="DayLabel" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="DayLabel" type="Label" parent="Backdrop/Panel/VBox"]
 horizontal_alignment = 1
 text = "Day 1"
 theme_override_font_sizes/font_size = 20
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 
-[node name="BrokenBanner" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="BrokenBanner" type="Label" parent="Backdrop/Panel/VBox"]
 horizontal_alignment = 1
 text = ""
 theme_override_font_sizes/font_size = 12
@@ -68,32 +69,40 @@ theme_override_constants/outline_size = 3
 autowrap_mode = 2
 visible = false
 
-[node name="Spacer" type="Control" parent="Backdrop/Center/Panel/VBox"]
+[node name="ScrollContent" type="ScrollContainer" parent="Backdrop/Panel/VBox"]
+size_flags_horizontal = 3
 size_flags_vertical = 3
+horizontal_scroll_mode = 3
 
-[node name="Focal" type="TextureRect" parent="Backdrop/Center/Panel/VBox"]
-custom_minimum_size = Vector2(0, 48)
+[node name="InnerVBox" type="VBoxContainer" parent="Backdrop/Panel/VBox/ScrollContent"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+alignment = 1
+theme_override_constants/separation = 2
+
+[node name="Focal" type="TextureRect" parent="Backdrop/Panel/VBox/ScrollContent/InnerVBox"]
+custom_minimum_size = Vector2(0, 40)
 expand_mode = 1
 stretch_mode = 5
 
-[node name="RewardLabel" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="RewardLabel" type="Label" parent="Backdrop/Panel/VBox/ScrollContent/InnerVBox"]
 horizontal_alignment = 1
 text = ""
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 
-[node name="PreviewHeader" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="PreviewHeader" type="Label" parent="Backdrop/Panel/VBox/ScrollContent/InnerVBox"]
 horizontal_alignment = 1
 text = "Coming up"
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 3
 
-[node name="Preview" type="HBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="Preview" type="HBoxContainer" parent="Backdrop/Panel/VBox/ScrollContent/InnerVBox"]
 alignment = 1
 theme_override_constants/separation = 12
 
-[node name="ClaimButton" type="Button" parent="Backdrop/Center/Panel/VBox"]
+[node name="ClaimButton" type="Button" parent="Backdrop/Panel/VBox"]
 custom_minimum_size = Vector2(0, 30)
 text = "Claim"
