@@ -21,12 +21,17 @@ func test_make_new_angry_pigeon_has_expected_defaults():
 	assert_eq(e.enemy_id, "", "fresh spawn has no id until the spawn layer mints one")
 	assert_false(e.is_boss, "non-boss by default")
 
-func test_enum_has_exactly_five_new_values():
-	# Enum dictionary is name -> int. Asserting the keys pins down both the
-	# count and the spelling, so a typo or stray addition fails loudly.
+func test_enum_has_expected_values():
+	# 5 original regular-enemy kinds + 9 boss-only kinds added by PRD #297 slice 1.
+	# Asserting the keys pins down both the count and the spelling, so a typo or
+	# stray addition fails loudly.
 	var names := EnemyData.EnemyKind.keys()
-	assert_eq(names.size(), 5)
-	var expected := ["ANGRY_PIGEON", "ROGUE_ROOMBA", "DOG_KNIGHT", "CATNIP_DEALER", "HAUNTED_SPRAY_BOTTLE"]
+	assert_eq(names.size(), 14)
+	var expected := [
+		"ANGRY_PIGEON", "ROGUE_ROOMBA", "DOG_KNIGHT", "CATNIP_DEALER", "HAUNTED_SPRAY_BOTTLE",
+		"SIR_PICKLETON", "OLD_LADY_PEARL", "TRASH_PANDA_TYRONE", "BIG_BRUISER_BUSTER",
+		"LAST_CALL_LARRY", "THE_BOUNCER", "DJ_DUBSTEP", "KARAOKE_KAREN", "WARDEN_WRETCHED",
+	]
 	for n in expected:
 		assert_true(names.has(n), "EnemyKind missing %s" % n)
 	for old in ["SLIME", "BAT", "RAT"]:

@@ -1,7 +1,26 @@
 class_name EnemyData
 extends Resource
 
-enum EnemyKind { ANGRY_PIGEON, ROGUE_ROOMBA, DOG_KNIGHT, CATNIP_DEALER, HAUNTED_SPRAY_BOTTLE }
+# PRD #297 adds 9 boss-only kinds to the tail of the enum (slice 1 / #298).
+# They have no defaults beyond what the static helpers below already return for
+# any kind not explicitly cased — slice 2 / #299 wires per-kind stats and
+# display names. Order is the canonical floor order from BossRoster.
+enum EnemyKind {
+	ANGRY_PIGEON,
+	ROGUE_ROOMBA,
+	DOG_KNIGHT,
+	CATNIP_DEALER,
+	HAUNTED_SPRAY_BOTTLE,
+	SIR_PICKLETON,
+	OLD_LADY_PEARL,
+	TRASH_PANDA_TYRONE,
+	BIG_BRUISER_BUSTER,
+	LAST_CALL_LARRY,
+	THE_BOUNCER,
+	DJ_DUBSTEP,
+	KARAOKE_KAREN,
+	WARDEN_WRETCHED,
+}
 
 @export var enemy_name: String = "Angry Pigeon"
 @export var kind: EnemyKind = EnemyKind.ANGRY_PIGEON
