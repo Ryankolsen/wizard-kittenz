@@ -426,16 +426,17 @@ func test_planned_enemy_id_round_trips_through_apply_death():
 
 # --- new enemy roster (issue #154) -----------------------------------------
 
-func test_boss_enemy_name_is_the_vacuum():
-	# Generator-level: every boss room across many seeded dungeons emits
-	# "The Vacuum" as its enemy_name. Locks the boss-name rename against
-	# any future kind-routing change.
+func test_boss_enemy_name_matches_boss_roster_floor_1():
+	# Slice #301 (PRD #297): the boss name now reads from BossRoster
+	# (stamped on Room.boss_display_name by the generator). Default
+	# floor=1 means every boss is the Vacuum.
+	var expected: String = BossRoster.boss_for_floor(1).display_name
 	for seed in range(1, 30):
 		var dungeon := DungeonGenerator.generate(seed)
 		var boss_room: Room = dungeon.rooms[dungeon.boss_id]
 		var boss_data := RoomSpawnPlanner.plan_enemy(boss_room)
-		assert_eq(boss_data.enemy_name, "The Vacuum",
-			"seed %d boss is named The Vacuum" % seed)
+		assert_eq(boss_data.enemy_name, expected,
+			"seed %d boss name should match BossRoster (floor 1: %s)" % [seed, expected])
 
 func test_standard_rooms_never_emit_old_kind_names():
 	# None of the placeholder names (Slime / Bat / Rat) appear in the

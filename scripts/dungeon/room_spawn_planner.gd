@@ -84,8 +84,19 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 		data.defense = data.defense * BOSS_DEFENSE_MULT
 		data.xp_reward = data.xp_reward * BOSS_XP_MULT
 		data.gold_reward = data.gold_reward * BOSS_GOLD_MULT
-		data.enemy_name = "The Vacuum"
+		# Display name comes from BossRoster (stamped on the Room by the
+		# generator) so each floor's boss surfaces its flavor name —
+		# "Vacuum" for ROGUE_ROOMBA, "Sir Pickleton" for SIR_PICKLETON, etc.
+		# (#302 reads this on the HUD.) Legacy rooms whose generator predates
+		# BossRoster left boss_display_name empty; fall back to "The Vacuum"
+		# there so existing saves keep their boss-name surface.
+		if room.boss_display_name == "":
+			data.enemy_name = "The Vacuum"
+		else:
+			data.enemy_name = room.boss_display_name
 		data.detection_radius = BOSS_DETECTION_RADIUS
+		data.boss_sprite_left_path = room.boss_sprite_left_path
+		data.boss_sprite_right_path = room.boss_sprite_right_path
 	return data
 
 # Returns the power-up type string for a power-up room, or empty string

@@ -145,28 +145,17 @@ func test_boss_id_is_last():
 	var d := DungeonGenerator.generate(7)
 	assert_eq(d.boss_id, d.size() - 1)
 
-func test_boss_uses_harder_enemy_variant():
-	# Acceptance criterion: boss room contains a harder enemy variant than
-	# standard rooms. We assert the boss enemy_kind is in BOSS_ENEMY_KINDS
-	# (currently {RAT}) and at least one standard room is from
-	# STANDARD_ENEMY_KINDS (excluding RAT). RAT has higher base_max_hp
-	# and base_attack than SLIME/BAT — that's "harder" by construction.
-	for s in [1, 2, 3, 7, 42, 100]:
-		var d := DungeonGenerator.generate(s)
-		var boss := d.boss_room()
-		assert_true(DungeonGenerator.BOSS_ENEMY_KINDS.has(boss.enemy_kind),
-			"seed %d: boss enemy_kind %d should be in BOSS pool" % [s, boss.enemy_kind])
-		# Per-stat check: every standard room's enemy is strictly weaker
-		# than the boss in either max_hp or attack.
-		for r in d.rooms:
-			if r.type == Room.TYPE_STANDARD:
-				var standard_hp := EnemyData.base_max_hp_for(r.enemy_kind)
-				var standard_atk := EnemyData.base_attack_for(r.enemy_kind)
-				var boss_hp := EnemyData.base_max_hp_for(boss.enemy_kind)
-				var boss_atk := EnemyData.base_attack_for(boss.enemy_kind)
-				assert_true(boss_hp >= standard_hp and boss_atk >= standard_atk,
-					"boss (hp=%d atk=%d) should not be weaker than standard (hp=%d atk=%d)"
-					% [boss_hp, boss_atk, standard_hp, standard_atk])
+func test_boss_kind_matches_boss_roster_for_floor():
+	# Boss kind is now a deterministic per-floor lookup (PRD #297, slice
+	# #301): BossRoster.boss_for_floor(N).kind, not a random pool draw.
+	# Seeded with different RNG seeds but the same floor — the boss kind
+	# must not vary with the seed.
+	for floor_n in [1, 2, 5, 10, 11]:
+		var expected: int = BossRoster.boss_for_floor(floor_n).kind
+		for s in [1, 7, 42, 100]:
+			var d := DungeonGenerator.generate(s, floor_n)
+			assert_eq(d.boss_room().enemy_kind, expected,
+				"seed %d floor %d: boss kind should match BossRoster" % [s, floor_n])
 
 func test_only_powerup_rooms_have_power_up_type():
 	var d := DungeonGenerator.generate(42)
@@ -208,8 +197,8 @@ func test_only_combat_rooms_have_enemy_kind():
 				assert_true(DungeonGenerator.STANDARD_ENEMY_KINDS.has(r.enemy_kind),
 					"standard enemy_kind in pool")
 			Room.TYPE_BOSS:
-				assert_true(DungeonGenerator.BOSS_ENEMY_KINDS.has(r.enemy_kind),
-					"boss enemy_kind in pool")
+				assert_eq(r.enemy_kind, BossRoster.boss_for_floor(1).kind,
+					"boss enemy_kind matches BossRoster (default floor=1)")
 			Room.TYPE_BAR:
 				assert_eq(r.enemy_kind, -1, "bar room has no enemy")
 

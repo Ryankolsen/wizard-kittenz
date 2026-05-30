@@ -31,19 +31,12 @@ extends RefCounted
 const MIN_ROOMS := 10
 const MAX_ROOMS := 14
 
-# Both pools currently span the full 5-kind roster (PRD #151). All kinds
-# share equal base stats this phase, so boss "difficulty" comes from the
-# RoomSpawnPlanner boss multipliers, not from a separate stronger pool.
-# Future per-dungeon enemy config (PRD #151 user story 13) replaces these
-# constants with a data-driven, dungeon-keyed lookup.
+# Standard rooms still draw a random kind from the full 5-kind roster
+# (PRD #151). All kinds share equal base stats this phase; per-room
+# differentiation is a future PRD. The boss room's kind is no longer drawn
+# from a pool — it's a deterministic per-floor lookup via BossRoster
+# (PRD #297, slice #301), so BOSS_ENEMY_KINDS is gone.
 const STANDARD_ENEMY_KINDS := [
-	EnemyData.EnemyKind.ANGRY_PIGEON,
-	EnemyData.EnemyKind.ROGUE_ROOMBA,
-	EnemyData.EnemyKind.DOG_KNIGHT,
-	EnemyData.EnemyKind.CATNIP_DEALER,
-	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
-]
-const BOSS_ENEMY_KINDS := [
 	EnemyData.EnemyKind.ANGRY_PIGEON,
 	EnemyData.EnemyKind.ROGUE_ROOMBA,
 	EnemyData.EnemyKind.DOG_KNIGHT,
@@ -56,7 +49,7 @@ const POWER_UP_TYPES := ["catnip", "ale", "mushrooms"]
 # `seed < 0` -> draw a fresh random seed each call. Any non-negative seed
 # (including 0) is deterministic — RandomNumberGenerator treats 0 as a real
 # seed, so we use -1 as the "randomize" sentinel rather than overloading 0.
-static func generate(seed: int = -1) -> Dungeon:
+static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	var rng := RandomNumberGenerator.new()
 	if seed < 0:
 		rng.randomize()
@@ -128,7 +121,16 @@ static func generate(seed: int = -1) -> Dungeon:
 	# not be the bar — that would make them adjacent.
 	var boss_id := room_count - 1
 	var boss := Room.make(boss_id, Room.TYPE_BOSS)
-	boss.enemy_kind = BOSS_ENEMY_KINDS[rng.randi_range(0, BOSS_ENEMY_KINDS.size() - 1)]
+	# Boss kind + sprite paths are a deterministic per-floor lookup so each
+	# floor's boss feels distinct without re-rolling on retry / save-restore.
+	# Stamping the sprite paths onto the room (rather than re-querying at
+	# spawn time) lets the spawn layer + Enemy node stay floor-agnostic —
+	# they just read what's on the data they were handed.
+	var boss_info := BossRoster.boss_for_floor(floor_number)
+	boss.enemy_kind = boss_info.kind
+	boss.boss_sprite_left_path = boss_info.sprite_left_path
+	boss.boss_sprite_right_path = boss_info.sprite_right_path
+	boss.boss_display_name = boss_info.display_name
 	var boss_parent_idx := _pick_parent_excluding(rng, boss_id, bar_id)
 	dungeon.rooms[boss_parent_idx].connections.append(boss_id)
 	dungeon.add_room(boss)

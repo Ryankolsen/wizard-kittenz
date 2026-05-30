@@ -136,7 +136,13 @@ func _paint_dungeon() -> void:
 
 func _start_new_dungeon(gs) -> void:
 	var seed := _dungeon_seed_for(gs)
-	var dungeon := DungeonGenerator.generate(seed)
+	# Floor number is the 1-indexed equivalent of dungeon.depth
+	# (dungeons_completed BEFORE this run finalizes). BossRoster keys on it
+	# to pick the boss kind + sprites deterministically per floor.
+	var floor_number := 1
+	if gs != null and gs.meta_tracker != null:
+		floor_number = gs.meta_tracker.dungeons_completed + 1
+	var dungeon := DungeonGenerator.generate(seed, floor_number)
 	# Stamp depth so depth-gated content (ChestSpawner rare-unlock — #220)
 	# can branch off it. dungeons_completed is the count BEFORE this run
 	# finalizes, which makes it equivalent to "depth = floor number - 1".

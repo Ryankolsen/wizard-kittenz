@@ -23,10 +23,14 @@ extends RefCounted
 static func serialize(controller: DungeonRunController, seed: int) -> Dictionary:
 	if controller == null or controller.dungeon == null:
 		return {}
+	# floor_number is 1-indexed; derived from the dungeon's depth so save/
+	# restore regenerates the same boss kind via BossRoster (PRD #297).
+	# Legacy saves predating this field default to floor 1 on restore.
 	return {
 		"seed": seed,
 		"current_room_id": controller.current_room_id,
 		"cleared_room_ids": controller.cleared_ids(),
+		"floor_number": controller.dungeon.depth + 1,
 	}
 
 # Rebuilds a DungeonRunController from a state dict. Regenerates the dungeon
@@ -43,7 +47,9 @@ static func deserialize(state: Dictionary) -> DungeonRunController:
 	if not state.has("seed"):
 		return null
 	var seed := int(state.get("seed", -1))
-	var dungeon := DungeonGenerator.generate(seed)
+	var floor_number := int(state.get("floor_number", 1))
+	var dungeon := DungeonGenerator.generate(seed, floor_number)
+	dungeon.depth = floor_number - 1
 	var controller := DungeonRunController.new()
 	if not controller.start(dungeon):
 		return null

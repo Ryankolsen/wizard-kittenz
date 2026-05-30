@@ -52,6 +52,11 @@ enum EnemyKind {
 # and the legacy single-enemy-in-main.tscn path leave it unset; the scene
 # spawner falls back to the node's authored position in that case.
 @export var spawn_position: Vector2 = Vector2.ZERO
+# Boss-only sprite paths sourced from BossRoster (PRD #297, slice #301).
+# Empty for non-boss spawns and for legacy / test fixtures whose planner
+# predates the field — Enemy.gd falls back to vacuum_boss in that case.
+@export var boss_sprite_left_path: String = ""
+@export var boss_sprite_right_path: String = ""
 # Last move direction. Read by ThiefAbilities.backstab to detect attacks from
 # behind (attacker.facing roughly aligned with target.facing).
 var facing: Vector2 = Vector2.DOWN

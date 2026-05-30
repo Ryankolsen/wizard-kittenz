@@ -22,6 +22,14 @@ var type: String = TYPE_STANDARD
 # resolves these into actual nodes.
 var enemy_kind: int = -1
 var power_up_type: String = ""
+# Boss room only. Stamped by DungeonGenerator from BossRoster.boss_for_floor
+# at generation time so the per-floor boss sprite travels with the room
+# graph. Non-boss rooms leave these empty; Enemy.gd falls back to vacuum_boss
+# when both are empty (test fixtures + legacy saves whose generator predates
+# this field).
+var boss_sprite_left_path: String = ""
+var boss_sprite_right_path: String = ""
+var boss_display_name: String = ""
 # Outgoing edges. A boss room has an empty connections list — that's the
 # "terminal" invariant.
 var connections: Array = []

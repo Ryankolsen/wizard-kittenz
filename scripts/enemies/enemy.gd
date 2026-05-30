@@ -51,7 +51,22 @@ func _ready() -> void:
 	if sprite != null:
 		var path: String
 		if data.is_boss:
-			path = "res://assets/sprites/vacuum_boss.png"
+			# Per-floor sprite from BossRoster (stamped on EnemyData by
+			# RoomSpawnPlanner; PRD #297, slice #301). Pick L/R by current
+			# facing — Enemy facing defaults to DOWN before chase begins, so
+			# x > 0 chooses right, otherwise left (mirrors _chase's flip_h).
+			# Falls back to vacuum_boss for test fixtures / legacy planners
+			# that left both paths empty.
+			var prefer_right := data.facing.x > 0.0
+			var roster_path := data.boss_sprite_right_path if prefer_right else data.boss_sprite_left_path
+			if roster_path == "":
+				roster_path = data.boss_sprite_left_path if prefer_right else data.boss_sprite_right_path
+			if roster_path == "" or not ResourceLoader.exists(roster_path):
+				# Slice #300 (HITL) is still producing the per-floor PNGs;
+				# fall back to vacuum_boss when a path points at a not-yet-
+				# delivered file so the runtime doesn't error on load().
+				roster_path = "res://assets/sprites/vacuum_boss.png"
+			path = roster_path
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
