@@ -8,6 +8,21 @@ const _NEW_KINDS := [
 	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
 ]
 
+# PRD #297 slice 2: the 9 boss-only kinds added at the tail of EnemyKind.
+# Each must round-trip through make_new with the expected display name and
+# share the same boss-tier base stats (sprite-only differentiation).
+const _BOSS_KINDS_AND_NAMES := [
+	[EnemyData.EnemyKind.SIR_PICKLETON, "Sir Pickleton"],
+	[EnemyData.EnemyKind.OLD_LADY_PEARL, "Old Lady Pearl"],
+	[EnemyData.EnemyKind.TRASH_PANDA_TYRONE, "Trash Panda Tyrone"],
+	[EnemyData.EnemyKind.BIG_BRUISER_BUSTER, "Big Bruiser Buster"],
+	[EnemyData.EnemyKind.LAST_CALL_LARRY, "Last Call Larry"],
+	[EnemyData.EnemyKind.THE_BOUNCER, "The Bouncer"],
+	[EnemyData.EnemyKind.DJ_DUBSTEP, "DJ Dubstep"],
+	[EnemyData.EnemyKind.KARAOKE_KAREN, "Karaoke Karen"],
+	[EnemyData.EnemyKind.WARDEN_WRETCHED, "Warden Wretched"],
+]
+
 func test_make_new_angry_pigeon_has_expected_defaults():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
@@ -135,3 +150,34 @@ func test_make_new_stamps_detection_radius():
 	for k in _NEW_KINDS:
 		var e := EnemyData.make_new(k)
 		assert_eq(e.detection_radius, EnemyData.base_detection_radius_for(k))
+
+func test_make_new_boss_kinds_have_expected_names():
+	# PRD #297 slice 2 — every new boss kind round-trips its readable display
+	# name through make_new(). Pinned strings drive the boss-name HUD (slice 5).
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		var expected: String = entry[1]
+		assert_eq(EnemyData.make_new(k).enemy_name, expected)
+
+func test_boss_kinds_share_boss_base_stats():
+	# Sprite-only differentiation per PRD: all 9 new kinds must collapse to a
+	# single value for hp/attack/defense. Set size 1 across the cohort proves it.
+	var hp_set := {}
+	var atk_set := {}
+	var def_set := {}
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		hp_set[EnemyData.base_max_hp_for(k)] = true
+		atk_set[EnemyData.base_attack_for(k)] = true
+		def_set[EnemyData.base_defense_for(k)] = true
+	assert_eq(hp_set.size(), 1, "boss kinds must share base hp")
+	assert_eq(atk_set.size(), 1, "boss kinds must share base attack")
+	assert_eq(def_set.size(), 1, "boss kinds must share base defense")
+
+func test_boss_kinds_default_is_boss_false():
+	# Same contract as the 5 legacy kinds — make_new mints a generic enemy; the
+	# spawn layer flips is_boss for the boss room only.
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		var e := EnemyData.make_new(k)
+		assert_false(e.is_boss, "kind %d should default is_boss=false" % k)

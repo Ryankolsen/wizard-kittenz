@@ -108,6 +108,15 @@ static func display_name_for(k: EnemyKind) -> String:
 		EnemyKind.DOG_KNIGHT: return "Dog Knight"
 		EnemyKind.CATNIP_DEALER: return "Catnip Dealer"
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return "Haunted Spray Bottle"
+		EnemyKind.SIR_PICKLETON: return "Sir Pickleton"
+		EnemyKind.OLD_LADY_PEARL: return "Old Lady Pearl"
+		EnemyKind.TRASH_PANDA_TYRONE: return "Trash Panda Tyrone"
+		EnemyKind.BIG_BRUISER_BUSTER: return "Big Bruiser Buster"
+		EnemyKind.LAST_CALL_LARRY: return "Last Call Larry"
+		EnemyKind.THE_BOUNCER: return "The Bouncer"
+		EnemyKind.DJ_DUBSTEP: return "DJ Dubstep"
+		EnemyKind.KARAOKE_KAREN: return "Karaoke Karen"
+		EnemyKind.WARDEN_WRETCHED: return "Warden Wretched"
 	return "Enemy"
 
 # Hard ceiling for any per-kind detection radius on the 480x270 viewport.
