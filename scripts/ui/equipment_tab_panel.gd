@@ -29,6 +29,11 @@ const _THUMB_SIZE := Vector2(24, 24)
 # Square size of each equipped-slot tile in the horizontal strip.
 const _TILE_SIZE := Vector2(36, 36)
 
+# Thumbnail size inside a slot tile. Smaller than the tile itself so the
+# artwork has visible padding on every side — many item sprites are tight
+# to the artwork bounds and would otherwise render edge-to-edge.
+const _TILE_THUMB_SIZE := Vector2(26, 26)
+
 # Fixed-width gutter on each bag row reserved for the "Nx" quantity prefix.
 # Always present (empty text for single items) so stacked and non-stacked
 # rows align — the quantity never shifts the thumbnail/text to the right.
@@ -207,9 +212,17 @@ func _make_slot_tile(slot: int, slot_label: String) -> Control:
 	_style_tile(tile, item)
 	var thumb := _make_thumbnail("SlotThumb_%d" % slot, item)
 	if thumb != null:
-		thumb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		# Center a fixed-size thumb inside the tile (with padding) rather
+		# than stretching to fill — keeps artwork-tight sprites from
+		# rendering edge-to-edge.
+		thumb.custom_minimum_size = _TILE_THUMB_SIZE
 		thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.add_child(thumb)
+		var center := CenterContainer.new()
+		center.name = "SlotThumbCenter_%d" % slot
+		center.set_anchors_preset(Control.PRESET_FULL_RECT)
+		center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		center.add_child(thumb)
+		tile.add_child(center)
 	else:
 		var lbl := Label.new()
 		lbl.name = "SlotTileLabel_%d" % slot
