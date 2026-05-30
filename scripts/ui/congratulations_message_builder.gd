@@ -31,8 +31,12 @@ const ADJECTIVE_POOL: Array[String] = [
 	"pulverizing",
 ]
 
-static func build(is_first_boss: bool, rng: RandomNumberGenerator) -> String:
+static func build(is_first_boss: bool, rng: RandomNumberGenerator, boss_display_name: String = "") -> String:
 	if is_first_boss:
 		return FIRST_BOSS_MESSAGE
 	var idx := rng.randi_range(0, ADJECTIVE_POOL.size() - 1)
-	return "Congratulations on %s the boss!" % ADJECTIVE_POOL[idx]
+	# Empty name falls back to the legacy "the boss" phrasing so callers that
+	# haven't been updated (and legacy saves without a roster lookup) still
+	# render a grammatical sentence.
+	var target := boss_display_name if boss_display_name != "" else "the boss"
+	return "Congratulations on %s %s!" % [ADJECTIVE_POOL[idx], target]

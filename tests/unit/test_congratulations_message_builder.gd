@@ -48,3 +48,38 @@ func test_repeat_path_does_not_return_first_boss_message():
 		var rng := _rng(s)
 		var msg := CongratulationsMessageBuilder.build(false, rng)
 		assert_ne(msg, FIRST_BOSS_MESSAGE)
+
+# PRD #297 / slice #302 — when a boss display name is supplied, the
+# repeat-path message names the defeated boss instead of falling back to
+# the generic "the boss" string.
+func test_repeat_path_includes_supplied_boss_name():
+	var rng := _rng(7)
+	var msg := CongratulationsMessageBuilder.build(false, rng, "Sir Pickleton")
+	assert_true(msg.find("Sir Pickleton") != -1, "message '%s' should name the boss" % msg)
+
+func test_repeat_path_with_boss_name_does_not_say_the_boss():
+	# Regression guard: if the lookup silently no-ops we'd still print the
+	# legacy generic phrasing alongside the real name. With a named boss
+	# supplied, "the boss" should not appear.
+	for s in range(10):
+		var rng := _rng(s)
+		var msg := CongratulationsMessageBuilder.build(false, rng, "Old Lady Pearl")
+		assert_eq(msg.find("the boss"), -1, "message '%s' should not contain 'the boss'" % msg)
+
+func test_repeat_path_uses_roster_name_for_floor_4():
+	# Tracks PRD acceptance: Floor 4 -> Trash Panda Tyrone.
+	var rng := _rng(0)
+	var info := BossRoster.boss_for_floor(4)
+	var msg := CongratulationsMessageBuilder.build(false, rng, info.display_name)
+	assert_true(msg.find("Trash Panda Tyrone") != -1, "message '%s' should contain Floor 4 boss name" % msg)
+
+func test_repeat_path_empty_name_falls_back_to_the_boss():
+	# Defensive: callers that pass "" (legacy path, missing roster) still
+	# render a grammatical sentence using the generic phrasing.
+	var rng := _rng(0)
+	var msg := CongratulationsMessageBuilder.build(false, rng, "")
+	assert_true(msg.find("the boss") != -1, "empty name should fall back to 'the boss', got '%s'" % msg)
+
+func test_first_boss_path_ignores_boss_name():
+	var rng := _rng(0)
+	assert_eq(CongratulationsMessageBuilder.build(true, rng, "Sir Pickleton"), FIRST_BOSS_MESSAGE)

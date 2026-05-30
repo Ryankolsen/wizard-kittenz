@@ -614,7 +614,8 @@ func _on_dungeon_transitioned() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var is_first_boss := _is_first_boss_clear()
-	var message := CongratulationsMessageBuilder.build(is_first_boss, rng)
+	var boss_name := BossRoster.boss_for_floor(summary.floor_number).display_name
+	var message := CongratulationsMessageBuilder.build(is_first_boss, rng, boss_name)
 	add_child(_congrats_screen)
 	_congrats_screen.populate(summary, message)
 	_congrats_screen.next_floor_pressed.connect(_on_congrats_next_floor_pressed)

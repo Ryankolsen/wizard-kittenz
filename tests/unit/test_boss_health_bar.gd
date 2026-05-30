@@ -44,3 +44,18 @@ func test_should_hide_when_bounds_have_no_area():
 	# Unconfigured / arealess bounds (legacy or test boss with no room_bounds)
 	# can't locate the room, so the bar stays hidden rather than showing early.
 	assert_false(BossHealthBar.should_show(Rect2(), Vector2(50, 50)))
+
+# PRD #297 / slice #302 — the bar's label render reads boss_name from
+# EnemyData.enemy_name. Slice 4 wired RoomSpawnPlanner to copy the
+# BossRoster display name onto EnemyData.enemy_name, so feeding the
+# bar the roster name for a given floor produces a label that contains
+# that floor's boss name.
+func test_format_uses_roster_name_for_floor_3():
+	var info := BossRoster.boss_for_floor(3)
+	var label := BossHealthBar.format_boss_hp(info.display_name, 50, 50)
+	assert_true(label.find("Old Lady Pearl") != -1, "label '%s' should contain Floor 3 boss name" % label)
+
+func test_format_uses_roster_name_for_floor_2():
+	var info := BossRoster.boss_for_floor(2)
+	var label := BossHealthBar.format_boss_hp(info.display_name, 40, 40)
+	assert_true(label.find("Sir Pickleton") != -1, "label '%s' should contain Floor 2 boss name" % label)
