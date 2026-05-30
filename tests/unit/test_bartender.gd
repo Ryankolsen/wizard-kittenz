@@ -41,9 +41,9 @@ func test_bartender_options_include_get_a_beer():
 	var bubble := bartender.get_bubble()
 	var list: NPCOptionList = bubble._list
 	assert_eq(list.size(), 3, "bartender menu has 3 options")
-	assert_eq(list.get(0).label, "Shop")
-	assert_eq(list.get(1).label, "Get a beer")
-	assert_eq(list.get(2).label, "Exit")
+	assert_eq(list.get_at(0).label, "Shop")
+	assert_eq(list.get_at(1).label, "Get a beer")
+	assert_eq(list.get_at(2).label, "Exit")
 
 
 func test_selecting_shop_emits_shop_requested():
@@ -151,7 +151,7 @@ func test_beer_option_disabled_when_gold_below_25():
 	bartender._on_attack_pressed()
 	var bubble := bartender.get_bubble()
 	var list: NPCOptionList = bubble._list
-	assert_false(list.get(1).is_enabled(),
+	assert_false(list.get_at(1).is_enabled(),
 		"Beer option is disabled when gold < 25")
 	# Initial cursor is on Shop (0). One move_next should skip Beer (1)
 	# and land on Exit (2).
@@ -185,7 +185,7 @@ func test_beer_enabled_state_reevaluated_after_shop_close():
 	bartender._on_player_entered_range()
 	bartender._on_attack_pressed()
 	var bubble := bartender.get_bubble()
-	assert_true(bubble._list.get(1).is_enabled(),
+	assert_true(bubble._list.get_at(1).is_enabled(),
 		"Beer enabled at 30 gold on first open")
 	# Simulate the player picking Shop → spending → shop closing.
 	bartender._handle_effect("open_shop")
@@ -193,7 +193,7 @@ func test_beer_enabled_state_reevaluated_after_shop_close():
 	bartender.open_menu()  # what BarRoom._on_shop_closed calls
 	var reopened := bartender.get_bubble()
 	assert_not_null(reopened, "menu reopens after shop close")
-	assert_false(reopened._list.get(1).is_enabled(),
+	assert_false(reopened._list.get_at(1).is_enabled(),
 		"Beer now disabled — predicate re-evaluated against current gold")
 
 
@@ -204,7 +204,7 @@ func test_beer_enabled_at_exactly_25_gold():
 	bartender._on_player_entered_range()
 	bartender._on_attack_pressed()
 	var bubble := bartender.get_bubble()
-	assert_true(bubble._list.get(1).is_enabled(),
+	assert_true(bubble._list.get_at(1).is_enabled(),
 		"Beer enabled at exactly 25 gold")
 
 

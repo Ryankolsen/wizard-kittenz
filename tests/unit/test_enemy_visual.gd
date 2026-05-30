@@ -57,7 +57,7 @@ func test_no_kind_uses_old_placeholder_sprites():
 	for kind in NEW_KINDS:
 		var enemy = _spawn(kind)
 		var tex = (enemy.get_node("Sprite2D") as Sprite2D).texture
-		var path := tex.resource_path
+		var path: String = tex.resource_path
 		assert_true(path.find("slime") == -1,
 			"kind %d texture path must not contain 'slime' (was %s)" % [kind, path])
 		assert_true(path.find("bat") == -1,

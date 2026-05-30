@@ -107,7 +107,7 @@ func test_player_bootstraps_quickbar_from_unlocked_spells_in_tree_order():
 	var p := _make_player_with_wizard_tree()
 	# Wizard tree first node (hairball_hex) is unlocked at level 1 by default,
 	# so the bootstrap should auto-fill slot 1 with it.
-	var qb := p.get_quickbar()
+	var qb: Quickbar = p.get_quickbar()
 	assert_not_null(qb, "Player must own a Quickbar instance")
 	var slot1 := qb.get_slot(1)
 	assert_not_null(slot1, "bootstrap should fill slot 1 from the first unlocked spell")
@@ -116,7 +116,7 @@ func test_player_bootstraps_quickbar_from_unlocked_spells_in_tree_order():
 
 func test_player_casts_through_quickbar_on_cast_slot_1():
 	var p := _make_player_with_wizard_tree()
-	var qb := p.get_quickbar()
+	var qb: Quickbar = p.get_quickbar()
 	var hairball = qb.get_slot(1)
 	var mp_before := p.data.magic_points
 	p._quickbar_controller.try_fire_slot(1)
@@ -130,7 +130,7 @@ func test_player_does_not_cast_unassigned_unlocked_spell():
 	# that is unlocked but explicitly removed from every slot must NOT fire
 	# when any cast_slot_N is fired.
 	var p := _make_player_with_wizard_tree()
-	var qb := p.get_quickbar()
+	var qb: Quickbar = p.get_quickbar()
 	# Clear slot 1 (which the bootstrap filled with hairball_hex).
 	var hairball = qb.get_slot(1)
 	qb.unassign(1)

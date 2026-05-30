@@ -432,7 +432,7 @@ func test_boss_enemy_name_is_the_vacuum():
 	# any future kind-routing change.
 	for seed in range(1, 30):
 		var dungeon := DungeonGenerator.generate(seed)
-		var boss_room := dungeon.rooms[dungeon.boss_id]
+		var boss_room: Room = dungeon.rooms[dungeon.boss_id]
 		var boss_data := RoomSpawnPlanner.plan_enemy(boss_room)
 		assert_eq(boss_data.enemy_name, "The Vacuum",
 			"seed %d boss is named The Vacuum" % seed)
