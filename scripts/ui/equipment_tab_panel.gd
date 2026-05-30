@@ -297,6 +297,9 @@ func _make_equipped_detail(slot: int, _slot_label: String, item: ItemData) -> Co
 # Bag items live in a plain VBoxContainer in the right column (see
 # _ensure_skeleton). It grows to its full content height; the outer
 # TabScroll scrolls the whole page when the loadout runs long.
+# Duplicate items (same id) collapse into one row with a "Nx" quantity
+# prefix — the Equip button still equips a single instance because
+# _on_equip_pressed removes the first match by id from the bag.
 func _make_bag_list() -> Control:
 	var list := VBoxContainer.new()
 	list.name = "BagList"
@@ -310,15 +313,37 @@ func _make_bag_list() -> Control:
 		empty.text = "Bag is empty"
 		list.add_child(empty)
 		return list
-	for i in items.size():
-		list.add_child(_make_bag_row(items[i], i))
+	var groups := _group_bag_items(items)
+	for i in groups.size():
+		var g: Dictionary = groups[i]
+		list.add_child(_make_bag_row(g["item"], i, int(g["count"])))
 	return list
 
-func _make_bag_row(item: ItemData, index: int) -> Control:
+# Collapses duplicate bag items (same id) into one entry preserving the
+# first-seen order. Returns [{item: ItemData, count: int}, ...].
+func _group_bag_items(items: Array[ItemData]) -> Array:
+	var out: Array = []
+	var index_by_id: Dictionary = {}
+	for it in items:
+		if index_by_id.has(it.id):
+			var idx: int = index_by_id[it.id]
+			out[idx]["count"] = int(out[idx]["count"]) + 1
+		else:
+			index_by_id[it.id] = out.size()
+			out.append({"item": it, "count": 1})
+	return out
+
+func _make_bag_row(item: ItemData, index: int, count: int = 1) -> Control:
 	var row := HBoxContainer.new()
 	row.name = "BagRow_%d" % index
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	if count > 1:
+		var qty := Label.new()
+		qty.name = "BagQty_%d" % index
+		qty.text = "%dx" % count
+		qty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(qty)
 	var thumb := _make_thumbnail("BagThumb_%d" % index, item)
 	if thumb != null:
 		thumb.size_flags_vertical = Control.SIZE_SHRINK_BEGIN

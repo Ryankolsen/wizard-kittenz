@@ -263,6 +263,51 @@ func test_equipped_detail_uses_same_vertical_layout():
 	var unequip := detail.find_child("UnequipButton_%d" % ItemData.Slot.WEAPON, true, false) as Button
 	assert_not_null(unequip, "detail row must still expose an Unequip button")
 
+func test_duplicate_bag_items_collapse_into_one_row_with_quantity():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	assert_not_null(panel.find_child("BagRow_0", true, false), "stacked rows render as a single bag row")
+	assert_null(panel.find_child("BagRow_1", true, false), "duplicate ids must not produce a second row")
+	var qty := panel.find_child("BagQty_0", true, false) as Label
+	assert_not_null(qty, "stacked bag row must include a quantity label")
+	assert_eq(qty.text, "3x")
+
+func test_single_bag_item_has_no_quantity_label():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	assert_null(panel.find_child("BagQty_0", true, false),
+		"a single (non-stacked) bag row must not show a quantity prefix")
+
+func test_stacked_equip_removes_one_and_decrements_quantity():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var btn := panel.find_child("EquipButton_0", true, false) as Button
+	btn.pressed.emit()
+	assert_eq(inv.equipped_in(ItemData.Slot.WEAPON).id, "iron_sword")
+	assert_eq(inv.bag_items().size(), 2, "exactly one instance must leave the bag")
+	var qty := panel.find_child("BagQty_0", true, false) as Label
+	assert_not_null(qty)
+	assert_eq(qty.text, "2x", "quantity must drop from 3 to 2 after equipping one")
+
+func test_distinct_items_render_as_separate_rows():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("silver_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	assert_not_null(panel.find_child("BagRow_0", true, false))
+	assert_not_null(panel.find_child("BagRow_1", true, false))
+
 func test_bag_has_no_inner_scroll_container():
 	var inv := ItemInventory.new()
 	for i in range(8):
