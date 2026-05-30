@@ -29,6 +29,11 @@ const _THUMB_SIZE := Vector2(24, 24)
 # Square size of each equipped-slot tile in the horizontal strip.
 const _TILE_SIZE := Vector2(36, 36)
 
+# Fixed-width gutter on each bag row reserved for the "Nx" quantity prefix.
+# Always present (empty text for single items) so stacked and non-stacked
+# rows align — the quantity never shifts the thumbnail/text to the right.
+const _QTY_GUTTER_WIDTH := 28.0
+
 # Small font for the "Equipped" / "Bag" section labels so they don't eat
 # the tiny ~100px tab height.
 const _SECTION_FONT_SIZE := 10
@@ -338,12 +343,17 @@ func _make_bag_row(item: ItemData, index: int, count: int = 1) -> Control:
 	row.name = "BagRow_%d" % index
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.alignment = BoxContainer.ALIGNMENT_BEGIN
-	if count > 1:
-		var qty := Label.new()
-		qty.name = "BagQty_%d" % index
-		qty.text = "%dx" % count
-		qty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		row.add_child(qty)
+	# Always reserve a fixed-width gutter for the quantity so a "2x" prefix
+	# on a stacked row doesn't shift the thumbnail/text to the right of
+	# single-item rows — every bag row's content starts at the same x.
+	var qty := Label.new()
+	qty.name = "BagQty_%d" % index
+	qty.text = "%dx" % count if count > 1 else ""
+	qty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	qty.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	qty.custom_minimum_size = Vector2(_QTY_GUTTER_WIDTH, 0)
+	qty.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(qty)
 	var thumb := _make_thumbnail("BagThumb_%d" % index, item)
 	if thumb != null:
 		thumb.size_flags_vertical = Control.SIZE_SHRINK_BEGIN

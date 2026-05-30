@@ -276,13 +276,32 @@ func test_duplicate_bag_items_collapse_into_one_row_with_quantity():
 	assert_not_null(qty, "stacked bag row must include a quantity label")
 	assert_eq(qty.text, "3x")
 
-func test_single_bag_item_has_no_quantity_label():
+func test_single_bag_item_has_empty_quantity_gutter():
+	# Gutter is always present (fixed width) so stacked + non-stacked rows
+	# align on the left — single items just render with empty text.
 	var inv := ItemInventory.new()
 	inv.add_to_bag(ItemCatalog.find("iron_sword"))
 	var panel := _make_panel()
 	panel.refresh(inv, _make_char())
-	assert_null(panel.find_child("BagQty_0", true, false),
-		"a single (non-stacked) bag row must not show a quantity prefix")
+	var qty := panel.find_child("BagQty_0", true, false) as Label
+	assert_not_null(qty, "gutter label must exist so rows align")
+	assert_eq(qty.text, "", "single-item row's quantity gutter must be empty text")
+	assert_gt(qty.custom_minimum_size.x, 0.0,
+		"gutter must reserve a fixed width regardless of count")
+
+func test_stacked_and_single_rows_have_matching_left_gutter():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	inv.add_to_bag(ItemCatalog.find("scout_jerkin"))
+	inv.add_to_bag(ItemCatalog.find("scout_jerkin"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var single := panel.find_child("BagQty_0", true, false) as Label
+	var stacked := panel.find_child("BagQty_1", true, false) as Label
+	assert_not_null(single)
+	assert_not_null(stacked)
+	assert_eq(single.custom_minimum_size.x, stacked.custom_minimum_size.x,
+		"both rows must reserve the same gutter width so thumbnails align")
 
 func test_stacked_equip_removes_one_and_decrements_quantity():
 	var inv := ItemInventory.new()
