@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7fmapoverlay1x"]
+
+[ext_resource type="Script" path="res://scripts/ui/fullscreen_map_overlay.gd" id="1_overlay"]
+
+[node name="FullscreenMapOverlay" type="CanvasLayer"]
+script = ExtResource("1_overlay")
