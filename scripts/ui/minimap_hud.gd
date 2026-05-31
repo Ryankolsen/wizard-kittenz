@@ -33,6 +33,13 @@ func bind(d: Dungeon, s: FloorMapState, l: DungeonLayout) -> void:
 		return
 	_renderer.bind(d, s, l)
 
+# Slice 2 (#306): main_scene pokes the player's world position each frame so
+# the marker can move with the player inside the current room, not just snap
+# to the room's grid cell. Per-frame queue_redraw below picks it up.
+func set_player_world_pos(p: Vector2) -> void:
+	if _renderer != null:
+		_renderer.player_world_pos = p
+
 # FloorMapState mutates externally (RoomRevealBridge writes from a signal)
 # so the renderer needs a kick to repaint. Per-frame queue_redraw is cheap
 # — _draw iterates the revealed set (≤ ~10 rooms) and emits rectangles.

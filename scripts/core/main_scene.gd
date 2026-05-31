@@ -269,6 +269,12 @@ func _update_current_room() -> void:
 	if _player == null:
 		return
 	var pos := _player.global_position
+	# Slice 2 (#306): forward the player's world pos to the minimap chip so
+	# its marker tracks movement inside the current room.
+	if _hud != null:
+		var chip := _hud.get_node_or_null("MinimapHUD") as MinimapHUD
+		if chip != null:
+			chip.set_player_world_pos(pos)
 	for room in _run_controller.dungeon.rooms:
 		if not _dungeon_layout.room_positions.has(room.id):
 			continue
