@@ -63,6 +63,12 @@ signal current_room_changed(new_id: int)
 var dungeon: Dungeon = null
 var current_room_id: int = -1
 var _cleared: Dictionary = {}
+# Per-floor revealed-room set for the minimap (PRD #304, slice 4 #308).
+# Lives on the controller so a quit→resume restores fog of war and a
+# floor advance (fresh controller in main_scene._start_new_dungeon)
+# resets it cleanly. start() rebuilds this with the new dungeon's
+# start room pre-revealed; DungeonRunSerializer reads/writes it.
+var floor_map_state: FloorMapState = null
 # Source seed for the active dungeon (PRD #42 / #46 save/resume). The
 # generator hands back a Dungeon with no provenance, so the orchestrator
 # (main_scene._start_new_dungeon, DungeonRunSerializer.deserialize) stamps
@@ -83,6 +89,7 @@ func start(d: Dungeon) -> bool:
 	current_room_id = d.start_id
 	_cleared = {}
 	_transition_requested = false
+	floor_map_state = FloorMapState.with_start_revealed(d.start_id)
 	return true
 
 func current_room() -> Room:

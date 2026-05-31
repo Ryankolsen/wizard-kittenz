@@ -81,6 +81,57 @@ func test_serializer_preserves_current_room_id():
 	assert_eq(ctrl2.current_room_id, target,
 		"restored controller must resume at the saved room")
 
+# Minimap slice 4 (#308): the revealed-room set rides along on the run
+# state so quit→resume restores fog of war. Builds a run, primes its
+# FloorMapState with three ids, and asserts serialize captures them
+# under the agreed key.
+func test_serialize_includes_revealed_room_ids():
+	var dungeon := DungeonGenerator.generate(99)
+	var ctrl := DungeonRunController.new()
+	ctrl.start(dungeon)
+	ctrl.floor_map_state.mark_revealed(0)
+	ctrl.floor_map_state.mark_revealed(2)
+	ctrl.floor_map_state.mark_revealed(5)
+	var state := DungeonRunSerializer.serialize(ctrl, 99)
+	assert_true(state.has("revealed_room_ids"), "state must include revealed_room_ids")
+	var ids: Array = state.get("revealed_room_ids", [])
+	assert_eq(ids.size(), 3)
+	assert_true(ids.has(0))
+	assert_true(ids.has(2))
+	assert_true(ids.has(5))
+
+# Round-trip: revealed set survives serialize→deserialize so the chip
+# repaints the same shapes after a quit→resume.
+func test_round_trip_preserves_revealed_set():
+	var dungeon := DungeonGenerator.generate(99)
+	var ctrl := DungeonRunController.new()
+	ctrl.start(dungeon)
+	ctrl.floor_map_state.mark_revealed(0)
+	ctrl.floor_map_state.mark_revealed(2)
+	ctrl.floor_map_state.mark_revealed(5)
+	var state := DungeonRunSerializer.serialize(ctrl, 99)
+	var ctrl2 := DungeonRunSerializer.deserialize(state)
+	var ids: Array = ctrl2.floor_map_state.revealed_ids()
+	assert_true(ids.has(0))
+	assert_true(ids.has(2))
+	assert_true(ids.has(5))
+
+# Legacy saves predating slice 4 have no revealed_room_ids key. Restore
+# must not crash and the rebuilt state should be empty (modulo the
+# start-room prereveal that DungeonRunController.start applies on
+# regenerate, which the restore overwrites with the saved set).
+func test_round_trip_with_no_revealed_rooms_yields_empty_set():
+	var dungeon := DungeonGenerator.generate(99)
+	var legacy_state := {
+		"seed": 99,
+		"current_room_id": dungeon.start_id,
+		"cleared_room_ids": [],
+		"floor_number": 1,
+	}
+	var ctrl := DungeonRunSerializer.deserialize(legacy_state)
+	assert_not_null(ctrl)
+	assert_not_null(ctrl.floor_map_state, "legacy load must still produce a FloorMapState")
+
 func test_serializer_empty_state_returns_null():
 	assert_null(DungeonRunSerializer.deserialize({}),
 		"empty state must signal no resumable run")

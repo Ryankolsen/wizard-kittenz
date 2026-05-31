@@ -26,11 +26,19 @@ static func serialize(controller: DungeonRunController, seed: int) -> Dictionary
 	# floor_number is 1-indexed; derived from the dungeon's depth so save/
 	# restore regenerates the same boss kind via BossRoster (PRD #297).
 	# Legacy saves predating this field default to floor 1 on restore.
+	var revealed: Array = []
+	if controller.floor_map_state != null:
+		revealed = controller.floor_map_state.revealed_ids()
 	return {
 		"seed": seed,
 		"current_room_id": controller.current_room_id,
 		"cleared_room_ids": controller.cleared_ids(),
 		"floor_number": controller.dungeon.depth + 1,
+		# Minimap slice 4 (#308): per-floor revealed-room set. Legacy saves
+		# predating this field deserialize to the start-room-only state that
+		# controller.start applies, so the chip just shows the spawn until
+		# the player walks into more rooms.
+		"revealed_room_ids": revealed,
 	}
 
 # Rebuilds a DungeonRunController from a state dict. Regenerates the dungeon
@@ -62,4 +70,11 @@ static func deserialize(state: Dictionary) -> DungeonRunController:
 		for raw in cleared:
 			controller.mark_room_cleared(int(raw))
 	controller.current_room_id = int(state.get("current_room_id", dungeon.start_id))
+	# Restore revealed-room set onto the fresh FloorMapState that
+	# controller.start built. Legacy saves missing the key keep the
+	# start-room-prerevealed state untouched.
+	var revealed = state.get("revealed_room_ids", null)
+	if revealed is Array and controller.floor_map_state != null:
+		for raw in revealed:
+			controller.floor_map_state.mark_revealed(int(raw))
 	return controller

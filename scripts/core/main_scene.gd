@@ -248,7 +248,10 @@ func _process(_delta: float) -> void:
 func _setup_minimap() -> void:
 	if _run_controller == null or _run_controller.dungeon == null:
 		return
-	_floor_map_state = FloorMapState.new()
+	# Slice 4 (#308): the FloorMapState lives on the controller so quit→
+	# resume restores it and floor advance (fresh controller) resets it.
+	# main_scene is a borrower for HUD wiring; do not allocate here.
+	_floor_map_state = _run_controller.floor_map_state
 	_reveal_bridge = RoomRevealBridge.new()
 	_reveal_bridge.bind(_run_controller, _floor_map_state)
 	if _hud == null:
