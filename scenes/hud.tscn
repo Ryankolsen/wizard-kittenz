@@ -118,15 +118,15 @@ theme_override_font_sizes/font_size = 12
 
 [node name="MinimapHUD" parent="." instance=ExtResource("3_minimap")]
 offset_left = 392.0
-offset_top = 30.0
+offset_top = 42.0
 offset_right = 460.0
-offset_bottom = 110.0
+offset_bottom = 122.0
 
 [node name="QuickbarHUD" parent="." instance=ExtResource("2_quickbar")]
 offset_left = 392.0
-offset_top = 116.0
+offset_top = 128.0
 offset_right = 460.0
-offset_bottom = 184.0
+offset_bottom = 196.0
 
 [node name="YouDied" type="Control" parent="."]
 visible = false
