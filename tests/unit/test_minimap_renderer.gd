@@ -130,6 +130,81 @@ func test_player_marker_position_uses_world_to_minimap_transform():
 	assert_almost_eq(marker.x, room.x, 0.01)
 	assert_almost_eq(marker.y, room.y, 0.01)
 
+# --- Slice 5 (#309): co-op teammate markers, gated by local reveal ---
+
+func test_teammate_marker_position_uses_world_to_minimap_transform():
+	# Teammate markers share the local player's world→minimap transform; given
+	# the teammate's world position, the renderer maps them via teammate_to_minimap
+	# which must equal player_to_minimap for the same inputs (the two markers
+	# are conceptually the same projection — only the color/source differs).
+	var target := Rect2(Vector2.ZERO, Vector2(100, 100))
+	var grid_min := Vector2i(0, 0)
+	var grid_max := Vector2i(2, 1)
+	var step: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
+	var teammate_world := Vector2(float(step) * 1.0, 0.0)
+	var teammate_pt := MinimapRenderer.teammate_to_minimap(
+		teammate_world, grid_min, grid_max, target)
+	var via_player := MinimapRenderer.player_to_minimap(
+		teammate_world, grid_min, grid_max, target)
+	assert_almost_eq(teammate_pt.x, via_player.x, 0.01)
+	assert_almost_eq(teammate_pt.y, via_player.y, 0.01)
+
+func test_teammate_marker_drawn_when_teammate_room_revealed():
+	# Pure helper: a teammate marker is drawable iff the local FloorMapState
+	# has revealed the room the teammate is currently in. Fog-of-war is
+	# per-player — scouting through a teammate must not reveal new rooms.
+	var s := FloorMapState.new()
+	s.mark_revealed(1)
+	assert_true(MinimapRenderer.should_draw_teammate(1, s))
+
+func test_teammate_marker_hidden_when_room_unrevealed():
+	# Story 13: if the local FloorMapState has not revealed the teammate's
+	# room, the helper returns false AND teammates_to_draw filters them out
+	# from the renderer's draw list.
+	var d := _make_dungeon()
+	var s := FloorMapState.new()
+	s.mark_revealed(0)  # local revealed room 0 only
+	assert_false(MinimapRenderer.should_draw_teammate(1, s))
+	var snapshots: Array = [{"player_id": "p2", "current_room_id": 1, "world_pos": Vector2.ZERO}]
+	var draws := MinimapRenderer.teammates_to_draw(snapshots, d, s)
+	assert_eq(draws.size(), 0)
+
+class _InactiveSessionStub:
+	var local_player_id: String = "p1"
+	var player_ids: Array = ["p1", "p2"]
+	var network_sync = null
+	func is_active() -> bool:
+		return false
+
+func test_no_teammates_in_solo_session():
+	# AC: when CoopSession is null OR inactive, the snapshot helper returns
+	# []. Guards both the "no session constructed" and "session ended"
+	# paths so the renderer never crashes in solo play.
+	var d := _make_dungeon()
+	var l := DungeonLayout.new()
+	assert_eq(MinimapRenderer.teammate_snapshots_from_session(null, d, l, 0).size(), 0)
+	var inactive := _InactiveSessionStub.new()
+	assert_eq(MinimapRenderer.teammate_snapshots_from_session(inactive, d, l, 0).size(), 0)
+
+func test_teammate_with_unknown_room_excluded():
+	# Defensive: a snapshot whose current_room_id is -1 (peer is in a
+	# corridor / off-graph) OR points at a room id not in the dungeon
+	# (stale state after floor advance, race against teleport) must be
+	# silently dropped, not rendered at (0,0) or crash get_room().
+	var d := _make_dungeon()
+	var s := FloorMapState.new()
+	s.mark_revealed(0)
+	s.mark_revealed(1)
+	s.mark_revealed(99)  # local "revealed" a phantom id too — still excluded
+	var snapshots: Array = [
+		{"player_id": "p2", "current_room_id": -1, "world_pos": Vector2.ZERO},
+		{"player_id": "p3", "current_room_id": 99, "world_pos": Vector2.ZERO},
+		{"player_id": "p4", "current_room_id": 1, "world_pos": Vector2.ZERO},
+	]
+	var draws := MinimapRenderer.teammates_to_draw(snapshots, d, s)
+	assert_eq(draws.size(), 1)
+	assert_eq(String(draws[0]["player_id"]), "p4")
+
 func test_boss_room_not_drawn_when_unrevealed():
 	# Story 7: the boss room stays invisible until the player walks into it.
 	# Reveal only the start; the boss id must not appear in rooms_to_draw.

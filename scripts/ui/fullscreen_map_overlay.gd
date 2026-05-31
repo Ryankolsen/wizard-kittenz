@@ -185,6 +185,13 @@ func set_player_world_pos(p: Vector2) -> void:
 	if _renderer != null:
 		_renderer.player_world_pos = p
 
+# Slice 5 (#309): the HUD chip polls CoopSession each frame and forwards
+# the same snapshot list here so the two views never paint different
+# teammate sets.
+func set_teammate_snapshots(snaps: Array) -> void:
+	if _renderer != null:
+		_renderer.teammate_snapshots = snaps
+
 func open() -> void:
 	visible = true
 	_layout_map_panel()

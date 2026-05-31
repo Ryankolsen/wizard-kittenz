@@ -16,6 +16,8 @@ const CORRIDOR_COLOR := Color(0.55, 0.6, 0.7, 1.0)
 const CORRIDOR_WIDTH: float = 1.5
 const PLAYER_MARKER_RADIUS: float = 2.5
 const PLAYER_MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
+const TEAMMATE_MARKER_RADIUS: float = 2.0
+const TEAMMATE_MARKER_COLOR := Color(0.4, 0.85, 1.0, 1.0)
 
 # Per-type colors. Distinct hues so the player can tell at-a-glance which
 # rectangle is the boss vs. the bar vs. start; style_for_room_type() exposes
@@ -42,6 +44,10 @@ var layout: DungeonLayout = null
 # top-left of the chip until the first poke, which is invisible behind the
 # revealed start rectangle.
 var player_world_pos: Vector2 = Vector2.ZERO
+# Slice 5 (#309): caller (MinimapHUD / FullscreenMapOverlay) refreshes this
+# each frame from CoopSession.network_sync; the renderer just draws what
+# it's told. Empty array in solo / inactive session → zero markers.
+var teammate_snapshots: Array = []
 
 func bind(d: Dungeon, s: FloorMapState, l: DungeonLayout) -> void:
 	dungeon = d
@@ -89,6 +95,12 @@ func _draw() -> void:
 	if _player_in_revealed_room():
 		var marker := player_to_minimap(player_world_pos, grid_min, grid_max, target)
 		draw_circle(marker, PLAYER_MARKER_RADIUS, PLAYER_MARKER_COLOR)
+	# Slice 5 (#309): teammate markers — filtered by reveal so teammates in
+	# unrevealed rooms paint nothing (story 13).
+	for snap in teammates_to_draw(teammate_snapshots, dungeon, floor_state):
+		var t_world: Vector2 = snap.get("world_pos", Vector2.ZERO)
+		var t_pt := teammate_to_minimap(t_world, grid_min, grid_max, target)
+		draw_circle(t_pt, TEAMMATE_MARKER_RADIUS, TEAMMATE_MARKER_COLOR)
 
 func _player_in_revealed_room() -> bool:
 	if dungeon == null or layout == null or floor_state == null:
@@ -175,6 +187,94 @@ static func player_to_minimap(
 	var frac_x: float = 0.0 if span_x == 0 else (frac_grid.x - float(grid_min.x)) / float(span_x)
 	var frac_y: float = 0.0 if span_y == 0 else (frac_grid.y - float(grid_min.y)) / float(span_y)
 	return target.position + Vector2(frac_x * target.size.x, frac_y * target.size.y)
+
+# Pure helper — teammate marker visibility (slice 5 / #309). Mirrors
+# fog-of-war for rooms: a teammate in a room the LOCAL player has not
+# revealed is invisible, so scouting via teammates cannot defeat the
+# per-player reveal set (story 13).
+static func should_draw_teammate(teammate_room_id: int, s: FloorMapState) -> bool:
+	if s == null:
+		return false
+	return s.is_revealed(teammate_room_id)
+
+# Pure helper — teammate world position into the minimap rect. Identical to
+# player_to_minimap (the projection is the same); exposed separately so the
+# call sites in _draw read self-documentingly and a future change to teammate
+# projection (e.g. clamped-to-room-center) doesn't have to thread an enum.
+# Pure helper — filter a list of teammate snapshots down to the ones the
+# renderer should draw. A snapshot is a Dictionary with at least
+# "current_room_id" (int) and "world_pos" (Vector2). Teammates whose room
+# is unrevealed, unknown to the dungeon, or marked -1 are silently dropped
+# (story 13 / defensive against stale network state).
+static func teammates_to_draw(snapshots: Array, d: Dungeon, s: FloorMapState) -> Array:
+	var out: Array = []
+	if d == null or s == null:
+		return out
+	for snap in snapshots:
+		var rid: int = int(snap.get("current_room_id", -1))
+		if rid < 0:
+			continue
+		if d.get_room(rid) == null:
+			continue
+		if not should_draw_teammate(rid, s):
+			continue
+		out.append(snap)
+	return out
+
+# Pure helper — pull teammate position snapshots from a CoopSession in a
+# read-only way. Duck-typed `session` arg (Variant) so the test layer can
+# pass a stub without standing up a live session; the production caller
+# passes the real CoopSession. Returns [] when null/inactive or sync is
+# absent. Each snapshot is a Dictionary {player_id, current_room_id,
+# world_pos} — current_room_id is derived via spatial containment so this
+# helper introduces no new networking shape (story 11 / AC: read-only).
+static func teammate_snapshots_from_session(
+		session,
+		d: Dungeon,
+		l: DungeonLayout,
+		now_ms: int) -> Array:
+	var out: Array = []
+	if session == null:
+		return out
+	if not session.is_active():
+		return out
+	var sync = session.network_sync
+	if sync == null:
+		return out
+	var local_id: String = session.local_player_id
+	for pid in session.player_ids:
+		if String(pid) == local_id:
+			continue
+		var pos: Vector2 = sync.get_display_position_at(pid, now_ms)
+		var rid: int = room_id_at_world_pos(pos, d, l)
+		out.append({"player_id": String(pid), "current_room_id": rid, "world_pos": pos})
+	return out
+
+# Pure helper — spatial containment of a world position against the dungeon's
+# rooms. Returns -1 when no room contains the point (corridor / outside the
+# graph). Used by teammate_snapshots_from_session to label a remote peer's
+# room without inventing a new wire field.
+static func room_id_at_world_pos(world: Vector2, d: Dungeon, l: DungeonLayout) -> int:
+	if d == null or l == null:
+		return -1
+	var step: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
+	for room in d.rooms:
+		if not l.room_positions.has(room.id):
+			continue
+		var grid: Vector2i = l.room_positions[room.id]
+		var origin := Vector2(float(grid.x * step), float(grid.y * step))
+		var room_size: int = DungeonLayout.BOSS_ROOM_SIZE_PX if room.id == d.boss_id else DungeonLayout.ROOM_SIZE_PX
+		var bounds := Rect2(origin, Vector2(room_size, room_size))
+		if bounds.has_point(world):
+			return room.id
+	return -1
+
+static func teammate_to_minimap(
+		teammate_world: Vector2,
+		grid_min: Vector2i,
+		grid_max: Vector2i,
+		target: Rect2) -> Vector2:
+	return player_to_minimap(teammate_world, grid_min, grid_max, target)
 
 static func _grid_extent(layout: DungeonLayout, ids: Array) -> Dictionary:
 	if layout == null or ids.is_empty():

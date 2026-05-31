@@ -259,6 +259,10 @@ func _setup_minimap() -> void:
 	var chip := _hud.get_node_or_null("MinimapHUD") as MinimapHUD
 	if chip != null:
 		chip.bind(_run_controller.dungeon, _floor_map_state, _dungeon_layout)
+		# Slice 5 (#309): hand the chip the active CoopSession so it can poll
+		# remote-peer positions for teammate markers. Null in solo — the chip
+		# treats that as "zero teammates" with no crash path.
+		chip.set_coop_session(_coop_session())
 
 # Per-frame room detector: walks each room's world bounds and calls
 # enter_room on the controller when the player crosses a room boundary.

@@ -30,6 +30,11 @@ var _state: FloorMapState = null
 var _layout: DungeonLayout = null
 var _player_world_pos: Vector2 = Vector2.ZERO
 var _overlay: _FullscreenMapOverlay = null
+# Slice 5 (#309): the chip polls CoopSession.network_sync each frame for
+# remote-peer positions and feeds them to the renderer as snapshot dicts.
+# Null in solo / when no session has been bound yet — renderer treats an
+# empty snapshot list as "no teammate markers".
+var _coop_session = null
 
 func _ready() -> void:
 	# The chip itself ignores mouse — the tap surface is a dedicated child
@@ -83,8 +88,20 @@ func set_player_world_pos(p: Vector2) -> void:
 # — _draw iterates the revealed set (≤ ~10 rooms) and emits rectangles.
 # Signal-driven repaint is a slice 4+ concern when draw cost makes the
 # poll worth replacing.
+func set_coop_session(session) -> void:
+	_coop_session = session
+
 func _process(_dt: float) -> void:
 	if _renderer != null:
+		# Refresh teammate snapshots from CoopSession.network_sync each frame.
+		# teammate_snapshots_from_session is null/inactive-safe, so solo play
+		# yields an empty list and the renderer paints zero markers.
+		var now_ms: int = Time.get_ticks_msec()
+		var snaps := MinimapRenderer.teammate_snapshots_from_session(
+			_coop_session, _dungeon, _layout, now_ms)
+		_renderer.teammate_snapshots = snaps
+		if _overlay != null:
+			_overlay.set_teammate_snapshots(snaps)
 		_renderer.queue_redraw()
 
 func _on_chip_pressed() -> void:
