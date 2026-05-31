@@ -67,6 +67,11 @@ func _ready() -> void:
 				# delivered file so the runtime doesn't error on load().
 				roster_path = "res://assets/sprites/vacuum_boss.png"
 			path = roster_path
+			# Per-floor boss PNGs ship at native ~48px; render at 1.5x so
+			# they read as bosses next to ~48px mobs. vacuum_boss is already
+			# 96px, so it keeps its 1.0 scale.
+			if path != "res://assets/sprites/vacuum_boss.png":
+				sprite.scale = Vector2(1.5, 1.5)
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
