@@ -16,8 +16,8 @@ extends Control
 
 const CORRIDOR_COLOR := Color(0.55, 0.6, 0.7, 1.0)
 const CORRIDOR_WIDTH: float = 1.5
-const PLAYER_MARKER_RADIUS: float = 2.5
-const PLAYER_MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
+const PLAYER_MARKER_RADIUS: float = 3.0
+const PLAYER_MARKER_COLOR := Color(1.0, 0.15, 0.85, 1.0)
 const TEAMMATE_MARKER_RADIUS: float = 2.0
 const TEAMMATE_MARKER_COLOR := Color(0.4, 0.85, 1.0, 1.0)
 # Inner margin so the projected world bounds don't kiss the chip border.
