@@ -275,6 +275,41 @@ func test_customize_save_returns_to_main_menu():
 	save_btn.pressed.emit()
 	assert_true(scene.get_node("MainMenu").visible, "Save must return to main menu")
 
+# Regression: starting a new game in a fresh slot must not wipe other slots.
+# Before this fix, _finalize wrote a flat KittenSaveData via SaveManager.save,
+# which SaveBundle.from_dict discards as legacy on the next load — silently
+# erasing every other archetype's progress.
+func test_quick_start_preserves_other_archetype_slots_on_disk():
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
+	# Seed the bundle with an existing battle slot at level 5.
+	var seed_bundle := SaveBundle.new()
+	var battle_slot := CharacterSlotData.new()
+	battle_slot.character_name = "Brawler"
+	battle_slot.character_class = CharacterData.CharacterClass.BATTLE_KITTEN
+	battle_slot.level = 5
+	seed_bundle.set_slot(CharacterData.CharacterClass.BATTLE_KITTEN, battle_slot)
+	seed_bundle.active_slot = SaveBundle.SLOT_BATTLE
+	assert_eq(SaveManager.save_bundle(seed_bundle, SaveManager.DEFAULT_PATH), OK)
+
+	# Simulate creating a wizard kitten via QuickStart — this routes through
+	# _finalize, which used to clobber the bundle with a flat save.
+	var scene := _instantiate_creation_scene()
+	var btn := scene.get_node(_btn_path("QuickStart", "WizardKittenButton")) as Button
+	btn.pressed.emit()
+
+	var reloaded := SaveManager.load_bundle(SaveManager.DEFAULT_PATH)
+	var battle_after := reloaded.get_slot(SaveBundle.SLOT_BATTLE)
+	assert_not_null(battle_after,
+		"battle slot must survive a new-game QuickStart in a different archetype")
+	assert_eq(battle_after.level, 5, "battle slot stats must be untouched")
+	var wizard_after := reloaded.get_slot(SaveBundle.SLOT_WIZARD)
+	assert_not_null(wizard_after,
+		"wizard slot must be written by _finalize")
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
 # Bug: starting a new game when a stale dungeon_run_controller is in GameState
 # (e.g. loaded from a save with an in-flight run) must clear it so main_scene
 # starts a fresh dungeon instead of resuming the old one.
