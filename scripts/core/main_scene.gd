@@ -27,6 +27,11 @@ var _hud: HUD = null
 var _dungeon_layout: DungeonLayout = null
 var _spawn_planner: RoomSpawnPlanner = null
 var _exit_door: ExitDoor = null
+# Minimap reveal state (PRD #304 / slice 1 — issue #305). Per-floor reveal
+# tracker + bridge owned here so a scene reload that recreates main_scene
+# starts a fresh floor's fog of war. Per-floor persistence lands in #308.
+var _floor_map_state: FloorMapState = null
+var _reveal_bridge: RoomRevealBridge = null
 var _congrats_screen: CongratulationsScreen = null
 
 # PRD #132 / issue #134 — per-floor stat tracking for the congratulations
@@ -96,6 +101,7 @@ func _ready() -> void:
 
 	_setup_rooms()
 	_spawn_exit_door()
+	_setup_minimap()
 
 # Co-op wire bridge — subscribes main_scene to the lobby's #99 signals so a
 # remote boss-clear opens the local exit door, a host mint broadcasts the
@@ -232,6 +238,51 @@ func _setup_rooms() -> void:
 # without needing the physics step to fire.
 func _process(_delta: float) -> void:
 	_check_bar_entrance()
+	_update_current_room()
+
+# Minimap slice 1 (#305): instantiates the per-floor FloorMapState and
+# RoomRevealBridge after the dungeon is laid out, then hands the trio
+# (dungeon, state, layout) to the HUD's MinimapHUD chip so it can draw.
+# The bridge subscribes to current_room_changed; per-frame room detection
+# lives in _update_current_room.
+func _setup_minimap() -> void:
+	if _run_controller == null or _run_controller.dungeon == null:
+		return
+	_floor_map_state = FloorMapState.new()
+	_reveal_bridge = RoomRevealBridge.new()
+	_reveal_bridge.bind(_run_controller, _floor_map_state)
+	if _hud == null:
+		return
+	var chip := _hud.get_node_or_null("MinimapHUD") as MinimapHUD
+	if chip != null:
+		chip.bind(_run_controller.dungeon, _floor_map_state, _dungeon_layout)
+
+# Per-frame room detector: walks each room's world bounds and calls
+# enter_room on the controller when the player crosses a room boundary.
+# enter_room is idempotent on the same id, so wobbling near a boundary
+# tile costs only a contains-point check per frame. Corridors return no
+# match; the current_room_id stays on the last room until the player
+# steps into the next one.
+func _update_current_room() -> void:
+	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
+		return
+	if _player == null:
+		return
+	var pos := _player.global_position
+	for room in _run_controller.dungeon.rooms:
+		if not _dungeon_layout.room_positions.has(room.id):
+			continue
+		var bounds := _room_world_bounds(room.id)
+		if bounds.has_point(pos):
+			_run_controller.enter_room(room.id)
+			return
+
+func _room_world_bounds(room_id: int) -> Rect2:
+	var grid: Vector2i = _dungeon_layout.room_positions[room_id]
+	var step: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
+	var origin := Vector2(float(grid.x * step), float(grid.y * step))
+	var room_size: int = DungeonLayout.BOSS_ROOM_SIZE_PX if room_id == _run_controller.dungeon.boss_id else DungeonLayout.ROOM_SIZE_PX
+	return Rect2(origin, Vector2(room_size, room_size))
 
 
 func _check_bar_entrance() -> void:

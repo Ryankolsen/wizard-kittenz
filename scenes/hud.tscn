@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://b9hud2k7r3xqz"]
+[gd_scene load_steps=5 format=3 uid="uid://b9hud2k7r3xqz"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" path="res://scenes/quickbar_hud.tscn" id="2_quickbar"]
+[ext_resource type="PackedScene" path="res://scenes/minimap_hud.tscn" id="3_minimap"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stats"]
 bg_color = Color(0.05, 0.07, 0.12, 0.8)
@@ -114,6 +115,12 @@ offset_bottom = 22.0
 text = "+0 stat pts"
 theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
 theme_override_font_sizes/font_size = 12
+
+[node name="MinimapHUD" parent="." instance=ExtResource("3_minimap")]
+offset_left = 380.0
+offset_top = 30.0
+offset_right = 460.0
+offset_bottom = 110.0
 
 [node name="QuickbarHUD" parent="." instance=ExtResource("2_quickbar")]
 offset_left = 392.0

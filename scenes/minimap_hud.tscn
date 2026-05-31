@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8minimap1z3xqz"]
+
+[ext_resource type="Script" path="res://scripts/ui/minimap_hud.gd" id="1_minimap"]
+
+[node name="MinimapHUD" type="Control"]
+custom_minimum_size = Vector2(80, 80)
+script = ExtResource("1_minimap")

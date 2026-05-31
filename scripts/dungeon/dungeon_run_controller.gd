@@ -52,6 +52,13 @@ signal dungeon_transitioned()
 # scene layer subscribes once and fans out the action (host: mint new seed
 # and broadcast; peer: send request packet to host).
 signal dungeon_transition_requested()
+# Fires when the player walks into a different room on the persistent map.
+# Distinct from any combat/clear edge: this is "the camera/player is now in
+# room N". Slice 1 of the minimap PRD (#304 / #305) consumes it via
+# RoomRevealBridge to mark rooms as revealed on the fog-of-war map. Pure
+# observational signal — does NOT gate combat, spawning, or transitions
+# (those still run off the room-clear / mark_room_cleared edges).
+signal current_room_changed(new_id: int)
 
 var dungeon: Dungeon = null
 var current_room_id: int = -1
@@ -149,6 +156,18 @@ func transition() -> void:
 # transition_requested_received signal that surfaces a peer's OP_REQUEST_TRANSITION.
 # Returns true on the first call (signal fires), false on every subsequent
 # call (signal suppressed). Issue #99 AC3.
+# Updates current_room_id and emits current_room_changed. Called by the
+# scene-layer room-detector (the per-frame "which room is the player in"
+# check) when the player crosses a room boundary. Idempotent on the same
+# id — a repeat call is a no-op and the signal does not re-fire, so a
+# wobbly detector right on a boundary tile doesn't spam revealed events.
+# The minimap's reveal bridge (#305) is the first listener.
+func enter_room(id: int) -> void:
+	if id == current_room_id:
+		return
+	current_room_id = id
+	current_room_changed.emit(id)
+
 func request_dungeon_transition() -> bool:
 	if _transition_requested:
 		return false
