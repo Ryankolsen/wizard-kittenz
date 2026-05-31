@@ -2,9 +2,13 @@ extends GutTest
 
 # MinimapRenderer pure-helper tests. The Control's draw layer is exercised
 # only through static helpers so the math is verified without a SceneTree.
-# Slice 1 (PRD #304): rooms are rectangles at layout-derived positions
-# scaled to fit the host chip rect. No types, corridors, or player marker
-# yet — those come in slices 2 / 3.
+# Post-#310 QA: the renderer projects rooms, corridors, and markers
+# through a single world-pixel → minimap transform (compute_world_bounds,
+# compute_scale, world_to_minimap). A player standing inside a room must
+# render INSIDE that room's projected rectangle — the asymmetric grid /
+# world transforms that caused the V1 marker drift are gone.
+
+const _STEP: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
 
 func _make_dungeon() -> Dungeon:
 	var d := Dungeon.new()
@@ -14,6 +18,15 @@ func _make_dungeon() -> Dungeon:
 	d.start_id = 0
 	d.boss_id = 2
 	return d
+
+func _layout_three_in_a_row() -> DungeonLayout:
+	# Rooms placed at (0,0), (1,0), (2,0) — a 3-wide horizontal strip.
+	var l := DungeonLayout.new()
+	l.room_positions[0] = Vector2i(0, 0)
+	l.room_positions[1] = Vector2i(1, 0)
+	l.room_positions[2] = Vector2i(2, 0)
+	l.boss_id = 2
+	return l
 
 func test_rooms_to_draw_returns_only_revealed_ids():
 	# Renderer projects {revealed rooms ∩ dungeon rooms} so a stale id in
@@ -41,40 +54,97 @@ func test_rooms_to_draw_ignores_unknown_revealed_ids():
 	assert_eq(ids.size(), 1)
 	assert_true(ids.has(0))
 
-func test_world_to_minimap_transform_scales_into_target_rect():
-	# Given a known grid extent ((0,0)..(2,1)) and a 100x100 target rect,
-	# the corner cells map to the rect's corners (with a half-cell inset
-	# so each rectangle's center sits at the expected fraction).
+# --- world bounds + transform -----------------------------------------------
+
+func test_compute_world_bounds_unions_revealed_rooms():
+	# Bounds span from room 0's top-left to room 2's bottom-right. The two
+	# revealed rooms are 192px each, separated by a 192+80=272 px step.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var bounds := MinimapRenderer.compute_world_bounds(d, l, [0, 2])
+	# Room 0 origin (0, 0); room 2 (boss, 2x) origin (2*272, 0) = (544, 0).
+	# Room 2 is the boss, so its size is BOSS_ROOM_SIZE_PX (384).
+	assert_almost_eq(bounds.position.x, 0.0, 0.01)
+	assert_almost_eq(bounds.position.y, 0.0, 0.01)
+	assert_almost_eq(bounds.size.x, 2.0 * float(_STEP) + float(DungeonLayout.BOSS_ROOM_SIZE_PX), 0.01)
+	# Vertical span comes from the boss room (the larger of the two).
+	assert_almost_eq(bounds.size.y, float(DungeonLayout.BOSS_ROOM_SIZE_PX), 0.01)
+
+func test_compute_world_bounds_empty_revealed_returns_zero_rect():
+	# Defensive: no revealed rooms means no bounds — draw layer short-
+	# circuits before calling the transform, but the helper must not crash.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var bounds := MinimapRenderer.compute_world_bounds(d, l, [])
+	assert_almost_eq(bounds.size.x, 0.0, 0.01)
+	assert_almost_eq(bounds.size.y, 0.0, 0.01)
+
+func test_compute_scale_preserves_aspect_ratio():
+	# A 200x100 world projected into a 100x100 target collapses to a uniform
+	# scale of 0.5-minus-margin (the wider axis wins). Letterboxing leaves
+	# vertical slack rather than squishing the rooms.
+	var world := Rect2(Vector2.ZERO, Vector2(200, 100))
 	var target := Rect2(Vector2.ZERO, Vector2(100, 100))
-	var grid_min := Vector2i(0, 0)
-	var grid_max := Vector2i(2, 1)
-	# Top-left grid cell (0,0) maps near rect origin.
-	var p00 := MinimapRenderer.world_to_minimap(Vector2i(0, 0), grid_min, grid_max, target)
-	assert_true(target.has_point(p00))
-	assert_almost_eq(p00.x, 0.0, 0.01)
-	assert_almost_eq(p00.y, 0.0, 0.01)
-	# Bottom-right grid cell (2,1) maps to the opposite corner area.
-	var p21 := MinimapRenderer.world_to_minimap(Vector2i(2, 1), grid_min, grid_max, target)
-	assert_almost_eq(p21.x, 100.0, 0.01)
-	assert_almost_eq(p21.y, 100.0, 0.01)
+	var scale := MinimapRenderer.compute_scale(world, target)
+	var expected := (100.0 - MinimapRenderer.MAP_MARGIN_PX * 2.0) / 200.0
+	assert_almost_eq(scale, expected, 0.0001)
 
-func test_world_to_minimap_middle_cell_lands_at_expected_fraction():
-	# Middle column (x=1) on a 0..2 range lands halfway across width.
+func test_world_to_minimap_maps_origin_to_offset_inside_target():
+	# The world bounds' top-left corner maps to an interior point of the
+	# target rect (offset by the centring + margin), not to (0,0).
+	var world := Rect2(Vector2.ZERO, Vector2(200, 200))
+	var target := Rect2(Vector2(10, 20), Vector2(100, 100))
+	var p := MinimapRenderer.world_to_minimap(world.position, world, target)
+	# Square world in square target → no letterboxing, just the margin.
+	assert_almost_eq(p.x, 10.0 + MinimapRenderer.MAP_MARGIN_PX, 0.01)
+	assert_almost_eq(p.y, 20.0 + MinimapRenderer.MAP_MARGIN_PX, 0.01)
+
+func test_world_to_minimap_player_inside_room_lands_inside_room_rect():
+	# Regression for the V1 marker drift: a player standing at the centre
+	# of a known room must project to a minimap point that lies inside
+	# that room's projected rectangle. With the old asymmetric transform
+	# the dot drifted by half a room-step.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var revealed: Array = [0, 1]
+	var bounds := MinimapRenderer.compute_world_bounds(d, l, revealed)
 	var target := Rect2(Vector2.ZERO, Vector2(100, 100))
-	var p := MinimapRenderer.world_to_minimap(
-		Vector2i(1, 0), Vector2i(0, 0), Vector2i(2, 1), target)
-	assert_almost_eq(p.x, 50.0, 0.01)
+	var scale := MinimapRenderer.compute_scale(bounds, target)
+	# Player stands at the centre of room 1.
+	var room1_world := MinimapRenderer.room_world_rect(1, d, l)
+	var player_world := room1_world.position + room1_world.size * 0.5
+	var marker := MinimapRenderer.world_to_minimap(player_world, bounds, target)
+	# Room 1's projected rectangle on the minimap.
+	var room1_tl := MinimapRenderer.world_to_minimap(room1_world.position, bounds, target)
+	var room1_rect := Rect2(room1_tl, room1_world.size * scale)
+	assert_true(room1_rect.has_point(marker),
+		"Player marker at %s must lie inside room 1's minimap rect %s" % [marker, room1_rect])
 
-func test_world_to_minimap_single_cell_grid_collapses_to_rect_origin():
-	# Degenerate: only one room revealed (grid_min == grid_max). The cell
-	# lands at the rect's origin rather than dividing by zero.
-	var target := Rect2(Vector2(10, 20), Vector2(50, 50))
-	var p := MinimapRenderer.world_to_minimap(
-		Vector2i(3, 3), Vector2i(3, 3), Vector2i(3, 3), target)
-	assert_almost_eq(p.x, 10.0, 0.01)
-	assert_almost_eq(p.y, 20.0, 0.01)
+func test_world_to_minimap_boss_room_renders_larger_than_standard():
+	# Boss rooms are 2x in world space; the unified transform preserves
+	# that ratio on the minimap so the boss is visually distinguishable
+	# from a standard room.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var bounds := MinimapRenderer.compute_world_bounds(d, l, [1, 2])
+	var target := Rect2(Vector2.ZERO, Vector2(200, 200))
+	var scale := MinimapRenderer.compute_scale(bounds, target)
+	var standard := MinimapRenderer.room_world_rect(1, d, l).size * scale
+	var boss := MinimapRenderer.room_world_rect(2, d, l).size * scale
+	# Boss = 384 px world, standard = 192 px world → 2x ratio preserved.
+	assert_almost_eq(boss.x / standard.x, 2.0, 0.01)
+	assert_almost_eq(boss.y / standard.y, 2.0, 0.01)
 
-# --- Slice 2 (#306): corridors, room-type styling, local player dot ---
+# --- room centres + edges ---------------------------------------------------
+
+func test_room_center_world_uses_room_size():
+	# Standard room: centre at origin + 96. Boss room: centre at origin + 192.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var c1 := MinimapRenderer.room_center_world(1, d, l)
+	assert_almost_eq(c1.x, float(_STEP) + float(DungeonLayout.ROOM_SIZE_PX) * 0.5, 0.01)
+	var c2 := MinimapRenderer.room_center_world(2, d, l)
+	assert_almost_eq(c2.x, 2.0 * float(_STEP) + float(DungeonLayout.BOSS_ROOM_SIZE_PX) * 0.5, 0.01)
 
 func test_edge_drawn_when_both_endpoints_revealed():
 	# Corridors are gated by reveal: an edge between A and B renders only when
@@ -111,43 +181,7 @@ func test_room_style_for_type_returns_distinct_styles():
 		styles[key] = true
 	assert_eq(styles.size(), 5)
 
-func test_player_marker_position_uses_world_to_minimap_transform():
-	# The player marker is positioned in the same coordinate space as the
-	# rooms: feed a player world position whose fractional grid coord matches
-	# a known room's grid_pos and assert the marker lands at the same minimap
-	# point world_to_minimap would produce for that room.
-	var target := Rect2(Vector2.ZERO, Vector2(100, 100))
-	var grid_min := Vector2i(0, 0)
-	var grid_max := Vector2i(2, 1)
-	# Player standing exactly in the middle room (grid (1,0)) → world origin
-	# (step, 0) where step = ROOM_SIZE_PX + CORRIDOR_WIDTH_PX.
-	var step: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
-	var player_world := Vector2(float(step) * 1.0, 0.0)
-	var marker := MinimapRenderer.player_to_minimap(
-		player_world, grid_min, grid_max, target)
-	var room := MinimapRenderer.world_to_minimap(
-		Vector2i(1, 0), grid_min, grid_max, target)
-	assert_almost_eq(marker.x, room.x, 0.01)
-	assert_almost_eq(marker.y, room.y, 0.01)
-
 # --- Slice 5 (#309): co-op teammate markers, gated by local reveal ---
-
-func test_teammate_marker_position_uses_world_to_minimap_transform():
-	# Teammate markers share the local player's world→minimap transform; given
-	# the teammate's world position, the renderer maps them via teammate_to_minimap
-	# which must equal player_to_minimap for the same inputs (the two markers
-	# are conceptually the same projection — only the color/source differs).
-	var target := Rect2(Vector2.ZERO, Vector2(100, 100))
-	var grid_min := Vector2i(0, 0)
-	var grid_max := Vector2i(2, 1)
-	var step: int = DungeonLayout.ROOM_SIZE_PX + DungeonLayout.CORRIDOR_WIDTH_PX
-	var teammate_world := Vector2(float(step) * 1.0, 0.0)
-	var teammate_pt := MinimapRenderer.teammate_to_minimap(
-		teammate_world, grid_min, grid_max, target)
-	var via_player := MinimapRenderer.player_to_minimap(
-		teammate_world, grid_min, grid_max, target)
-	assert_almost_eq(teammate_pt.x, via_player.x, 0.01)
-	assert_almost_eq(teammate_pt.y, via_player.y, 0.01)
 
 func test_teammate_marker_drawn_when_teammate_room_revealed():
 	# Pure helper: a teammate marker is drawable iff the local FloorMapState
