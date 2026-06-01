@@ -183,6 +183,59 @@ func test_resolver_never_returns_shop_item_across_100_rolls():
 		assert_eq(item.source, ItemData.Source.DROP,
 			"resolver returned SHOP item %s" % item.id)
 
+# --- Slice 1 of PRD #311: floor→tier resolver + BOSS_CHEST_ITEM ------------
+
+func test_rarity_for_floor_exhaustive_1_through_10():
+	for d in range(1, 11):
+		var rarity := ItemDropResolver.rarity_for_floor(d)
+		if d <= 3:
+			assert_eq(rarity, ItemData.Rarity.COMMON, "floor %d should be COMMON" % d)
+		elif d <= 6:
+			assert_eq(rarity, ItemData.Rarity.RARE, "floor %d should be RARE" % d)
+		else:
+			assert_eq(rarity, ItemData.Rarity.EPIC, "floor %d should be EPIC" % d)
+
+func test_boss_chest_item_level_1_floor_1_returns_common():
+	var item := ItemDropResolver.resolve(_make_character(1), ItemDropResolver.Context.BOSS_CHEST_ITEM, _make_rng(1), 1)
+	assert_not_null(item)
+	assert_eq(item.rarity, ItemData.Rarity.COMMON)
+
+func test_boss_chest_item_level_1_floor_4_returns_rare():
+	var item := ItemDropResolver.resolve(_make_character(1), ItemDropResolver.Context.BOSS_CHEST_ITEM, _make_rng(1), 4)
+	assert_not_null(item)
+	assert_eq(item.rarity, ItemData.Rarity.RARE)
+
+func test_boss_chest_item_level_1_floor_7_returns_epic():
+	var item := ItemDropResolver.resolve(_make_character(1), ItemDropResolver.Context.BOSS_CHEST_ITEM, _make_rng(1), 7)
+	assert_not_null(item)
+	assert_eq(item.rarity, ItemData.Rarity.EPIC)
+
+func test_boss_chest_item_always_drops():
+	for s in 50:
+		var item := ItemDropResolver.resolve(_make_character(1), ItemDropResolver.Context.BOSS_CHEST_ITEM, _make_rng(s + 1000), 5)
+		assert_not_null(item, "boss chest item null at seed %d" % s)
+
+func test_boss_chest_item_never_null_for_any_class_at_floor_10():
+	var classes := [
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in classes:
+		var c := _make_character(1, klass)
+		var item := ItemDropResolver.resolve(c, ItemDropResolver.Context.BOSS_CHEST_ITEM, _make_rng(1), 10)
+		assert_not_null(item, "class %d got null at floor 10" % klass)
+		assert_true(ClassEligibility.is_class_allowed(item, klass),
+			"item %s not allowed for class %d" % [item.id, klass])
+
+func test_existing_resolve_signature_back_compat():
+	var rng := _make_rng(7)
+	for i in 100:
+		var item := ItemDropResolver.resolve(_make_character(1), ItemDropResolver.Context.ENEMY, rng)
+		if item != null:
+			assert_eq(item.rarity, ItemData.Rarity.COMMON, "non-common at level 1 (back-compat)")
+
 func test_level_1_wizard_still_only_common():
 	# Existing LEVEL_GATE_RARE behavior preserved under class filtering.
 	var c := _make_character(1, CharacterData.CharacterClass.WIZARD_KITTEN)

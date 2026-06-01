@@ -9,7 +9,10 @@ extends RefCounted
 # empty at the rolled rarity, fall back to the next lower rarity (same
 # shape as level _gate_down).
 
-enum Context { ENEMY, BOSS, CHEST_STANDARD, CHEST_RARE }
+enum Context { ENEMY, BOSS, CHEST_STANDARD, CHEST_RARE, BOSS_CHEST_ITEM }
+
+const FLOOR_GATE_RARE: int = 4
+const FLOOR_GATE_EPIC: int = 7
 
 const DROP_CHANCE_ENEMY: float = 0.10
 const DROP_CHANCE_BOSS: float = 1.0
@@ -24,7 +27,7 @@ const LEVEL_GATE_COMMON: int = 1
 const LEVEL_GATE_RARE: int = 6
 const LEVEL_GATE_EPIC: int = 11
 
-static func resolve(character: CharacterData, context: int, rng: RandomNumberGenerator) -> ItemData:
+static func resolve(character: CharacterData, context: int, rng: RandomNumberGenerator, depth: int = 0) -> ItemData:
 	if character == null:
 		return null
 	if rng == null:
@@ -32,7 +35,11 @@ static func resolve(character: CharacterData, context: int, rng: RandomNumberGen
 	var drop_chance := _drop_chance(context)
 	if rng.randf() >= drop_chance:
 		return null
-	var rarity := _roll_rarity(character.level, rng)
+	var rarity: int
+	if context == Context.BOSS_CHEST_ITEM:
+		rarity = rarity_for_floor(depth)
+	else:
+		rarity = _roll_rarity(character.level, rng)
 	var pool := _class_filtered_pool(rarity, character.character_class)
 	while pool.is_empty() and rarity > ItemData.Rarity.COMMON:
 		rarity -= 1
@@ -41,6 +48,13 @@ static func resolve(character: CharacterData, context: int, rng: RandomNumberGen
 		return null
 	var idx := rng.randi_range(0, pool.size() - 1)
 	return pool[idx]
+
+static func rarity_for_floor(depth: int) -> int:
+	if depth >= FLOOR_GATE_EPIC:
+		return ItemData.Rarity.EPIC
+	if depth >= FLOOR_GATE_RARE:
+		return ItemData.Rarity.RARE
+	return ItemData.Rarity.COMMON
 
 static func is_drop_eligible(item: ItemData, character_class: int) -> bool:
 	if item == null:
@@ -66,6 +80,8 @@ static func _drop_chance(context: int) -> float:
 			return DROP_CHANCE_CHEST_STANDARD
 		Context.CHEST_RARE:
 			return DROP_CHANCE_CHEST_RARE
+		Context.BOSS_CHEST_ITEM:
+			return 1.0
 	return 0.0
 
 static func _roll_rarity(player_level: int, rng: RandomNumberGenerator) -> int:
