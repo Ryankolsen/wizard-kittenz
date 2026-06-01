@@ -70,8 +70,8 @@ const BOSS_GOLD_MULT: int = 4
 # roughly equivalent to their own stat gains, and bosses get appreciably
 # nastier the deeper the player goes. xp/gold scale too so the run reward
 # keeps pace with the increased risk.
-const FLOOR_HP_SCALE_PER_LEVEL: float = 0.35
-const FLOOR_ATTACK_SCALE_PER_LEVEL: float = 0.20
+const FLOOR_HP_SCALE_PER_LEVEL: float = 0.55
+const FLOOR_ATTACK_SCALE_PER_LEVEL: float = 0.35
 const FLOOR_DEFENSE_SCALE_PER_LEVEL: float = 0.15
 const FLOOR_XP_SCALE_PER_LEVEL: float = 0.25
 const FLOOR_GOLD_SCALE_PER_LEVEL: float = 0.20
