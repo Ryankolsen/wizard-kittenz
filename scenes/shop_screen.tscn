@@ -57,7 +57,12 @@ layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="ItemList" type="VBoxContainer" parent="MarginContainer/Layout/Scroll"]
+[node name="ScrollPadding" type="MarginContainer" parent="MarginContainer/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_right = 32
+
+[node name="ItemList" type="VBoxContainer" parent="MarginContainer/Layout/Scroll/ScrollPadding"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6

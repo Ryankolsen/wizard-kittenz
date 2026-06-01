@@ -43,7 +43,7 @@ func set_overlay_mode(enabled: bool) -> void:
 
 @onready var _gold_label: Label = $MarginContainer/Layout/CurrencyRow/GoldLabel
 @onready var _gem_label: Label = $MarginContainer/Layout/CurrencyRow/GemLabel
-@onready var _item_list: VBoxContainer = $MarginContainer/Layout/Scroll/ItemList
+@onready var _item_list: VBoxContainer = $MarginContainer/Layout/Scroll/ScrollPadding/ItemList
 @onready var _back_btn: Button = $MarginContainer/Layout/BackButton
 @onready var error_label: Label = $MarginContainer/Layout/ErrorLabel
 
