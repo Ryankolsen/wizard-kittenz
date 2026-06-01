@@ -27,9 +27,9 @@ func test_make_new_angry_pigeon_has_expected_defaults():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.enemy_name, "Angry Pigeon")
-	assert_eq(e.max_hp, 4)
-	assert_eq(e.hp, 4)
-	assert_eq(e.attack, 1)
+	assert_eq(e.max_hp, 8)
+	assert_eq(e.hp, 8)
+	assert_eq(e.attack, 2)
 	assert_eq(e.defense, 0)
 	assert_eq(e.xp_reward, 15)
 	assert_eq(e.gold_reward, 2)
@@ -94,8 +94,8 @@ func test_take_damage_clamps_and_kills():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_true(e.is_alive())
 	assert_eq(e.take_damage(2), 2)
-	assert_eq(e.hp, 2)
-	assert_eq(e.take_damage(99), 2, "overkill returns only damage actually dealt")
+	assert_eq(e.hp, 6)
+	assert_eq(e.take_damage(99), 6, "overkill returns only damage actually dealt")
 	assert_eq(e.hp, 0)
 	assert_false(e.is_alive())
 
@@ -104,7 +104,7 @@ func test_make_new_returns_independent_instances():
 	var b := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	a.take_damage(99)
 	assert_eq(a.hp, 0)
-	assert_eq(b.hp, 4, "second instance should be untouched")
+	assert_eq(b.hp, 8, "second instance should be untouched")
 
 func test_static_helpers_match_make_new():
 	for k in _NEW_KINDS:

@@ -24,9 +24,9 @@ enum EnemyKind {
 
 @export var enemy_name: String = "Angry Pigeon"
 @export var kind: EnemyKind = EnemyKind.ANGRY_PIGEON
-@export var hp: int = 4
-@export var max_hp: int = 4
-@export var attack: int = 1
+@export var hp: int = 8
+@export var max_hp: int = 8
+@export var attack: int = 2
 @export var defense: int = 0
 @export var xp_reward: int = 2
 # Gold dropped on death (PRD #53). Credited to the local CurrencyLedger via
@@ -87,10 +87,10 @@ var taunt_source_id: String = ""
 # differentiation is a future PRD — the static helpers stay kind-keyed so
 # that future change is a body edit, not a signature change.
 static func base_max_hp_for(_k: EnemyKind) -> int:
-	return 4
+	return 8
 
 static func base_attack_for(_k: EnemyKind) -> int:
-	return 1
+	return 2
 
 static func base_defense_for(k: EnemyKind) -> int:
 	# Dog Knight (issue #163) is the documented exception to the equal-stats

@@ -202,9 +202,16 @@ func _setup_rooms() -> void:
 	if _run_controller == null or _run_controller.dungeon == null:
 		return
 
+	# Floor scaling: enemies and bosses get tougher per descended floor so the
+	# difficulty curve tracks the player's level progression. floor_number
+	# matches the value passed to DungeonGenerator.generate above.
+	var floor_for_scaling := 1
+	var gs_for_floor := get_node_or_null("/root/GameState")
+	if gs_for_floor != null and gs_for_floor.meta_tracker != null:
+		floor_for_scaling = gs_for_floor.meta_tracker.dungeons_completed + 1
 	_spawn_planner = RoomSpawnPlanner.new()
 	_spawn_planner.register_all_room_enemies(
-		_run_controller.dungeon, _dungeon_layout, _coop_session())
+		_run_controller.dungeon, _dungeon_layout, _coop_session(), floor_for_scaling)
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	var power_up_scene := load(POWER_UP_SCENE_PATH)

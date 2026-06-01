@@ -424,6 +424,76 @@ func test_planned_enemy_id_round_trips_through_apply_death():
 	assert_true(session.enemy_sync.apply_death(spawned[0].enemy_id))
 	assert_false(session.enemy_sync.is_alive(spawned[0].enemy_id))
 
+# --- floor scaling ---------------------------------------------------------
+
+func test_plan_enemy_floor_1_is_baseline():
+	# Floor 1 means depth 0, so the scaling multipliers are all 1.0x and the
+	# enemy's stats match the unscaled make_new output.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_eq(d.max_hp, EnemyData.base_max_hp_for(EnemyData.EnemyKind.ANGRY_PIGEON))
+	assert_eq(d.attack, EnemyData.base_attack_for(EnemyData.EnemyKind.ANGRY_PIGEON))
+
+func test_plan_enemy_higher_floor_boosts_hp_and_attack():
+	# Per-floor scaling is monotonic — a deeper floor's enemy must have
+	# strictly more hp and attack than the floor-1 version of the same kind.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
+	var f1 := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	var f5 := RoomSpawnPlanner.plan_enemy(r, 0, 5)
+	assert_gt(f5.max_hp, f1.max_hp, "floor 5 standard enemy has more hp")
+	assert_gt(f5.attack, f1.attack, "floor 5 standard enemy hits harder")
+
+func test_plan_enemy_floor_scaling_stacks_on_boss_multipliers():
+	# Floor scaling applies on top of the boss multipliers — a floor-5 boss
+	# is meaningfully nastier than a floor-1 boss.
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+	var f1 := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	var f5 := RoomSpawnPlanner.plan_enemy(r, 0, 5)
+	assert_gt(f5.max_hp, f1.max_hp)
+	assert_gt(f5.attack, f1.attack)
+	assert_gt(f5.defense, f1.defense, "boss defense scales too (boss has nonzero base)")
+
+func test_plan_enemy_floor_scaling_boosts_rewards():
+	# Stronger enemies pay better — xp/gold scale per floor so the run reward
+	# keeps pace with the increased risk.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
+	var f1 := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	var f5 := RoomSpawnPlanner.plan_enemy(r, 0, 5)
+	assert_gt(f5.xp_reward, f1.xp_reward)
+	assert_gt(f5.gold_reward, f1.gold_reward)
+
+func test_plan_enemy_hp_equals_max_hp_after_floor_scaling():
+	# After scaling bumps max_hp, the enemy spawns at full health — no off-by-
+	# one where max_hp scaled and hp didn't.
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 4)
+	assert_eq(d.hp, d.max_hp)
+
+func test_plan_enemy_floor_default_is_one():
+	# Backward-compat: callers that don't yet pass floor_number get the
+	# baseline (floor-1) behavior — pinned so a future signature change
+	# doesn't silently shift existing call sites' scaling.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.ANGRY_PIGEON)
+	var d_default := RoomSpawnPlanner.plan_enemy(r)
+	var d_floor1 := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_eq(d_default.max_hp, d_floor1.max_hp)
+	assert_eq(d_default.attack, d_floor1.attack)
+
+func test_register_all_room_enemies_threads_floor_into_scaling():
+	# The dungeon-load entry point must forward floor_number into plan_enemy so
+	# every spawned enemy carries the floor's scaling.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner_f1 := RoomSpawnPlanner.new()
+	planner_f1.register_all_room_enemies(dungeon, layout, null, 1)
+	var planner_f5 := RoomSpawnPlanner.new()
+	planner_f5.register_all_room_enemies(dungeon, layout, null, 5)
+	var boss_f1 := planner_f1.enemy_data_for_room(dungeon.boss_id)
+	var boss_f5 := planner_f5.enemy_data_for_room(dungeon.boss_id)
+	assert_gt(boss_f5.max_hp, boss_f1.max_hp,
+		"floor-5 boss is tougher than floor-1 boss after register_all")
+
 # --- new enemy roster (issue #154) -----------------------------------------
 
 func test_boss_enemy_name_matches_boss_roster_floor_1():

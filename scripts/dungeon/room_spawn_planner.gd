@@ -59,17 +59,28 @@ var _enemy_data_by_room_id: Dictionary = {}
 # whether to instantiate an enemy node at all. spawn_idx defaults to 0
 # (one enemy per room today); the multi-spawn-per-room future call
 # site passes 1, 2, ... for additional spawns.
-const BOSS_HP_MULT: int = 4
-const BOSS_ATTACK_MULT: int = 3
-const BOSS_DEFENSE_MULT: int = 2
+const BOSS_HP_MULT: int = 6
+const BOSS_ATTACK_MULT: int = 4
+const BOSS_DEFENSE_MULT: int = 3
 const BOSS_XP_MULT: int = 3
 const BOSS_GOLD_MULT: int = 4
+# Per-floor scaling. Each additional floor multiplies the enemy's combat
+# stats and rewards by (1 + RATE * (floor_number - 1)). Floor 1 is the
+# baseline (1.0x). Tuned so a level-5 player on floor 5 fights enemies
+# roughly equivalent to their own stat gains, and bosses get appreciably
+# nastier the deeper the player goes. xp/gold scale too so the run reward
+# keeps pace with the increased risk.
+const FLOOR_HP_SCALE_PER_LEVEL: float = 0.35
+const FLOOR_ATTACK_SCALE_PER_LEVEL: float = 0.20
+const FLOOR_DEFENSE_SCALE_PER_LEVEL: float = 0.15
+const FLOOR_XP_SCALE_PER_LEVEL: float = 0.25
+const FLOOR_GOLD_SCALE_PER_LEVEL: float = 0.20
 # Boss room is 24x24 tiles at 16 px each = 384x384 px. A player entering at
 # any wall edge is at most ~272 px (half-diagonal) from the room center.
 # 300 px gives the boss sight-line to the doorway without reaching into the corridor.
 const BOSS_DETECTION_RADIUS: float = 300.0
 
-static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
+static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1) -> EnemyData:
 	if room == null:
 		return null
 	if room.enemy_kind < 0:
@@ -97,7 +108,38 @@ static func plan_enemy(room: Room, spawn_idx: int = 0) -> EnemyData:
 		data.detection_radius = BOSS_DETECTION_RADIUS
 		data.boss_sprite_left_path = room.boss_sprite_left_path
 		data.boss_sprite_right_path = room.boss_sprite_right_path
+	apply_floor_scaling(data, floor_number)
 	return data
+
+# Multiplies the enemy's combat stats and rewards by the per-floor scale
+# (1.0 at floor 1; +FLOOR_*_SCALE_PER_LEVEL per additional floor). Applied
+# after the boss multipliers so floor scaling stacks on top of boss-tier
+# stats — a floor-5 boss is appreciably nastier than a floor-1 boss without
+# the planner having to special-case boss scaling separately. Safe for
+# floor_number <= 1 (no-op) so callers that don't yet thread the floor
+# argument keep current behavior.
+static func apply_floor_scaling(data: EnemyData, floor_number: int) -> void:
+	if data == null:
+		return
+	var depth: int = maxi(0, floor_number - 1)
+	if depth <= 0:
+		return
+	var hp_mult: float = 1.0 + FLOOR_HP_SCALE_PER_LEVEL * float(depth)
+	var atk_mult: float = 1.0 + FLOOR_ATTACK_SCALE_PER_LEVEL * float(depth)
+	var def_mult: float = 1.0 + FLOOR_DEFENSE_SCALE_PER_LEVEL * float(depth)
+	var xp_mult: float = 1.0 + FLOOR_XP_SCALE_PER_LEVEL * float(depth)
+	var gold_mult: float = 1.0 + FLOOR_GOLD_SCALE_PER_LEVEL * float(depth)
+	data.max_hp = int(roundf(float(data.max_hp) * hp_mult))
+	data.hp = data.max_hp
+	data.attack = int(roundf(float(data.attack) * atk_mult))
+	# Defense only grows when there's a base to grow from. Floor-1 kinds
+	# with defense 0 stay at 0 until the spawn layer adds gear, which keeps
+	# the "non-Dog-Knight kinds share base defense" contract intact at
+	# floor 1 and gives Dog Knight / bosses a meaningful scaling curve.
+	if data.defense > 0:
+		data.defense = int(roundf(float(data.defense) * def_mult))
+	data.xp_reward = int(roundf(float(data.xp_reward) * xp_mult))
+	data.gold_reward = int(roundf(float(data.gold_reward) * gold_mult))
 
 # Returns the power-up type string for a power-up room, or empty string
 # otherwise. Sibling to plan_enemy: the future scene-tree spawn layer
@@ -153,14 +195,14 @@ static func enemy_ids_for_room(room: Room) -> Array[String]:
 # session.enemy_sync is null (post-end() race), the registration is
 # silently skipped; the EnemyData(s) still carry their minted ids so
 # a subsequent kill flow doesn't crash on a half-built session.
-static func register_room_enemies(session: CoopSession, room: Room) -> Array[EnemyData]:
+static func register_room_enemies(session: CoopSession, room: Room, floor_number: int = 1) -> Array[EnemyData]:
 	var spawned: Array[EnemyData] = []
 	if room == null or room.enemy_kind < 0:
 		return spawned
 	# Mirrors enemy_ids_for_room's loop bound — one enemy per combat
 	# room today; the multi-spawn future grows here.
 	for spawn_idx in range(1):
-		var data := plan_enemy(room, spawn_idx)
+		var data := plan_enemy(room, spawn_idx, floor_number)
 		if data == null:
 			continue
 		if session != null and session.enemy_sync != null:
@@ -186,13 +228,13 @@ static func register_room_enemies(session: CoopSession, room: Room) -> Array[Ene
 # scene reload during the deprecation of advance_to) doesn't pollute the
 # registry. The internal map is rebuilt from scratch each call so a fresh
 # dungeon doesn't inherit a stale prior run's entries.
-func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session: CoopSession = null) -> Array[String]:
+func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session: CoopSession = null, floor_number: int = 1) -> Array[String]:
 	var ids: Array[String] = []
 	_enemy_data_by_room_id.clear()
 	if dungeon == null:
 		return ids
 	for room in dungeon.rooms:
-		var data := plan_enemy(room)
+		var data := plan_enemy(room, 0, floor_number)
 		if data == null:
 			continue
 		if layout != null:
