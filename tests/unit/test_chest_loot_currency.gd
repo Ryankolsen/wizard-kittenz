@@ -152,6 +152,43 @@ func test_open_failure_does_not_set_item_drop():
 	chest.open(null, _make_character(11), _seeded_rng(1))
 	assert_null(chest.last_item_drop, "no item rolled on null-ledger failure")
 
+# --- Boss-room reward chest (PRD #311 / issue #313) -------------------------
+
+func test_boss_item_chest_open_credits_no_currency():
+	var ledger := CurrencyLedger.new()
+	var chest := Chest.make(Chest.Kind.BOSS_ITEM, 1)
+	var ok := chest.open(ledger, _make_character(11), _seeded_rng(1))
+	assert_true(ok)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0,
+		"BOSS_ITEM must not credit gold — payoff is the item")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 0,
+		"BOSS_ITEM must not credit gems — payoff is the item")
+
+func test_boss_item_chest_open_always_populates_last_item_drop():
+	# BOSS_CHEST_ITEM context has drop_chance 1.0 — every open produces an
+	# item, with rarity matching rarity_for_floor(depth).
+	for floor_number in [1, 4, 7, 10]:
+		var chest := Chest.make(Chest.Kind.BOSS_ITEM, floor_number)
+		var ok := chest.open(CurrencyLedger.new(), _make_character(11), _seeded_rng(floor_number))
+		assert_true(ok, "open succeeded at floor %d" % floor_number)
+		assert_not_null(chest.last_item_drop,
+			"BOSS_ITEM must always drop an item at floor %d" % floor_number)
+		assert_eq(chest.last_item_drop.rarity,
+			ItemDropResolver.rarity_for_floor(floor_number),
+			"rarity tracks floor %d" % floor_number)
+
+func test_boss_item_chest_open_is_idempotent():
+	var ledger := CurrencyLedger.new()
+	var chest := Chest.make(Chest.Kind.BOSS_ITEM, 4)
+	var ok1 := chest.open(ledger, _make_character(11), _seeded_rng(7))
+	assert_true(ok1)
+	var first_drop := chest.last_item_drop
+	var ok2 := chest.open(ledger, _make_character(11), _seeded_rng(8))
+	assert_false(ok2, "second open is a no-op")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 0)
+	assert_eq(chest.last_item_drop, first_drop, "last_item_drop unchanged")
+
 func test_double_open_does_not_re_roll_item():
 	# The idempotence guard covers items too — the second open() returns
 	# false without mutating last_item_drop.

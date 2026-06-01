@@ -73,4 +73,33 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 			"position": offset,
 			"chest": Chest.make(kind)
 		})
+	_append_boss_placements(placements, dungeon, rng)
 	return placements
+
+# Boss-room reward chests (PRD #311 / issue #313). Appended after the
+# general pool so adding/removing this branch never desyncs the general
+# RNG stream against earlier slices' tests. Three chests per boss room:
+# slot 0 is the guaranteed floor-tiered BOSS_ITEM drop, slots 1 and 2 are
+# RARE gem chests. The boss_chest_ id namespace is disjoint from the
+# general chest_ pool so the wire layer can route remote opens without
+# collision.
+static func _append_boss_placements(placements: Array, dungeon: Dungeon, rng: RandomNumberGenerator) -> void:
+	if dungeon.boss_id < 0:
+		return
+	var boss_room: Room = dungeon.get_room(dungeon.boss_id)
+	if boss_room == null:
+		return
+	# Floor number is 1-indexed; dungeon.depth is dungeons_completed.
+	var floor_number: int = dungeon.depth + 1
+	var kinds := [Chest.Kind.BOSS_ITEM, Chest.Kind.RARE, Chest.Kind.RARE]
+	for i in range(kinds.size()):
+		var offset := Vector2(
+			rng.randf_range(-POSITION_HALF_RANGE_PX, POSITION_HALF_RANGE_PX),
+			rng.randf_range(-POSITION_HALF_RANGE_PX, POSITION_HALF_RANGE_PX)
+		)
+		placements.append({
+			"chest_id": "boss_chest_%d" % i,
+			"room_id": boss_room.id,
+			"position": offset,
+			"chest": Chest.make(kinds[i], floor_number)
+		})

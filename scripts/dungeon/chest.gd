@@ -8,12 +8,18 @@ extends RefCounted
 # scene/world layer in a later slice — this is the pure-data core
 # that ShopScreen-side tests and dungeon spawning can both build on.
 
-enum Kind { STANDARD, RARE }
+enum Kind { STANDARD, RARE, BOSS_ITEM }
 
 const STANDARD_GOLD: int = 25
 const RARE_GEMS: int = 5
 
 var kind: int = Kind.STANDARD
+# Floor number (1-indexed) the chest was placed on. Only meaningful for
+# BOSS_ITEM, which routes through the BOSS_CHEST_ITEM resolver context and
+# uses rarity_for_floor(depth) to pick the drop tier. Stored at make()
+# time so call sites that already pass (ledger, character, rng) don't need
+# a new parameter threaded through ChestEntity.
+var depth: int = 0
 var _opened: bool = false
 # Item drop produced by the most recent successful open() (PRD #73 /
 # issue #79). Null when no item rolled or when the chest was never
@@ -22,9 +28,10 @@ var _opened: bool = false
 # untouched.
 var last_item_drop: ItemData = null
 
-static func make(p_kind: int) -> Chest:
+static func make(p_kind: int, p_depth: int = 0) -> Chest:
 	var c := Chest.new()
 	c.kind = p_kind
+	c.depth = p_depth
 	return c
 
 func is_opened() -> bool:
@@ -53,12 +60,16 @@ func open(ledger: CurrencyLedger, character: CharacterData = null, rng: RandomNu
 		Kind.RARE:
 			ledger.credit(RARE_GEMS, CurrencyLedger.Currency.GEM)
 			drop_context = ItemDropResolver.Context.CHEST_RARE
+		Kind.BOSS_ITEM:
+			# Boss-room reward chest (PRD #311). No currency credit —
+			# the payoff is a guaranteed, floor-tiered item.
+			drop_context = ItemDropResolver.Context.BOSS_CHEST_ITEM
 		_:
 			return false
 	# Null character is the pre-wiring / legacy-test path: skip the
 	# item roll entirely rather than producing a class-agnostic drop
 	# (the resolver now requires CharacterData to filter by class).
 	if character != null:
-		last_item_drop = ItemDropResolver.resolve(character, drop_context, rng)
+		last_item_drop = ItemDropResolver.resolve(character, drop_context, rng, depth)
 	_opened = true
 	return true

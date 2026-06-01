@@ -195,7 +195,7 @@ func open(player_id: String, character: CharacterData = null, rng: RandomNumberG
 	# Fresh per-player Chest instance — each player rolls their own loot
 	# rather than sharing one Chest's already-consumed roll. The template
 	# `chest` on the entity contributes only its `kind`.
-	var per_chest: Chest = Chest.make(chest.kind)
+	var per_chest: Chest = Chest.make(chest.kind, chest.depth)
 	var ok: bool = per_chest.open(per_ledger, character, rng)
 	if not ok:
 		return false

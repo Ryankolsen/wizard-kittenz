@@ -36,7 +36,8 @@ func _make_dungeon(standard_count: int) -> Dungeon:
 func test_plan_returns_target_count_placements():
 	var d := _make_dungeon(6)
 	var placements := ChestSpawner.plan(d, _seeded_rng(1))
-	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT)
+	# 5 general + 3 boss-room (PRD #311 / issue #313).
+	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT + 3)
 
 func test_placement_struct_has_room_position_and_chest():
 	var d := _make_dungeon(6)
@@ -104,6 +105,10 @@ func test_below_threshold_all_chests_are_standard():
 	for seed_val in range(5):
 		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
 		for p in placements:
+			# Boss-room rewards (#313) are unconditional RARE/BOSS_ITEM and
+			# don't participate in the general-pool depth gate.
+			if String(p["chest_id"]).begins_with("boss_chest_"):
+				continue
 			var c: Chest = p["chest"]
 			assert_eq(c.kind, Chest.Kind.STANDARD,
 				"below-threshold dungeon must never roll RARE (seed=%d)" % seed_val)
@@ -129,6 +134,10 @@ func test_rare_rate_matches_configured_chance_within_tolerance():
 	for seed_val in range(1, 101):
 		var placements := ChestSpawner.plan(d, _seeded_rng(seed_val))
 		for p in placements:
+			# Boss-room placements (#313) are unconditional and would skew
+			# the general-pool rate — exclude them from this measurement.
+			if String(p["chest_id"]).begins_with("boss_chest_"):
+				continue
 			total += 1
 			var c: Chest = p["chest"]
 			if c.kind == Chest.Kind.RARE:
@@ -170,6 +179,79 @@ func test_chest_ids_are_deterministic_from_spawner():
 		var cid: String = p["chest_id"]
 		assert_false(seen.has(cid), "chest_id %s appears twice in one plan" % cid)
 		seen[cid] = true
+
+
+# --- Boss-room reward chests (PRD #311 / issue #313) -------------------------
+
+func _boss_placements(placements: Array) -> Array:
+	var out: Array = []
+	for p in placements:
+		if String(p["chest_id"]).begins_with("boss_chest_"):
+			out.append(p)
+	return out
+
+func test_spawner_returns_5_plus_3_placements_for_dungeon_with_boss():
+	var d := _make_dungeon(6)
+	var placements := ChestSpawner.plan(d, _seeded_rng(1))
+	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT + 3)
+
+func test_spawner_boss_placements_have_correct_ids_and_kinds():
+	var d := _make_dungeon(6)
+	var placements := ChestSpawner.plan(d, _seeded_rng(1))
+	var boss := _boss_placements(placements)
+	assert_eq(boss.size(), 3)
+	var ids: Array = []
+	for p in boss:
+		ids.append(p["chest_id"])
+		assert_eq(p["room_id"], d.boss_id, "boss placement must live in boss_id room")
+	assert_true(ids.has("boss_chest_0"))
+	assert_true(ids.has("boss_chest_1"))
+	assert_true(ids.has("boss_chest_2"))
+	var by_id: Dictionary = {}
+	for p in boss:
+		by_id[p["chest_id"]] = p["chest"]
+	assert_eq((by_id["boss_chest_0"] as Chest).kind, Chest.Kind.BOSS_ITEM)
+	assert_eq((by_id["boss_chest_1"] as Chest).kind, Chest.Kind.RARE)
+	assert_eq((by_id["boss_chest_2"] as Chest).kind, Chest.Kind.RARE)
+
+func test_spawner_boss_placements_deterministic_under_seed():
+	var d := _make_dungeon(6)
+	var a := _boss_placements(ChestSpawner.plan(d, _seeded_rng(13)))
+	var b := _boss_placements(ChestSpawner.plan(d, _seeded_rng(13)))
+	assert_eq(a.size(), 3)
+	assert_eq(b.size(), 3)
+	for i in range(a.size()):
+		assert_eq(a[i]["chest_id"], b[i]["chest_id"])
+		assert_eq(a[i]["position"], b[i]["position"])
+		assert_eq((a[i]["chest"] as Chest).kind, (b[i]["chest"] as Chest).kind)
+
+func test_spawner_skips_boss_placements_when_no_boss_room():
+	# A dungeon without a valid boss_id (the Dungeon default is -1) must
+	# yield only the general pool — no boss_chest_ placements, no crash.
+	var d := Dungeon.new()
+	d.add_room(Room.make(0, Room.TYPE_START))
+	d.start_id = 0
+	d.add_room(Room.make(1, Room.TYPE_STANDARD))
+	d.get_room(0).connections.append(1)
+	# d.boss_id stays at -1 (the default).
+	var placements := ChestSpawner.plan(d, _seeded_rng(1))
+	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT)
+	for p in placements:
+		assert_false(String(p["chest_id"]).begins_with("boss_chest_"),
+			"no boss placements when boss_id is invalid")
+
+func test_spawner_boss_item_chest_depth_matches_floor_number():
+	# BOSS_ITEM chest carries floor_number (dungeon.depth + 1) so its open()
+	# can route through ItemDropResolver.rarity_for_floor without an extra
+	# parameter at the ChestEntity layer.
+	var d := _make_dungeon(6)
+	d.depth = 5  # dungeons_completed = 5, so floor_number = 6
+	var placements := ChestSpawner.plan(d, _seeded_rng(1))
+	for p in placements:
+		if p["chest_id"] == "boss_chest_0":
+			assert_eq((p["chest"] as Chest).depth, 6)
+			return
+	fail_test("expected a boss_chest_0 placement")
 
 
 func test_rare_unlock_constants_are_set():
