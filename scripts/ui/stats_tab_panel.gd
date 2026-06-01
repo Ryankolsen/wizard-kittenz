@@ -96,14 +96,9 @@ func _make_row(s: Dictionary) -> HBoxContainer:
 	btn.pressed.connect(func(): _on_plus_pressed(stat_key))
 	row.add_child(btn)
 	_plus_buttons[s.key] = btn
-	# Right-side spacer so the "+" button sits clear of the outer
-	# TabScroll's scrollbar — on mobile the bar otherwise eats the tap
-	# target.
-	var spacer := Control.new()
-	spacer.name = "ScrollbarSpacer_%s" % s.key
-	spacer.custom_minimum_size = Vector2(32, 0)
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(spacer)
+	# Right-side scrollbar clearance is provided once by the TabPadding
+	# MarginContainer wrapping TabContent in pause_menu.tscn — applies
+	# to Stats / Skills / Inventory uniformly.
 	return row
 
 # Renders `c` into the rows. Safe with c == null (pre-character-creation
