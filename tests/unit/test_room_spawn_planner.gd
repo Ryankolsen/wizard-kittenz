@@ -24,6 +24,30 @@ func _make_powerup_room(room_id: int, type: String = "catnip") -> Room:
 func _make_start_room(room_id: int) -> Room:
 	return Room.make(room_id, Room.TYPE_START)
 
+func _make_session_with_n_members(n: int) -> CoopSession:
+	# Multi-member variant of _make_session_with_lobby. Used by the party-
+	# size scaling tests (#324) to exercise the planner's party_size derive.
+	var lobby := LobbyState.new()
+	lobby.room_code = "ABCDE"
+	var characters: Dictionary = {}
+	for i in range(n):
+		var pid := "p%d" % (i + 1)
+		var p := LobbyPlayer.make(pid, "K%d" % (i + 1), "Mage", i == 0)
+		lobby.add_player(p)
+		characters[pid] = CharacterFactory.create_default("Mage")
+	var s := CoopSession.new(lobby, characters)
+	var d := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	var boss := Room.make(1, Room.TYPE_BOSS)
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
+	start.connections = [1]
+	d.add_room(start)
+	d.add_room(boss)
+	d.start_id = 0
+	d.boss_id = 1
+	s.start(d)
+	return s
+
 func _make_session_with_lobby() -> CoopSession:
 	# Non-empty party so start() can succeed; we only need enemy_sync to
 	# exist after start. Single-player lobby + character map.
@@ -493,6 +517,57 @@ func test_register_all_room_enemies_threads_floor_into_scaling():
 	var boss_f5 := planner_f5.enemy_data_for_room(dungeon.boss_id)
 	assert_gt(boss_f5.max_hp, boss_f1.max_hp,
 		"floor-5 boss is tougher than floor-1 boss after register_all")
+
+# --- party-size scaling (issue #324) ---------------------------------------
+
+func test_register_room_enemies_threads_party_size_into_boss_stats():
+	# Locks the contract: the planner reads party size from the session and
+	# threads it into BossScaling. A 3-member session must produce a boss
+	# with stats matching BossScaling.compute_boss_stats(..., party_size=3).
+	var session := _make_session_with_n_members(3)
+	var room := _make_boss_room(7, EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spawned := RoomSpawnPlanner.register_room_enemies(session, room, 1)
+	var expected := BossScaling.compute_boss_stats({
+		"hp": EnemyData.base_max_hp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"attack": EnemyData.base_attack_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+	}, 1, 3)
+	assert_eq(spawned[0].max_hp, expected["hp"])
+	assert_eq(spawned[0].attack, expected["attack"])
+
+func test_register_all_room_enemies_threads_party_size():
+	# The dungeon-load entry point also derives party_size from the session,
+	# so a 4-player session has bigger boss hp than a solo session for the
+	# same dungeon + floor.
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var solo_session := _make_session_with_n_members(1)
+	var quad_session := _make_session_with_n_members(4)
+	var planner_solo := RoomSpawnPlanner.new()
+	planner_solo.register_all_room_enemies(dungeon, layout, solo_session, 1)
+	var planner_quad := RoomSpawnPlanner.new()
+	planner_quad.register_all_room_enemies(dungeon, layout, quad_session, 1)
+	var boss_solo := planner_solo.enemy_data_for_room(dungeon.boss_id)
+	var boss_quad := planner_quad.enemy_data_for_room(dungeon.boss_id)
+	assert_gt(boss_quad.max_hp, boss_solo.max_hp,
+		"4-player boss hp must exceed solo boss hp at the same floor")
+
+func test_register_room_enemies_null_session_is_solo_scaled():
+	# Solo / null-session path: planner must not crash, and the boss it
+	# returns must match party_size=1 (not 0 / not table-out-of-bounds).
+	var room := _make_boss_room(7, EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spawned := RoomSpawnPlanner.register_room_enemies(null, room, 1)
+	var expected := BossScaling.compute_boss_stats({
+		"hp": EnemyData.base_max_hp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"attack": EnemyData.base_attack_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+	}, 1, 1)
+	assert_eq(spawned[0].max_hp, expected["hp"])
 
 # --- new enemy roster (issue #154) -----------------------------------------
 

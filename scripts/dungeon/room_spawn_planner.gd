@@ -67,7 +67,7 @@ var _enemy_data_by_room_id: Dictionary = {}
 # 300 px gives the boss sight-line to the doorway without reaching into the corridor.
 const BOSS_DETECTION_RADIUS: float = 300.0
 
-static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1) -> EnemyData:
+static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1) -> EnemyData:
 	if room == null:
 		return null
 	if room.enemy_kind < 0:
@@ -82,7 +82,7 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1) ->
 			"defense": data.defense,
 			"xp": data.xp_reward,
 			"gold": data.gold_reward,
-		}, floor_number)
+		}, floor_number, party_size)
 		data.max_hp = scaled["hp"]
 		data.hp = data.max_hp
 		data.attack = scaled["attack"]
@@ -196,10 +196,11 @@ static func register_room_enemies(session: CoopSession, room: Room, floor_number
 	var spawned: Array[EnemyData] = []
 	if room == null or room.enemy_kind < 0:
 		return spawned
+	var party_size: int = _party_size_from_session(session)
 	# Mirrors enemy_ids_for_room's loop bound — one enemy per combat
 	# room today; the multi-spawn future grows here.
 	for spawn_idx in range(1):
-		var data := plan_enemy(room, spawn_idx, floor_number)
+		var data := plan_enemy(room, spawn_idx, floor_number, party_size)
 		if data == null:
 			continue
 		if session != null and session.enemy_sync != null:
@@ -230,8 +231,9 @@ func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session:
 	_enemy_data_by_room_id.clear()
 	if dungeon == null:
 		return ids
+	var party_size: int = _party_size_from_session(session)
 	for room in dungeon.rooms:
-		var data := plan_enemy(room, 0, floor_number)
+		var data := plan_enemy(room, 0, floor_number, party_size)
 		if data == null:
 			continue
 		if layout != null:
@@ -256,3 +258,16 @@ func enemy_data_for_room(room_id: int) -> EnemyData:
 # the combat-room filter from the dungeon graph.
 func planned_room_ids() -> Array:
 	return _enemy_data_by_room_id.keys()
+
+# Reads party size from the session's member list (PRD #322 / issue #324).
+# Null session is solo (1). Empty member list also falls back to 1 so a
+# pre-handshake call to the planner doesn't accidentally apply solo-scale
+# from an honest 0 — BossScaling treats 0 as solo too, but the explicit
+# floor here keeps the contract symmetric and the intent visible.
+static func _party_size_from_session(session: CoopSession) -> int:
+	if session == null:
+		return 1
+	var n: int = session.member_count()
+	if n <= 0:
+		return 1
+	return n

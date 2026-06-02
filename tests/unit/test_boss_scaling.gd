@@ -115,6 +115,87 @@ func test_room_spawn_planner_uses_boss_scaling():
 	assert_eq(d.xp_reward, scaled["xp"])
 	assert_eq(d.gold_reward, scaled["gold"])
 
+# --- party-size scaling (issue #324) ---------------------------------------
+
+func test_party_of_four_doubles_boss_hp():
+	# Headline assertion: a 4-player run gets 2.0× boss hp on top of the
+	# floor-1 multiplier. Vacuum base hp 8 → 8 * 6 = 48 → 48 * 2.0 = 96.
+	var scaled := BossScaling.compute_boss_stats(
+		{"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}, 1, 4)
+	assert_eq(scaled["hp"], 96)
+
+func test_party_size_hp_multipliers_match_table():
+	# PRD #322 party-size hp table: 1→1.0, 2→1.4, 3→1.75, 4→2.0.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	# Solo baseline: 8 * 6 = 48.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 1)["hp"], 48)
+	# 2-player: 48 * 1.4 = 67.2 → 67.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 2)["hp"], 67)
+	# 3-player: 48 * 1.75 = 84.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 3)["hp"], 84)
+	# 4-player: 48 * 2.0 = 96.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 4)["hp"], 96)
+
+func test_party_size_attack_multipliers_match_table():
+	# PRD #322 party-size attack table: 1→1.0, 2→1.1, 3→1.2, 4→1.3. Base
+	# vacuum attack 2 → 2 * 2.5 = 5 floor-1 solo.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 1)["attack"], 5)
+	# 5 * 1.1 = 5.5 → 6.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 2)["attack"], 6)
+	# 5 * 1.2 = 6.0 → 6.
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 3)["attack"], 6)
+	# 5 * 1.3 = 6.5 → 7 (banker's rounding via roundf — Godot rounds .5 up).
+	assert_eq(BossScaling.compute_boss_stats(base, 1, 4)["attack"], 7)
+
+func test_party_size_does_not_affect_defense_xp_gold():
+	# PRD #322: only HP and attack scale with party size. Defense, xp, gold
+	# stay solo-equivalent so 4-player runs don't double-dip on rewards
+	# (per-kill split already shares them) and the Dog Knight defense curve
+	# isn't doubled past its design point.
+	var base := {"hp": 8, "attack": 2, "defense": 2, "xp": 15, "gold": 2}
+	var solo := BossScaling.compute_boss_stats(base, 1, 1)
+	var four := BossScaling.compute_boss_stats(base, 1, 4)
+	assert_eq(four["defense"], solo["defense"])
+	assert_eq(four["xp"], solo["xp"])
+	assert_eq(four["gold"], solo["gold"])
+
+func test_party_size_composes_with_floor():
+	# Multipliers stack multiplicatively: floor and party are independent
+	# axes, not "max of." Floor 3 + party 2: hp = 8 * 6 (boss) * 2.10 (floor
+	# depth 2 at 0.55/level) * 1.4 (party 2) = 141.12 → 141.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 3, 2)
+	assert_eq(scaled["hp"], 141)
+	# attack: 2 * 2.5 * 1.70 * 1.1 = 9.35 → 9.
+	assert_eq(scaled["attack"], 9)
+
+func test_party_size_zero_treated_as_solo():
+	# Defensive: a pre-handshake / null-session caller may pass 0 rather
+	# than 1. The function clamps 0 → solo so honest-but-stale input
+	# doesn't silently zero out boss stats via PARTY_*_MULT[-1].
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var p0 := BossScaling.compute_boss_stats(base, 1, 0)
+	var p1 := BossScaling.compute_boss_stats(base, 1, 1)
+	assert_eq(p0, p1)
+
+func test_party_size_above_four_clamped_to_four():
+	# Defensive: party_size > 4 (an oversized lobby, a future expansion)
+	# clamps to the 4-player multiplier rather than indexing past the
+	# table.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var p8 := BossScaling.compute_boss_stats(base, 1, 8)
+	var p4 := BossScaling.compute_boss_stats(base, 1, 4)
+	assert_eq(p8, p4)
+
+func test_party_size_default_argument_is_solo():
+	# Old call sites (still passing only floor) get solo scaling. Locks
+	# in the default so a future signature drift is loud.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var default_call := BossScaling.compute_boss_stats(base, 1)
+	var explicit_solo := BossScaling.compute_boss_stats(base, 1, 1)
+	assert_eq(default_call, explicit_solo)
+
 func test_room_spawn_planner_floor_three_matches_boss_scaling():
 	# Same contract at a non-baseline floor — the planner threads floor_number
 	# through to BossScaling so floor scaling is computed once, not twice.
