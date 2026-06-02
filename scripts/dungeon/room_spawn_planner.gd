@@ -67,7 +67,7 @@ var _enemy_data_by_room_id: Dictionary = {}
 # 300 px gives the boss sight-line to the doorway without reaching into the corridor.
 const BOSS_DETECTION_RADIUS: float = 300.0
 
-static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1) -> EnemyData:
+static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1) -> EnemyData:
 	if room == null:
 		return null
 	if room.enemy_kind < 0:
@@ -82,7 +82,7 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 			"defense": data.defense,
 			"xp": data.xp_reward,
 			"gold": data.gold_reward,
-		}, floor_number, party_size)
+		}, floor_number, party_size, avg_party_level, floor_baseline_level)
 		data.max_hp = scaled["hp"]
 		data.hp = data.max_hp
 		data.attack = scaled["attack"]
@@ -197,10 +197,12 @@ static func register_room_enemies(session: CoopSession, room: Room, floor_number
 	if room == null or room.enemy_kind < 0:
 		return spawned
 	var party_size: int = _party_size_from_session(session)
+	var avg_level: float = _avg_party_level_from_session(session)
+	var baseline_level: int = BossScaling.baseline_level_for_floor(floor_number)
 	# Mirrors enemy_ids_for_room's loop bound — one enemy per combat
 	# room today; the multi-spawn future grows here.
 	for spawn_idx in range(1):
-		var data := plan_enemy(room, spawn_idx, floor_number, party_size)
+		var data := plan_enemy(room, spawn_idx, floor_number, party_size, avg_level, baseline_level)
 		if data == null:
 			continue
 		if session != null and session.enemy_sync != null:
@@ -232,8 +234,10 @@ func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session:
 	if dungeon == null:
 		return ids
 	var party_size: int = _party_size_from_session(session)
+	var avg_level: float = _avg_party_level_from_session(session)
+	var baseline_level: int = BossScaling.baseline_level_for_floor(floor_number)
 	for room in dungeon.rooms:
-		var data := plan_enemy(room, 0, floor_number, party_size)
+		var data := plan_enemy(room, 0, floor_number, party_size, avg_level, baseline_level)
 		if data == null:
 			continue
 		if layout != null:
@@ -271,3 +275,19 @@ static func _party_size_from_session(session: CoopSession) -> int:
 	if n <= 0:
 		return 1
 	return n
+
+# Reads average party level from the session's member list (PRD #322 / issue
+# #325). Null session and empty member list both fall back to level 1 — solo
+# / pre-handshake callers shouldn't accidentally invoke a 0.7× under-baseline
+# scaling from an "honest 0" average. Real character level (real_stats.level)
+# is the input; effective_stats are the in-game scaled view (PartyScaler)
+# and would confuse the boss-difficulty intent.
+static func _avg_party_level_from_session(session: CoopSession) -> float:
+	if session == null:
+		return 1.0
+	if session.members.is_empty():
+		return 1.0
+	var total: float = 0.0
+	for m in session.members:
+		total += float(m.real_stats.level)
+	return total / float(session.members.size())

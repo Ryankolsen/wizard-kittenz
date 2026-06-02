@@ -523,7 +523,8 @@ func test_register_all_room_enemies_threads_floor_into_scaling():
 func test_register_room_enemies_threads_party_size_into_boss_stats():
 	# Locks the contract: the planner reads party size from the session and
 	# threads it into BossScaling. A 3-member session must produce a boss
-	# with stats matching BossScaling.compute_boss_stats(..., party_size=3).
+	# with stats matching BossScaling.compute_boss_stats(..., party_size=3,
+	# avg_party_level=1.0 (default-character level), floor_baseline=3 (floor 1)).
 	var session := _make_session_with_n_members(3)
 	var room := _make_boss_room(7, EnemyData.EnemyKind.ROGUE_ROOMBA)
 	var spawned := RoomSpawnPlanner.register_room_enemies(session, room, 1)
@@ -533,7 +534,7 @@ func test_register_room_enemies_threads_party_size_into_boss_stats():
 		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
 		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
 		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
-	}, 1, 3)
+	}, 1, 3, 1.0, BossScaling.baseline_level_for_floor(1))
 	assert_eq(spawned[0].max_hp, expected["hp"])
 	assert_eq(spawned[0].attack, expected["attack"])
 
@@ -557,7 +558,9 @@ func test_register_all_room_enemies_threads_party_size():
 
 func test_register_room_enemies_null_session_is_solo_scaled():
 	# Solo / null-session path: planner must not crash, and the boss it
-	# returns must match party_size=1 (not 0 / not table-out-of-bounds).
+	# returns must match party_size=1 (not 0 / not table-out-of-bounds) and
+	# avg_party_level=1.0 (the empty-party fallback so a missing session
+	# doesn't silently zero out the level mult).
 	var room := _make_boss_room(7, EnemyData.EnemyKind.ROGUE_ROOMBA)
 	var spawned := RoomSpawnPlanner.register_room_enemies(null, room, 1)
 	var expected := BossScaling.compute_boss_stats({
@@ -566,7 +569,7 @@ func test_register_room_enemies_null_session_is_solo_scaled():
 		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
 		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
 		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
-	}, 1, 1)
+	}, 1, 1, 1.0, BossScaling.baseline_level_for_floor(1))
 	assert_eq(spawned[0].max_hp, expected["hp"])
 
 # --- new enemy roster (issue #154) -----------------------------------------

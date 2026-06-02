@@ -34,6 +34,31 @@ const FLOOR_GOLD_SCALE_PER_LEVEL: float = 0.20
 const PARTY_HP_MULT: Array = [1.0, 1.4, 1.75, 2.0]
 const PARTY_ATTACK_MULT: Array = [1.0, 1.1, 1.2, 1.3]
 
+# Average-party-level multiplier (PRD #322 / issue #325). The boss's HP and
+# attack scale by 1.0 + 0.08 × (avg_party_level − floor_baseline_level), clamped
+# to [0.7, 2.0]. A party at the floor's baseline level gets the boss at design
+# difficulty; a higher-level party gets a tougher boss (capped at 2×); a lower-
+# level party gets a forgiving boss (floored at 0.7×). Defense / xp / gold are
+# unaffected so a strong party doesn't double-dip on loot via level mult.
+const LEVEL_MULT_PER_LEVEL_DIFF: float = 0.08
+const LEVEL_MULT_MIN: float = 0.7
+const LEVEL_MULT_MAX: float = 2.0
+
+# Per-floor baseline level table. Floor 1 → level 3 (the design target for a
+# floor-1 boss), then +2 per floor (floor 2 → 5, floor 3 → 7, ...). Formula
+# 1 + 2 × floor lets the planner derive the baseline from floor_number without
+# the table needing to grow as more floors land. floor_number < 1 clamps to 1.
+const FLOOR_BASELINE_LEVEL_BASE: int = 1
+const FLOOR_BASELINE_LEVEL_PER_FLOOR: int = 2
+
+# Returns the design-target average party level for the given floor. Used by the
+# planner to fill in floor_baseline_level when calling compute_boss_stats; pinned
+# as its own static so tests / future call sites can look it up without
+# duplicating the arithmetic.
+static func baseline_level_for_floor(floor_number: int) -> int:
+	var f: int = maxi(1, floor_number)
+	return FLOOR_BASELINE_LEVEL_BASE + FLOOR_BASELINE_LEVEL_PER_FLOOR * f
+
 # Applies boss multipliers + per-floor scaling to a base-stat dictionary and
 # returns the scaled dictionary. base_stats keys: hp, attack, defense, xp,
 # gold (missing keys default to 0). floor_number < 1 is treated as floor 1
@@ -42,7 +67,7 @@ const PARTY_ATTACK_MULT: Array = [1.0, 1.1, 1.2, 1.3]
 # Defense scaling matches the planner's pre-extraction contract: a base
 # defense of 0 stays at 0 across floors (no scaling from nothing). Bosses
 # with nonzero base defense (Dog Knight) get the full curve.
-static func compute_boss_stats(base_stats: Dictionary, floor_number: int, party_size: int = 1) -> Dictionary:
+static func compute_boss_stats(base_stats: Dictionary, floor_number: int, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1) -> Dictionary:
 	var hp: float = float(int(base_stats.get("hp", 0)))
 	var attack: float = float(int(base_stats.get("attack", 0)))
 	var defense: float = float(int(base_stats.get("defense", 0)))
@@ -72,6 +97,19 @@ static func compute_boss_stats(base_stats: Dictionary, floor_number: int, party_
 	var clamped_party: int = clampi(effective_party, 1, 4)
 	hp *= float(PARTY_HP_MULT[clamped_party - 1])
 	attack *= float(PARTY_ATTACK_MULT[clamped_party - 1])
+
+	# Average-party-level multiplier. A negative floor_baseline_level is the
+	# "skip level scaling" sentinel — old call sites (planner pre-#325, tests
+	# that only pass floor/party) keep solo-equivalent stats. Gating on the
+	# baseline (not the avg) is deliberate: avg_party_level can legally be
+	# below zero in defensive / clamp tests; baseline can't (a real floor
+	# baseline is always ≥ 3 from the table). When supplied, the formula
+	# scales HP and attack only.
+	if floor_baseline_level >= 0:
+		var raw: float = 1.0 + LEVEL_MULT_PER_LEVEL_DIFF * (avg_party_level - float(floor_baseline_level))
+		var level_mult: float = clampf(raw, LEVEL_MULT_MIN, LEVEL_MULT_MAX)
+		hp *= level_mult
+		attack *= level_mult
 
 	return {
 		"hp": int(roundf(hp)),

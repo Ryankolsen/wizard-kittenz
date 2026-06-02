@@ -212,3 +212,145 @@ func test_room_spawn_planner_floor_three_matches_boss_scaling():
 	assert_eq(d.max_hp, scaled["hp"])
 	assert_eq(d.attack, scaled["attack"])
 	assert_eq(d.defense, scaled["defense"])
+
+# --- average-party-level multiplier (issue #325) ---------------------------
+
+func test_party_at_baseline_level_no_scaling():
+	# A party whose average level matches the floor's baseline gets the boss
+	# at design difficulty: 1.0 + 0.08 * 0 = 1.0. Floor-1 vacuum stays at
+	# hp=48, attack=5.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 1, 1, 3.0, 3)
+	assert_eq(scaled["hp"], 48, "avg=baseline → mult=1.0")
+	assert_eq(scaled["attack"], 5)
+
+func test_party_five_levels_over_baseline():
+	# avg=8, baseline=3 → diff=5 → mult = 1.0 + 0.08*5 = 1.4. Vacuum hp =
+	# 48 * 1.4 = 67.2 → 67. attack 5 * 1.4 = 7.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 1, 1, 8.0, 3)
+	assert_eq(scaled["hp"], 67)
+	assert_eq(scaled["attack"], 7)
+
+func test_party_under_baseline_clamped_to_seven_tenths():
+	# Extreme below-baseline: avg=-10 (defensive; not a value the planner
+	# would emit, but the clamp is what keeps the math safe regardless).
+	# Raw = 1.0 + 0.08 * (-10 - 3) = -0.04, clamped to LEVEL_MULT_MIN (0.7).
+	# Vacuum hp = 48 * 0.7 ≈ 33.6 → 34 (Godot roundf rounds half away from zero).
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 1, 1, -10.0, 3)
+	assert_eq(scaled["hp"], 34, "clamped to 0.7×")
+
+func test_party_over_baseline_clamped_to_two():
+	# Extreme over-baseline: avg=50, baseline=3. Raw = 4.76 → clamp to
+	# LEVEL_MULT_MAX (2.0). Vacuum hp = 48 * 2.0 = 96.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 1, 1, 50.0, 3)
+	assert_eq(scaled["hp"], 96)
+
+func test_level_mult_does_not_affect_defense_xp_gold():
+	# PRD #322: level mult applies to HP and attack only. A high-level party
+	# doesn't multiply rewards (per-kill split already shares them) and
+	# doesn't double-pump Dog-Knight-style defense.
+	var base := {"hp": 8, "attack": 2, "defense": 2, "xp": 15, "gold": 2}
+	var solo := BossScaling.compute_boss_stats(base, 1, 1, 3.0, 3)
+	var high := BossScaling.compute_boss_stats(base, 1, 1, 20.0, 3)
+	assert_eq(high["defense"], solo["defense"])
+	assert_eq(high["xp"], solo["xp"])
+	assert_eq(high["gold"], solo["gold"])
+
+func test_level_mult_composes_with_party_size():
+	# Multipliers stack multiplicatively. Party 4 (hp ×2.0) + level diff +5
+	# (mult 1.4): 48 × 2.0 × 1.4 = 134.4 → 134.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var scaled := BossScaling.compute_boss_stats(base, 1, 4, 8.0, 3)
+	assert_eq(scaled["hp"], 134)
+
+func test_floor_baseline_lookup_table():
+	# Per PRD #322: floor 1 → 3, floor 2 → 5, floor 3 → 7, +2/floor.
+	assert_eq(BossScaling.baseline_level_for_floor(1), 3)
+	assert_eq(BossScaling.baseline_level_for_floor(2), 5)
+	assert_eq(BossScaling.baseline_level_for_floor(3), 7)
+	assert_eq(BossScaling.baseline_level_for_floor(5), 11)
+
+func test_baseline_level_for_floor_clamps_below_one():
+	# Defensive: floor 0 / negative clamp to floor 1's baseline so a stale
+	# caller doesn't get a sub-3 baseline that would inflate the level mult.
+	assert_eq(BossScaling.baseline_level_for_floor(0), 3)
+	assert_eq(BossScaling.baseline_level_for_floor(-5), 3)
+
+func test_level_mult_default_arg_skips_scaling():
+	# Old call sites (compute_boss_stats(base, floor) or (base, floor, party))
+	# don't pass avg/baseline; the function must skip level scaling so their
+	# results don't silently shift. Pins the no-arg-default contract.
+	var base := {"hp": 8, "attack": 2, "defense": 0, "xp": 15, "gold": 2}
+	var with_default := BossScaling.compute_boss_stats(base, 1, 1)
+	var with_neg_sentinel := BossScaling.compute_boss_stats(base, 1, 1, -1.0, -1)
+	assert_eq(with_default, with_neg_sentinel)
+	# And neither matches a level-scaled call (sanity check that the path
+	# is actually reachable when the args are supplied).
+	var scaled := BossScaling.compute_boss_stats(base, 1, 1, 8.0, 3)
+	assert_ne(with_default["hp"], scaled["hp"])
+
+func test_room_spawn_planner_computes_avg_party_level():
+	# Planner-side wiring: register_room_enemies must average the session's
+	# member levels and pass that into BossScaling. Three members at levels
+	# 5/10/15 → avg=10. baseline (floor 1) = 3. diff=7 → mult=1.56.
+	var session := _make_session_with_levels([5, 10, 15])
+	var room := Room.make(7, Room.TYPE_BOSS)
+	room.enemy_kind = EnemyData.EnemyKind.ROGUE_ROOMBA
+	var spawned := RoomSpawnPlanner.register_room_enemies(session, room, 1)
+	var expected := BossScaling.compute_boss_stats({
+		"hp": EnemyData.base_max_hp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"attack": EnemyData.base_attack_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+	}, 1, 3, 10.0, 3)
+	assert_eq(spawned[0].max_hp, expected["hp"])
+	assert_eq(spawned[0].attack, expected["attack"])
+
+func test_room_spawn_planner_empty_party_uses_level_one():
+	# Defensive: a null / empty-member session falls back to avg_party_level
+	# = 1.0 rather than crashing on a 0-divide. With floor-1 baseline=3,
+	# diff=-2 → mult=0.84.
+	var room := Room.make(7, Room.TYPE_BOSS)
+	room.enemy_kind = EnemyData.EnemyKind.ROGUE_ROOMBA
+	var spawned := RoomSpawnPlanner.register_room_enemies(null, room, 1)
+	var expected := BossScaling.compute_boss_stats({
+		"hp": EnemyData.base_max_hp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"attack": EnemyData.base_attack_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.ROGUE_ROOMBA),
+	}, 1, 1, 1.0, 3)
+	assert_eq(spawned[0].max_hp, expected["hp"], "null session falls back to avg=1")
+
+# --- helpers ---------------------------------------------------------------
+
+func _make_session_with_levels(levels: Array) -> CoopSession:
+	# Builds a CoopSession with one member per supplied level. Used by the
+	# planner-side avg-party-level tests so we can pin a specific arithmetic
+	# mean without depending on CharacterFactory defaults.
+	var lobby := LobbyState.new()
+	lobby.room_code = "ABCDE"
+	var characters: Dictionary = {}
+	for i in range(levels.size()):
+		var pid := "p%d" % (i + 1)
+		var p := LobbyPlayer.make(pid, "K%d" % (i + 1), "Mage", i == 0)
+		lobby.add_player(p)
+		var c := CharacterFactory.create_default("Mage")
+		c.level = int(levels[i])
+		characters[pid] = c
+	var s := CoopSession.new(lobby, characters)
+	var d := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	var boss := Room.make(1, Room.TYPE_BOSS)
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
+	start.connections = [1]
+	d.add_room(start)
+	d.add_room(boss)
+	d.start_id = 0
+	d.boss_id = 1
+	s.start(d)
+	return s
