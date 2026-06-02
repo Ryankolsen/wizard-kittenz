@@ -96,10 +96,10 @@ func test_level_up_carries_xp_remainder_into_next_level():
 func test_stat_scaling_increases_max_hp_on_level_up():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var hp_before := c.max_hp
-	assert_eq(hp_before, 8, "mage starts at 8 max_hp")
+	assert_eq(hp_before, 6, "wizard starts at 6 max_hp (PRD #316)")
 	ProgressionSystem.add_xp(c, ProgressionSystem.xp_to_next_level(1))
 	assert_eq(c.level, 2)
-	assert_eq(c.max_hp, 10, "+2 max_hp on level-up matches base_max_hp_for curve")
+	assert_eq(c.max_hp, 8, "+2 max_hp on level-up matches base_max_hp_for curve")
 	assert_gt(c.max_hp, hp_before, "stat strictly increases with level")
 
 func test_level_up_fully_restores_hp_and_mp():

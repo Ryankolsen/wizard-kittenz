@@ -71,13 +71,13 @@ func test_ale_increases_attack_and_reverts_on_expiry():
 	assert_eq(c.attack, base_attack, "attack returns to baseline after expiry")
 
 func test_ale_minimum_one_attack_bonus_at_low_base():
-	# Mage attack 2 * 0.30 = 0.6, rounded = 1; the floor ensures the bonus is
-	# always meaningful even at low base attack.
+	# Wizard attack 1 * 0.30 = 0.3, rounded = 0; the +1 floor ensures the bonus
+	# is always meaningful even at low base attack.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
-	assert_eq(c.attack, 2)
+	assert_eq(c.attack, 1)
 	var manager := PowerUpManager.new()
 	manager.apply("ale", c)
-	assert_eq(c.attack, 3, "+1 floor applied to small base attack")
+	assert_eq(c.attack, 2, "+1 floor applied to small base attack")
 
 func test_unknown_powerup_id_returns_null_no_mutation():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)

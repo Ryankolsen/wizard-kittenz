@@ -214,13 +214,13 @@ func test_apply_damage_scaled_player_uses_lower_max_hp():
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var member := session.member_for("u1")
-	# Mage L10: max_hp = 8 + 9*2 = 26. L3 (floor): 8 + 2*2 = 12.
-	assert_eq(c1.max_hp, 26, "real_stats max_hp at L10")
-	assert_eq(member.effective_stats.max_hp, 12, "effective_stats max_hp at floor L3")
+	# Wizard L10 (PRD #316): max_hp = 6 + 9*2 = 24. L3 (floor): 6 + 2*2 = 10.
+	assert_eq(c1.max_hp, 24, "real_stats max_hp at L10")
+	assert_eq(member.effective_stats.max_hp, 10, "effective_stats max_hp at floor L3")
 	var attacker := _make_attacker(5)
 	CoopRouter.apply_damage(session, attacker, c1, "u1", _rng_force_hit())
-	assert_eq(c1.hp, 26, "real_stats hp untouched")
-	assert_eq(member.effective_stats.hp, 7, "effective_stats took 5 dmg from 12")
+	assert_eq(c1.hp, 24, "real_stats hp untouched")
+	assert_eq(member.effective_stats.hp, 5, "effective_stats took 5 dmg from 10")
 
 # --- CoopRouter.revive ------------------------------------------------------
 
@@ -248,8 +248,8 @@ func test_revive_coop_revives_effective_not_real():
 	var ok := CoopRouter.revive(session, c, "u1")
 	assert_true(ok)
 	assert_eq(c.hp, real_hp_before, "real_stats.hp untouched in co-op revive")
-	# Mage L1 effective_stats.max_hp = 8 (base 8 + (1-1)*2) => round(4.0) = 4.
-	assert_eq(member.effective_stats.hp, 4, "effective_stats.hp restored to 50%")
+	# Wizard L1 effective_stats.max_hp = 6 (PRD #316) => round(3.0) = 3.
+	assert_eq(member.effective_stats.hp, 3, "effective_stats.hp restored to 50%")
 
 func test_revive_null_character_no_op():
 	# Null-safe: pre-spawn / test path with no character data. Must not
@@ -268,7 +268,7 @@ func test_revive_after_end_revives_character():
 	session.end()
 	var ok := CoopRouter.revive(session, c, "u1")
 	assert_true(ok)
-	assert_eq(c.hp, 4, "post-end revive lands on character (real_stats)")
+	assert_eq(c.hp, 3, "post-end revive lands on character (real_stats)")
 
 func test_revive_floor_player_revives_effective_not_real():
 	# Floor player: scale_stats returns a CLONE of real_stats. Revive on
@@ -285,7 +285,7 @@ func test_revive_floor_player_revives_effective_not_real():
 	var real_hp_before := c.hp
 	CoopRouter.revive(session, c, "u1")
 	assert_eq(c.hp, real_hp_before, "floor-player real_stats untouched on revive")
-	assert_eq(member.effective_stats.hp, 4,
+	assert_eq(member.effective_stats.hp, 3,
 		"floor-player effective_stats restored to half max")
 
 func test_revive_scaled_player_uses_lower_max_hp():
@@ -308,15 +308,15 @@ func test_revive_scaled_player_uses_lower_max_hp():
 	var session := CoopSession.new(lobby, {"u1": c1, "u2": c2}, null, "u1")
 	session.start(_make_two_room_dungeon())
 	var member := session.member_for("u1")
-	assert_eq(c1.max_hp, 26)
-	assert_eq(member.effective_stats.max_hp, 12)
+	assert_eq(c1.max_hp, 24)
+	assert_eq(member.effective_stats.max_hp, 10)
 	member.effective_stats.hp = 0
 	var ok := CoopRouter.revive(session, c1, "u1")
 	assert_true(ok)
-	assert_eq(c1.hp, 26, "real_stats hp untouched")
-	# round(12 * 0.5) = 6, above the minimum-1 floor.
-	assert_eq(member.effective_stats.hp, 6,
-		"effective_stats revived to half of scaled max_hp (12), NOT half of real (26)")
+	assert_eq(c1.hp, 24, "real_stats hp untouched")
+	# round(10 * 0.5) = 5, above the minimum-1 floor.
+	assert_eq(member.effective_stats.hp, 5,
+		"effective_stats revived to half of scaled max_hp (10), NOT half of real (24)")
 
 func test_revive_min_one_hp_floor_inherits_through_router():
 	# ReviveSystem's min-1 floor (max_hp=1 must not revive at 0) inherits

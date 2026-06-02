@@ -62,7 +62,7 @@ func test_group_regen_does_not_stack_with_passive_regen():
 	# the GROUP_REGEN HoT. With both notionally "active", a single tick_buffs
 	# call must deliver exactly 2 HP (the buff's per-second amount), not 3.
 	var target := _target()
-	assert_eq(target.regeneration, 1, "Sleepy Kitten baseline passive regen is 1")
+	assert_eq(target.regeneration, 2, "Sleepy Kitten baseline passive regen is 2 (PRD #316)")
 	target.hp = 1
 	var before := target.hp
 	SpellEffectResolver.apply(_group_regen(), target, [target])

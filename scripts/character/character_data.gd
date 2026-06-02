@@ -90,29 +90,32 @@ const BUFF_GROUP_REGEN := "__group_regen_hp"
 const BUFF_GROUP_DAMAGE_MULT := "__group_damage_mult"
 var _buffs: Array = []
 
+# PRD #316 / issue #318: per-class base stats widened so each class plays
+# distinctly from level 1 before any allocation. Cat-tier preserves the
+# pre-#318 per-stat delta over its Kitten archetype.
 static func base_max_hp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 10
 	match klass:
-		CharacterClass.WIZARD_KITTEN: base = 8
+		CharacterClass.WIZARD_KITTEN: base = 6
 		CharacterClass.BATTLE_KITTEN: base = 10
-		CharacterClass.SLEEPY_KITTEN: base = 10
-		CharacterClass.CHONK_KITTEN: base = 14
-		CharacterClass.WIZARD_CAT: base = 10
+		CharacterClass.SLEEPY_KITTEN: base = 9
+		CharacterClass.CHONK_KITTEN: base = 18
+		CharacterClass.WIZARD_CAT: base = 8
 		CharacterClass.BATTLE_CAT: base = 12
-		CharacterClass.SLEEPY_CAT: base = 12
-		CharacterClass.CHONK_CAT: base = 16
+		CharacterClass.SLEEPY_CAT: base = 11
+		CharacterClass.CHONK_CAT: base = 20
 	return base + (lvl - 1) * 2
 
 static func base_attack_for(klass: CharacterClass, _lvl: int) -> int:
 	match klass:
-		CharacterClass.WIZARD_KITTEN: return 2
-		CharacterClass.BATTLE_KITTEN: return 5
+		CharacterClass.WIZARD_KITTEN: return 1
+		CharacterClass.BATTLE_KITTEN: return 7
 		CharacterClass.SLEEPY_KITTEN: return 2
-		CharacterClass.CHONK_KITTEN: return 3
-		CharacterClass.WIZARD_CAT: return 3
-		CharacterClass.BATTLE_CAT: return 7
+		CharacterClass.CHONK_KITTEN: return 4
+		CharacterClass.WIZARD_CAT: return 2
+		CharacterClass.BATTLE_CAT: return 9
 		CharacterClass.SLEEPY_CAT: return 3
-		CharacterClass.CHONK_CAT: return 4
+		CharacterClass.CHONK_CAT: return 5
 	return 2
 
 static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
@@ -120,74 +123,86 @@ static func base_defense_for(klass: CharacterClass, _lvl: int) -> int:
 		CharacterClass.WIZARD_KITTEN: return 0
 		CharacterClass.BATTLE_KITTEN: return 1
 		CharacterClass.SLEEPY_KITTEN: return 0
-		CharacterClass.CHONK_KITTEN: return 3
+		CharacterClass.CHONK_KITTEN: return 5
 		CharacterClass.WIZARD_CAT: return 1
 		CharacterClass.BATTLE_CAT: return 2
 		CharacterClass.SLEEPY_CAT: return 1
-		CharacterClass.CHONK_CAT: return 4
+		CharacterClass.CHONK_CAT: return 6
 	return 0
 
-# Per-class movement speed (px/sec). Chonk slowest, Battle fastest among
-# Kittens; Cat tier uplifts each archetype while preserving the relative
-# ordering so the upgrade feels meaningful without warping the per-class
-# identity.
+# Per-class movement speed (px/sec). Battle is the only fast archetype under
+# PRD #316; Wizard sits at the mid baseline, Sleepy and Chonk share the slow
+# floor. Cat tier uplifts each archetype by +5 to preserve the existing tier
+# delta from before issue #318.
 static func base_speed_for(klass: CharacterClass, _lvl: int) -> float:
 	match klass:
 		CharacterClass.WIZARD_KITTEN: return 60.0
-		CharacterClass.BATTLE_KITTEN: return 65.0
-		CharacterClass.SLEEPY_KITTEN: return 50.0
-		CharacterClass.CHONK_KITTEN: return 45.0
+		CharacterClass.BATTLE_KITTEN: return 70.0
+		CharacterClass.SLEEPY_KITTEN: return 52.0
+		CharacterClass.CHONK_KITTEN: return 52.0
 		CharacterClass.WIZARD_CAT: return 65.0
-		CharacterClass.BATTLE_CAT: return 70.0
-		CharacterClass.SLEEPY_CAT: return 55.0
-		CharacterClass.CHONK_CAT: return 50.0
+		CharacterClass.BATTLE_CAT: return 75.0
+		CharacterClass.SLEEPY_CAT: return 57.0
+		CharacterClass.CHONK_CAT: return 57.0
 	return 60.0
 
 static func base_magic_attack_for(klass: CharacterClass, _lvl: int) -> int:
-	# Wizard archetype is magic-leaning; Battle/Chonk are not. Mirrors
-	# base_attack_for shape.
+	# Wizard archetype is magic-leaning; Battle/Chonk drop to 0 under PRD #316
+	# to harden the "no spell access" identity. Cat tier preserves the prior
+	# per-archetype delta.
 	match klass:
-		CharacterClass.WIZARD_KITTEN: return 5
-		CharacterClass.BATTLE_KITTEN: return 1
-		CharacterClass.SLEEPY_KITTEN: return 3
-		CharacterClass.CHONK_KITTEN: return 1
-		CharacterClass.WIZARD_CAT: return 7
-		CharacterClass.BATTLE_CAT: return 2
-		CharacterClass.SLEEPY_CAT: return 4
-		CharacterClass.CHONK_CAT: return 2
-	return 2
+		CharacterClass.WIZARD_KITTEN: return 8
+		CharacterClass.BATTLE_KITTEN: return 0
+		CharacterClass.SLEEPY_KITTEN: return 4
+		CharacterClass.CHONK_KITTEN: return 0
+		CharacterClass.WIZARD_CAT: return 10
+		CharacterClass.BATTLE_CAT: return 1
+		CharacterClass.SLEEPY_CAT: return 5
+		CharacterClass.CHONK_CAT: return 1
+	return 0
 
 static func base_max_mp_for(klass: CharacterClass, lvl: int) -> int:
 	var base := 5
 	match klass:
-		CharacterClass.WIZARD_KITTEN: base = 10
+		CharacterClass.WIZARD_KITTEN: base = 14
 		CharacterClass.BATTLE_KITTEN: base = 4
-		CharacterClass.SLEEPY_KITTEN: base = 10
-		CharacterClass.CHONK_KITTEN: base = 4
-		CharacterClass.WIZARD_CAT: base = 14
+		CharacterClass.SLEEPY_KITTEN: base = 12
+		CharacterClass.CHONK_KITTEN: base = 2
+		CharacterClass.WIZARD_CAT: base = 18
 		CharacterClass.BATTLE_CAT: base = 6
-		CharacterClass.SLEEPY_CAT: base = 14
-		CharacterClass.CHONK_CAT: base = 6
+		CharacterClass.SLEEPY_CAT: base = 16
+		CharacterClass.CHONK_CAT: base = 4
 	return base + (lvl - 1) * 2
 
 static func base_mp_regen_for(klass: CharacterClass, _lvl: int) -> float:
 	# Mage classes (Wizard/Sleepy) regen MP passively; physical classes do not.
-	# Cat tier mirrors the Kitten baseline — the size of the pool grows, not
-	# the recovery rate.
+	# Sleepy carries the higher baseline (1.5) per PRD #316 to underwrite its
+	# "passive party-sustain caster" identity. Cat tier mirrors the Kitten
+	# rate — the pool grows, not the recovery cadence.
 	match klass:
 		CharacterClass.WIZARD_KITTEN: return 1.0
-		CharacterClass.SLEEPY_KITTEN: return 1.0
+		CharacterClass.SLEEPY_KITTEN: return 1.5
 		CharacterClass.WIZARD_CAT: return 1.0
-		CharacterClass.SLEEPY_CAT: return 1.0
+		CharacterClass.SLEEPY_CAT: return 1.5
 	return 0.0
 
 static func base_regeneration_for(klass: CharacterClass, _lvl: int) -> int:
 	# Regen is a Sleepy-class identity stat (issue #142). All non-Sleepy
-	# classes have a 0 baseline; Sleepy Kitten / Cat carry the only
-	# positive baselines.
+	# classes have a 0 baseline; Sleepy Kitten / Cat carry the only positive
+	# baselines. PRD #316 bumps Kitten 1 -> 2, Cat 2 -> 3 to preserve the
+	# pre-#318 +1 Cat delta.
 	match klass:
-		CharacterClass.SLEEPY_KITTEN: return 1
-		CharacterClass.SLEEPY_CAT: return 2
+		CharacterClass.SLEEPY_KITTEN: return 2
+		CharacterClass.SLEEPY_CAT: return 3
+	return 0
+
+static func base_magic_resistance_for(klass: CharacterClass, _lvl: int) -> int:
+	# New baseline under PRD #316 — was previously always 0 at make_new.
+	# Cat tier matches the Kitten value (no prior delta to preserve).
+	match klass:
+		CharacterClass.WIZARD_KITTEN, CharacterClass.WIZARD_CAT: return 1
+		CharacterClass.SLEEPY_KITTEN, CharacterClass.SLEEPY_CAT: return 1
+		CharacterClass.CHONK_KITTEN, CharacterClass.CHONK_CAT: return 2
 	return 0
 
 # Total regen cap (issue #142). Sleepy classes can reach up to 3 via
@@ -219,6 +234,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.magic_points = mp_max
 	c.regeneration = base_regeneration_for(klass, 1)
 	c.mp_regen = base_mp_regen_for(klass, 1)
+	c.magic_resistance = base_magic_resistance_for(klass, 1)
 	return c
 
 func apply_stat_delta(stat_name: String, delta: float) -> void:

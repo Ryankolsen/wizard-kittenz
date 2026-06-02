@@ -109,13 +109,13 @@ func test_hp_and_mp_regen_both_apply_same_tick():
 
 func test_allocating_regeneration_stat_has_in_game_effect():
 	# End-to-end: StatAllocator.allocate -> regeneration > 0 -> tick heals.
-	# Sleepy Kitten: regen gated to Sleepy classes (issue #142). Baseline
-	# regen=1, +2 invested reaches the cap at 3.
+	# Sleepy Kitten: regen gated to Sleepy classes (issue #142). PRD #316
+	# baseline regen=2; +2 invested lands at 4 (well under the +5 cap).
 	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.skill_points = 3
-	c.hp = c.max_hp - 4
+	c.hp = c.max_hp - 5
 	StatAllocator.allocate(c, {"regeneration": 2})
-	assert_eq(c.regeneration, 3)
+	assert_eq(c.regeneration, 4)
 	var p := _make_player(c)
 	p._tick_regeneration(1.0)
 	assert_eq(c.hp, c.max_hp - 1, "allocated regeneration heals 1 HP per point per second")

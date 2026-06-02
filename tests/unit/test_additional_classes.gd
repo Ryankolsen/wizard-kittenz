@@ -226,3 +226,38 @@ func test_factory_chonk_kitten_case_insensitive():
 	# UI bindings may surface uppercase; resolve robustly.
 	var c: CharacterData = CharacterFactory.create_default("CHONK_KITTEN")
 	assert_eq(c.character_class, CharacterData.CharacterClass.CHONK_KITTEN)
+
+# --- PRD #316 / issue #318: Cat-tier preserves Kitten deltas -----------------
+
+func test_cat_tier_preserves_kitten_deltas():
+	# Locks the per-stat Cat-vs-Kitten delta at the values that existed before
+	# the base-stat widening in #318, so a future PRD-table edit can't silently
+	# rebalance the Cat tier through the Kitten side.
+	var pairs := [
+		[CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+			{"max_hp": 2, "max_mp": 2, "attack": 2, "magic_attack": 1, "defense": 1,
+			 "magic_resistance": 0, "speed": 5.0, "regeneration": 0, "mp_regen": 0.0}],
+		[CharacterData.CharacterClass.WIZARD_KITTEN, CharacterData.CharacterClass.WIZARD_CAT,
+			{"max_hp": 2, "max_mp": 4, "attack": 1, "magic_attack": 2, "defense": 1,
+			 "magic_resistance": 0, "speed": 5.0, "regeneration": 0, "mp_regen": 0.0}],
+		[CharacterData.CharacterClass.SLEEPY_KITTEN, CharacterData.CharacterClass.SLEEPY_CAT,
+			{"max_hp": 2, "max_mp": 4, "attack": 1, "magic_attack": 1, "defense": 1,
+			 "magic_resistance": 0, "speed": 5.0, "regeneration": 1, "mp_regen": 0.0}],
+		[CharacterData.CharacterClass.CHONK_KITTEN, CharacterData.CharacterClass.CHONK_CAT,
+			{"max_hp": 2, "max_mp": 2, "attack": 1, "magic_attack": 1, "defense": 1,
+			 "magic_resistance": 0, "speed": 5.0, "regeneration": 0, "mp_regen": 0.0}],
+	]
+	for entry in pairs:
+		var kitten: CharacterData = CharacterData.make_new(entry[0])
+		var cat: CharacterData = CharacterData.make_new(entry[1])
+		var deltas: Dictionary = entry[2]
+		for stat in deltas:
+			var expected: Variant = deltas[stat]
+			var got_k: Variant = kitten.get(stat)
+			var got_c: Variant = cat.get(stat)
+			if typeof(expected) == TYPE_FLOAT:
+				assert_almost_eq(float(got_c) - float(got_k), float(expected), 0.001,
+					"Cat-Kitten delta for %s on %s" % [stat, entry[0]])
+			else:
+				assert_eq(int(got_c) - int(got_k), int(expected),
+					"Cat-Kitten delta for %s on %s" % [stat, entry[0]])

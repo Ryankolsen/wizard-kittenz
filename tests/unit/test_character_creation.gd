@@ -6,7 +6,7 @@ func test_select_class_mage_makes_mage_with_default_name():
 	var c := CharacterCreation.select_class(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.character_name, "Kitten")
-	assert_eq(c.max_hp, 8, "mage default max_hp comes from CharacterData baseline")
+	assert_eq(c.max_hp, 6, "wizard default max_hp comes from CharacterData baseline (PRD #316)")
 	assert_eq(c.hp, c.max_hp, "new character starts at full hp")
 
 func test_select_class_thief_uses_thief_baseline():
@@ -18,7 +18,7 @@ func test_select_class_sleepy_uses_sleepy_baseline_and_custom_name():
 	var c := CharacterCreation.select_class(CharacterData.CharacterClass.SLEEPY_KITTEN, "Shadow")
 	assert_eq(c.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_eq(c.character_name, "Shadow")
-	assert_eq(c.max_hp, 10)
+	assert_eq(c.max_hp, 9)
 
 func test_select_class_returns_independent_instances():
 	var a := CharacterCreation.select_class(CharacterData.CharacterClass.WIZARD_KITTEN)

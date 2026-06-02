@@ -12,30 +12,30 @@ func test_make_new_mage_has_expected_defaults():
 	assert_eq(c.character_class, CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(c.level, 1)
 	assert_eq(c.xp, 0)
-	assert_eq(c.max_hp, 8, "mage starts with 8 max hp")
+	assert_eq(c.max_hp, 6, "wizard starts with 6 max hp (PRD #316)")
 	assert_eq(c.hp, c.max_hp, "new character starts at full hp")
 
 func test_make_new_battle_and_sleepy_have_class_specific_hp():
 	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_eq(battle.max_hp, 10)
-	assert_eq(sleepy.max_hp, 10)
+	assert_eq(sleepy.max_hp, 9)
 
 func test_make_new_sets_class_specific_attack_and_defense():
 	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
-	assert_eq(wizard.attack, 2)
+	assert_eq(wizard.attack, 1)
 	assert_eq(wizard.defense, 0)
-	assert_eq(battle.attack, 5, "battle has the highest base attack")
+	assert_eq(battle.attack, 7, "battle has the highest base attack")
 	assert_eq(battle.defense, 1, "battle carries a defense baseline")
 	assert_eq(sleepy.attack, 2)
 	assert_eq(sleepy.defense, 0)
 
 func test_max_hp_scales_with_level():
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 1), 8)
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 2), 10)
-	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 5), 16)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 1), 6)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 2), 8)
+	assert_eq(CharacterData.base_max_hp_for(CharacterData.CharacterClass.WIZARD_KITTEN, 5), 14)
 
 func test_take_damage_reduces_hp_and_clamps_at_zero():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
@@ -202,8 +202,9 @@ func test_kitten_class_stat_archetype_ordering():
 	assert_gt(chonk.defense, battle.defense)
 	# speed: chonk < battle
 	assert_lt(chonk.speed, battle.speed)
-	# max_mp: sleepy >= wizard (both high)
-	assert_true(sleepy.max_mp >= wizard.max_mp)
+	# max_mp: both casters carry a deep pool; PRD #316 ranks wizard > sleepy.
+	assert_gt(wizard.max_mp, sleepy.max_mp)
+	assert_gt(sleepy.max_mp, battle.max_mp)
 	# regeneration: sleepy highest
 	assert_gt(sleepy.regeneration, chonk.regeneration)
 	assert_gt(sleepy.regeneration, battle.regeneration)
@@ -229,9 +230,9 @@ func test_make_new_sleepy_has_positive_regeneration():
 
 # --- Regen gating (issue #142) --------------------------------------------
 
-func test_sleepy_kitten_starts_at_one_regen():
+func test_sleepy_kitten_starts_at_two_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
-	assert_eq(c.regeneration, 1, "Sleepy Kitten baseline regen is 1 (down from 3)")
+	assert_eq(c.regeneration, 2, "Sleepy Kitten baseline regen is 2 (PRD #316)")
 
 func test_non_sleepy_class_starts_at_zero_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
@@ -243,9 +244,9 @@ func test_sleepy_kitten_regen_investment_capped_at_five():
 	c.skill_points = 10
 	for _i in range(10):
 		StatAllocator.allocate(c, {"regeneration": 1})
-	var max_after_invest: int = 1 + ClassStatTiers.SLEEPY_REGEN_CAP
+	var max_after_invest: int = 2 + ClassStatTiers.SLEEPY_REGEN_CAP
 	assert_true(c.regeneration <= max_after_invest,
-		"Sleepy regen capped at baseline 1 + invest cap 5, got %d" % c.regeneration)
+		"Sleepy regen capped at baseline 2 + invest cap 5, got %d" % c.regeneration)
 
 func test_non_sleepy_class_cannot_invest_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
@@ -270,7 +271,7 @@ func test_make_new_mage_classes_have_mp_regen_baseline():
 	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	assert_eq(wizard.mp_regen, 1.0, "Wizard Kitten starts with mp_regen = 1.0")
 	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
-	assert_eq(sleepy.mp_regen, 1.0, "Sleepy Kitten starts with mp_regen = 1.0")
+	assert_eq(sleepy.mp_regen, 1.5, "Sleepy Kitten starts with mp_regen = 1.5 (PRD #316)")
 
 func test_make_new_physical_classes_have_zero_mp_regen():
 	var battle := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
@@ -327,3 +328,65 @@ func test_pre_prd_save_loads_with_zero_defaults():
 	assert_almost_eq(c.crit_chance, 0.0, 0.001)
 	assert_eq(c.luck, 0)
 	assert_eq(c.regeneration, 0)
+
+# --- PRD #316 / issue #318: widened base stats per class (Kitten tier) ------
+
+func test_wizard_kitten_base_stats_match_prd():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_eq(c.max_hp, 6)
+	assert_eq(c.max_mp, 14)
+	assert_eq(c.attack, 1)
+	assert_eq(c.magic_attack, 8)
+	assert_eq(c.defense, 0)
+	assert_eq(c.magic_resistance, 1)
+	assert_almost_eq(c.speed, 60.0, 0.001)
+	assert_almost_eq(c.mp_regen, 1.0, 0.001)
+	assert_eq(c.regeneration, 0)
+
+func test_battle_kitten_base_stats_match_prd():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_eq(c.max_hp, 10)
+	assert_eq(c.max_mp, 4)
+	assert_eq(c.attack, 7)
+	assert_eq(c.magic_attack, 0)
+	assert_eq(c.defense, 1)
+	assert_eq(c.magic_resistance, 0)
+	assert_almost_eq(c.speed, 70.0, 0.001)
+	assert_almost_eq(c.mp_regen, 0.0, 0.001)
+	assert_eq(c.regeneration, 0)
+
+func test_sleepy_kitten_base_stats_match_prd():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_eq(c.max_hp, 9)
+	assert_eq(c.max_mp, 12)
+	assert_eq(c.attack, 2)
+	assert_eq(c.magic_attack, 4)
+	assert_eq(c.defense, 0)
+	assert_eq(c.magic_resistance, 1)
+	assert_almost_eq(c.speed, 52.0, 0.001)
+	assert_almost_eq(c.mp_regen, 1.5, 0.001)
+	assert_eq(c.regeneration, 2)
+
+func test_chonk_kitten_base_stats_match_prd():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
+	assert_eq(c.max_hp, 18)
+	assert_eq(c.max_mp, 2)
+	assert_eq(c.attack, 4)
+	assert_eq(c.magic_attack, 0)
+	assert_eq(c.defense, 5)
+	assert_eq(c.magic_resistance, 2)
+	assert_almost_eq(c.speed, 52.0, 0.001)
+	assert_almost_eq(c.mp_regen, 0.0, 0.001)
+	assert_eq(c.regeneration, 0)
+
+func test_hp_level_scaling_unchanged():
+	# +2 per level over Wizard's new 6 baseline -> 10 at level 3.
+	assert_eq(CharacterData.base_max_hp_for(
+		CharacterData.CharacterClass.WIZARD_KITTEN, 3), 10)
+
+func test_chonk_and_sleepy_share_speed_baseline():
+	# PRD #316 acceptance criterion: Chonk and Sleepy both sit at 52.
+	var chonk := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN)
+	var sleepy := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
+	assert_almost_eq(chonk.speed, 52.0, 0.001)
+	assert_almost_eq(sleepy.speed, 52.0, 0.001)

@@ -88,7 +88,7 @@ func test_partial_allocation_subset_of_stats_valid():
 	var ok := StatAllocator.allocate(c, {"luck": 2, "regeneration": 2})
 	assert_true(ok)
 	assert_eq(c.luck, 2)
-	assert_eq(c.regeneration, 3, "baseline 1 + 2 invested = 3")
+	assert_eq(c.regeneration, 4, "baseline 2 + 2 invested = 4 (PRD #316)")
 	assert_eq(c.skill_points, 0)
 
 func test_all_int_stats_one_point_each():
@@ -111,12 +111,13 @@ func test_all_int_stats_one_point_each():
 	var magic_attack_before := c.magic_attack
 	var speed_before := c.speed
 	var regen_before := c.regeneration
+	var mres_before := c.magic_resistance
 	var ok := StatAllocator.allocate(c, plan)
 	assert_true(ok)
 	assert_eq(c.attack, attack_before + 1)
 	assert_eq(c.magic_attack, magic_attack_before + 1)
 	assert_eq(c.defense, 1)
-	assert_eq(c.magic_resistance, 1)
+	assert_eq(c.magic_resistance, mres_before + 1)
 	assert_eq(c.dexterity, 1)
 	assert_eq(c.luck, 1)
 	assert_eq(c.regeneration, regen_before + 1)
