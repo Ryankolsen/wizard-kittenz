@@ -40,9 +40,21 @@ var _character: CharacterData = null
 var _unspent_label: Label = null
 var _level_label: Label = null
 var _stat_labels := {}
+var _tier_labels := {}
+var _cost_labels := {}
 var _plus_buttons := {}
 var _continue_button: Button = null
 var _built := false
+
+# Display strings + modulate colors per tier (PRD #316 / issue #320). Kept
+# co-located with the panel rather than on ClassStatTiers so the data
+# module stays presentation-free.
+const _TIER_DISPLAY := {
+	ClassStatTiers.Tier.PRIMARY: {"text": "Primary", "color": Color(1.0, 0.85, 0.2)},
+	ClassStatTiers.Tier.SECONDARY: {"text": "Secondary", "color": Color(0.8, 0.95, 1.0)},
+	ClassStatTiers.Tier.OFF_STAT: {"text": "Off-stat", "color": Color(1.0, 0.65, 0.35)},
+	ClassStatTiers.Tier.FORBIDDEN: {"text": "Forbidden", "color": Color(0.55, 0.55, 0.55)},
+}
 
 func _init() -> void:
 	_build()
@@ -83,11 +95,21 @@ func _make_row(s: Dictionary) -> HBoxContainer:
 	name_lbl.text = s.label
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_lbl)
+	var tier_lbl := Label.new()
+	tier_lbl.name = "TierLabel_%s" % s.key
+	tier_lbl.text = ""
+	row.add_child(tier_lbl)
+	_tier_labels[s.key] = tier_lbl
 	var val_lbl := Label.new()
 	val_lbl.name = s.node
 	val_lbl.text = "—"
 	row.add_child(val_lbl)
 	_stat_labels[s.key] = val_lbl
+	var cost_lbl := Label.new()
+	cost_lbl.name = "CostLabel_%s" % s.key
+	cost_lbl.text = ""
+	row.add_child(cost_lbl)
+	_cost_labels[s.key] = cost_lbl
 	var btn := Button.new()
 	btn.name = "PlusButton_%s" % s.key
 	btn.text = "+"
@@ -113,27 +135,48 @@ func refresh(c: CharacterData) -> void:
 		_level_label.text = "Lv —"
 		for key in _stat_labels.keys():
 			(_stat_labels[key] as Label).text = "—"
+			(_tier_labels[key] as Label).text = ""
+			(_cost_labels[key] as Label).text = ""
 			(_plus_buttons[key] as Button).disabled = true
 		return
 	_unspent_label.text = "Unspent points: %d" % c.skill_points
 	_level_label.text = "Lv %d" % c.level
-	var can_spend := c.skill_points > 0
-	var is_sleepy := CharacterData.is_sleepy_class(c.character_class)
 	for s in STAT_ROWS:
 		(_stat_labels[s.key] as Label).text = _format_stat(c, s)
-		var btn := _plus_buttons[s.key] as Button
-		# Regen is a Sleepy-class identity stat (issue #142). Hide the
-		# "+" entirely for non-Sleepy classes so players understand they
-		# cannot invest. Sleepy classes additionally gate on the cap.
-		if s.key == "regeneration":
-			if not is_sleepy:
-				btn.visible = false
-				btn.disabled = true
-				continue
-			btn.visible = true
-			btn.disabled = not can_spend or c.regeneration >= CharacterData.REGEN_CAP_SLEEPY
-		else:
-			btn.disabled = not can_spend
+		_apply_tier_ui(c, s.key)
+
+# Drives tier label / cost label / + button enabled-state for one row.
+# Rules (PRD #316 / issue #320): Forbidden disables the button and zeroes
+# cost; Off-stat shows 2 SP; cap-reached and insufficient-SP both disable
+# with a tooltip explaining why so the player never sees a silent reject.
+func _apply_tier_ui(c: CharacterData, key: String) -> void:
+	var tier: int = ClassStatTiers.get_tier(c.character_class, key)
+	var display: Dictionary = _TIER_DISPLAY[tier]
+	var tier_lbl := _tier_labels[key] as Label
+	tier_lbl.text = display.text
+	tier_lbl.modulate = display.color
+	var cost := ClassStatTiers.get_sp_cost(c.character_class, key)
+	var cap := ClassStatTiers.get_cap(c.character_class, key)
+	var allocated: int = int(c.allocated_points.get(key, 0))
+	var cost_lbl := _cost_labels[key] as Label
+	var btn := _plus_buttons[key] as Button
+	if tier == ClassStatTiers.Tier.FORBIDDEN:
+		cost_lbl.text = "—"
+		btn.visible = true
+		btn.disabled = true
+		btn.tooltip_text = "%s is Forbidden for this class." % key
+		return
+	cost_lbl.text = "%d SP" % cost
+	btn.visible = true
+	if allocated >= cap:
+		btn.disabled = true
+		btn.tooltip_text = "%s is at its allocation cap (+%d)." % [key, cap]
+	elif c.skill_points < cost:
+		btn.disabled = true
+		btn.tooltip_text = "Needs %d SP (you have %d)." % [cost, c.skill_points]
+	else:
+		btn.disabled = false
+		btn.tooltip_text = "Spend %d SP to raise %s." % [cost, key]
 
 func _format_stat(c: CharacterData, s: Dictionary) -> String:
 	match s.kind:
@@ -186,3 +229,11 @@ func get_plus_button(stat_key: String) -> Button:
 func get_stat_label(stat_key: String) -> Label:
 	_build()
 	return _stat_labels.get(stat_key)
+
+func get_tier_label(stat_key: String) -> Label:
+	_build()
+	return _tier_labels.get(stat_key)
+
+func get_cost_label(stat_key: String) -> Label:
+	_build()
+	return _cost_labels.get(stat_key)

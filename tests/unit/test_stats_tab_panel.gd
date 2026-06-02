@@ -189,6 +189,78 @@ func test_continue_button_press_emits_signal():
 	panel.get_continue_button().emit_signal("pressed")
 	assert_signal_emitted(panel, "continue_pressed")
 
+# --- Tier UI feedback (PRD #316 / issue #320) ------------------------------
+
+func _wizard_with_points(points: int) -> CharacterData:
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.skill_points = points
+	return c
+
+func test_forbidden_stat_button_disabled():
+	# Wizard's `attack` is Forbidden per ClassStatTiers — the "+" must stay
+	# disabled regardless of how many SP are available.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(99)
+	panel.refresh(c)
+	assert_true(panel.get_plus_button("attack").disabled,
+		"Forbidden stat (Wizard attack) must have its + button disabled")
+
+func test_off_stat_displays_two_sp_cost():
+	# Wizard's `defense` is Off-stat (2 SP/pt). The cost label must surface
+	# that price so the player isn't surprised when SP drains twice as fast.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(2)
+	panel.refresh(c)
+	var cost_lbl := panel.get_cost_label("defense")
+	assert_not_null(cost_lbl, "cost label for defense must exist")
+	assert_true(cost_lbl.text.contains("2"),
+		"Off-stat (Wizard defense) cost label must show 2 SP, got %s" % cost_lbl.text)
+
+func test_primary_stat_displays_one_sp_cost():
+	# Battle's `attack` is Primary (1 SP/pt). Sanity check the common case.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _mage_with_points(1)
+	panel.refresh(c)
+	var cost_lbl := panel.get_cost_label("attack")
+	assert_not_null(cost_lbl, "cost label for attack must exist")
+	assert_true(cost_lbl.text.contains("1"),
+		"Primary (Battle attack) cost label must show 1 SP, got %s" % cost_lbl.text)
+
+func test_tier_label_shown_per_stat():
+	# Wizard: magic_attack=Primary, defense=Off-stat, attack=Forbidden.
+	# Label text must reflect tier so the player can read class identity at a glance.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(0)
+	panel.refresh(c)
+	assert_eq(panel.get_tier_label("magic_attack").text, "Primary")
+	assert_eq(panel.get_tier_label("defense").text, "Off-stat")
+	assert_eq(panel.get_tier_label("attack").text, "Forbidden")
+
+func test_increment_blocked_when_cap_reached():
+	# Wizard defense is Off-stat (cap 3). With 3 already allocated, even
+	# plenty of SP must not let the player buy a 4th point.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(99)
+	c.allocated_points["defense"] = 3
+	panel.refresh(c)
+	assert_true(panel.get_plus_button("defense").disabled,
+		"Capped stat (Wizard defense at +3) must disable its + button")
+
+func test_increment_blocked_when_insufficient_sp():
+	# Wizard defense Off-stat costs 2 SP/pt. With only 1 SP the player can't
+	# afford it — button must read as disabled rather than failing on click.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(1)
+	panel.refresh(c)
+	assert_true(panel.get_plus_button("defense").disabled,
+		"Off-stat (Wizard defense, cost 2) must disable when only 1 SP is available")
+
 func after_each():
 	get_tree().paused = false
 	var gs := get_node_or_null("/root/GameState")
