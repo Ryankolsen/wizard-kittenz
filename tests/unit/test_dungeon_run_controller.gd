@@ -379,3 +379,28 @@ func test_double_clear_is_idempotent():
 	c.mark_room_cleared(2)
 	c.mark_room_cleared(2)
 	assert_signal_emit_count(c, "room_cleared", 1)
+
+# --- reset_clear_state ------------------------------------------------------
+
+func test_reset_clear_state_uncleears_marked_rooms():
+	# Revive flow (#322) respawns every enemy: dropping the _cleared map flips
+	# previously-cleared combat rooms back to "has enemies to fight" so the
+	# scene layer's re-spawn pass instantiates a fresh Enemy in each one.
+	var d := _make_linear_dungeon()
+	var c := DungeonRunController.new()
+	c.start(d)
+	c.mark_room_cleared(1)
+	assert_true(c.is_room_cleared(1))
+	c.reset_clear_state()
+	assert_false(c.is_room_cleared(1), "marked room un-clears after reset")
+
+func test_reset_clear_state_preserves_auto_cleared_rooms():
+	# Start / power-up rooms are auto-cleared by virtue of having no enemy
+	# kind set, not via _cleared — the reset must leave them auto-cleared
+	# so the scene layer doesn't try to spawn an enemy in the start room.
+	var d := _make_branching_dungeon()
+	var c := DungeonRunController.new()
+	c.start(d)
+	c.reset_clear_state()
+	assert_true(c.is_room_cleared(0), "start room stays auto-cleared")
+	assert_true(c.is_room_cleared(2), "powerup room stays auto-cleared")

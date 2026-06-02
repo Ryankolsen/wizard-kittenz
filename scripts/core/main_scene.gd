@@ -440,6 +440,66 @@ func _on_player_exited_bar() -> void:
 	_disabled_tilemap_layers.clear()
 
 
+# Revive flow (#322). After CoopRouter.revive restores the player's HP, the
+# HUD calls into here to teleport the player back to the healing box at the
+# start room and re-spawn every combat-room enemy so the run can keep going.
+# Co-op suppresses the enemy respawn — enemy spawning is host-authoritative
+# via CoopSession.enemy_sync and a local-only mass respawn would desync the
+# party. Teleport runs in both modes since it's a purely local move.
+func on_player_revived() -> void:
+	_teleport_player_to_start()
+	if _coop_session() != null and _coop_session().is_active():
+		return
+	_respawn_all_enemies()
+
+func _teleport_player_to_start() -> void:
+	if _player == null or _run_controller == null or _run_controller.dungeon == null:
+		return
+	if _dungeon_layout == null:
+		return
+	var start_id := _run_controller.dungeon.start_id
+	if start_id < 0:
+		return
+	_player.global_position = _dungeon_layout.room_center_world(start_id)
+
+# Frees every Enemy still in the scene, drops the controller's _cleared map,
+# tears down the existing watchers, and re-runs the same spawn pass
+# _setup_rooms uses — minus the healing box / chest pass, which only runs at
+# dungeon load. The boss room is included in the respawn so a player who
+# somehow died after killing the boss still gets a clean slate; the exit
+# door's open-state is independent of room-cleared marks (it was opened by
+# the boss_room_cleared signal, which doesn't refire here).
+func _respawn_all_enemies() -> void:
+	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
+		return
+	for child in get_children():
+		if child is Enemy:
+			(child as Enemy).queue_free()
+	_watchers.clear()
+	_run_controller.reset_clear_state()
+
+	var floor_for_scaling := 1
+	var gs_for_floor := get_node_or_null("/root/GameState")
+	if gs_for_floor != null and gs_for_floor.meta_tracker != null:
+		floor_for_scaling = gs_for_floor.meta_tracker.dungeons_completed + 1
+	_spawn_planner = RoomSpawnPlanner.new()
+	_spawn_planner.register_all_room_enemies(
+		_run_controller.dungeon, _dungeon_layout, _coop_session(), floor_for_scaling)
+
+	var enemy_scene := load(ENEMY_SCENE_PATH)
+	for room in _run_controller.dungeon.rooms:
+		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
+		if data != null and not _run_controller.is_room_cleared(room.id):
+			var enemy: Enemy = enemy_scene.instantiate()
+			enemy.data = data
+			enemy.position = data.spawn_position
+			enemy.died.connect(_on_enemy_died.bind(enemy))
+			add_child(enemy)
+		var watcher := RoomClearWatcher.new()
+		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
+		_watchers.append(watcher)
+
+
 func _spawn_healing_box() -> void:
 	if _run_controller == null or _run_controller.dungeon == null or _dungeon_layout == null:
 		return

@@ -270,6 +270,15 @@ func _on_revive_pressed() -> void:
 		pid = gs.local_player_id
 	if CoopRouter.revive(session, _player.data, pid):
 		_you_died.visible = false
+		# Revive teleports the player back to the healing box and respawns
+		# every combat-room enemy (#322). The behavior lives on main_scene
+		# because it needs the dungeon layout + enemy spawn planner; HUD just
+		# calls in on the success edge. get_parent() because HUD is mounted
+		# directly under main_scene; the has_method guard keeps tests / harness
+		# instances that mount the HUD elsewhere from crashing.
+		var parent := get_parent()
+		if parent != null and parent.has_method("on_player_revived"):
+			parent.on_player_revived()
 
 func _on_give_up_pressed() -> void:
 	var gs := get_node_or_null("/root/GameState")

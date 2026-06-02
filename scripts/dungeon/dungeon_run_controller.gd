@@ -132,6 +132,15 @@ func mark_room_cleared(room_id: int) -> bool:
 		dungeon_completed.emit()
 	return true
 
+# Drops every explicit room-clear so previously-marked combat rooms flip
+# back to "has enemies to fight". Used by the revive flow (#322) where the
+# scene layer re-spawns enemies in all non-auto-cleared rooms after the
+# player dies. Auto-cleared rooms (start / power-up — no enemy kind) stay
+# cleared since is_room_cleared derives that from the dungeon graph, not
+# from _cleared.
+func reset_clear_state() -> void:
+	_cleared = {}
+
 # Explicitly-cleared room ids in insertion order. Used by DungeonRunSerializer
 # to capture run state for save/resume (PRD #42 / #46). Auto-cleared rooms
 # (start, power-up) aren't in `_cleared` and are re-derived from the
