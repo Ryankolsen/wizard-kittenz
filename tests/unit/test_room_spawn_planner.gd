@@ -71,12 +71,12 @@ func test_plan_enemy_boss_room_has_boosted_stats():
 	var base_hp := EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT)
 	var base_atk := EnemyData.base_attack_for(EnemyData.EnemyKind.DOG_KNIGHT)
 	var base_def := EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT)
-	assert_eq(d.max_hp, base_hp * RoomSpawnPlanner.BOSS_HP_MULT)
+	assert_eq(d.max_hp, int(roundf(float(base_hp) * BossScaling.BOSS_HP_MULT)))
 	assert_eq(d.hp, d.max_hp, "hp starts full")
-	assert_eq(d.attack, base_atk * RoomSpawnPlanner.BOSS_ATTACK_MULT)
-	assert_eq(d.defense, base_def * RoomSpawnPlanner.BOSS_DEFENSE_MULT)
-	assert_eq(d.xp_reward, EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_XP_MULT)
-	assert_eq(d.gold_reward, EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT) * RoomSpawnPlanner.BOSS_GOLD_MULT)
+	assert_eq(d.attack, int(roundf(float(base_atk) * BossScaling.BOSS_ATTACK_MULT)))
+	assert_eq(d.defense, int(roundf(float(base_def) * BossScaling.BOSS_DEFENSE_MULT)))
+	assert_eq(d.xp_reward, int(roundf(float(EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT)) * BossScaling.BOSS_XP_MULT)))
+	assert_eq(d.gold_reward, int(roundf(float(EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT)) * BossScaling.BOSS_GOLD_MULT)))
 	assert_eq(d.enemy_name, "The Vacuum")
 
 func test_plan_enemy_boss_room_has_wide_detection_radius():

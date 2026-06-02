@@ -59,22 +59,9 @@ var _enemy_data_by_room_id: Dictionary = {}
 # whether to instantiate an enemy node at all. spawn_idx defaults to 0
 # (one enemy per room today); the multi-spawn-per-room future call
 # site passes 1, 2, ... for additional spawns.
-const BOSS_HP_MULT: int = 6
-const BOSS_ATTACK_MULT: int = 4
-const BOSS_DEFENSE_MULT: int = 3
-const BOSS_XP_MULT: int = 3
-const BOSS_GOLD_MULT: int = 4
-# Per-floor scaling. Each additional floor multiplies the enemy's combat
-# stats and rewards by (1 + RATE * (floor_number - 1)). Floor 1 is the
-# baseline (1.0x). Tuned so a level-5 player on floor 5 fights enemies
-# roughly equivalent to their own stat gains, and bosses get appreciably
-# nastier the deeper the player goes. xp/gold scale too so the run reward
-# keeps pace with the increased risk.
-const FLOOR_HP_SCALE_PER_LEVEL: float = 0.55
-const FLOOR_ATTACK_SCALE_PER_LEVEL: float = 0.35
-const FLOOR_DEFENSE_SCALE_PER_LEVEL: float = 0.15
-const FLOOR_XP_SCALE_PER_LEVEL: float = 0.25
-const FLOOR_GOLD_SCALE_PER_LEVEL: float = 0.20
+# Boss multipliers and per-floor scaling rates live on BossScaling (extracted
+# in #323 so #324 party-size and #325 average-level scaling can stack on top
+# of the boss baseline without piling more scaling logic into the planner).
 # Boss room is 24x24 tiles at 16 px each = 384x384 px. A player entering at
 # any wall edge is at most ~272 px (half-diagonal) from the room center.
 # 300 px gives the boss sight-line to the doorway without reaching into the corridor.
@@ -89,12 +76,19 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1) ->
 	data.enemy_id = "r%d_e%d" % [room.id, spawn_idx]
 	data.is_boss = (room.type == Room.TYPE_BOSS)
 	if data.is_boss:
-		data.max_hp = data.max_hp * BOSS_HP_MULT
+		var scaled := BossScaling.compute_boss_stats({
+			"hp": data.max_hp,
+			"attack": data.attack,
+			"defense": data.defense,
+			"xp": data.xp_reward,
+			"gold": data.gold_reward,
+		}, floor_number)
+		data.max_hp = scaled["hp"]
 		data.hp = data.max_hp
-		data.attack = data.attack * BOSS_ATTACK_MULT
-		data.defense = data.defense * BOSS_DEFENSE_MULT
-		data.xp_reward = data.xp_reward * BOSS_XP_MULT
-		data.gold_reward = data.gold_reward * BOSS_GOLD_MULT
+		data.attack = scaled["attack"]
+		data.defense = scaled["defense"]
+		data.xp_reward = scaled["xp"]
+		data.gold_reward = scaled["gold"]
 		# Display name comes from BossRoster (stamped on the Room by the
 		# generator) so each floor's boss surfaces its flavor name —
 		# "Vacuum" for ROGUE_ROOMBA, "Sir Pickleton" for SIR_PICKLETON, etc.
@@ -108,7 +102,10 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1) ->
 		data.detection_radius = BOSS_DETECTION_RADIUS
 		data.boss_sprite_left_path = room.boss_sprite_left_path
 		data.boss_sprite_right_path = room.boss_sprite_right_path
-	apply_floor_scaling(data, floor_number)
+	else:
+		# Boss path already includes floor scaling via BossScaling.compute_boss_stats;
+		# non-boss enemies get it applied here.
+		apply_floor_scaling(data, floor_number)
 	return data
 
 # Multiplies the enemy's combat stats and rewards by the per-floor scale
@@ -124,11 +121,11 @@ static func apply_floor_scaling(data: EnemyData, floor_number: int) -> void:
 	var depth: int = maxi(0, floor_number - 1)
 	if depth <= 0:
 		return
-	var hp_mult: float = 1.0 + FLOOR_HP_SCALE_PER_LEVEL * float(depth)
-	var atk_mult: float = 1.0 + FLOOR_ATTACK_SCALE_PER_LEVEL * float(depth)
-	var def_mult: float = 1.0 + FLOOR_DEFENSE_SCALE_PER_LEVEL * float(depth)
-	var xp_mult: float = 1.0 + FLOOR_XP_SCALE_PER_LEVEL * float(depth)
-	var gold_mult: float = 1.0 + FLOOR_GOLD_SCALE_PER_LEVEL * float(depth)
+	var hp_mult: float = 1.0 + BossScaling.FLOOR_HP_SCALE_PER_LEVEL * float(depth)
+	var atk_mult: float = 1.0 + BossScaling.FLOOR_ATTACK_SCALE_PER_LEVEL * float(depth)
+	var def_mult: float = 1.0 + BossScaling.FLOOR_DEFENSE_SCALE_PER_LEVEL * float(depth)
+	var xp_mult: float = 1.0 + BossScaling.FLOOR_XP_SCALE_PER_LEVEL * float(depth)
+	var gold_mult: float = 1.0 + BossScaling.FLOOR_GOLD_SCALE_PER_LEVEL * float(depth)
 	data.max_hp = int(roundf(float(data.max_hp) * hp_mult))
 	data.hp = data.max_hp
 	data.attack = int(roundf(float(data.attack) * atk_mult))
