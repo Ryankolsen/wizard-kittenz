@@ -40,6 +40,11 @@ const SAVE_PATH := "user://character.tres"
 # for them without class-checking. Float so item/buff bonuses can be fractional;
 # the regen tick still applies whole points only.
 @export var mp_regen: float = 0.0
+# Per-stat allocated skill-point totals (PRD #316 / issue #317). Drives the
+# generic ClassStatTiers cap check in StatAllocator. Keys are stat names
+# matching CharacterData fields; values are total points invested. Items
+# bypass these caps and are not tracked here.
+@export var allocated_points: Dictionary = {}
 # Index into the (future) kitten sprite sheet. Pure data today — no
 # sprite swap is wired yet — but the persistence layer carries it so
 # Customize-flow choices survive save/load.
@@ -331,6 +336,7 @@ func clone() -> CharacterData:
 	c.mp_regen = mp_regen
 	c.appearance_index = appearance_index
 	c.facing = facing
+	c.allocated_points = allocated_points.duplicate()
 	return c
 
 func save_to(path: String = SAVE_PATH) -> Error:

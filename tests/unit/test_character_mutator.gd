@@ -6,7 +6,9 @@ extends GutTest
 #   - null data is safe throughout
 
 func _make_mage() -> CharacterData:
-	return CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Battle Kitten so the mutator's `attack` allocation hits a Primary tier
+	# (PRD #316). Wizard would Forbidden-reject these tests.
+	return CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 
 func _make_slime_attacker(attack: int) -> EnemyData:
 	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)

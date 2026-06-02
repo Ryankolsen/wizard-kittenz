@@ -25,12 +25,10 @@ static func apply(inventory: ItemInventory, character: CharacterData) -> void:
 			var current: Variant = character.get(bonus.stat_name)
 			if current == null:
 				continue
+			# Items bypass class tier caps (PRD #316): equipped bonuses
+			# always apply in full, so loot drops feel valuable even when
+			# the stat is Off-stat or Forbidden for the wearer's class.
 			var new_val: Variant = current + bonus.stat_bonus
-			# Regen has a per-class cap (issue #142). Non-Sleepy classes can
-			# receive at most +1 total regen from items; Sleepy classes share
-			# the same total cap that gates stat investment.
-			if bonus.stat_name == "regeneration":
-				new_val = mini(int(new_val), CharacterData.max_regeneration_for(character.character_class))
 			character.set(bonus.stat_name, new_val)
 
 static func recompute(inventory: ItemInventory, character: CharacterData, base: CharacterData) -> void:

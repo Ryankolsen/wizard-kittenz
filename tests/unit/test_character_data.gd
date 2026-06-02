@@ -237,12 +237,15 @@ func test_non_sleepy_class_starts_at_zero_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	assert_eq(c.regeneration, 0, "Non-Sleepy classes have regen locked at 0")
 
-func test_sleepy_kitten_regen_investment_capped_at_three():
+func test_sleepy_kitten_regen_investment_capped_at_five():
+	# PRD #316: Sleepy regen is Primary with explicit +5 cap.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 	c.skill_points = 10
 	for _i in range(10):
 		StatAllocator.allocate(c, {"regeneration": 1})
-	assert_true(c.regeneration <= 3, "Sleepy Kitten regen capped at 3, got %d" % c.regeneration)
+	var max_after_invest: int = 1 + ClassStatTiers.SLEEPY_REGEN_CAP
+	assert_true(c.regeneration <= max_after_invest,
+		"Sleepy regen capped at baseline 1 + invest cap 5, got %d" % c.regeneration)
 
 func test_non_sleepy_class_cannot_invest_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
@@ -252,7 +255,8 @@ func test_non_sleepy_class_cannot_invest_regen():
 	assert_eq(c.regeneration, 0, "regen unchanged after rejected investment")
 	assert_eq(c.skill_points, 1, "skill_points unchanged after rejected investment")
 
-func test_item_regen_capped_at_one_for_non_sleepy_class():
+func test_item_regen_applies_in_full_for_non_sleepy_class():
+	# PRD #316: items bypass class tier caps so loot drops always feel useful.
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	var item := ItemData.new()
 	item.slot = ItemData.Slot.ACCESSORY
@@ -260,7 +264,7 @@ func test_item_regen_capped_at_one_for_non_sleepy_class():
 	var inv := ItemInventory.new()
 	inv.equip(item)
 	ItemStatApplicator.apply(inv, c)
-	assert_eq(c.regeneration, 1, "non-Sleepy class regen capped at 1 from items")
+	assert_eq(c.regeneration, 2, "items apply regen bonus regardless of tier")
 
 func test_make_new_mage_classes_have_mp_regen_baseline():
 	var wizard := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)

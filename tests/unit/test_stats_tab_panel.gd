@@ -6,7 +6,10 @@ extends GutTest
 # "+" spends one point through StatAllocator and refreshes the panel.
 
 func _mage_with_points(points: int) -> CharacterData:
-	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	# Battle Kitten chosen so the panel tests that allocate `attack`/`max_hp`
+	# hit Primary/Secondary tiers (1 SP each) under PRD #316. Wizard would
+	# Forbidden-reject `attack` and require 2 SP for Off-stat `max_hp`.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
 	c.skill_points = points
 	return c
 

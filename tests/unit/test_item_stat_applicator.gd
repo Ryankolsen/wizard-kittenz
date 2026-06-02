@@ -97,7 +97,8 @@ func test_recompute_multi_bonus_item_no_drift():
 	assert_eq(c.attack, base.attack + 3)
 	assert_eq(c.magic_attack, base.magic_attack + 2)
 
-func test_regen_capped_in_multi_bonus_for_non_sleepy():
+func test_regen_bypasses_class_cap_in_multi_bonus():
+	# PRD #316: items always apply in full; tier caps only constrain SP.
 	var inv := ItemInventory.new()
 	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 	var base_max_hp := c.max_hp
@@ -106,5 +107,17 @@ func test_regen_capped_in_multi_bonus_for_non_sleepy():
 		StatBonus.make("max_hp", 10.0),
 	]))
 	ItemStatApplicator.apply(inv, c)
-	assert_eq(c.regeneration, 1, "non-Sleepy regen capped at 1 even in multi-bonus item")
+	assert_eq(c.regeneration, 5, "regen bonus applies in full, no class cap on items")
 	assert_eq(c.max_hp, base_max_hp + 10, "max_hp gets full bonus from multi-bonus item")
+
+func test_items_apply_defense_to_wizard_above_cap():
+	# Wizard defense is Off-stat (allocation cap +3). Items must still apply
+	# the full bonus even when the value exceeds the per-tier allocation cap.
+	var inv := ItemInventory.new()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Test")
+	var base_def := c.defense
+	inv.equip(_make_multi_bonus_item(ItemData.Slot.ARMOR, [
+		StatBonus.make("defense", 5.0),
+	]))
+	ItemStatApplicator.apply(inv, c)
+	assert_eq(c.defense, base_def + 5, "items bypass Off-stat allocation cap")
