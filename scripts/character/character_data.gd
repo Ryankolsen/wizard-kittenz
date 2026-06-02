@@ -45,6 +45,13 @@ const SAVE_PATH := "user://character.tres"
 # matching CharacterData fields; values are total points invested. Items
 # bypass these caps and are not tracked here.
 @export var allocated_points: Dictionary = {}
+# Save-data schema version for the skill-point allocation system
+# (PRD #316 / issue #319). 0 = pre-tier save (triggers one-time respec
+# in SkillPointRespec.migrate on first load). SkillPointRespec.CURRENT_VERSION
+# is the post-migration value. Defaults to 0 so any CharacterData built
+# from a legacy dict without the field flows into the migration; make_new
+# overrides to CURRENT_VERSION so freshly created characters skip it.
+@export var schema_version: int = 0
 # Index into the (future) kitten sprite sheet. Pure data today — no
 # sprite swap is wired yet — but the persistence layer carries it so
 # Customize-flow choices survive save/load.
@@ -235,6 +242,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.regeneration = base_regeneration_for(klass, 1)
 	c.mp_regen = base_mp_regen_for(klass, 1)
 	c.magic_resistance = base_magic_resistance_for(klass, 1)
+	c.schema_version = SkillPointRespec.CURRENT_VERSION
 	return c
 
 func apply_stat_delta(stat_name: String, delta: float) -> void:
@@ -353,6 +361,7 @@ func clone() -> CharacterData:
 	c.appearance_index = appearance_index
 	c.facing = facing
 	c.allocated_points = allocated_points.duplicate()
+	c.schema_version = schema_version
 	return c
 
 func save_to(path: String = SAVE_PATH) -> Error:

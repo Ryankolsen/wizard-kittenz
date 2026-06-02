@@ -30,6 +30,12 @@ var crit_chance: float = 0.0
 var luck: int = 0
 var regeneration: int = 0
 var mp_regen: float = 0.0
+# Skill-point allocation snapshot + schema flag (PRD #316 / issue #319).
+# allocated_points is the per-stat invest dict mirroring CharacterData;
+# schema_version drives the one-time respec on first load post-tier (legacy
+# saves omit the key and default to 0, which triggers SkillPointRespec.migrate).
+var allocated_points: Dictionary = {}
+var schema_version: int = 0
 # Stored as plain Array (not PackedStringArray) so JSON.stringify round-trips
 # cleanly via Variant. Snapshot of SkillTree.unlocked_ids() at save time.
 var unlocked_skill_ids: Array = []
@@ -129,6 +135,8 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	s.luck = c.luck
 	s.regeneration = c.regeneration
 	s.mp_regen = c.mp_regen
+	s.allocated_points = c.allocated_points.duplicate()
+	s.schema_version = c.schema_version
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
 	if tracker != null:
@@ -183,6 +191,12 @@ func apply_to(c: CharacterData) -> void:
 	c.luck = luck
 	c.regeneration = regeneration
 	c.mp_regen = mp_regen
+	c.allocated_points = allocated_points.duplicate()
+	c.schema_version = schema_version
+	# PRD #316 / issue #319: run the one-time respec on load so pre-tier
+	# saves refund their allocations before items are re-applied by the
+	# caller. No-op on saves already at SkillPointRespec.CURRENT_VERSION.
+	SkillPointRespec.migrate(c)
 
 func to_dict() -> Dictionary:
 	return {
@@ -207,6 +221,8 @@ func to_dict() -> Dictionary:
 		"luck": luck,
 		"regeneration": regeneration,
 		"mp_regen": mp_regen,
+		"allocated_points": allocated_points,
+		"schema_version": schema_version,
 		"unlocked_skill_ids": unlocked_skill_ids,
 		"dungeons_completed": dungeons_completed,
 		"max_level_per_class": max_level_per_class,
@@ -248,6 +264,11 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.luck = int(d.get("luck", 0))
 	s.regeneration = int(d.get("regeneration", 0))
 	s.mp_regen = float(d.get("mp_regen", 0.0))
+	var allocs = d.get("allocated_points", {})
+	if allocs is Dictionary:
+		for k in allocs.keys():
+			s.allocated_points[String(k)] = int(allocs[k])
+	s.schema_version = int(d.get("schema_version", 0))
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:
 		s.unlocked_skill_ids = ids.duplicate()
@@ -422,6 +443,8 @@ static func from_bundle(bundle: SaveBundle) -> KittenSaveData:
 		s.luck = slot.luck
 		s.regeneration = slot.regeneration
 		s.mp_regen = slot.mp_regen
+		s.allocated_points = slot.allocated_points.duplicate()
+		s.schema_version = slot.schema_version
 		s.unlocked_skill_ids = slot.unlocked_skill_ids.duplicate()
 		s.equipped_items = slot.equipped_items.duplicate()
 		s.item_bag = slot.item_bag.duplicate()

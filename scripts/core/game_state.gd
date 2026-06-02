@@ -169,6 +169,12 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	c.luck = slot.luck
 	c.regeneration = slot.regeneration
 	c.mp_regen = slot.mp_regen
+	c.allocated_points = slot.allocated_points.duplicate()
+	c.schema_version = slot.schema_version
+	# PRD #316 / issue #319: respec pre-tier saves before item bonuses are
+	# (re)applied so the refund only touches allocation-derived stats. No-op
+	# once the slot's schema_version is at SkillPointRespec.CURRENT_VERSION.
+	SkillPointRespec.migrate(c)
 	current_character = c
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(slot.unlocked_skill_ids)

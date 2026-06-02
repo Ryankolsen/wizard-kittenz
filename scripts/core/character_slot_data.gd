@@ -26,6 +26,11 @@ var crit_chance: float = 0.0
 var luck: int = 0
 var regeneration: int = 0
 var mp_regen: float = 0.0
+# Per-stat allocated SP investment + schema version (PRD #316 / issue #319).
+# schema_version drives the one-time respec on first load: legacy slots omit
+# the field and default to 0, which SkillPointRespec.migrate detects.
+var allocated_points: Dictionary = {}
+var schema_version: int = 0
 var unlocked_skill_ids: Array = []
 var equipped_items: Dictionary = {}
 var item_bag: Array = []
@@ -60,6 +65,8 @@ static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemI
 	s.luck = c.luck
 	s.regeneration = c.regeneration
 	s.mp_regen = c.mp_regen
+	s.allocated_points = c.allocated_points.duplicate()
+	s.schema_version = c.schema_version
 	if tree != null:
 		s.unlocked_skill_ids = tree.unlocked_ids()
 	if item_inv != null:
@@ -99,6 +106,8 @@ func to_dict() -> Dictionary:
 		"luck": luck,
 		"regeneration": regeneration,
 		"mp_regen": mp_regen,
+		"allocated_points": allocated_points.duplicate(),
+		"schema_version": schema_version,
 		"unlocked_skill_ids": unlocked_skill_ids.duplicate(),
 		"equipped_items": equipped_items.duplicate(),
 		"item_bag": item_bag.duplicate(),
@@ -130,6 +139,11 @@ static func from_dict(d: Dictionary) -> CharacterSlotData:
 	s.luck = int(d.get("luck", 0))
 	s.regeneration = int(d.get("regeneration", 0))
 	s.mp_regen = float(d.get("mp_regen", 0.0))
+	var allocs = d.get("allocated_points", {})
+	if allocs is Dictionary:
+		for k in allocs.keys():
+			s.allocated_points[String(k)] = int(allocs[k])
+	s.schema_version = int(d.get("schema_version", 0))
 	var ids = d.get("unlocked_skill_ids", [])
 	if ids is Array:
 		s.unlocked_skill_ids = ids.duplicate()
