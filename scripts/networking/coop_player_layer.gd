@@ -37,6 +37,13 @@ const TINTS: Array[Color] = [
 
 var _kittens: Dictionary = {}  # player_id -> RemoteKitten
 var _connected_lobby: NakamaLobby = null
+# Tracked so we can disconnect session_started across session swaps. The
+# layer's _ready can fire before main_scene._ready calls coop_session.start()
+# (Godot's children-first ready order), which means network_sync is still
+# null when the first reconcile spawns remote kittens. Binding to
+# session_started here gives us a deferred trigger to refresh those kittens'
+# network_sync refs once start() runs and builds the manager.
+var _connected_session: CoopSession = null
 var _scene: PackedScene = null
 
 func _ready() -> void:
@@ -49,6 +56,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_unbind_lobby()
+	_unbind_session()
 
 # Public for testability. Reads the current GameState.lobby + coop_session
 # and brings the children map in sync with the roster (skipping the local
@@ -65,6 +73,7 @@ func reconcile() -> void:
 	# mid-test or mid-match lobby swap rewires the lobby_updated signal
 	# instead of leaving us subscribed to the old (possibly freed) one.
 	_bind_lobby(lobby)
+	_bind_session(session)
 	if lobby == null or lobby.lobby_state == null or session == null:
 		_clear_all()
 		return
@@ -83,6 +92,11 @@ func reconcile() -> void:
 		else:
 			# Update name/tint/character_class in case a PLAYER_INFO landed mid-session.
 			var existing: RemoteKitten = _kittens[p.player_id]
+			# Refresh the network_sync ref too: a kitten spawned before
+			# coop_session.start() built the manager will be holding a stale
+			# null reference, freezing it at (0, 0). Reassigning here heals
+			# that on the first reconcile after session_started fires.
+			existing.network_sync = sync
 			existing.kitten_name = p.kitten_name
 			if existing.has_node("Label"):
 				existing.get_node("Label").text = p.kitten_name
@@ -139,6 +153,29 @@ func _unbind_lobby() -> void:
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
+	reconcile()
+
+func _bind_session(new_session: CoopSession) -> void:
+	if new_session == _connected_session:
+		return
+	_unbind_session()
+	if new_session == null:
+		return
+	new_session.session_started.connect(_on_session_started)
+	_connected_session = new_session
+
+func _unbind_session() -> void:
+	if _connected_session == null:
+		return
+	if _connected_session.session_started.is_connected(_on_session_started):
+		_connected_session.session_started.disconnect(_on_session_started)
+	_connected_session = null
+
+# Fired from CoopSession.start() after network_sync is constructed. Triggers
+# a reconcile so any RemoteKitten that was spawned before start() (children-
+# first _ready order in main.tscn) gets its now-non-null network_sync
+# reference patched in via the existing-kitten branch of reconcile().
+func _on_session_started() -> void:
 	reconcile()
 
 func remote_kitten_count() -> int:

@@ -242,6 +242,34 @@ func test_reconcile_updates_character_class_on_existing_kitten():
 	assert_eq(rk.character_class, CharacterData.CharacterClass.SLEEPY_KITTEN,
 		"reconcile must refresh character_class on existing kittens")
 
+func test_kittens_spawned_before_session_started_get_network_sync_on_start():
+	# Regression: in the live scene, CoopPlayerLayer._ready (child) runs
+	# before main_scene._ready (parent), which is where coop_session.start()
+	# is called. So the first reconcile spawns remote kittens with
+	# coop_session.network_sync still null, and RemoteKitten._process
+	# early-returns on null sync — the kitten freezes at (0, 0). Once
+	# session.start() builds network_sync, the layer must refresh the
+	# already-spawned kittens' refs (via session_started → reconcile) or
+	# the teammate appears stuck in place forever.
+	var gs := get_node("/root/GameState")
+	gs.set_lobby(_make_lobby_with_players("me", ["me", "alice"]))
+	# Construct session WITHOUT network_sync (mimics post-_init / pre-start
+	# lifetime that lobby._on_match_started leaves before scene change).
+	var session := CoopSession.new()
+	gs.coop_session = session
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_not_null(alice, "spawned even with null sync — placeholder is visible")
+	assert_null(alice.network_sync,
+		"sanity: spawn captured the null sync that was current at _ready time")
+	# Simulate coop_session.start() building network_sync and emitting
+	# session_started — the lifecycle hook on the live path.
+	session.network_sync = NetworkSyncManager.new()
+	session.session_started.emit()
+	assert_eq(alice.network_sync, session.network_sync,
+		"session_started must trigger a reconcile that patches in the new sync")
+
 func test_main_scene_includes_coop_player_layer():
 	# Regression guard parallel to test_main_scene_includes_touch_controls:
 	# main.tscn must contain a CoopPlayerLayer or remote players never
