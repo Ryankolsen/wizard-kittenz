@@ -349,7 +349,31 @@ func _finalize(data: CharacterData) -> void:
 func _ensure_session_async() -> NakamaSession:
 	if NakamaService.session != null:
 		return NakamaService.session
-	return await NakamaService.authenticate_device_async(OS.get_unique_id())
+	return await NakamaService.authenticate_device_async(_resolved_device_id())
+
+# Dev-time fan-out for local multi-client testing: when two Godot instances
+# run on the same machine, OS.get_unique_id() returns the same value and both
+# authenticate as the same Nakama user — collapsing the match to one presence
+# and breaking position/enemy sync. In debug builds we append a per-process
+# suffix so every launched instance (editor play button, multiple-instances
+# debug, exported debug build) claims a distinct Nakama identity. Honors an
+# explicit override via --device-suffix=<s> or WIZARD_DEVICE_SUFFIX so manual
+# testers can pin reproducible identities across restarts. Release builds
+# always return the raw device id so a real player's account persists.
+func _resolved_device_id() -> String:
+	var base: String = OS.get_unique_id()
+	if not OS.is_debug_build():
+		return base
+	var suffix: String = ""
+	for arg in OS.get_cmdline_args():
+		if arg.begins_with("--device-suffix="):
+			suffix = arg.substr("--device-suffix=".length())
+			break
+	if suffix == "" and OS.has_environment("WIZARD_DEVICE_SUFFIX"):
+		suffix = OS.get_environment("WIZARD_DEVICE_SUFFIX")
+	if suffix == "":
+		suffix = "pid" + str(OS.get_process_id())
+	return base + "-" + suffix
 
 func _on_create_room_pressed() -> void:
 	var c := GameState.current_character

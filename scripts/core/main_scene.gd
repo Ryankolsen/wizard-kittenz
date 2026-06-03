@@ -82,6 +82,16 @@ func _ready() -> void:
 	else:
 		_run_controller = gs.dungeon_run_controller
 
+	# Co-op session must start regardless of whether we built a new dungeon
+	# or resumed a saved run. _start_new_dungeon's branch above only fires
+	# on the "build" path, which left network_sync (and every other per-run
+	# manager) null whenever a player entered co-op carrying a deserialized
+	# dungeon_run_controller — freezing every remote kitten at (0,0).
+	# Idempotent: CoopSession.start() returns false when _active is already
+	# true, so solo→co-op scene reloads don't double-build managers.
+	if gs != null and gs.coop_session != null and not gs.coop_session.is_active():
+		gs.coop_session.start(_run_controller.dungeon, _local_skill_tree(), gs.lobby)
+
 	_paint_dungeon()
 
 	# Issue #98: dungeon completion is now defined by walking through the

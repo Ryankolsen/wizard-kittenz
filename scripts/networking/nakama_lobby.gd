@@ -689,6 +689,19 @@ func _on_match_presence(event) -> void:
 		leaves.append({"user_id": p.user_id})
 	if not joins.is_empty():
 		apply_joins(joins)
+		# Re-broadcast our own PLAYER_INFO so the late-joiner learns our
+		# kitten_name + character_class. Host's initial send at create_async
+		# (line 162) goes out before any joiner exists, and join_async's
+		# announce (line 194) only carries the joiner's info — without this
+		# rebroadcast, late joiners render every existing player with the
+		# default character_class (wizard kitten / sleepy kitten), even
+		# though position sync works fine. Echo back to self is harmless:
+		# apply_state's OP_PLAYER_INFO branch just re-applies our own info
+		# to our own LobbyPlayer entry.
+		if lobby_state != null:
+			var me := lobby_state.find_player(local_player_id)
+			if me != null:
+				send_player_info_async(me)
 	if not leaves.is_empty():
 		apply_leaves(leaves)
 
@@ -700,4 +713,5 @@ func _on_match_state(state) -> void:
 		var parsed = JSON.parse_string(state.data)
 		if parsed is Dictionary:
 			data_dict = parsed
-	apply_state(state.op_code, state.presence.user_id, data_dict)
+	var sender_uid: String = state.presence.user_id if state.presence != null else ""
+	apply_state(state.op_code, sender_uid, data_dict)

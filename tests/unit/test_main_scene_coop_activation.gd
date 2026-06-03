@@ -250,6 +250,58 @@ func test_finalize_completed_run_clears_run_controller_for_next_run():
 	assert_null(gs.dungeon_run_controller,
 		"finalize clears the run controller")
 
+# --- _dungeon_seed_for seam (#329 regression) ------------------------------
+# Pins that main_scene reads the agreed seed off the live CoopSession's
+# dungeon_seed_sync when co-op is active and the handshake has run, and
+# falls through to -1 (DungeonGenerator's randomize sentinel) on solo /
+# pre-handshake paths. Without these, a future refactor of the seed
+# accessor chain could silently swap a co-op match back into the
+# randomize branch — the original divergence bug.
+
+func test_dungeon_seed_for_returns_agreed_seed_when_session_has_agreed_sync():
+	var session := _make_coop_session()
+	var sync := DungeonSeedSync.new()
+	sync.host_mint(987654321)
+	session.dungeon_seed_sync = sync
+	_install_session(session)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	var gs := get_node("/root/GameState")
+
+	assert_eq(inst._dungeon_seed_for(gs), 987654321,
+		"agreed seed surfaces from coop_session.dungeon_seed_sync")
+
+func test_dungeon_seed_for_returns_negative_when_sync_is_not_agreed():
+	# Co-op session exists but the OP_START_MATCH packet hasn't arrived yet
+	# (or the peer somehow reached _start_new_dungeon before the seed apply).
+	# Must fall through to -1 so DungeonGenerator.randomize() doesn't quietly
+	# generate a different layout than the host's agreed seed will pick.
+	# A non-agreed sync surfacing as a positive int would silently desync the
+	# party — pin the sentinel return.
+	var session := _make_coop_session()
+	session.dungeon_seed_sync = DungeonSeedSync.new()  # fresh, unagreed
+	_install_session(session)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	var gs := get_node("/root/GameState")
+
+	assert_eq(inst._dungeon_seed_for(gs), -1,
+		"unagreed sync returns -1 so DungeonGenerator randomizes")
+
+func test_dungeon_seed_for_returns_negative_when_no_session():
+	# Solo path: gs.coop_session is null. _dungeon_seed_for must return -1
+	# without a crash on the null dereference.
+	_install_session(null)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	var gs := get_node("/root/GameState")
+
+	assert_eq(inst._dungeon_seed_for(gs), -1,
+		"null session falls through to randomize sentinel")
+
 # --- helpers (cont.) -------------------------------------------------------
 
 func _tiny_dungeon() -> Dungeon:

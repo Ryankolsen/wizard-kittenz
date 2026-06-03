@@ -225,6 +225,13 @@ func switch_to_slot(archetype: String) -> void:
 		dungeon_run_controller = null
 		return
 	_hydrate_active_character(target)
+	# Persist the new active slot to disk. Without this, an immediately-
+	# subsequent Nakama auth fires _on_nakama_authenticated, which reads the
+	# stale on-disk active_slot, merges, and rebuilds current_character from
+	# the *previous* slot — silently swapping the player's chosen co-op class
+	# back to whatever was active before they tapped this card. Save now so
+	# the merge reads the slot we just switched to.
+	SaveManager.save_from_state()
 
 func apply_merged_save(save_data: KittenSaveData) -> void:
 	var c := CharacterData.new()
