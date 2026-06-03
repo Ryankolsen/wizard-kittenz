@@ -75,7 +75,7 @@ signal seed_agreed(seed: int)
 # Decoupled via signal so NakamaLobby stays testable without a live session
 # and so the Player render layer (CoopPlayerLayer / RemoteKitten) can be
 # wired without poking at the lobby internals.
-signal position_received(player_id: String, position: Vector2, timestamp: float)
+signal position_received(player_id: String, position: Vector2, timestamp: float, facing_x: int)
 # In-match enemy-killed event from a remote player. GameState routes this
 # into RemoteKillApplier.apply when a session is active. Decoupled via
 # signal for the same reason as position_received — lets NakamaLobby be
@@ -231,10 +231,14 @@ func send_ready_async(is_ready: bool) -> void:
 		return
 	await _socket.send_match_state_async(_match_id, OP_READY_TOGGLE, JSON.stringify({"ready": is_ready}))
 
-func send_position_async(now: float, position: Vector2) -> void:
+func send_position_async(now: float, position: Vector2, facing_x: int = 0) -> void:
 	if _socket == null or _match_id == "":
 		return
-	var payload := {"x": position.x, "y": position.y, "ts": now}
+	# facing_x is a sign (-1, 0, +1) so a receiving RemoteKitten can flip its
+	# sprite to mirror the local Player's facing. Always written — slice 2 of
+	# PRD #328 (issue #330) intentionally has no edge detection so the wire
+	# stays uniform; missing-key on the receiver is the backward-compat path.
+	var payload := {"x": position.x, "y": position.y, "ts": now, "facing_x": facing_x}
 	await _socket.send_match_state_async(_match_id, OP_POSITION, JSON.stringify(payload))
 
 # Broadcasts a local kill to every match participant. Empty enemy_id is a
@@ -536,7 +540,12 @@ func _route_position(sender_id: String, data: Dictionary) -> void:
 		return
 	var pos := Vector2(float(data.get("x", 0.0)), float(data.get("y", 0.0)))
 	var ts: float = float(data.get("ts", 0.0))
-	position_received.emit(sender_id, pos, ts)
+	# facing_x is optional for backward compat with pre-#330 senders. A
+	# missing key surfaces as 0, which RemoteKitten treats as "keep last
+	# known facing" — same as an in-place player whose horizontal input
+	# is zero (Player only flips on input_dir.x != 0).
+	var facing_x: int = int(data.get("facing_x", 0))
+	position_received.emit(sender_id, pos, ts, facing_x)
 
 # Decodes the OP_KILL payload and emits kill_received. Self-echoes are
 # dropped at the routing layer rather than relying on RemoteKillApplier's

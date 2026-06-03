@@ -400,7 +400,11 @@ func _on_host_paused() -> void:
 func _on_host_unpaused() -> void:
 	get_tree().paused = false
 
-func _on_position_received(player_id: String, position: Vector2, timestamp: float) -> void:
+func _on_position_received(player_id: String, position: Vector2, timestamp: float, _facing_x: int) -> void:
+	# Facing is fanned to RemoteKitten by CoopPlayerLayer (which subscribes
+	# to the same signal); GameState's job is to keep the network sync
+	# manager driving the interpolated position. Splitting the two routes
+	# avoids needing a CoopPlayerLayer reference on the autoload.
 	if coop_session == null or coop_session.network_sync == null:
 		return
 	coop_session.network_sync.apply_remote_state(player_id, position, timestamp)

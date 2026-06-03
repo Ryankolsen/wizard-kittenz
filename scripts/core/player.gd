@@ -699,7 +699,14 @@ func _maybe_broadcast_position() -> void:
 	var lob := _lobby()
 	if lob == null:
 		return
-	lob.send_position_async(now, global_position)
+	# Sign of data.facing.x mirrors the local Player's last horizontal
+	# input direction (updated in _physics_process). Sent every packet
+	# with no edge detection so a receiver that joins mid-match has the
+	# latest facing on the first packet it sees. See PRD #328 / #330.
+	var facing_x: int = 0
+	if data != null:
+		facing_x = int(signf(data.facing.x))
+	lob.send_position_async(now, global_position, facing_x)
 
 func _local_player_id() -> String:
 	return _game_state.local_player_id if _game_state != null else ""

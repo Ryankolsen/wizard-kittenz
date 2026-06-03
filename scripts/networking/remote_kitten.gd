@@ -85,6 +85,17 @@ func _init_weapon_pivot() -> void:
 # Direction carries the peer's facing; the kitten's own character_class
 # selects WeaponDefinition (and therefore attack_type), so no extra payload
 # is needed on the wire beyond the facing vector.
+# Slice 2 of PRD #328 (issue #330). Mirrors the local Player sprite-flip
+# rule from player.gd: `flip_h = moving_left != SpriteHelper.faces_left(cc)`.
+# facing_x is a sign — -1, 0, or +1. A zero (or absent on the wire) means
+# "keep last known facing" so a stationary teammate doesn't snap to a
+# default orientation between movement bursts.
+func apply_facing(facing_x: int) -> void:
+	if facing_x == 0 or _sprite == null:
+		return
+	var moving_left := facing_x < 0
+	_sprite.flip_h = moving_left != SpriteHelper.faces_left(character_class)
+
 func play_attack(direction: Vector2) -> void:
 	if attack_choreographer == null:
 		return

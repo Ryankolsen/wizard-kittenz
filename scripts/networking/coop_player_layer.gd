@@ -143,6 +143,7 @@ func _bind_lobby(new_lobby: NakamaLobby) -> void:
 	if new_lobby == null:
 		return
 	new_lobby.lobby_updated.connect(_on_lobby_updated)
+	new_lobby.position_received.connect(_on_position_received)
 	_connected_lobby = new_lobby
 
 func _unbind_lobby() -> void:
@@ -150,10 +151,22 @@ func _unbind_lobby() -> void:
 		return
 	if _connected_lobby.lobby_updated.is_connected(_on_lobby_updated):
 		_connected_lobby.lobby_updated.disconnect(_on_lobby_updated)
+	if _connected_lobby.position_received.is_connected(_on_position_received):
+		_connected_lobby.position_received.disconnect(_on_position_received)
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
 	reconcile()
+
+# Slice 2 of PRD #328 (issue #330). Receiver path: fan facing_x to the
+# matching RemoteKitten so its sprite mirrors the sender's last horizontal
+# input. Position itself is handled by GameState → NetworkSyncManager;
+# this hook only carries the facing bit.
+func _on_position_received(player_id: String, _position: Vector2, _timestamp: float, facing_x: int) -> void:
+	var kitten: RemoteKitten = _kittens.get(player_id)
+	if kitten == null:
+		return
+	kitten.apply_facing(facing_x)
 
 func _bind_session(new_session: CoopSession) -> void:
 	if new_session == _connected_session:

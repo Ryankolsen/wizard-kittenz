@@ -270,6 +270,39 @@ func test_kittens_spawned_before_session_started_get_network_sync_on_start():
 	assert_eq(alice.network_sync, session.network_sync,
 		"session_started must trigger a reconcile that patches in the new sync")
 
+# Slice 2 of PRD #328 (issue #330). CoopPlayerLayer subscribes to
+# lobby.position_received and fans the facing_x sign to the matching
+# RemoteKitten — the seam GameState's handler intentionally skips so the
+# autoload doesn't need a CoopPlayerLayer reference.
+
+func test_position_received_forwards_facing_to_matching_kitten():
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	# Wizard kitten asset faces left → moving right must flip.
+	lobby.position_received.emit("alice", Vector2.ZERO, 0.0, 1)
+	assert_true(alice.get_node("Sprite2D").flip_h,
+		"facing fans to the matching kitten and applies the flip")
+
+func test_position_received_ignores_unknown_player_id():
+	# A packet for an id with no spawned kitten (mid-roster-update,
+	# stale packet from a departed peer) is a silent no-op rather than
+	# a crash.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	# No assertion needed beyond not crashing — the handler's null guard
+	# is what we're exercising here.
+	lobby.position_received.emit("ghost", Vector2.ZERO, 0.0, 1)
+	assert_true(true)
+
 func test_main_scene_includes_coop_player_layer():
 	# Regression guard parallel to test_main_scene_includes_touch_controls:
 	# main.tscn must contain a CoopPlayerLayer or remote players never
