@@ -79,6 +79,7 @@ theme_override_constants/shadow_offset_y = 3
 theme_override_font_sizes/font_size = 48
 text = "Wizard Kittenz"
 horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="TopButtons" type="HBoxContainer" parent="MainMenu/VBox"]
 layout_mode = 2
