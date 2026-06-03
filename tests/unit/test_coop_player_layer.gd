@@ -315,3 +315,66 @@ func test_main_scene_includes_coop_player_layer():
 	assert_true(layer is CoopPlayerLayer,
 		"CoopPlayerLayer node must be bound to the CoopPlayerLayer script")
 	inst.free()
+
+
+# --- Slice 3 of PRD #328 (issue #331): equipped weapon visual fan-out --------
+
+func test_spawn_seeds_equipped_weapon_id_from_lobby_player():
+	# Late-joiner case: a remote player is already in the lobby with an
+	# equipped weapon when the layer reconciles for the first time. The
+	# spawned RemoteKitten must show that weapon, not the class-default,
+	# without waiting for a follow-up PLAYER_INFO rebroadcast.
+	var gs := get_node("/root/GameState")
+	var nl := NakamaLobby.new()
+	nl.local_player_id = "me"
+	var ls := LobbyState.new("ABCDE")
+	var alice := LobbyPlayer.make("alice", "k_alice", "Battle Kitten")
+	alice.character_class_int = CharacterData.CharacterClass.BATTLE_KITTEN
+	alice.equipped_weapon_id = "iron_sword"
+	ls.add_player(LobbyPlayer.make("me", "k_me", "Battle Kitten"))
+	ls.add_player(alice)
+	nl.lobby_state = ls
+	gs.set_lobby(nl)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var rk: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_not_null(rk)
+	var ws := rk.weapon_pivot.get_node_or_null("Sprite2D") as Sprite2D
+	assert_not_null(ws)
+	assert_true(ws.visible,
+		"late-joiner spawn must seed the weapon visual immediately — "
+		+ "without this the kitten renders unarmed until the next "
+		+ "PLAYER_INFO rebroadcast")
+	assert_eq(ws.texture.resource_path,
+		"res://assets/sprites/weapon_slippery_mackerel.png")
+
+
+func test_reconcile_updates_equipped_weapon_id_on_existing_kitten():
+	# Equip-swap case: a peer changes their weapon mid-session. The
+	# PLAYER_INFO rebroadcast lands → apply_state updates the LobbyPlayer
+	# → lobby_updated fires → reconcile must fan the new id to the
+	# already-spawned RemoteKitten without respawning the node.
+	var gs := get_node("/root/GameState")
+	var nl := NakamaLobby.new()
+	nl.local_player_id = "me"
+	var ls := LobbyState.new("ABCDE")
+	var alice := LobbyPlayer.make("alice", "k_alice", "Battle Kitten")
+	alice.character_class_int = CharacterData.CharacterClass.BATTLE_KITTEN
+	ls.add_player(LobbyPlayer.make("me", "k_me", "Battle Kitten"))
+	ls.add_player(alice)
+	nl.lobby_state = ls
+	gs.set_lobby(nl)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var rk: RemoteKitten = layer.remote_kitten_for("alice")
+	var ws := rk.weapon_pivot.get_node_or_null("Sprite2D") as Sprite2D
+	assert_false(ws.visible, "precondition: alice starts unarmed")
+	# Equip-swap rebroadcast lands.
+	alice.equipped_weapon_id = "iron_sword"
+	layer.reconcile()
+	assert_eq(layer.remote_kitten_for("alice"), rk,
+		"reconcile reuses the existing node, no respawn on equip-swap")
+	assert_true(ws.visible,
+		"equip-swap rebroadcast must update the existing kitten's weapon")

@@ -105,6 +105,11 @@ func reconcile() -> void:
 				var sprite_node: Sprite2D = existing.get_node_or_null("Sprite2D")
 				if sprite_node != null:
 					sprite_node.texture = load(SpriteHelper.path_for_class(p.character_class_int))
+			# Slice 3 of PRD #328 (issue #331): fan equipped_weapon_id
+			# through to the matching kitten so PLAYER_INFO broadcasts
+			# (initial / equip-swap / late-joiner rebroadcast — all of
+			# which emit lobby_updated) drive the WeaponPivot live.
+			existing.apply_equipped_weapon(p.equipped_weapon_id)
 		slot_index += 1
 	# Free anything the roster no longer contains.
 	for pid in _kittens.keys():
@@ -128,6 +133,11 @@ func _spawn(player: LobbyPlayer, sync, slot_index: int) -> void:
 	inst.network_sync = sync
 	add_child(inst)
 	_kittens[player.player_id] = inst
+	# Slice 3 of PRD #328 (issue #331): seed the equipped weapon on
+	# spawn so a late joiner sees existing players' currently-held
+	# weapons immediately — without this, a fresh kitten would render
+	# the class-default pose until the next PLAYER_INFO rebroadcast.
+	inst.apply_equipped_weapon(player.equipped_weapon_id)
 
 func _clear_all() -> void:
 	for pid in _kittens.keys():

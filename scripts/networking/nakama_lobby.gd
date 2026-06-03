@@ -215,10 +215,16 @@ func _seed_local_player(local_player: LobbyPlayer, self_user_id: String, room_co
 func send_player_info_async(player: LobbyPlayer) -> void:
 	if _socket == null or _match_id == "":
 		return
+	# equipped_weapon_id (PRD #328 / issue #331) carries the broadcaster's
+	# currently-equipped weapon id so each peer's RemoteKitten can resolve
+	# a WeaponDefinition + sprite through HeldWeaponResolver. Empty string
+	# is the "unarmed / class-default" sentinel — same shape Player walks
+	# when ItemInventory has no weapon equipped.
 	var payload := {
 		"kitten_name": player.kitten_name,
 		"class_name": player.class_name_str,
 		"character_class": player.character_class_int,
+		"equipped_weapon_id": player.equipped_weapon_id,
 	}
 	await _socket.send_match_state_async(_match_id, OP_PLAYER_INFO, JSON.stringify(payload))
 
@@ -501,6 +507,11 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 				p.kitten_name = String(data.get("kitten_name", p.kitten_name))
 				p.class_name_str = String(data.get("class_name", p.class_name_str))
 				p.character_class_int = int(data.get("character_class", p.character_class_int))
+				# equipped_weapon_id (PRD #328 / #331). Default to the
+				# stored value so a pre-#331 sender omitting the key
+				# doesn't clobber whatever a later #331-aware packet
+				# already set on this player.
+				p.equipped_weapon_id = String(data.get("equipped_weapon_id", p.equipped_weapon_id))
 			lobby_updated.emit(lobby_state)
 		OP_READY_TOGGLE:
 			lobby_state.set_ready(sender_id, bool(data.get("ready", false)))

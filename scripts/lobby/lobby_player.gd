@@ -17,6 +17,13 @@ var class_name_str: String = ""
 # Raw int (not the typed enum) so it round-trips cleanly through JSON in
 # OP_PLAYER_INFO; drives the remote sprite mapping via SpriteHelper.
 var character_class_int: int = CharacterData.CharacterClass.WIZARD_KITTEN
+# PRD #328 slice 3 (issue #331). Item id of the broadcaster's currently-
+# equipped weapon (matches ItemData.id, e.g. "iron_sword"). Empty string
+# is the "unarmed / class-default" sentinel — same shape Player walks
+# when ItemInventory has no weapon equipped. Mirrors across the wire via
+# OP_PLAYER_INFO so each peer's RemoteKitten can resolve the weapon
+# sprite + WeaponDefinition through HeldWeaponResolver.
+var equipped_weapon_id: String = ""
 var ready: bool = false
 var is_host: bool = false
 
@@ -35,6 +42,7 @@ func to_dict() -> Dictionary:
 		"kitten_name": kitten_name,
 		"class_name": class_name_str,
 		"character_class": character_class_int,
+		"equipped_weapon_id": equipped_weapon_id,
 		"ready": ready,
 		"is_host": is_host,
 	}
@@ -45,6 +53,7 @@ static func from_dict(d: Dictionary) -> LobbyPlayer:
 	lp.kitten_name = String(d.get("kitten_name", ""))
 	lp.class_name_str = String(d.get("class_name", ""))
 	lp.character_class_int = int(d.get("character_class", CharacterData.CharacterClass.WIZARD_KITTEN))
+	lp.equipped_weapon_id = String(d.get("equipped_weapon_id", ""))
 	lp.ready = bool(d.get("ready", false))
 	lp.is_host = bool(d.get("is_host", false))
 	return lp

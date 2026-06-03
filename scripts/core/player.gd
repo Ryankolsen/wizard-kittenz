@@ -171,6 +171,26 @@ func _bind_inventory_loadout() -> void:
 
 func _on_loadout_changed() -> void:
 	_refresh_combat_weapon()
+	_broadcast_player_info_for_equip_change()
+
+# Slice 3 of PRD #328 (issue #331). Equip/unequip changes drive a fresh
+# PLAYER_INFO broadcast so every peer's RemoteKitten can resolve the new
+# weapon visual through the same HeldWeaponResolver path the local
+# Player walked above. Solo (no lobby) is a single null-check no-op.
+# Reuses send_player_info_async — the same wire path lobby create/join
+# and the late-joiner rebroadcast use — so the receiving side has only
+# one code path to maintain.
+func _broadcast_player_info_for_equip_change() -> void:
+	var lob := _lobby()
+	if lob == null or lob.lobby_state == null:
+		return
+	var me := lob.lobby_state.find_player(lob.local_player_id)
+	if me == null:
+		return
+	var inv := _item_inventory()
+	var equipped: ItemData = inv.equipped_in(ItemData.Slot.WEAPON) if inv != null else null
+	me.equipped_weapon_id = equipped.id if equipped != null else ""
+	lob.send_player_info_async(me)
 
 func _item_inventory() -> ItemInventory:
 	if _game_state == null:

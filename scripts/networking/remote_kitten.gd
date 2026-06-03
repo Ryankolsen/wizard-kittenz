@@ -96,6 +96,56 @@ func apply_facing(facing_x: int) -> void:
 	var moving_left := facing_x < 0
 	_sprite.flip_h = moving_left != SpriteHelper.faces_left(character_class)
 
+# Slice 3 of PRD #328 (issue #331). Receive-side weapon visual: takes the
+# peer's currently-equipped weapon id (an ItemData.id, e.g. "iron_sword")
+# and routes it through HeldWeaponResolver — the same single-source-of-
+# truth Player._refresh_combat_weapon walks (scripts/core/player.gd:192).
+# Reusing the resolver is what makes the local Player and the remote
+# RemoteKitten render the same weapon by construction.
+#
+# Empty weapon_id is the "unarmed / class-default" sentinel: pose reverts
+# to WeaponDefinition.for_class so the choreographer keeps working for
+# unarmed-melee animations, but the weapon sprite is hidden — matches
+# Player's _refresh_combat_weapon unarmed branch (player.gd:194-199).
+# An unknown id (catalog miss) behaves the same as empty, defensively.
+#
+# No-op for classes whose _init_weapon_pivot returned early (cat-tier);
+# weapon_pivot is null in that case so the call falls through cleanly.
+func apply_equipped_weapon(weapon_id: String) -> void:
+	if weapon_pivot == null:
+		return
+	var weapon_sprite := weapon_pivot.get_node_or_null("Sprite2D") as Sprite2D
+	var item: ItemData = null
+	if weapon_id != "":
+		item = ItemCatalog.find(weapon_id)
+	var resolved := HeldWeaponResolver.resolve(item, character_class)
+	if not resolved[HeldWeaponResolver.ARMED_KEY]:
+		# Unarmed: revert pose to class-default so the choreographer still
+		# has a valid definition to drive, then hide the weapon sprite.
+		var class_def := WeaponDefinition.for_class(character_class)
+		if class_def != null:
+			weapon_pivot.set_definition(class_def)
+			if attack_choreographer != null:
+				attack_choreographer.definition = class_def
+		if weapon_sprite != null:
+			weapon_sprite.visible = false
+			weapon_sprite.texture = null
+		return
+	var def: WeaponDefinition = resolved[HeldWeaponResolver.DEFINITION_KEY]
+	if def != null:
+		weapon_pivot.set_definition(def)
+		if attack_choreographer != null:
+			attack_choreographer.definition = def
+	var tex_path: String = resolved[HeldWeaponResolver.TEXTURE_KEY]
+	if weapon_sprite != null:
+		if tex_path != "":
+			weapon_sprite.texture = load(tex_path)
+			weapon_sprite.visible = true
+		else:
+			weapon_sprite.visible = false
+			weapon_sprite.texture = null
+
+
 func play_attack(direction: Vector2) -> void:
 	if attack_choreographer == null:
 		return

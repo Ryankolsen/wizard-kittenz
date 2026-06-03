@@ -59,3 +59,77 @@ func test_unequipping_weapon_hides_combat_sprite_live():
 	assert_true(ws.visible, "starts armed when inventory has a weapon at _ready time")
 	inv.unequip(ItemData.Slot.WEAPON)
 	assert_false(ws.visible, "unequipping mid-dungeon must hide the weapon sprite live")
+
+
+# --- Slice 3 of PRD #328 (issue #331): equip-swap PLAYER_INFO broadcast ------
+
+class SpyLobby:
+	extends NakamaLobby
+	var sent: Array = []  # each entry is the LobbyPlayer passed in
+	func send_player_info_async(player: LobbyPlayer) -> void:
+		sent.append(player)
+
+
+class FakeGameStateWithLobby:
+	var local_player_id: String = "me"
+	var coop_session = null
+	var lobby = null  # SpyLobby
+	var offline_xp_tracker = null
+	var currency_ledger = null
+	var meta_tracker = null
+	var current_character: CharacterData = null
+	var skill_tree = null
+	var item_inventory: ItemInventory = ItemInventory.new()
+
+
+func _make_player_with_spy_lobby(inv: ItemInventory) -> Dictionary:
+	var fake := FakeGameStateWithLobby.new()
+	fake.item_inventory = inv
+	fake.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var spy := SpyLobby.new()
+	spy.local_player_id = "me"
+	var ls := LobbyState.new("ABCDE")
+	ls.add_player(LobbyPlayer.make("me", "Me", "Battle Kitten",
+		true, CharacterData.CharacterClass.BATTLE_KITTEN))
+	spy.lobby_state = ls
+	fake.lobby = spy
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	p._inject_game_state(fake)
+	add_child_autofree(p)
+	return {"player": p, "spy": spy}
+
+
+func test_equipping_weapon_triggers_player_info_broadcast() -> void:
+	# Issue #331 AC: equipping a weapon triggers a PLAYER_INFO rebroadcast
+	# with the new equipped_weapon_id so every peer's RemoteKitten can
+	# update its WeaponPivot through HeldWeaponResolver.
+	var inv := ItemInventory.new()
+	var fixture := _make_player_with_spy_lobby(inv)
+	var spy: SpyLobby = fixture["spy"]
+	# _ready may have triggered a refresh that broadcast an empty state.
+	# Clear the spy and assert only the equip-induced send.
+	spy.sent.clear()
+	inv.equip(ItemCatalog.find("iron_sword"))
+	assert_eq(spy.sent.size(), 1,
+		"equip must trigger exactly one PLAYER_INFO broadcast")
+	var broadcast_player: LobbyPlayer = spy.sent[0]
+	assert_eq(broadcast_player.equipped_weapon_id, "iron_sword",
+		"broadcast LobbyPlayer carries the new weapon id")
+
+
+func test_unequipping_weapon_triggers_player_info_broadcast_with_empty_id() -> void:
+	# Unequip mirrors equip — the broadcast goes out with "" so peers
+	# revert their RemoteKitten to the class-default pose (no weapon
+	# sprite). Without this, a peer that disarms would still appear
+	# armed on remote clients until their next reconnect.
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("iron_sword"))
+	var fixture := _make_player_with_spy_lobby(inv)
+	var spy: SpyLobby = fixture["spy"]
+	spy.sent.clear()
+	inv.unequip(ItemData.Slot.WEAPON)
+	assert_eq(spy.sent.size(), 1,
+		"unequip must trigger exactly one PLAYER_INFO broadcast")
+	assert_eq(spy.sent[0].equipped_weapon_id, "",
+		"unequipped state broadcasts as empty id — the unarmed sentinel")
