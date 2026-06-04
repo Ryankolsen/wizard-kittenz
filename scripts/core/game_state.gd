@@ -8,6 +8,7 @@ const SkillInventoryRef = preload("res://scripts/progression/skill_inventory.gd"
 const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_checker.gd")
 const _RemoteHealApplierRef = preload("res://scripts/networking/remote_heal_applier.gd")
 const _RemoteItemDropResolverRef = preload("res://scripts/networking/remote_item_drop_resolver.gd")
+const _RemoteDamageVisualizerRef = preload("res://scripts/networking/remote_damage_visualizer.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -371,6 +372,7 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 		lobby.kill_received.connect(_on_kill_received)
 		lobby.taunt_received.connect(_on_taunt_received)
 		lobby.heal_received.connect(_on_heal_received)
+		lobby.damage_received.connect(_on_damage_received)
 		lobby.host_paused.connect(_on_host_paused)
 		lobby.host_unpaused.connect(_on_host_unpaused)
 
@@ -383,6 +385,8 @@ func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 		old.taunt_received.disconnect(_on_taunt_received)
 	if old.heal_received.is_connected(_on_heal_received):
 		old.heal_received.disconnect(_on_heal_received)
+	if old.damage_received.is_connected(_on_damage_received):
+		old.damage_received.disconnect(_on_damage_received)
 	if old.host_paused.is_connected(_on_host_paused):
 		old.host_paused.disconnect(_on_host_paused)
 	if old.host_unpaused.is_connected(_on_host_unpaused):
@@ -481,6 +485,17 @@ func _on_taunt_received(caster_id: String, enemy_id: String, duration: float) ->
 # future hooks (e.g. floating-text "Player X healed you").
 func _on_heal_received(_caster_id: String, target_id: String, effect_kind: String, amount: int, duration: float) -> void:
 	_RemoteHealApplierRef.apply(get_tree(), target_id, effect_kind, amount, duration)
+
+# Inbound damage-dealt bridge (PRD #328 slice 6, issue #334). wire packet
+# → RemoteDamageVisualizer. Spawns the same FloatingText overlay solo uses
+# at the matching enemy's world position so every peer sees a teammate's
+# hit number floating above the target. attacker_id is unused today (the
+# number itself is identical regardless of who threw it); reserved for a
+# future "color the number per-attacker" visual without a wire break.
+# Missing enemy (already despawned on receiver) is the visualizer's
+# silent-false-return — AC#6 holds without extra guard here.
+func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int) -> void:
+	_RemoteDamageVisualizerRef.spawn(get_tree(), enemy_id, damage)
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's

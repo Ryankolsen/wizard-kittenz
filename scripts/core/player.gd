@@ -203,6 +203,19 @@ func _broadcast_attack(direction: Vector2, kind: String = NakamaLobby.ATTACK_KIN
 		return
 	lob.send_attack_async(direction, kind, spell_id)
 
+# Slice 6 of PRD #328 (issue #334). Co-op fan-out for a single damage
+# application — fires once per dealt > 0 hit alongside the local
+# FloatingText.spawn_at call, so every peer's RemoteDamageVisualizer
+# spawns the matching number above the same enemy. Solo (no lobby) is a
+# single null-check no-op. Empty enemy_id (pre-spawn-layer / test
+# fixture enemy) and non-positive damage are gated downstream in
+# send_damage_dealt_async — same shape as the OP_KILL send guard.
+func _broadcast_damage(enemy_id: String, damage: int) -> void:
+	var lob := _lobby()
+	if lob == null:
+		return
+	lob.send_damage_dealt_async(enemy_id, damage)
+
 func _item_inventory() -> ItemInventory:
 	if _game_state == null:
 		return null
@@ -539,6 +552,7 @@ func _apply_melee_damage() -> void:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
 				FloatingText.spawn_at(node, str(dealt), Color(1.0, 0.2, 0.2))
+				_broadcast_damage(node.data.enemy_id, dealt)
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
@@ -592,6 +606,7 @@ func _apply_spell_basic_damage() -> void:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
 				FloatingText.spawn_at(node, str(dealt), Color(0.4, 0.6, 1.0))
+				_broadcast_damage(node.data.enemy_id, dealt)
 				(node as Enemy).flash_hit()
 			if not node.data.is_alive():
 				_handle_enemy_killed(node)
@@ -628,6 +643,7 @@ func _apply_spell_effect(spell: Spell) -> void:
 		var dealt: int = hp_before[i] - n.data.hp
 		if dealt > 0:
 			FloatingText.spawn_at(n, str(dealt), Color(0.4, 0.6, 1.0))
+			_broadcast_damage(n.data.enemy_id, dealt)
 	var any_killed := false
 	for n in enemy_nodes:
 		if n.data != null and not n.data.is_alive():

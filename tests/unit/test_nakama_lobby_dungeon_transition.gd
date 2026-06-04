@@ -29,7 +29,7 @@ func test_op_codes_distinct_from_existing():
 		NakamaLobby.OP_REQUEST_TRANSITION,
 		NakamaLobby.OP_DUNGEON_TRANSITION_START,
 		NakamaLobby.OP_TAUNT, NakamaLobby.OP_HEAL,
-		NakamaLobby.OP_ATTACK,
+		NakamaLobby.OP_ATTACK, NakamaLobby.OP_DAMAGE_DEALT,
 	]
 	var seen: Dictionary = {}
 	for op in ops:

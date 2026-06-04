@@ -71,6 +71,15 @@ const OP_HEAL: int = 12
 # RemoteKitten via play_attack / play_spell_cast — both drive the same
 # AttackChoreographer path.
 const OP_ATTACK: int = 13
+# In-match damage-dealt broadcast (PRD #328 slice 6, issue #334). Payload:
+# {"enemy_id": String, "damage": int}. attacker_id is taken from the socket
+# presence (not the payload) so a client can't spoof another player's hit —
+# same anti-spoofing model as OP_KILL / OP_ATTACK. The receiver does NOT
+# re-roll damage; the sender already computed the number via DamageResolver
+# locally. The receive-side just spawns the same FloatingText overlay solo
+# uses at the matching enemy's world position, so every peer sees the hit
+# number floating above the enemy on every client.
+const OP_DAMAGE_DEALT: int = 14
 
 # Discriminator values for the OP_ATTACK `kind` field (PRD #328 slice 5,
 # issue #333). The wire's a single OP_ATTACK opcode carrying every attack-
@@ -144,6 +153,12 @@ signal heal_received(caster_id: String, target_id: String, effect_kind: String, 
 # as taunt_received — keeps NakamaLobby testable without a live
 # CoopSession or render layer.
 signal attack_received(sender_id: String, direction: Vector2, kind: String, spell_id: String)
+# In-match DAMAGE_DEALT event from a remote player (PRD #328 slice 6,
+# issue #334). GameState routes this through a scene-tree lookup on the
+# "enemies" group (same shape as RemoteEnemyDespawner) and spawns
+# FloatingText.spawn_at on the matching enemy. attacker_id is the
+# sender presence, not from the payload (anti-spoofing).
+signal damage_received(attacker_id: String, enemy_id: String, damage: int)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -356,6 +371,25 @@ func send_attack_async(direction: Vector2, kind: String = ATTACK_KIND_WEAPON_SWI
 	}
 	await _socket.send_match_state_async(_match_id, OP_ATTACK, JSON.stringify(payload))
 
+# Broadcasts a local DAMAGE_DEALT event to every match participant (PRD
+# #328 slice 6, issue #334). Empty enemy_id is a defensive no-op — the
+# receiver's scene-tree lookup keys off enemy_id and a missing id
+# couldn't route. Non-positive damage is also dropped at the send side
+# (a "Miss" / zero pulse has no number to render). attacker_id is NOT
+# in the payload — Nakama tags every packet with the sender presence,
+# so the receiving side reads it off the socket envelope (matches the
+# OP_KILL / OP_ATTACK anti-spoofing model). Solo (no socket / no
+# match_id) is a silent no-op.
+func send_damage_dealt_async(enemy_id: String, damage: int) -> void:
+	if enemy_id == "":
+		return
+	if damage <= 0:
+		return
+	if _socket == null or _match_id == "":
+		return
+	var payload := {"enemy_id": enemy_id, "damage": damage}
+	await _socket.send_match_state_async(_match_id, OP_DAMAGE_DEALT, JSON.stringify(payload))
+
 # Returns true iff the local player is the lobby host. Host gate for the
 # OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
 # sender check in apply_state. Defensive on null lobby_state / missing host
@@ -535,6 +569,9 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	if op_code == OP_ATTACK:
 		_route_attack(sender_id, data)
 		return
+	if op_code == OP_DAMAGE_DEALT:
+		_route_damage_dealt(sender_id, data)
+		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
 		return
@@ -713,6 +750,27 @@ func _route_attack(sender_id: String, data: Dictionary) -> void:
 	if kind == ATTACK_KIND_QUICKBAR_CAST and spell_id == "":
 		return
 	attack_received.emit(sender_id, dir, kind, spell_id)
+
+# Decodes the OP_DAMAGE_DEALT payload and emits damage_received. Self-
+# echoes (sender_id == local_player_id) and empty sender_id are dropped
+# at the routing layer — the local damage path already spawned its own
+# floating number, so re-rendering it from the wire echo would double-
+# label every hit. Missing enemy_id key (and empty string) is dropped
+# because the receive-side scene-tree lookup can't route an unkeyed
+# packet. Non-positive damage is dropped because a "Miss" / zero pulse
+# has no number worth rendering — same shape as the send-side guard.
+func _route_damage_dealt(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not data.has("enemy_id"):
+		return
+	var enemy_id: String = String(data.get("enemy_id", ""))
+	if enemy_id == "":
+		return
+	var damage: int = int(data.get("damage", 0))
+	if damage <= 0:
+		return
+	damage_received.emit(sender_id, enemy_id, damage)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client
