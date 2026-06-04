@@ -154,6 +154,7 @@ func _bind_lobby(new_lobby: NakamaLobby) -> void:
 		return
 	new_lobby.lobby_updated.connect(_on_lobby_updated)
 	new_lobby.position_received.connect(_on_position_received)
+	new_lobby.attack_received.connect(_on_attack_received)
 	_connected_lobby = new_lobby
 
 func _unbind_lobby() -> void:
@@ -163,6 +164,8 @@ func _unbind_lobby() -> void:
 		_connected_lobby.lobby_updated.disconnect(_on_lobby_updated)
 	if _connected_lobby.position_received.is_connected(_on_position_received):
 		_connected_lobby.position_received.disconnect(_on_position_received)
+	if _connected_lobby.attack_received.is_connected(_on_attack_received):
+		_connected_lobby.attack_received.disconnect(_on_attack_received)
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
@@ -177,6 +180,16 @@ func _on_position_received(player_id: String, _position: Vector2, _timestamp: fl
 	if kitten == null:
 		return
 	kitten.apply_facing(facing_x)
+
+# Slice 4 of PRD #328 (issue #332). Receiver path: fan inbound attack
+# direction to the matching RemoteKitten via play_attack, which drives
+# the existing AttackChoreographer + WeaponPivot path. Unknown id (stale
+# packet from a departed peer / mid-roster-update) is a silent no-op.
+func _on_attack_received(sender_id: String, direction: Vector2) -> void:
+	var kitten: RemoteKitten = _kittens.get(sender_id)
+	if kitten == null:
+		return
+	kitten.play_attack(direction)
 
 func _bind_session(new_session: CoopSession) -> void:
 	if new_session == _connected_session:

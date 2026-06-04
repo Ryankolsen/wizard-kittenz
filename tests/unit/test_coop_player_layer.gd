@@ -350,6 +350,43 @@ func test_spawn_seeds_equipped_weapon_id_from_lobby_player():
 		"res://assets/sprites/weapon_slippery_mackerel.png")
 
 
+func test_attack_received_forwards_to_matching_kitten_play_attack():
+	# Slice 4 of PRD #328 (issue #332). CoopPlayerLayer subscribes to
+	# lobby.attack_received and routes the inbound direction to the
+	# matching RemoteKitten via play_attack, which drives the existing
+	# AttackChoreographer path. Observable: the choreographer's phase
+	# flips off IDLE once start_attack runs.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_not_null(alice.attack_choreographer,
+		"precondition: battle-class default for fixture has a choreographer")
+	assert_eq(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"precondition: kitten starts idle")
+	lobby.attack_received.emit("alice", Vector2.RIGHT)
+	assert_ne(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"attack_received must drive the matching kitten's choreographer "
+		+ "off IDLE via play_attack — same path the local Player walks")
+
+
+func test_attack_received_ignores_unknown_player_id():
+	# A packet for an id with no spawned kitten (stale packet from a
+	# departed peer / mid-roster-update) is a silent no-op rather than a
+	# crash. Mirrors the position_received unknown-id guard.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	lobby.attack_received.emit("ghost", Vector2.RIGHT)
+	assert_true(true)
+
+
 func test_reconcile_updates_equipped_weapon_id_on_existing_kitten():
 	# Equip-swap case: a peer changes their weapon mid-session. The
 	# PLAYER_INFO rebroadcast lands → apply_state updates the LobbyPlayer

@@ -192,6 +192,14 @@ func _broadcast_player_info_for_equip_change() -> void:
 	me.equipped_weapon_id = equipped.id if equipped != null else ""
 	lob.send_player_info_async(me)
 
+# Slice 4 of PRD #328 (issue #332). Co-op fan-out for the local swing.
+# Solo (no lobby) is a single null-check no-op so the wire stays untouched.
+func _broadcast_attack(direction: Vector2) -> void:
+	var lob := _lobby()
+	if lob == null:
+		return
+	lob.send_attack_async(direction)
+
 func _item_inventory() -> ItemInventory:
 	if _game_state == null:
 		return null
@@ -470,6 +478,14 @@ func _try_attack() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
+	# Slice 4 of PRD #328 (issue #332). Broadcast the swing direction so
+	# every peer's RemoteKitten can play the matching attack via the
+	# existing AttackChoreographer path (no parallel co-op-only animation
+	# code). Solo path is a single null-check no-op inside _broadcast_attack.
+	# Fires here — after the cooldown gate but before the animation branch
+	# — so a cooldown-rejected re-attack doesn't flood the wire.
+	var attack_dir: Vector2 = data.facing if data != null else Vector2.RIGHT
+	_broadcast_attack(attack_dir)
 	# PRD #223: all four kitten classes route through the choreographer so
 	# damage + VFX fire at the strike phase of a visible swing/cast. The
 	# choreographer is null for character classes without a WeaponDefinition

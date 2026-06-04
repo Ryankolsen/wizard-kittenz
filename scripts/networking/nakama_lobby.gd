@@ -58,6 +58,16 @@ const OP_TAUNT: int = 11
 # reserved AOE/party-wide sentinel (every "players"-group node on the
 # receiver); current sender paths always emit per-target.
 const OP_HEAL: int = 12
+# In-match ATTACK broadcast (PRD #328 slice 4, issue #332). Payload:
+# {"dx": float, "dy": float}. attacker_id is taken from the socket
+# presence (not the payload) so a client can't spoof another player's
+# swing — same anti-spoofing model as OP_POSITION / OP_KILL / OP_TAUNT.
+# Receiver derives attack_type from the already-cached LobbyPlayer
+# (character_class + equipped_weapon_id from PLAYER_INFO slice #3); no
+# attack_type field on the wire. CoopPlayerLayer fans the inbound
+# direction to the matching RemoteKitten.play_attack, which drives the
+# existing AttackChoreographer path — no parallel co-op-only animation.
+const OP_ATTACK: int = 13
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -114,6 +124,13 @@ signal taunt_received(caster_id: String, enemy_id: String, duration: float)
 # testable without a live CoopSession or SceneTree. caster_id is the
 # sender presence, not from the payload (anti-spoofing).
 signal heal_received(caster_id: String, target_id: String, effect_kind: String, amount: int, duration: float)
+# In-match ATTACK event from a remote player (PRD #328 slice 4, issue
+# #332). CoopPlayerLayer subscribes and routes to the matching
+# RemoteKitten.play_attack. sender_id is the socket presence, not from
+# the payload (anti-spoofing). Decoupled via signal for the same reason
+# as taunt_received — keeps NakamaLobby testable without a live
+# CoopSession or render layer.
+signal attack_received(sender_id: String, direction: Vector2)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -307,6 +324,20 @@ func send_heal_async(target_id: String, effect_kind: String, amount: int, durati
 	}
 	await _socket.send_match_state_async(_match_id, OP_HEAL, JSON.stringify(payload))
 
+# Broadcasts a local ATTACK to every match participant (PRD #328 slice 4,
+# issue #332). Direction carries the peer's facing/aim at the trigger
+# moment; the receiver derives attack_type from its own cached
+# PLAYER_INFO state, so no attack_type field on the wire. attacker_id is
+# intentionally NOT in the payload — Nakama tags every packet with the
+# sender presence, so the receiving side reads it off the socket
+# envelope (matches the OP_POSITION / OP_KILL / OP_TAUNT anti-spoofing
+# model). Solo path (no socket / no match_id) is a silent no-op.
+func send_attack_async(direction: Vector2) -> void:
+	if _socket == null or _match_id == "":
+		return
+	var payload := {"dx": direction.x, "dy": direction.y}
+	await _socket.send_match_state_async(_match_id, OP_ATTACK, JSON.stringify(payload))
+
 # Returns true iff the local player is the lobby host. Host gate for the
 # OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
 # sender check in apply_state. Defensive on null lobby_state / missing host
@@ -483,6 +514,9 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	if op_code == OP_HEAL:
 		_route_heal(sender_id, data)
 		return
+	if op_code == OP_ATTACK:
+		_route_attack(sender_id, data)
+		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
 		return
@@ -627,6 +661,25 @@ func _route_heal(sender_id: String, data: Dictionary) -> void:
 	var amount: int = int(data.get("amount", 0))
 	var duration: float = float(data.get("duration", 0.0))
 	heal_received.emit(sender_id, target_id, effect_kind, amount, duration)
+
+# Decodes the OP_ATTACK payload and emits attack_received. Self-echoes
+# (sender_id == local_player_id) and empty sender_id are dropped at the
+# routing layer — a self-echo would re-trigger the local Player's swing
+# animation through the remote-fan-out path, double-playing the same
+# attack from both Player.gd's own _try_attack and the lobby loopback.
+# Malformed payload (missing dx or dy) is dropped defensively so a
+# future protocol mismatch doesn't crash the render loop. Receiver
+# does NOT carry attack_type on the wire — the matching RemoteKitten
+# already knows its character_class + equipped_weapon_id from
+# PLAYER_INFO, and play_attack reads attack_type off its choreographer's
+# WeaponDefinition (the same single source of truth Player walks).
+func _route_attack(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not (data.has("dx") and data.has("dy")):
+		return
+	var dir := Vector2(float(data.get("dx", 0.0)), float(data.get("dy", 0.0)))
+	attack_received.emit(sender_id, dir)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client

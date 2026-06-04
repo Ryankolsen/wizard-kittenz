@@ -28,6 +28,8 @@ func test_op_codes_distinct_from_existing():
 		NakamaLobby.OP_HOST_UNPAUSE, NakamaLobby.OP_BOSS_CLEARED,
 		NakamaLobby.OP_REQUEST_TRANSITION,
 		NakamaLobby.OP_DUNGEON_TRANSITION_START,
+		NakamaLobby.OP_TAUNT, NakamaLobby.OP_HEAL,
+		NakamaLobby.OP_ATTACK,
 	]
 	var seen: Dictionary = {}
 	for op in ops:
