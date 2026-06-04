@@ -181,15 +181,29 @@ func _on_position_received(player_id: String, _position: Vector2, _timestamp: fl
 		return
 	kitten.apply_facing(facing_x)
 
-# Slice 4 of PRD #328 (issue #332). Receiver path: fan inbound attack
-# direction to the matching RemoteKitten via play_attack, which drives
-# the existing AttackChoreographer + WeaponPivot path. Unknown id (stale
-# packet from a departed peer / mid-roster-update) is a silent no-op.
-func _on_attack_received(sender_id: String, direction: Vector2) -> void:
+# Slice 4 of PRD #328 (issue #332), extended in slice 5 (issue #333).
+# Receiver path: fan inbound attack packet to the matching RemoteKitten.
+# `kind` discriminates which render hook to drive:
+#   - weapon_swing  → play_attack (mirror swing choreographer)
+#   - spell_cast    → play_spell_cast (wizard primary, CAST attack_type)
+#   - quickbar_cast → play_spell_cast (hotkey spell; spell_id reserved
+#                     for future visual differentiation)
+# Both spell kinds route through the same RemoteKitten method today —
+# the wire-level split is for future visual divergence without a wire
+# break. Unknown id (stale packet from a departed peer / mid-roster-
+# update) is a silent no-op; unknown kind is also dropped silently so a
+# protocol drift from a newer client doesn't crash the render loop.
+func _on_attack_received(sender_id: String, direction: Vector2, kind: String, spell_id: String) -> void:
 	var kitten: RemoteKitten = _kittens.get(sender_id)
 	if kitten == null:
 		return
-	kitten.play_attack(direction)
+	match kind:
+		NakamaLobby.ATTACK_KIND_WEAPON_SWING:
+			kitten.play_attack(direction)
+		NakamaLobby.ATTACK_KIND_SPELL_CAST, NakamaLobby.ATTACK_KIND_QUICKBAR_CAST:
+			kitten.play_spell_cast(direction, spell_id)
+		_:
+			pass
 
 func _bind_session(new_session: CoopSession) -> void:
 	if new_session == _connected_session:

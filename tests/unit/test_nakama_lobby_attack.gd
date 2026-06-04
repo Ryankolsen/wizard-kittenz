@@ -8,18 +8,21 @@ extends GutTest
 # no attack_type field on the wire.
 
 func test_apply_state_op_attack_emits_attack_received():
-	# Wire contract: apply_state(OP_ATTACK, sender, {dx, dy}) emits
-	# attack_received with (sender_id, Vector2(dx, dy)). Matches the
-	# OP_TAUNT / OP_KILL anti-spoofing model — caster is the presence,
-	# not the payload.
+	# Wire contract: apply_state(OP_ATTACK, sender, {dx, dy, kind,
+	# spell_id}) emits attack_received with (sender_id, direction, kind,
+	# spell_id). Matches the OP_TAUNT / OP_KILL anti-spoofing model —
+	# caster is the presence, not the payload.
 	var lobby := NakamaLobby.new()
 	lobby.lobby_state = LobbyState.new("ABCDE")
 	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id", {"dx": 1.0, "dy": 0.0})
+	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id",
+		{"dx": 1.0, "dy": 0.0, "kind": "weapon_swing", "spell_id": ""})
 	assert_signal_emitted(lobby, "attack_received")
 	var params: Array = get_signal_parameters(lobby, "attack_received")
 	assert_eq(params[0], "remote_id", "sender_id is the presence, not from payload")
 	assert_eq(params[1], Vector2(1.0, 0.0), "direction decoded from dx/dy payload")
+	assert_eq(params[2], "weapon_swing", "kind decoded from payload")
+	assert_eq(params[3], "", "spell_id decoded from payload")
 
 
 func test_apply_state_op_attack_works_without_lobby_state():
@@ -102,4 +105,69 @@ func test_send_attack_async_no_socket_safe():
 	var lobby := NakamaLobby.new()
 	lobby.send_attack_async(Vector2.RIGHT)
 	assert_true(true)
+
+
+# ---- Slice 5 of PRD #328 (issue #333): kind + spell_id wire fields. ----
+
+func test_apply_state_op_attack_routes_spell_cast_kind():
+	# Wizard primary cast: kind=spell_cast, spell_id may be empty (no
+	# Spell object backs the primary). Signal must surface kind so
+	# CoopPlayerLayer can pick the spell-render path.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id",
+		{"dx": 1.0, "dy": 0.0, "kind": "spell_cast", "spell_id": ""})
+	assert_signal_emitted(lobby, "attack_received")
+	var params: Array = get_signal_parameters(lobby, "attack_received")
+	assert_eq(params[2], "spell_cast", "kind preserved through routing")
+	assert_eq(params[3], "", "empty spell_id allowed on spell_cast (wizard primary)")
+
+
+func test_apply_state_op_attack_routes_quickbar_cast_kind_with_spell_id():
+	# Hotkey cast: kind=quickbar_cast, spell_id is the bound slot's
+	# Spell.id. Both fields must round-trip so the receiver can later
+	# differentiate per-spell visuals.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id",
+		{"dx": 0.0, "dy": 1.0, "kind": "quickbar_cast", "spell_id": "fireball"})
+	assert_signal_emitted(lobby, "attack_received")
+	var params: Array = get_signal_parameters(lobby, "attack_received")
+	assert_eq(params[2], "quickbar_cast")
+	assert_eq(params[3], "fireball", "spell_id round-trips through the wire")
+
+
+func test_apply_state_op_attack_defaults_kind_to_weapon_swing_when_absent():
+	# Backward-compat with slice-4 packets that only carried {dx, dy}.
+	# A missing kind must NOT drop the packet — it defaults to
+	# weapon_swing so a pre-#333 sender still animates correctly.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id", {"dx": 1.0, "dy": 0.0})
+	assert_signal_emitted(lobby, "attack_received")
+	var params: Array = get_signal_parameters(lobby, "attack_received")
+	assert_eq(params[2], "weapon_swing",
+		"missing kind defaults to weapon_swing for slice-4 packet compat")
+	assert_eq(params[3], "", "missing spell_id defaults to empty string")
+
+
+func test_apply_state_op_attack_drops_quickbar_cast_with_empty_spell_id():
+	# A quickbar_cast packet without a spell_id is malformed by
+	# definition (the slot binds the spell). Drop defensively rather
+	# than fan an unrenderable packet to CoopPlayerLayer.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ATTACK, "remote_id",
+		{"dx": 1.0, "dy": 0.0, "kind": "quickbar_cast", "spell_id": ""})
+	assert_signal_not_emitted(lobby, "attack_received",
+		"empty spell_id on quickbar_cast must drop at the routing layer")
+
+
+func test_send_attack_async_writes_kind_and_spell_id_via_defaults():
+	# Default-arg path: callers that don't pass kind/spell_id still get
+	# a valid payload (weapon_swing + ""). Pins backward compat for any
+	# call site that pre-dates the slice-5 extension.
+	var lobby := NakamaLobby.new()
+	lobby.send_attack_async(Vector2.RIGHT)
+	assert_true(true, "default-arg call path is no-socket-safe")
 

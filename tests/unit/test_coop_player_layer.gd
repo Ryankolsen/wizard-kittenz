@@ -367,7 +367,7 @@ func test_attack_received_forwards_to_matching_kitten_play_attack():
 		"precondition: battle-class default for fixture has a choreographer")
 	assert_eq(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
 		"precondition: kitten starts idle")
-	lobby.attack_received.emit("alice", Vector2.RIGHT)
+	lobby.attack_received.emit("alice", Vector2.RIGHT, NakamaLobby.ATTACK_KIND_WEAPON_SWING, "")
 	assert_ne(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
 		"attack_received must drive the matching kitten's choreographer "
 		+ "off IDLE via play_attack — same path the local Player walks")
@@ -383,8 +383,59 @@ func test_attack_received_ignores_unknown_player_id():
 	gs.coop_session = _make_session_with_party(["alice"])
 	var layer := CoopPlayerLayer.new()
 	add_child_autofree(layer)
-	lobby.attack_received.emit("ghost", Vector2.RIGHT)
+	lobby.attack_received.emit("ghost", Vector2.RIGHT, NakamaLobby.ATTACK_KIND_WEAPON_SWING, "")
 	assert_true(true)
+
+
+# ---- Slice 5 of PRD #328 (issue #333): spell-cast / quickbar-cast fan-out. ----
+
+func test_attack_received_spell_cast_drives_kittens_play_spell_cast():
+	# A spell_cast packet (wizard primary, empty spell_id) must still
+	# drive the matching kitten's choreographer off IDLE — the cast pose
+	# IS the visual today. Routes via RemoteKitten.play_spell_cast.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_eq(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE)
+	lobby.attack_received.emit("alice", Vector2.RIGHT, NakamaLobby.ATTACK_KIND_SPELL_CAST, "")
+	assert_ne(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"spell_cast must drive play_spell_cast → choreographer off IDLE")
+
+
+func test_attack_received_quickbar_cast_drives_kittens_play_spell_cast():
+	# A quickbar_cast packet (with spell_id) routes through the same
+	# play_spell_cast hook. spell_id is reserved for future per-spell
+	# visual differentiation; today the cast pose suffices.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_eq(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE)
+	lobby.attack_received.emit("alice", Vector2.RIGHT,
+		NakamaLobby.ATTACK_KIND_QUICKBAR_CAST, "fireball")
+	assert_ne(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE)
+
+
+func test_attack_received_unknown_kind_silent_no_op():
+	# Protocol drift defense: an unknown `kind` from a newer client
+	# must NOT crash the render loop — drop silently.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	lobby.attack_received.emit("alice", Vector2.RIGHT, "future_kind_xyz", "")
+	assert_eq(alice.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"unknown kind leaves the choreographer untouched")
 
 
 func test_reconcile_updates_equipped_weapon_id_on_existing_kitten():

@@ -58,16 +58,29 @@ const OP_TAUNT: int = 11
 # reserved AOE/party-wide sentinel (every "players"-group node on the
 # receiver); current sender paths always emit per-target.
 const OP_HEAL: int = 12
-# In-match ATTACK broadcast (PRD #328 slice 4, issue #332). Payload:
-# {"dx": float, "dy": float}. attacker_id is taken from the socket
-# presence (not the payload) so a client can't spoof another player's
-# swing — same anti-spoofing model as OP_POSITION / OP_KILL / OP_TAUNT.
-# Receiver derives attack_type from the already-cached LobbyPlayer
-# (character_class + equipped_weapon_id from PLAYER_INFO slice #3); no
-# attack_type field on the wire. CoopPlayerLayer fans the inbound
-# direction to the matching RemoteKitten.play_attack, which drives the
-# existing AttackChoreographer path — no parallel co-op-only animation.
+# In-match ATTACK broadcast (PRD #328 slice 4, issue #332; extended in
+# slice 5, issue #333). Payload: {"dx": float, "dy": float, "kind": str,
+# "spell_id": str}. attacker_id is taken from the socket presence (not
+# the payload) so a client can't spoof another player's swing — same
+# anti-spoofing model as OP_POSITION / OP_KILL / OP_TAUNT. `kind` is one
+# of weapon_swing / spell_cast / quickbar_cast — the single opcode
+# carries every attack-style event. Receiver derives weapon attack_type
+# from the already-cached LobbyPlayer (character_class +
+# equipped_weapon_id from PLAYER_INFO slice #3); no attack_type field on
+# the wire. CoopPlayerLayer fans the inbound packet to the matching
+# RemoteKitten via play_attack / play_spell_cast — both drive the same
+# AttackChoreographer path.
 const OP_ATTACK: int = 13
+
+# Discriminator values for the OP_ATTACK `kind` field (PRD #328 slice 5,
+# issue #333). The wire's a single OP_ATTACK opcode carrying every attack-
+# style event (weapon swings, primary spell casts, quickbar hotkey casts);
+# `kind` lets the receiver pick the right RemoteKitten branch. Default on a
+# missing key is WEAPON_SWING so pre-#333 packets (which only sent dx/dy)
+# stay valid.
+const ATTACK_KIND_WEAPON_SWING: String = "weapon_swing"
+const ATTACK_KIND_SPELL_CAST: String = "spell_cast"
+const ATTACK_KIND_QUICKBAR_CAST: String = "quickbar_cast"
 
 signal lobby_updated(state: LobbyState)
 signal match_started(match_id: String)
@@ -130,7 +143,7 @@ signal heal_received(caster_id: String, target_id: String, effect_kind: String, 
 # the payload (anti-spoofing). Decoupled via signal for the same reason
 # as taunt_received — keeps NakamaLobby testable without a live
 # CoopSession or render layer.
-signal attack_received(sender_id: String, direction: Vector2)
+signal attack_received(sender_id: String, direction: Vector2, kind: String, spell_id: String)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -332,10 +345,15 @@ func send_heal_async(target_id: String, effect_kind: String, amount: int, durati
 # sender presence, so the receiving side reads it off the socket
 # envelope (matches the OP_POSITION / OP_KILL / OP_TAUNT anti-spoofing
 # model). Solo path (no socket / no match_id) is a silent no-op.
-func send_attack_async(direction: Vector2) -> void:
+func send_attack_async(direction: Vector2, kind: String = ATTACK_KIND_WEAPON_SWING, spell_id: String = "") -> void:
 	if _socket == null or _match_id == "":
 		return
-	var payload := {"dx": direction.x, "dy": direction.y}
+	var payload := {
+		"dx": direction.x,
+		"dy": direction.y,
+		"kind": kind,
+		"spell_id": spell_id,
+	}
 	await _socket.send_match_state_async(_match_id, OP_ATTACK, JSON.stringify(payload))
 
 # Returns true iff the local player is the lobby host. Host gate for the
@@ -679,7 +697,22 @@ func _route_attack(sender_id: String, data: Dictionary) -> void:
 	if not (data.has("dx") and data.has("dy")):
 		return
 	var dir := Vector2(float(data.get("dx", 0.0)), float(data.get("dy", 0.0)))
-	attack_received.emit(sender_id, dir)
+	# Slice 5 of PRD #328 (issue #333): kind discriminates between
+	# weapon-swing / primary spell-cast / quickbar-cast. Missing key
+	# defaults to weapon_swing so a pre-#333 sender's packet (which only
+	# carried dx/dy) still routes correctly. spell_id is informational
+	# for the receiver visual layer and defaults to "" for kinds that
+	# don't carry one (weapon_swing, wizard primary cast).
+	var kind: String = String(data.get("kind", ATTACK_KIND_WEAPON_SWING))
+	var spell_id: String = String(data.get("spell_id", ""))
+	# Quickbar casts MUST carry a spell_id by definition (the slot binds
+	# the spell). Drop an empty one defensively rather than emit a packet
+	# the receiver can't render. Spell-cast (wizard primary) may carry
+	# an empty spell_id — the cast pose comes from the choreographer's
+	# CAST attack_type, not from a Spell object.
+	if kind == ATTACK_KIND_QUICKBAR_CAST and spell_id == "":
+		return
+	attack_received.emit(sender_id, dir, kind, spell_id)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client

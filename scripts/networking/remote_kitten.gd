@@ -151,3 +151,23 @@ func play_attack(direction: Vector2) -> void:
 		return
 	attack_choreographer.start_attack(direction,
 		attack_choreographer.definition.attack_type)
+
+
+# Slice 5 of PRD #328 (issue #333). Receive-side entry point for spell
+# casts — both wizard primary (kind=spell_cast) and quickbar hotkey
+# (kind=quickbar_cast). Routes through the same AttackChoreographer
+# play_attack drives so the visible "cast pose" is the choreographer's
+# CAST animation (for classes whose WeaponDefinition.attack_type is
+# CAST) or the class-default attack pose otherwise. spell_id is carried
+# for future per-spell visual differentiation (projectile / AoE spawn)
+# but is informational today — the wire is forward-compatible. Empty /
+# unknown spell_id is NOT a guard here: the choreographer pose is the
+# baseline render and must fire regardless. The wire-side quickbar_cast
+# guard (NakamaLobby._route_attack) drops empty-spell_id quickbar casts
+# defensively, so reaching this method with an empty spell_id implies
+# the wizard-primary path which intentionally carries no spell_id.
+func play_spell_cast(direction: Vector2, _spell_id: String) -> void:
+	if attack_choreographer == null:
+		return
+	attack_choreographer.start_attack(direction,
+		attack_choreographer.definition.attack_type)

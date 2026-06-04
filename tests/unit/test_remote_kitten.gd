@@ -220,3 +220,37 @@ func test_apply_equipped_weapon_no_ops_for_class_without_weapon_definition():
 	inst.apply_equipped_weapon("iron_sword")
 	assert_null(inst.weapon_pivot,
 		"apply_equipped_weapon must not spawn a pivot on cat-tier")
+
+
+# ---- Slice 5 of PRD #328 (issue #333): play_spell_cast receive path. ----
+
+func test_play_spell_cast_drives_choreographer_off_idle():
+	# Spell cast packets (wizard primary, quickbar) route through
+	# play_spell_cast which must drive the same AttackChoreographer
+	# play_attack uses — the cast pose IS the visible cast effect today.
+	var inst := _instance_with_class(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_not_null(inst.attack_choreographer,
+		"precondition: wizard has a choreographer")
+	assert_eq(inst.attack_choreographer.phase, AttackChoreographer.Phase.IDLE)
+	inst.play_spell_cast(Vector2.RIGHT, "fireball")
+	assert_ne(inst.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"play_spell_cast must start the choreographer (cast pose)")
+
+
+func test_play_spell_cast_empty_spell_id_still_plays_pose():
+	# Wizard primary (empty spell_id by design) still plays the pose
+	# — the pose comes from the choreographer's CAST attack_type, not
+	# from a Spell lookup. Empty spell_id is NOT a no-op guard here.
+	var inst := _instance_with_class(CharacterData.CharacterClass.WIZARD_KITTEN)
+	inst.play_spell_cast(Vector2.RIGHT, "")
+	assert_ne(inst.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"empty spell_id (wizard primary) still drives the cast pose")
+
+
+func test_play_spell_cast_no_op_for_class_without_choreographer():
+	# Cat-tier (no WeaponDefinition → no choreographer) must not crash.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_null(inst.attack_choreographer,
+		"precondition: cat-tier has no choreographer")
+	inst.play_spell_cast(Vector2.RIGHT, "fireball")
+	assert_true(true, "no-crash on missing choreographer")

@@ -192,13 +192,16 @@ func _broadcast_player_info_for_equip_change() -> void:
 	me.equipped_weapon_id = equipped.id if equipped != null else ""
 	lob.send_player_info_async(me)
 
-# Slice 4 of PRD #328 (issue #332). Co-op fan-out for the local swing.
-# Solo (no lobby) is a single null-check no-op so the wire stays untouched.
-func _broadcast_attack(direction: Vector2) -> void:
+# Slice 4 of PRD #328 (issue #332), extended in slice 5 (issue #333).
+# Co-op fan-out for the local swing or cast. Solo (no lobby) is a single
+# null-check no-op so the wire stays untouched. `kind` discriminates the
+# event type for the receiver — weapon_swing for melee, spell_cast for
+# wizard primary (CAST attack_type), quickbar_cast for hotkey spells.
+func _broadcast_attack(direction: Vector2, kind: String = NakamaLobby.ATTACK_KIND_WEAPON_SWING, spell_id: String = "") -> void:
 	var lob := _lobby()
 	if lob == null:
 		return
-	lob.send_attack_async(direction)
+	lob.send_attack_async(direction, kind, spell_id)
 
 func _item_inventory() -> ItemInventory:
 	if _game_state == null:
@@ -292,6 +295,15 @@ func _on_slot_fired(n: int) -> void:
 	var spell = _quickbar.get_slot(n)
 	if spell == null:
 		return
+	# Slice 5 of PRD #328 (issue #333): broadcast a quickbar_cast packet
+	# so every peer's RemoteKitten can mirror the cast pose. Reaches this
+	# point only after QuickbarController.slot_fired emits, which itself
+	# only fires after Spell.cast() succeeds — so cooldown / MP / HP
+	# gating already filtered the spam case (same shape as the slice-4
+	# cooldown gate around _broadcast_attack). Solo path is a single
+	# null-check inside _broadcast_attack.
+	var facing: Vector2 = data.facing if data != null else Vector2.RIGHT
+	_broadcast_attack(facing, NakamaLobby.ATTACK_KIND_QUICKBAR_CAST, spell.id)
 	_apply_spell_effect(spell)
 
 func _physics_process(delta: float) -> void:
@@ -485,7 +497,14 @@ func _try_attack() -> void:
 	# Fires here — after the cooldown gate but before the animation branch
 	# — so a cooldown-rejected re-attack doesn't flood the wire.
 	var attack_dir: Vector2 = data.facing if data != null else Vector2.RIGHT
-	_broadcast_attack(attack_dir)
+	# Slice 5 of PRD #328 (issue #333): a CAST-type weapon attack
+	# (wizard's primary) reads as a spell on the wire so receivers can
+	# differentiate the cast pose from a melee swing. spell_id stays ""
+	# because the wizard primary isn't backed by a Spell object — the
+	# receiver's cast pose comes from its own choreographer's CAST
+	# attack_type, not from a Spell lookup.
+	var attack_kind: String = NakamaLobby.ATTACK_KIND_SPELL_CAST if _is_cast_attack() else NakamaLobby.ATTACK_KIND_WEAPON_SWING
+	_broadcast_attack(attack_dir, attack_kind, "")
 	# PRD #223: all four kitten classes route through the choreographer so
 	# damage + VFX fire at the strike phase of a visible swing/cast. The
 	# choreographer is null for character classes without a WeaponDefinition
