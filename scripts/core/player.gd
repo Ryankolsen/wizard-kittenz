@@ -216,6 +216,22 @@ func _broadcast_damage(enemy_id: String, damage: int) -> void:
 		return
 	lob.send_damage_dealt_async(enemy_id, damage)
 
+# Slice 7 of PRD #328 (issue #335). Called from enemy-on-player damage
+# sites (Enemy._try_contact_damage and any future hazard / projectile
+# hooks) once the post-mitigation damage value lands. Broadcasts an
+# OP_PLAYER_HIT so every peer's RemoteKitten can apply the matching
+# hit-flash + knockback reaction. Solo (no lobby) is a single null-check
+# no-op. Non-positive damage is gated downstream in send_player_hit_async
+# so a "Miss" pulse doesn't put a packet on the wire — same shape as the
+# OP_DAMAGE_DEALT send guard.
+func take_damage(damage: int, source_position: Vector2) -> void:
+	if damage <= 0:
+		return
+	var lob := _lobby()
+	if lob == null:
+		return
+	lob.send_player_hit_async(damage, source_position)
+
 func _item_inventory() -> ItemInventory:
 	if _game_state == null:
 		return null

@@ -171,3 +171,35 @@ func play_spell_cast(direction: Vector2, _spell_id: String) -> void:
 		return
 	attack_choreographer.start_attack(direction,
 		attack_choreographer.definition.attack_type)
+
+
+# Slice 7 of PRD #328 (issue #335). Receive-side hit reaction — drives a
+# white-flash modulate + a short knockback offset on the sprite when a
+# peer broadcasts that they just took damage. The reaction is sprite-
+# local (not position-based) because RemoteKitten.position is overwritten
+# every frame by network_sync; mutating _sprite.position keeps the
+# visual offset independent of the network-interpolated body position,
+# same dual-rail _apply_ale_wobble uses on Player. Knockback direction
+# points the kitten AWAY from source_position so a hit from the left
+# pushes the kitten to the right. Damage value is currently informational
+# (no per-amount magnitude scaling) but pinned on the wire so a future
+# slice can scale flash intensity / knockback distance per-hit without a
+# protocol break.
+const HIT_FLASH_COLOR := Color(2.0, 2.0, 2.0, 1.0)
+const HIT_FLASH_DURATION := 0.12
+const KNOCKBACK_DISTANCE := 6.0
+const KNOCKBACK_DURATION := 0.15
+
+func apply_hit_reaction(damage: int, source_position: Vector2) -> void:
+	if damage <= 0 or _sprite == null:
+		return
+	_sprite.modulate = HIT_FLASH_COLOR
+	var dir := (global_position - source_position).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.RIGHT
+	_sprite.position = dir * KNOCKBACK_DISTANCE
+	var tween := create_tween()
+	tween.parallel().tween_property(_sprite, "modulate",
+		Color(1.0, 1.0, 1.0, 1.0), HIT_FLASH_DURATION)
+	tween.parallel().tween_property(_sprite, "position",
+		Vector2.ZERO, KNOCKBACK_DURATION)

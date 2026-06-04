@@ -204,6 +204,11 @@ func _try_contact_damage(target: Node2D) -> void:
 		FloatingText.spawn(player, "Miss")
 	elif dealt > 0:
 		FloatingText.spawn(player, str(dealt), Color(1.0, 0.2, 0.2))
+		# PRD #328 slice 7 (issue #335): fan the hit through Player so it
+		# broadcasts OP_PLAYER_HIT (co-op) for every peer's RemoteKitten
+		# to play the matching hit-flash + knockback reaction. Solo path
+		# is a single null-check no-op inside take_damage.
+		player.take_damage(dealt, global_position)
 
 func flash_hit() -> void:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D

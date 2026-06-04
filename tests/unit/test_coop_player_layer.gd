@@ -466,3 +466,41 @@ func test_reconcile_updates_equipped_weapon_id_on_existing_kitten():
 		"reconcile reuses the existing node, no respawn on equip-swap")
 	assert_true(ws.visible,
 		"equip-swap rebroadcast must update the existing kitten's weapon")
+
+
+# ---- Slice 7 of PRD #328 (issue #335): player_hit_received fan-out. ----
+
+func test_player_hit_received_drives_matching_kitten_apply_hit_reaction():
+	# CoopPlayerLayer subscribes to lobby.player_hit_received and routes
+	# the inbound (damage, source_position) to the matching RemoteKitten's
+	# apply_hit_reaction — same shape as the position/attack fan-outs.
+	# Observable: the kitten's sprite flashes to HIT_FLASH_COLOR.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	alice.global_position = Vector2(100.0, 0.0)
+	var sprite: Sprite2D = alice.get_node("Sprite2D")
+	var pre_modulate := sprite.modulate
+	lobby.player_hit_received.emit("alice", 7, Vector2.ZERO)
+	assert_ne(sprite.modulate, pre_modulate,
+		"player_hit_received must drive the matching kitten's hit-flash")
+	assert_gt(sprite.position.x, 0.0,
+		"knockback offset pushes away from the source at (0,0)")
+
+
+func test_player_hit_received_ignores_unknown_player_id():
+	# A packet for an id with no spawned kitten (stale packet from a
+	# departed peer / mid-roster-update) is a silent no-op rather than a
+	# crash. Mirrors the position/attack unknown-id guards.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	lobby.player_hit_received.emit("ghost", 7, Vector2.ZERO)
+	assert_true(true)

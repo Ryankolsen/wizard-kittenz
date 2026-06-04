@@ -254,3 +254,68 @@ func test_play_spell_cast_no_op_for_class_without_choreographer():
 		"precondition: cat-tier has no choreographer")
 	inst.play_spell_cast(Vector2.RIGHT, "fireball")
 	assert_true(true, "no-crash on missing choreographer")
+
+
+# ---- Slice 7 of PRD #328 (issue #335): apply_hit_reaction. ----
+
+func test_apply_hit_reaction_flashes_sprite_modulate_white():
+	# Hit reaction immediately sets the sprite modulate to the flash
+	# color (the tween restores it; we sample before the tween runs).
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	inst.global_position = Vector2(100.0, 0.0)
+	inst.apply_hit_reaction(5, Vector2.ZERO)
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_almost_eq(sprite.modulate.r, RemoteKitten.HIT_FLASH_COLOR.r, 0.01)
+	assert_almost_eq(sprite.modulate.g, RemoteKitten.HIT_FLASH_COLOR.g, 0.01)
+	assert_almost_eq(sprite.modulate.b, RemoteKitten.HIT_FLASH_COLOR.b, 0.01)
+
+
+func test_apply_hit_reaction_knockback_points_away_from_source():
+	# Source at (0, 0), kitten at (100, 0) -> knockback offset must
+	# point in the +X direction (away from source).
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	inst.global_position = Vector2(100.0, 0.0)
+	inst.apply_hit_reaction(5, Vector2.ZERO)
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_gt(sprite.position.x, 0.0,
+		"knockback offset must push away from a source on the left")
+	assert_almost_eq(sprite.position.y, 0.0, 0.01,
+		"horizontal source means no vertical knockback component")
+
+
+func test_apply_hit_reaction_knockback_other_direction():
+	# Source at (200, 0), kitten at (100, 0) -> knockback in -X.
+	# Pins that the direction sign correctly tracks source_position rather
+	# than always defaulting to RIGHT.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	inst.global_position = Vector2(100.0, 0.0)
+	inst.apply_hit_reaction(5, Vector2(200.0, 0.0))
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_lt(sprite.position.x, 0.0,
+		"knockback offset must push away from a source on the right")
+
+
+func test_apply_hit_reaction_non_positive_damage_no_op():
+	# A "Miss" pulse on the wire (defense-in-depth — should be dropped at
+	# the route layer already) is a no-op at the visual layer too.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	var pre_modulate := sprite.modulate
+	inst.apply_hit_reaction(0, Vector2.ZERO)
+	assert_eq(sprite.modulate, pre_modulate,
+		"zero-damage hit must not flash the sprite")
+	inst.apply_hit_reaction(-3, Vector2.ZERO)
+	assert_eq(sprite.modulate, pre_modulate,
+		"negative-damage hit must not flash the sprite")
+
+
+func test_apply_hit_reaction_zero_distance_defaults_to_right():
+	# Defensive: when source_position equals the kitten's position
+	# (zero-length direction vector) the knockback falls back to
+	# Vector2.RIGHT rather than NaN-ing out the position.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	inst.global_position = Vector2(100.0, 0.0)
+	inst.apply_hit_reaction(5, Vector2(100.0, 0.0))
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_gt(sprite.position.x, 0.0,
+		"zero-length direction defaults to RIGHT so the offset is still finite")

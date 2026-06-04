@@ -155,6 +155,7 @@ func _bind_lobby(new_lobby: NakamaLobby) -> void:
 	new_lobby.lobby_updated.connect(_on_lobby_updated)
 	new_lobby.position_received.connect(_on_position_received)
 	new_lobby.attack_received.connect(_on_attack_received)
+	new_lobby.player_hit_received.connect(_on_player_hit_received)
 	_connected_lobby = new_lobby
 
 func _unbind_lobby() -> void:
@@ -166,6 +167,8 @@ func _unbind_lobby() -> void:
 		_connected_lobby.position_received.disconnect(_on_position_received)
 	if _connected_lobby.attack_received.is_connected(_on_attack_received):
 		_connected_lobby.attack_received.disconnect(_on_attack_received)
+	if _connected_lobby.player_hit_received.is_connected(_on_player_hit_received):
+		_connected_lobby.player_hit_received.disconnect(_on_player_hit_received)
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
@@ -204,6 +207,18 @@ func _on_attack_received(sender_id: String, direction: Vector2, kind: String, sp
 			kitten.play_spell_cast(direction, spell_id)
 		_:
 			pass
+
+# Slice 7 of PRD #328 (issue #335). Receiver path: fan inbound PLAYER_HIT
+# to the matching RemoteKitten's apply_hit_reaction so every peer's view
+# of the hit player plays the matching flash + knockback. Unknown id
+# (stale packet from a departed peer / mid-roster-update) is a silent
+# no-op — same shape as the position/attack unknown-id guards.
+func _on_player_hit_received(target_id: String, damage: int, source_position: Vector2) -> void:
+	var kitten: RemoteKitten = _kittens.get(target_id)
+	if kitten == null:
+		return
+	kitten.apply_hit_reaction(damage, source_position)
+
 
 func _bind_session(new_session: CoopSession) -> void:
 	if new_session == _connected_session:

@@ -80,6 +80,17 @@ const OP_ATTACK: int = 13
 # uses at the matching enemy's world position, so every peer sees the hit
 # number floating above the enemy on every client.
 const OP_DAMAGE_DEALT: int = 14
+# In-match player-hit broadcast (PRD #328 slice 7, issue #335). Payload:
+# {"damage": int, "source_x": float, "source_y": float}. target_id is taken
+# from the socket presence (not the payload) — the hit player broadcasts
+# their own hit, same anti-spoofing model as OP_KILL / OP_ATTACK /
+# OP_DAMAGE_DEALT. source_position carries the hit source's world position
+# so the receiver can drive a knockback direction away from it. Receiver
+# fans through CoopPlayerLayer to the matching RemoteKitten's
+# apply_hit_reaction (sprite flash + knockback offset). The local Player's
+# own reaction is played at the damage-application site, so self-echo is
+# dropped at the routing layer.
+const OP_PLAYER_HIT: int = 15
 
 # Discriminator values for the OP_ATTACK `kind` field (PRD #328 slice 5,
 # issue #333). The wire's a single OP_ATTACK opcode carrying every attack-
@@ -159,6 +170,12 @@ signal attack_received(sender_id: String, direction: Vector2, kind: String, spel
 # FloatingText.spawn_at on the matching enemy. attacker_id is the
 # sender presence, not from the payload (anti-spoofing).
 signal damage_received(attacker_id: String, enemy_id: String, damage: int)
+# In-match PLAYER_HIT event from a remote player (PRD #328 slice 7, issue
+# #335). target_id is the sender presence (the hit player is the one who
+# broadcasts), source_position is the hit source's world position so the
+# receiver can drive a knockback direction. CoopPlayerLayer subscribes and
+# fans the inbound packet to the matching RemoteKitten's apply_hit_reaction.
+signal player_hit_received(target_id: String, damage: int, source_position: Vector2)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -390,6 +407,28 @@ func send_damage_dealt_async(enemy_id: String, damage: int) -> void:
 	var payload := {"enemy_id": enemy_id, "damage": damage}
 	await _socket.send_match_state_async(_match_id, OP_DAMAGE_DEALT, JSON.stringify(payload))
 
+# Broadcasts a local PLAYER_HIT to every match participant (PRD #328
+# slice 7, issue #335). damage is the post-mitigation amount the local
+# Player just took; source_position is the hit source's world position
+# (used by the receiver to point the knockback away from it). Non-
+# positive damage is a defensive no-op — a "Miss" pulse has no reaction
+# to render. target_id is NOT in the payload — Nakama tags every packet
+# with the sender presence, so the receiving side reads it off the socket
+# envelope (matches the OP_DAMAGE_DEALT / OP_KILL anti-spoofing model:
+# the hit player broadcasts their own hit). Solo (no socket / no
+# match_id) is a silent no-op.
+func send_player_hit_async(damage: int, source_position: Vector2) -> void:
+	if damage <= 0:
+		return
+	if _socket == null or _match_id == "":
+		return
+	var payload := {
+		"damage": damage,
+		"source_x": source_position.x,
+		"source_y": source_position.y,
+	}
+	await _socket.send_match_state_async(_match_id, OP_PLAYER_HIT, JSON.stringify(payload))
+
 # Returns true iff the local player is the lobby host. Host gate for the
 # OP_HOST_PAUSE / OP_HOST_UNPAUSE send paths and for the receiving-side
 # sender check in apply_state. Defensive on null lobby_state / missing host
@@ -571,6 +610,9 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 		return
 	if op_code == OP_DAMAGE_DEALT:
 		_route_damage_dealt(sender_id, data)
+		return
+	if op_code == OP_PLAYER_HIT:
+		_route_player_hit(sender_id, data)
 		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
@@ -771,6 +813,27 @@ func _route_damage_dealt(sender_id: String, data: Dictionary) -> void:
 	if damage <= 0:
 		return
 	damage_received.emit(sender_id, enemy_id, damage)
+
+# Decodes the OP_PLAYER_HIT payload and emits player_hit_received. Self-
+# echoes (sender_id == local_player_id) and empty sender_id are dropped at
+# the routing layer — the local Player already played its own reaction at
+# the damage-application site, so re-rendering it from the wire echo would
+# double-flash. Missing damage / source coord keys are dropped defensively
+# so a future protocol mismatch can't crash the render loop. Non-positive
+# damage is dropped because a "Miss" / zero pulse has no reaction worth
+# rendering — same shape as the send-side guard.
+func _route_player_hit(sender_id: String, data: Dictionary) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	if not (data.has("damage") and data.has("source_x") and data.has("source_y")):
+		return
+	var damage: int = int(data.get("damage", 0))
+	if damage <= 0:
+		return
+	var sp := Vector2(
+		float(data.get("source_x", 0.0)),
+		float(data.get("source_y", 0.0)))
+	player_hit_received.emit(sender_id, damage, sp)
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client
