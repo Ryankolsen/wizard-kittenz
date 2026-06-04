@@ -319,3 +319,82 @@ func test_apply_hit_reaction_zero_distance_defaults_to_right():
 	var sprite: Sprite2D = inst.get_node("Sprite2D")
 	assert_gt(sprite.position.x, 0.0,
 		"zero-length direction defaults to RIGHT so the offset is still finite")
+
+
+# ---- Slice 8 of PRD #328 (issue #336): apply_death + revive. ----
+
+# Stub network_sync that returns a configurable position on demand so the
+# _process freeze can be observed independently of NetworkSyncManager's
+# interpolation rules.
+class _FakeSync:
+	extends RefCounted
+	var current_position: Vector2 = Vector2.ZERO
+	var sample_count: int = 0
+	func get_display_position_at(_pid: String, _now: float) -> Vector2:
+		sample_count += 1
+		return current_position
+
+
+func test_apply_death_sets_is_dead_flag():
+	# Death state is observable via is_dead() so the layer / revive path
+	# can branch on it.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_false(inst.is_dead(), "fresh kitten is alive")
+	inst.apply_death()
+	assert_true(inst.is_dead(), "apply_death flips the is_dead flag")
+
+
+func test_apply_death_modulates_sprite_to_dead_tint():
+	# The death visual is a sprite modulate shift to the DEAD_TINT so the
+	# kitten reads as visually inert. Same shape as apply_hit_reaction's
+	# modulate change but persistent (no tween back to white).
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	inst.apply_death()
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_eq(sprite.modulate, RemoteKitten.DEAD_TINT,
+		"sprite modulate must shift to DEAD_TINT on death")
+
+
+func test_apply_death_freezes_position_sampling():
+	# After apply_death, _process must NOT consult network_sync for a new
+	# position — the kitten stays frozen at the death pose. Pinned via a
+	# sample-counter stub.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sync := _FakeSync.new()
+	sync.current_position = Vector2(50.0, 50.0)
+	inst.network_sync = sync
+	inst.player_id = "alice"
+	# Pre-death tick samples normally.
+	inst._process(0.016)
+	assert_eq(sync.sample_count, 1, "live kitten samples each frame")
+	inst.apply_death()
+	var frozen_at := inst.position
+	# Advance the "remote" position to confirm the freeze doesn't follow.
+	sync.current_position = Vector2(999.0, 999.0)
+	inst._process(0.016)
+	assert_eq(sync.sample_count, 1,
+		"dead kitten must NOT sample network_sync")
+	assert_eq(inst.position, frozen_at,
+		"dead kitten's position must stay frozen at the death pose")
+
+
+func test_apply_revive_resumes_position_sampling():
+	# Slice 8 AC: when an OP_POSITION packet arrives for a previously-dead
+	# kitten, apply_revive resumes the normal sampling loop. The dead-
+	# state freeze is purely visual; it doesn't gate inbound packets.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	var sync := _FakeSync.new()
+	sync.current_position = Vector2(50.0, 50.0)
+	inst.network_sync = sync
+	inst.player_id = "alice"
+	inst.apply_death()
+	inst._process(0.016)  # frozen — no sample
+	assert_eq(sync.sample_count, 0)
+	inst.apply_revive()
+	assert_false(inst.is_dead(), "revive clears the dead flag")
+	inst._process(0.016)
+	assert_eq(sync.sample_count, 1,
+		"post-revive _process resumes network_sync sampling")
+	var sprite: Sprite2D = inst.get_node("Sprite2D")
+	assert_eq(sprite.modulate, Color(1.0, 1.0, 1.0, 1.0),
+		"revive restores the sprite modulate to white")

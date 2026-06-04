@@ -31,6 +31,7 @@ func test_op_codes_distinct_from_existing():
 		NakamaLobby.OP_TAUNT, NakamaLobby.OP_HEAL,
 		NakamaLobby.OP_ATTACK, NakamaLobby.OP_DAMAGE_DEALT,
 		NakamaLobby.OP_PLAYER_HIT,
+		NakamaLobby.OP_PLAYER_DIED,
 	]
 	var seen: Dictionary = {}
 	for op in ops:

@@ -33,6 +33,13 @@ const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
 # kitten freezes at its current position rather than crashing.
 var network_sync = null
 
+# Slice 8 of PRD #328 (issue #336). Death-state flag; when true, _process
+# skips the network_sync sample so the kitten freezes at its death pose
+# regardless of subsequent interpolation. Flipped back via apply_revive
+# when the next OP_POSITION packet arrives (CoopPlayerLayer drives the
+# transparent revive at the position-routing edge).
+var _is_dead: bool = false
+
 # PRD #223 slice 4 (#227): receive-side weapon animation. play_attack(dir)
 # drives the embedded WeaponPivot + AttackChoreographer with the same code
 # path the local Player uses. Null for classes without a WeaponDefinition.
@@ -61,6 +68,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if attack_choreographer != null:
 		attack_choreographer.tick(delta)
+	if _is_dead:
+		return
 	if network_sync == null or player_id == "":
 		return
 	var now := Time.get_ticks_msec() / 1000.0
@@ -189,6 +198,34 @@ const HIT_FLASH_COLOR := Color(2.0, 2.0, 2.0, 1.0)
 const HIT_FLASH_DURATION := 0.12
 const KNOCKBACK_DISTANCE := 6.0
 const KNOCKBACK_DURATION := 0.15
+
+# Slice 8 of PRD #328 (issue #336). Receive-side death visual — modulates
+# the sprite to DEAD_TINT (persistent, not tweened) and flips the
+# _is_dead flag so _process stops sampling network_sync (the kitten
+# freezes at its death pose). The revive path is driven from
+# CoopPlayerLayer: when an OP_POSITION packet arrives for this peer,
+# apply_revive clears the flag and restores the sprite modulate. Solo
+# Player has no equivalent visual today; the slice introduces this dim
+# tint as the shared death-pose marker so the remote view has a
+# distinguishable "dead teammate" state. No-op when _sprite is null
+# (cat-tier / fixture instances without the scene tree fully assembled).
+const DEAD_TINT := Color(0.4, 0.4, 0.4, 0.6)
+
+func is_dead() -> bool:
+	return _is_dead
+
+func apply_death() -> void:
+	_is_dead = true
+	if _sprite != null:
+		_sprite.modulate = DEAD_TINT
+
+func apply_revive() -> void:
+	if not _is_dead:
+		return
+	_is_dead = false
+	if _sprite != null:
+		_sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
 
 func apply_hit_reaction(damage: int, source_position: Vector2) -> void:
 	if damage <= 0 or _sprite == null:

@@ -389,7 +389,18 @@ func _check_died() -> void:
 	if _died_emitted:
 		return
 	_died_emitted = true
+	_broadcast_player_died()
 	died.emit()
+
+# Slice 8 of PRD #328 (issue #336). Co-op fan-out for the local death.
+# Fires exactly once per death (gated by _died_emitted) so a successful
+# revive that re-drops HP to zero broadcasts again — same edge model as
+# the local `died` signal. Solo (no lobby) is a single null-check no-op.
+func _broadcast_player_died() -> void:
+	var lob := _lobby()
+	if lob == null:
+		return
+	lob.send_player_died_async()
 
 func collect_power_up(type_id: String) -> void:
 	_power_ups.apply(type_id, data)

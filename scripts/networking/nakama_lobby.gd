@@ -91,6 +91,15 @@ const OP_DAMAGE_DEALT: int = 14
 # own reaction is played at the damage-application site, so self-echo is
 # dropped at the routing layer.
 const OP_PLAYER_HIT: int = 15
+# In-match player-died broadcast (PRD #328 slice 8, issue #336). Empty
+# payload — target_id is taken from the socket presence (the dead player
+# broadcasts their own death; same anti-spoofing model as OP_KILL /
+# OP_PLAYER_HIT). Receiver fans through CoopPlayerLayer to the matching
+# RemoteKitten's apply_death, which plays the death visual and freezes
+# position updates until the next OP_POSITION packet from the same peer
+# arrives (transparent revive — the freeze is purely visual and doesn't
+# gate inbound packets).
+const OP_PLAYER_DIED: int = 16
 
 # Discriminator values for the OP_ATTACK `kind` field (PRD #328 slice 5,
 # issue #333). The wire's a single OP_ATTACK opcode carrying every attack-
@@ -176,6 +185,11 @@ signal damage_received(attacker_id: String, enemy_id: String, damage: int)
 # receiver can drive a knockback direction. CoopPlayerLayer subscribes and
 # fans the inbound packet to the matching RemoteKitten's apply_hit_reaction.
 signal player_hit_received(target_id: String, damage: int, source_position: Vector2)
+# In-match PLAYER_DIED event from a remote player (PRD #328 slice 8, issue
+# #336). target_id is the sender presence (the dead player is the one who
+# broadcasts). CoopPlayerLayer subscribes and fans through to the matching
+# RemoteKitten's apply_death. Empty payload — no extra wire fields.
+signal player_died_received(target_id: String)
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -417,6 +431,17 @@ func send_damage_dealt_async(enemy_id: String, damage: int) -> void:
 # envelope (matches the OP_DAMAGE_DEALT / OP_KILL anti-spoofing model:
 # the hit player broadcasts their own hit). Solo (no socket / no
 # match_id) is a silent no-op.
+# Broadcasts a local PLAYER_DIED to every match participant (PRD #328 slice
+# 8, issue #336). Empty payload — target_id is read from the sender presence
+# on the receive side (anti-spoofing: the dead player is the only one who
+# can broadcast their own death). Solo (no socket / no match_id) is a silent
+# no-op so the wire stays untouched in single-player.
+func send_player_died_async() -> void:
+	if _socket == null or _match_id == "":
+		return
+	await _socket.send_match_state_async(_match_id, OP_PLAYER_DIED, "{}")
+
+
 func send_player_hit_async(damage: int, source_position: Vector2) -> void:
 	if damage <= 0:
 		return
@@ -613,6 +638,9 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 		return
 	if op_code == OP_PLAYER_HIT:
 		_route_player_hit(sender_id, data)
+		return
+	if op_code == OP_PLAYER_DIED:
+		_route_player_died(sender_id)
 		return
 	if op_code == OP_HOST_PAUSE:
 		_route_host_pause(sender_id, true)
@@ -834,6 +862,17 @@ func _route_player_hit(sender_id: String, data: Dictionary) -> void:
 		float(data.get("source_x", 0.0)),
 		float(data.get("source_y", 0.0)))
 	player_hit_received.emit(sender_id, damage, sp)
+
+# Routes an OP_PLAYER_DIED packet. Self-echo (sender_id == local_player_id)
+# and empty sender_id are dropped at the routing layer — the local Player
+# already played its own death visual at the _check_died site, so re-
+# rendering it from the wire echo would double-trigger the effect. Payload
+# is intentionally empty; no fields to validate.
+func _route_player_died(sender_id: String) -> void:
+	if sender_id == "" or sender_id == local_player_id:
+		return
+	player_died_received.emit(sender_id)
+
 
 # Routes an OP_HOST_PAUSE / OP_HOST_UNPAUSE packet. Authority check: the
 # sender presence must match the lobby's current host. A non-host client

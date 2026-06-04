@@ -504,3 +504,57 @@ func test_player_hit_received_ignores_unknown_player_id():
 	add_child_autofree(layer)
 	lobby.player_hit_received.emit("ghost", 7, Vector2.ZERO)
 	assert_true(true)
+
+
+# ---- Slice 8 of PRD #328 (issue #336): player_died_received fan-out. ----
+
+func test_player_died_received_drives_matching_kitten_apply_death():
+	# CoopPlayerLayer subscribes to lobby.player_died_received and fans
+	# the target_id to the matching RemoteKitten's apply_death so the
+	# dead teammate's sprite shifts to DEAD_TINT and stops sampling
+	# network_sync.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	assert_false(alice.is_dead(), "precondition: alice alive")
+	lobby.player_died_received.emit("alice")
+	assert_true(alice.is_dead(),
+		"player_died_received must drive the matching kitten's apply_death")
+
+
+func test_player_died_received_ignores_unknown_player_id():
+	# Stale packet from a departed peer / mid-roster-update — silent
+	# no-op rather than a crash. Same shape as the position/attack/hit
+	# unknown-id guards.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	lobby.player_died_received.emit("ghost")
+	assert_true(true, "unknown id is a silent no-op")
+
+
+func test_position_received_revives_dead_kitten():
+	# Revive path: after apply_death, the next OP_POSITION packet from
+	# the same peer drives apply_revive so position updates resume on
+	# the remote view. The local CoopRouter.revive flow brings the dead
+	# player back to life on the sender side; this layer's job is just
+	# to clear the freeze on the next position broadcast.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	lobby.player_died_received.emit("alice")
+	assert_true(alice.is_dead(), "precondition: alice marked dead")
+	lobby.position_received.emit("alice", Vector2(10.0, 20.0), 0.5, 0)
+	assert_false(alice.is_dead(),
+		"position packet for a dead kitten must drive apply_revive")

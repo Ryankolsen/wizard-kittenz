@@ -156,6 +156,7 @@ func _bind_lobby(new_lobby: NakamaLobby) -> void:
 	new_lobby.position_received.connect(_on_position_received)
 	new_lobby.attack_received.connect(_on_attack_received)
 	new_lobby.player_hit_received.connect(_on_player_hit_received)
+	new_lobby.player_died_received.connect(_on_player_died_received)
 	_connected_lobby = new_lobby
 
 func _unbind_lobby() -> void:
@@ -169,6 +170,8 @@ func _unbind_lobby() -> void:
 		_connected_lobby.attack_received.disconnect(_on_attack_received)
 	if _connected_lobby.player_hit_received.is_connected(_on_player_hit_received):
 		_connected_lobby.player_hit_received.disconnect(_on_player_hit_received)
+	if _connected_lobby.player_died_received.is_connected(_on_player_died_received):
+		_connected_lobby.player_died_received.disconnect(_on_player_died_received)
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
@@ -182,6 +185,12 @@ func _on_position_received(player_id: String, _position: Vector2, _timestamp: fl
 	var kitten: RemoteKitten = _kittens.get(player_id)
 	if kitten == null:
 		return
+	# Slice 8 of PRD #328 (issue #336): an inbound position packet from a
+	# previously-dead peer is the transparent revive signal — the dead-
+	# state freeze is purely visual, so the next position broadcast lifts
+	# it. apply_revive is a no-op when the kitten is already alive.
+	if kitten.is_dead():
+		kitten.apply_revive()
 	kitten.apply_facing(facing_x)
 
 # Slice 4 of PRD #328 (issue #332), extended in slice 5 (issue #333).
@@ -218,6 +227,17 @@ func _on_player_hit_received(target_id: String, damage: int, source_position: Ve
 	if kitten == null:
 		return
 	kitten.apply_hit_reaction(damage, source_position)
+
+# Slice 8 of PRD #328 (issue #336). Receiver path: fan inbound PLAYER_DIED
+# to the matching RemoteKitten's apply_death so the dead teammate's sprite
+# shifts to the DEAD_TINT and stops sampling network_sync. Unknown id
+# (stale packet from a departed peer / mid-roster-update) is a silent
+# no-op — same shape as the position/attack/hit unknown-id guards.
+func _on_player_died_received(target_id: String) -> void:
+	var kitten: RemoteKitten = _kittens.get(target_id)
+	if kitten == null:
+		return
+	kitten.apply_death()
 
 
 func _bind_session(new_session: CoopSession) -> void:
