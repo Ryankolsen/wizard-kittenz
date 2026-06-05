@@ -9,6 +9,7 @@ const SkillUnlockCheckerRef = preload("res://scripts/progression/skill_unlock_ch
 const _RemoteHealApplierRef = preload("res://scripts/networking/remote_heal_applier.gd")
 const _RemoteItemDropResolverRef = preload("res://scripts/networking/remote_item_drop_resolver.gd")
 const _RemoteDamageVisualizerRef = preload("res://scripts/networking/remote_damage_visualizer.gd")
+const _RemoteEnemyDamageApplierRef = preload("res://scripts/networking/remote_enemy_damage_applier.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -505,6 +506,13 @@ func _on_heal_received(_caster_id: String, target_id: String, effect_kind: Strin
 # silent-false-return — AC#6 holds without extra guard here.
 func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int, kind: int) -> void:
 	_RemoteDamageVisualizerRef.spawn(get_tree(), enemy_id, damage, kind)
+	# Shared enemy health bars (PRD #341, issue #342). The visualizer above
+	# paints the floating number; this call subtracts the same damage from
+	# the matching local Enemy.data.hp so the polled enemy_health_bar /
+	# boss_health_bar drops on every peer's screen. Self-echo is dropped at
+	# NakamaLobby._route_damage_dealt (sender_id == local_player_id), so the
+	# attacker never double-decrements their own HP copy.
+	_RemoteEnemyDamageApplierRef.apply(get_tree(), enemy_id, damage)
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's
