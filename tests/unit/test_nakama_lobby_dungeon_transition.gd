@@ -32,6 +32,8 @@ func test_op_codes_distinct_from_existing():
 		NakamaLobby.OP_ATTACK, NakamaLobby.OP_DAMAGE_DEALT,
 		NakamaLobby.OP_PLAYER_HIT,
 		NakamaLobby.OP_PLAYER_DIED,
+		NakamaLobby.OP_REQUEST_ADVANCE,
+		NakamaLobby.OP_ADVANCE_FLOOR,
 	]
 	var seen: Dictionary = {}
 	for op in ops:
@@ -167,3 +169,70 @@ func test_send_dungeon_transition_async_host_rejects_negative_seed():
 	watch_signals(lobby)
 	lobby.send_dungeon_transition_async(-5)
 	assert_signal_not_emitted(lobby, "dungeon_transition_received")
+
+# --- OP_REQUEST_ADVANCE routing ---------------------------------------------
+
+func test_op_request_advance_emits_only_on_host_receiver():
+	# Only the host acts on a peer's "Next Floor" advance request — the host
+	# is the authority over when the whole party reloads into the next dungeon.
+	var host_lobby := _make_lobby_with_host("host-1", "host-1")
+	host_lobby.lobby_state.add_player(LobbyPlayer.make("peer-2", "p", "Mage", false))
+	watch_signals(host_lobby)
+	host_lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "peer-2", {})
+	assert_signal_emitted(host_lobby, "advance_requested_received")
+
+func test_op_request_advance_dropped_on_peer_receiver():
+	var peer_lobby := _make_lobby_with_host("host-1", "peer-2")
+	peer_lobby.lobby_state.add_player(LobbyPlayer.make("peer-2", "p", "Mage", false))
+	peer_lobby.lobby_state.add_player(LobbyPlayer.make("peer-3", "p", "Mage", false))
+	watch_signals(peer_lobby)
+	peer_lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "peer-3", {})
+	assert_signal_not_emitted(peer_lobby, "advance_requested_received",
+		"peer ignores another peer's advance request")
+
+func test_op_request_advance_dropped_on_empty_sender():
+	var lobby := _make_lobby_with_host("host-1", "host-1")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "", {})
+	assert_signal_not_emitted(lobby, "advance_requested_received")
+
+# --- OP_ADVANCE_FLOOR routing -----------------------------------------------
+
+func test_op_advance_floor_emits_from_host_sender():
+	# Host's advance broadcast surfaces as floor_advance_received on every
+	# receiver, including the host's own self-echo, so the party reloads
+	# into the next dungeon together.
+	var lobby := _make_lobby_with_host("host-1", "peer-2")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {})
+	assert_signal_emitted(lobby, "floor_advance_received")
+
+func test_op_advance_floor_rejected_from_non_host_sender():
+	# Authority check: a desynced / tampering peer can't yank the party into
+	# the next dungeon — only the host's advance is honored.
+	var lobby := _make_lobby_with_host("host-1", "peer-2")
+	lobby.lobby_state.add_player(LobbyPlayer.make("imposter", "i", "Mage", false))
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "imposter", {})
+	assert_signal_not_emitted(lobby, "floor_advance_received")
+
+func test_op_advance_floor_rejected_on_empty_sender():
+	var lobby := _make_lobby_with_host("host-1", "host-1")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "", {})
+	assert_signal_not_emitted(lobby, "floor_advance_received")
+
+func test_send_floor_advance_async_non_host_is_noop():
+	var lobby := _make_lobby_with_host("host-1", "peer-2")
+	watch_signals(lobby)
+	lobby.send_floor_advance_async()
+	assert_signal_not_emitted(lobby, "floor_advance_received",
+		"non-host send is a no-op")
+
+func test_send_floor_advance_async_host_emits_locally():
+	# Host's self-echo drives its own finalize+reload chain even offline /
+	# without a real socket, matching send_dungeon_transition_async.
+	var lobby := _make_lobby_with_host("host-1", "host-1")
+	watch_signals(lobby)
+	lobby.send_floor_advance_async()
+	assert_signal_emitted(lobby, "floor_advance_received")

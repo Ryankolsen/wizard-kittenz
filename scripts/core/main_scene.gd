@@ -33,6 +33,12 @@ var _exit_door: ExitDoor = null
 var _floor_map_state: FloorMapState = null
 var _reveal_bridge: RoomRevealBridge = null
 var _congrats_screen: CongratulationsScreen = null
+# Guards the finalize+reload so a co-op floor advance fires exactly once per
+# client even when duplicate OP_ADVANCE_FLOOR broadcasts arrive (two players
+# pressing "Next Floor" together) — without it, _finalize_completed_run would
+# double-increment dungeons_completed. Reset naturally by the scene reload
+# that ends the floor.
+var _advance_finalized: bool = false
 
 # PRD #132 / issue #134 — per-floor stat tracking for the congratulations
 # screen. Enemies-slain is incremented in _on_enemy_died. XP and gold
@@ -129,6 +135,10 @@ func _connect_lobby_signals() -> void:
 		lobby.transition_requested_received.connect(_on_transition_requested_received)
 	if not lobby.dungeon_transition_received.is_connected(_on_dungeon_transition_received):
 		lobby.dungeon_transition_received.connect(_on_dungeon_transition_received)
+	if not lobby.advance_requested_received.is_connected(_on_advance_requested_received):
+		lobby.advance_requested_received.connect(_on_advance_requested_received)
+	if not lobby.floor_advance_received.is_connected(_on_floor_advance_received):
+		lobby.floor_advance_received.connect(_on_floor_advance_received)
 
 # Computes the spatial layout from the active dungeon graph and paints the
 # full multi-room tilemap (rooms + corridors + walls). The layout is cached
@@ -792,6 +802,44 @@ func _is_first_boss_clear() -> bool:
 	return gs.meta_tracker.dungeons_completed == 0
 
 func _on_congrats_next_floor_pressed() -> void:
+	_request_floor_advance()
+
+# Drives the floor advance after a congratulations-screen button press.
+# Solo / no co-op: reload immediately. Co-op: the scene reload must happen
+# on every client at once — otherwise the presser advances into the next
+# dungeon alone while the rest of the party is stranded on the
+# CongratulationsScreen (the bug this fixes). The host broadcasts
+# OP_ADVANCE_FLOOR (its self-echo drives the host's own reload); a peer
+# round-trips OP_REQUEST_ADVANCE to the host, which fans a single
+# OP_ADVANCE_FLOOR back to the whole party. The next-dungeon seed was
+# already minted + broadcast at the exit-door walk-through, so the advance
+# carries no seed — every client reloads from the seed it already agreed on.
+# Not guarded against re-press on purpose: a lost request packet can be
+# retried by pressing again; the actual finalize is guarded downstream in
+# _finalize_and_reload.
+func _request_floor_advance() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	var lobby: NakamaLobby = gs.lobby if gs != null else null
+	if lobby == null or lobby.lobby_state == null:
+		_finalize_and_reload()
+		return
+	if lobby.is_local_host():
+		lobby.send_floor_advance_async()
+	else:
+		lobby.send_request_advance_async()
+
+# Host-side response to a peer's OP_REQUEST_ADVANCE: broadcast the
+# synchronized floor advance to the whole party. Only the host receives
+# this (NakamaLobby._route_request_advance gates on the host receiver).
+func _on_advance_requested_received() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null and gs.lobby != null:
+		gs.lobby.send_floor_advance_async()
+
+# Inbound OP_ADVANCE_FLOOR (or the host's self-echo): finalize the cleared
+# floor and reload into the next dungeon. Runs on every client so the party
+# moves together.
+func _on_floor_advance_received() -> void:
 	_finalize_and_reload()
 
 # PRD #132 / issue #136 — opens the existing pause-menu stat-allocation
@@ -804,17 +852,17 @@ func _on_congrats_update_character_pressed() -> void:
 	if _congrats_screen != null:
 		_congrats_screen.hide()
 	if _hud == null:
-		_finalize_and_reload()
+		_request_floor_advance()
 		return
 	var pm := _hud.open_pause_menu_for_transition()
 	if pm == null:
-		_finalize_and_reload()
+		_request_floor_advance()
 		return
 	if not pm.transition_continued.is_connected(_on_transition_continued):
 		pm.transition_continued.connect(_on_transition_continued, CONNECT_ONE_SHOT)
 
 func _on_transition_continued() -> void:
-	_finalize_and_reload()
+	_request_floor_advance()
 
 # PRD #132 / issue #137 — persists the cleared-floor progress, drops
 # the in-flight dungeon run so the next boot starts fresh, and returns
@@ -830,6 +878,12 @@ func _on_congrats_save_and_exit_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
 
 func _finalize_and_reload() -> void:
+	# Collapses duplicate co-op advance broadcasts (and any re-press race)
+	# to a single finalize so dungeons_completed isn't double-counted. The
+	# reload that follows rebuilds main_scene with a fresh flag.
+	if _advance_finalized:
+		return
+	_advance_finalized = true
 	_finalize_completed_run()
 	get_tree().reload_current_scene()
 
