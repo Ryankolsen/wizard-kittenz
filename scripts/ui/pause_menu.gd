@@ -452,7 +452,7 @@ func _refresh_class_label(character: CharacterData) -> void:
 	if character == null:
 		label.text = ""
 		return
-	var raw: String = CharacterData.CharacterClass.keys()[CharacterData.CharacterClass.values().find(character.character_class)]
+	var raw: String = CharacterData.class_name_for(character.character_class)
 	label.text = raw.replace("_", " ").to_lower().capitalize()
 
 func _current_character() -> CharacterData:

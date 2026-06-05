@@ -6,6 +6,16 @@ func after_each():
 	if FileAccess.file_exists(TMP_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
 
+# Regression (#337): the CharacterClass enum starts at 6, so indexing
+# keys() by the enum value (keys()[character_class]) reads the wrong name
+# for every class and runs off the end for SLEEPY_KITTEN (8) and up,
+# crashing co-op join/create. class_name_for maps value -> name correctly.
+func test_class_name_for_maps_every_class_value_to_its_enum_name():
+	for name in CharacterData.CharacterClass.keys():
+		var value: int = CharacterData.CharacterClass[name]
+		assert_eq(CharacterData.class_name_for(value), name,
+			"class_name_for(%d) must return %s" % [value, name])
+
 func test_make_new_mage_has_expected_defaults():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Whiskers")
 	assert_eq(c.character_name, "Whiskers")

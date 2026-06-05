@@ -220,6 +220,15 @@ const REGEN_CAP_NON_SLEEPY := 1
 static func is_sleepy_class(klass: CharacterClass) -> bool:
 	return klass == CharacterClass.SLEEPY_KITTEN or klass == CharacterClass.SLEEPY_CAT
 
+# Enum value -> enum name string (e.g. SLEEPY_KITTEN -> "SLEEPY_KITTEN").
+# The enum starts at 6 (see the file-top comment), so keys()[klass] would
+# index by the value and read the wrong name / run off the end. Map through
+# values().find first so any value resolves to its declaration-order name.
+# Unknown value returns "" rather than crashing. (#337)
+static func class_name_for(klass: int) -> String:
+	var idx: int = CharacterClass.values().find(klass)
+	return CharacterClass.keys()[idx] if idx != -1 else ""
+
 static func max_regeneration_for(klass: CharacterClass) -> int:
 	return REGEN_CAP_SLEEPY if is_sleepy_class(klass) else REGEN_CAP_NON_SLEEPY
 
