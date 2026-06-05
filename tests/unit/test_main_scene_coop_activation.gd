@@ -302,6 +302,43 @@ func test_dungeon_seed_for_returns_negative_when_no_session():
 	assert_eq(inst._dungeon_seed_for(gs), -1,
 		"null session falls through to randomize sentinel")
 
+# --- stale-controller override (co-op seed mismatch) -----------------------
+# Regression for the live co-op divergence bug: a player entering a co-op
+# match while carrying a deserialized solo dungeon_run_controller (via
+# GameState.apply_merged_save / _hydrate_active_character — both call
+# DungeonRunSerializerRef.deserialize) would otherwise have main_scene._ready
+# take the resume branch and reuse that controller's dungeon. Host + other
+# peers generate from the lobby's agreed seed; this peer ends up in a
+# completely different dungeon, and OP_POSITION broadcasts land remote
+# kittens in voids the local tilemap never painted.
+
+func test_main_scene_rebuilds_dungeon_when_pre_existing_controller_seed_mismatches_agreed():
+	var session := _make_coop_session()
+	var sync := DungeonSeedSync.new()
+	sync.host_mint(42424242)
+	session.dungeon_seed_sync = sync
+	_install_session(session)
+	# Pre-existing controller from a different seed — simulates a peer
+	# joining co-op with a deserialized solo save.
+	var stale_dungeon := DungeonGenerator.generate(999999)
+	var stale_rc := DungeonRunController.new()
+	stale_rc.start(stale_dungeon)
+	stale_rc.seed = 999999
+	var gs := get_node("/root/GameState")
+	gs.dungeon_run_controller = stale_rc
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+
+	var active_rc: DungeonRunController = gs.dungeon_run_controller
+	assert_eq(active_rc.seed, 42424242,
+		"stale controller dropped; main_scene rebuilt from the agreed seed")
+	var expected := DungeonGenerator.generate(42424242)
+	assert_eq(active_rc.dungeon.rooms.size(), expected.rooms.size(),
+		"rebuilt dungeon room count matches the agreed-seed shape")
+	assert_eq(active_rc.dungeon.boss_id, expected.boss_id,
+		"rebuilt dungeon boss id matches the agreed-seed shape")
+
 # --- helpers (cont.) -------------------------------------------------------
 
 func _tiny_dungeon() -> Dungeon:

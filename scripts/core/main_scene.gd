@@ -77,7 +77,7 @@ func _ready() -> void:
 
 	var gs := get_node_or_null("/root/GameState")
 
-	if gs == null or gs.dungeon_run_controller == null:
+	if gs == null or gs.dungeon_run_controller == null or _coop_seed_mismatch(gs):
 		_start_new_dungeon(gs)
 	else:
 		_run_controller = gs.dungeon_run_controller
@@ -190,6 +190,24 @@ func _start_new_dungeon(gs) -> void:
 # falls through to -1 (DungeonGenerator's randomize-on-negative sentinel) so a
 # fresh dungeon rolls each run. Reads the seed sync via coop_session, which
 # holds the borrowed reference the lobby handed in at match-start.
+# A peer entering a co-op match while carrying a deserialized solo
+# dungeon_run_controller (apply_merged_save / _hydrate_active_character both
+# call DungeonRunSerializerRef.deserialize) would otherwise resume that
+# stale run and silently ignore the lobby's agreed seed — the host + other
+# peers generate from the agreed seed, this peer keeps the old dungeon,
+# and OP_POSITION lands remote kittens in voids. When the stale
+# controller's seed doesn't match the agreed seed, drop it so
+# _start_new_dungeon rebuilds from the seed every party member agreed on.
+# Solo / pre-handshake (no session or unagreed sync) leaves the resume
+# branch alone so the save/restore path keeps working.
+func _coop_seed_mismatch(gs) -> bool:
+	if gs == null or gs.dungeon_run_controller == null:
+		return false
+	var agreed := _dungeon_seed_for(gs)
+	if agreed < 0:
+		return false
+	return gs.dungeon_run_controller.seed != agreed
+
 func _dungeon_seed_for(gs) -> int:
 	if gs == null or gs.coop_session == null:
 		return -1
