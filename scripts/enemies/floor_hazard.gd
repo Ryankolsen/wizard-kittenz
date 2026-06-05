@@ -71,7 +71,9 @@ func tick(delta: float, target = null) -> void:
 		return
 	_damage_accum -= float(whole)
 	if target.has_method("take_damage"):
-		target.take_damage(whole)
+		# Player.take_damage takes (amount, source_position) — the hazard's own
+		# position is the damage source so knockback pushes away from the zone.
+		target.take_damage(whole, global_position)
 
 func is_expired() -> bool:
 	return elapsed >= duration

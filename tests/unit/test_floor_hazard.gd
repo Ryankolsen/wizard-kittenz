@@ -7,7 +7,11 @@ extends GutTest
 class _MockTarget:
 	var speed: float = 100.0
 	var hp: int = 10
-	func take_damage(amount: int) -> int:
+	var last_source := Vector2.INF
+	# Mirrors Player.take_damage(amount, source_position) so the hazard's
+	# 2-arg call resolves; source is captured for assertions.
+	func take_damage(amount: int, source_position: Vector2 = Vector2.INF) -> int:
+		last_source = source_position
 		var dealt := mini(amount, hp)
 		hp -= dealt
 		return dealt
