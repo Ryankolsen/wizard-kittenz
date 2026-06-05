@@ -49,6 +49,18 @@ static func apply_damage(session: CoopSession, attacker_stats, character: Charac
 		return 0
 	return CharacterMutator.new(target).apply_damage(attacker_stats, rng)
 
+# Aliveness check against the routed target. Solo path reads character.hp;
+# co-op path reads effective_stats.hp — the block damage actually lands on.
+# Pins the fix for the "HP bar empties but no death" bug: death checks in
+# Player._physics_process and HUD._check_player_dead must read the same
+# CharacterData block apply_damage mutates, otherwise real_stats stays full
+# and is_alive() never flips.
+static func is_local_alive(session: CoopSession, character: CharacterData, local_player_id: String) -> bool:
+	var target := target_for(session, character, local_player_id)
+	if target == null:
+		return false
+	return target.is_alive()
+
 # Revives the routed target at half max_hp. Returns true on success;
 # false (with no mutation) when character is null (pre-spawn / test
 # path; defensive). The router just decides which CharacterData block

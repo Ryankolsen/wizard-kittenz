@@ -234,7 +234,17 @@ func _local_effective_level() -> int:
 func _check_player_dead() -> void:
 	if _player == null or _player.data == null:
 		return
-	var dead := _player.data.hp <= 0
+	# Damage routes to effective_stats in co-op (CoopRouter.apply_damage),
+	# so the death check must read the same routed block — _player.data.hp
+	# (real_stats) stays full in co-op and would never trigger the panel.
+	# Solo path falls through to _player.data via target_for.
+	var gs := get_node_or_null("/root/GameState")
+	var session: CoopSession = null
+	var pid := ""
+	if gs != null:
+		session = gs.coop_session
+		pid = gs.local_player_id
+	var dead := not CoopRouter.is_local_alive(session, _player.data, pid)
 	# Edge-trigger: only re-render the death panel on the alive->dead
 	# transition. After a successful revive, hp goes back > 0 and the
 	# panel hides; if the kitten dies again, the polling re-fires this

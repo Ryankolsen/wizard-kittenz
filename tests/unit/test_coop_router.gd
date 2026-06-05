@@ -327,3 +327,29 @@ func test_revive_min_one_hp_floor_inherits_through_router():
 	var ok := CoopRouter.revive(null, c, "")
 	assert_true(ok)
 	assert_eq(c.hp, 1, "min-1 floor survives the router pass-through")
+
+# --- CoopRouter.is_local_alive ---------------------------------------------
+
+func test_is_local_alive_solo_reads_character_hp():
+	# Solo path: aliveness reads the character itself, mirroring target_for.
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
+	c.hp = 5
+	assert_true(CoopRouter.is_local_alive(null, c, ""))
+	c.hp = 0
+	assert_false(CoopRouter.is_local_alive(null, c, ""))
+
+func test_is_local_alive_coop_reads_effective_stats():
+	# Co-op: aliveness must read effective_stats — the block damage lands on.
+	# Pin the bug: real_stats.hp full but effective_stats.hp zeroed => DEAD.
+	var session := _make_active_session("u1")
+	var member := session.member_for("u1")
+	var c := member.real_stats
+	assert_true(CoopRouter.is_local_alive(session, c, "u1"))
+	member.effective_stats.hp = 0
+	assert_false(CoopRouter.is_local_alive(session, c, "u1"),
+		"effective_stats zeroed means dead even when real_stats.hp is full")
+
+func test_is_local_alive_null_character_is_false():
+	# Null-safe: no character => not alive. Lets call sites short-circuit
+	# without a separate null guard.
+	assert_false(CoopRouter.is_local_alive(null, null, ""))

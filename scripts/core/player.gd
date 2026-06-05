@@ -336,7 +336,11 @@ func _on_slot_fired(n: int) -> void:
 	_apply_spell_effect(spell)
 
 func _physics_process(delta: float) -> void:
-	if data != null and not data.is_alive():
+	# Co-op routes incoming damage to member.effective_stats (CoopRouter),
+	# so death must read the same routed block — checking data.is_alive()
+	# alone would miss the case where effective HP zeroes but real_stats
+	# stays full. Solo path falls through to data via target_for.
+	if data != null and not CoopRouter.is_local_alive(_coop_session(), data, _local_player_id()):
 		_check_died()
 		velocity = Vector2.ZERO
 		move_and_slide()
@@ -492,7 +496,7 @@ func _tick_spells(dt: float) -> void:
 		spell.tick(dt)
 
 func _tick_regeneration(dt: float) -> void:
-	if data == null or not data.is_alive():
+	if data == null or not CoopRouter.is_local_alive(_coop_session(), data, _local_player_id()):
 		_regen_accum = 0.0
 		_mp_regen_accum = 0.0
 		return
