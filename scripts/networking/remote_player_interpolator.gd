@@ -2,87 +2,89 @@ class_name RemotePlayerInterpolator
 extends RefCounted
 
 # Smooths a remote kitten's position between network snapshots so the
-# rendered movement doesn't teleport every time a packet lands. Two-slot
-# buffer (previous, current) — push_sample shifts current into previous
-# and stores the new state; get_display_position lerps between them given
-# t in [0,1].
+# rendered movement doesn't teleport every time a packet lands.
 #
-# This is the rendering-side companion to NetworkSyncManager: the manager
-# owns one interpolator per remote player_id and forwards apply_remote_state
-# calls into push_sample. The render loop calls get_display_position with
-# t = (now - prev_ts) / (curr_ts - prev_ts) clamped to [0,1].
+# Bug background (PRD #338): the previous implementation stamped each
+# sample with the *sender's* wire timestamp and lerped against the
+# receiver's render clock. The two clocks come from different processes
+# (Time.get_ticks_msec since each app's launch) with no shared origin,
+# so the lerp window was effectively undefined — `t` jittered all over
+# [0,1] across the render loop, producing the choppy / freezing remote
+# kitten the PRD describes.
 #
-# Before any sample lands, get_display_position returns Vector2.ZERO so the
-# remote kitten doesn't render at a stale origin. After exactly one sample
-# (no previous to lerp from), it returns current_position — the kitten
-# pops in at the first known location instead of crawling out of (0, 0).
-var previous_position: Vector2 = Vector2.ZERO
-var current_position: Vector2 = Vector2.ZERO
-var previous_timestamp: float = 0.0
-var current_timestamp: float = 0.0
-var _has_previous: bool = false
-var _has_current: bool = false
-
-func push_sample(position: Vector2, timestamp: float = 0.0) -> void:
-	if _has_current:
-		previous_position = current_position
-		previous_timestamp = current_timestamp
-		_has_previous = true
-	current_position = position
-	current_timestamp = timestamp
-	_has_current = true
-
-func get_display_position(t: float) -> Vector2:
-	if not _has_current:
-		return Vector2.ZERO
-	if not _has_previous:
-		return current_position
-	var clamped_t: float = clampf(t, 0.0, 1.0)
-	return previous_position.lerp(current_position, clamped_t)
-
-# Wall-clock variant of get_display_position. Computes
-#   t = (now - previous_timestamp) / (current_timestamp - previous_timestamp)
-# internally and forwards through get_display_position's clamp + lerp. The
-# wire layer / render loop calls this each frame rather than computing t
-# inline so the brittle math (div-by-zero when prev_ts == curr_ts, NaN/inf
-# on backwards time) stays in one place.
+# Fix: stamp every sample with the *receiver's* local clock at arrival
+# (caller-injected via push_sample's `arrival_time`), buffer a small
+# bounded ring of samples, and render at `target = now - INTERPOLATION_DELAY`
+# — a fixed render-behind offset. The interpolator finds the two
+# buffered samples whose arrival times bracket `target` and lerps
+# between them, giving a stable lerp window driven entirely by one
+# clock. INTERPOLATION_DELAY trades a tiny bit of visible latency for
+# smoothness when packets jitter inside the window.
 #
-# Edge cases (all defensive — match get_display_position's "trust freshest"
-# fall-through contract so the rendered kitten never lands on a stale or
-# out-of-bounds extrapolated position):
-#   - 0 samples: Vector2.ZERO (same as get_display_position)
-#   - 1 sample: current_position (same)
-#   - curr_ts == prev_ts (zero-duration window — two packets in same
-#     tick): returns current_position. The freshest sample is the
-#     correct answer; computing t here would divide by zero.
-#   - curr_ts < prev_ts (negative window, possible from out-of-order
-#     wire-layer timestamps that the manager didn't reorder): returns
-#     current_position. Same rule as zero-duration: trust freshest.
-#   - now < prev_ts (render loop hasn't reached the previous sample's
-#     time yet — clock skew between wire layer and render loop):
-#     t < 0, get_display_position clamps to previous_position.
-#   - now > curr_ts (render loop ahead of latest sample — the next
-#     packet hasn't arrived): t > 1, get_display_position clamps to
-#     current_position. The kitten freezes at the latest known
-#     position rather than extrapolating into space until the next
-#     packet lands.
+# Edge policy:
+#   - 0 samples: Vector2.ZERO (kitten stays off-screen pre-first-packet).
+#   - 1 sample: that sample's position (pop in at first known location).
+#   - target newer than newest arrival: clamp to newest (freeze in place
+#     while stalled; no extrapolation).
+#   - target older than oldest retained: clamp to oldest (just-bound
+#     defensive case; in steady state INTERPOLATION_DELAY keeps target
+#     comfortably inside the buffered window).
+#
+# The interpolator reads no clock of its own — both `arrival_time` and
+# `now` are caller-injected, preserving unit-testability without a real
+# scene tree or Time autoload mock.
+
+const BUFFER_CAPACITY: int = 4
+const INTERPOLATION_DELAY: float = 0.15
+
+# Oldest-first list of {position: Vector2, arrival_time: float} entries.
+# Cap at BUFFER_CAPACITY; oldest is evicted on overflow. Because callers
+# stamp arrival_time with their own monotonic clock, the buffer is
+# monotonic by construction — no reordering logic required.
+var _samples: Array = []
+
+func push_sample(position: Vector2, arrival_time: float = 0.0) -> void:
+	_samples.append({"position": position, "arrival_time": arrival_time})
+	if _samples.size() > BUFFER_CAPACITY:
+		_samples.pop_front()
+
 func get_display_position_at(now: float) -> Vector2:
-	if not _has_current:
+	var n: int = _samples.size()
+	if n == 0:
 		return Vector2.ZERO
-	if not _has_previous:
-		return current_position
-	var window: float = current_timestamp - previous_timestamp
-	if window <= 0.0:
-		return current_position
-	var t: float = (now - previous_timestamp) / window
-	return get_display_position(t)
+	if n == 1:
+		return _samples[0]["position"]
+	var target: float = now - INTERPOLATION_DELAY
+	var newest: Dictionary = _samples[n - 1]
+	if target >= newest["arrival_time"]:
+		return newest["position"]
+	var oldest: Dictionary = _samples[0]
+	if target <= oldest["arrival_time"]:
+		return oldest["position"]
+	for i in range(n - 1):
+		var a: Dictionary = _samples[i]
+		var b: Dictionary = _samples[i + 1]
+		var a_t: float = a["arrival_time"]
+		var b_t: float = b["arrival_time"]
+		if a_t <= target and target <= b_t:
+			var window: float = b_t - a_t
+			if window <= 0.0:
+				return b["position"]
+			var t: float = (target - a_t) / window
+			return (a["position"] as Vector2).lerp(b["position"], t)
+	return newest["position"]
 
 func has_sample() -> bool:
-	return _has_current
+	return _samples.size() > 0
 
 func sample_count() -> int:
-	if _has_previous:
-		return 2
-	if _has_current:
-		return 1
-	return 0
+	return _samples.size()
+
+# Test-only accessor for the newest sample's position. Production code
+# always goes through get_display_position_at; this exists so tests can
+# assert "the latest pushed sample is what we expect" without leaking
+# the internal _samples array shape.
+func newest_position() -> Vector2:
+	if _samples.is_empty():
+		return Vector2.ZERO
+	return _samples[_samples.size() - 1]["position"]

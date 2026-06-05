@@ -404,14 +404,23 @@ func _on_host_paused() -> void:
 func _on_host_unpaused() -> void:
 	get_tree().paused = false
 
-func _on_position_received(player_id: String, position: Vector2, timestamp: float, _facing_x: int) -> void:
+func _on_position_received(player_id: String, position: Vector2, _timestamp: float, _facing_x: int) -> void:
 	# Facing is fanned to RemoteKitten by CoopPlayerLayer (which subscribes
 	# to the same signal); GameState's job is to keep the network sync
 	# manager driving the interpolated position. Splitting the two routes
 	# avoids needing a CoopPlayerLayer reference on the autoload.
+	#
+	# PRD #338 fix: stamp the sample with the *receiver's* local clock at
+	# arrival, not the sender's wire `_timestamp`. Sender/receiver clocks
+	# come from different processes with no shared origin, so feeding the
+	# wire ts into the interpolator produced an undefined lerp window
+	# (root cause of the choppy remote-kitten rendering). The wire field
+	# remains present on the packet for forward compatibility but is no
+	# longer consumed for receive-side timing.
 	if coop_session == null or coop_session.network_sync == null:
 		return
-	coop_session.network_sync.apply_remote_state(player_id, position, timestamp)
+	var arrival_time: float = Time.get_ticks_msec() / 1000.0
+	coop_session.network_sync.apply_remote_state(player_id, position, arrival_time)
 
 # Inbound kill bridge — wire packet → RemoteKillApplier (data side) +
 # RemoteEnemyDespawner (scene side). apply_death's idempotent gate rejects
