@@ -330,6 +330,45 @@ func test_attack_also_respects_leash():
 	assert_ne(s, _State.IDLE,
 		"in leash band, an attacking enemy stays engaged (CHASE/ATTACK, not IDLE)")
 
+# --- Nearest-combatant aggro selection (co-op movement-sync fix) ---
+# In co-op, enemies are simulated on every client but only ever chased the
+# local Player, so a party member's screen showed the enemy standing still while
+# another player fought it. _find_player now selects the nearest node from the
+# "taunt_targets" group (local Player + remote kittens), so every client chases
+# the player who actually triggered the enemy.
+
+func _node_at(p: Vector2) -> Node2D:
+	var n := Node2D.new()
+	n.position = p
+	add_child_autofree(n)
+	return n
+
+func test_select_nearest_combatant_picks_closest_regardless_of_order():
+	var e := _make_enemy()
+	e.global_position = Vector2.ZERO
+	var far := _node_at(Vector2(500, 0))
+	var near := _node_at(Vector2(30, 0))
+	assert_eq(e._select_nearest_combatant([far, near]), near,
+		"nearest avatar wins regardless of array order")
+	e.free()
+
+func test_select_nearest_combatant_null_when_empty():
+	var e := _make_enemy()
+	assert_null(e._select_nearest_combatant([]),
+		"no avatars -> null so _find_player falls through to the cached target")
+	e.free()
+
+func test_select_nearest_combatant_includes_remote_avatars():
+	# The crux of the fix: a remote co-op kitten is just a Node2D in the avatar
+	# set with no local CharacterData. It must still be a valid aggro target so
+	# the enemy chases the triggering player on a party member's client.
+	var e := _make_enemy()
+	e.global_position = Vector2.ZERO
+	var remote := _node_at(Vector2(40, 0))
+	assert_eq(e._select_nearest_combatant([remote]), remote,
+		"a remote avatar with no Player/CharacterData is still chaseable")
+	e.free()
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.

@@ -558,14 +558,23 @@ func _find_player() -> Node2D:
 	if taunted != null:
 		_player_ref = taunted
 		return taunted
+	# Aggro on the nearest player avatar. The "taunt_targets" group is the one
+	# place both the local Player (player.gd) and every remote co-op kitten
+	# (remote_kitten.gd) register, so it doubles as the full set of player
+	# avatars an enemy can chase. Selecting from it — rather than the local-only
+	# "player" group — is what lets a party member's client see the enemy move
+	# toward the player who actually triggered it. Contact damage stays local-
+	# authoritative: _try_contact_damage no-ops on a non-Player target, so a
+	# RemoteKitten gets chased but only its owning client resolves the hit.
+	var nearest := _select_nearest_combatant(
+		get_tree().get_nodes_in_group("taunt_targets"))
+	if nearest != null:
+		_player_ref = nearest
+		return nearest
+	# Group momentarily empty (everyone mid-despawn) — reuse the last known
+	# target so an in-flight chase doesn't snap to a halt for a frame.
 	if _player_ref != null and is_instance_valid(_player_ref):
 		return _player_ref
-	if nodes.is_empty():
-		return null
-	var p := nodes[0]
-	if p is Player:
-		_player_ref = p
-		return p
 	return null
 
 # Picks the Player node whose CharacterData matches the active taunt target,
@@ -591,3 +600,19 @@ func _select_taunt_target_by_id(candidates: Array) -> Node2D:
 		if n is Node2D and "player_id" in n and n.player_id == data.taunt_source_id:
 			return n
 	return null
+
+# Picks the nearest live node from a candidate set by distance to this enemy,
+# or null when the set is empty. Pulled out (like _select_taunt_target) so unit
+# tests can drive selection without a populated SceneTree. Candidates come from
+# the "taunt_targets" group — the union of the local Player and every remote
+# co-op kitten, i.e. every player avatar an enemy may target.
+func _select_nearest_combatant(candidates: Array) -> Node2D:
+	var best: Node2D = null
+	var best_dist := INF
+	for n in candidates:
+		if n is Node2D and is_instance_valid(n):
+			var d := global_position.distance_to((n as Node2D).global_position)
+			if d < best_dist:
+				best_dist = d
+				best = n
+	return best
