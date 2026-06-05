@@ -360,6 +360,20 @@ func confirm_quit_dungeon() -> void:
 	get_tree().paused = false
 	var gs := get_node_or_null("/root/GameState")
 	if gs != null:
+		# Co-op (#337): leaving the dungeon must also leave the Nakama match
+		# so the remaining players receive a presence-leave and despawn our
+		# kitten. Mirrors the lobby screen's leave (lobby.gd _on_leave_pressed);
+		# without this the leaver's RemoteKitten lingers on every peer's screen.
+		# Fire-and-forget — the scene change below doesn't wait on the socket.
+		if gs.lobby != null:
+			gs.lobby.leave_async()
+			gs.set_lobby(null)
+		# Tear down the co-op session so a subsequent solo run doesn't think
+		# it's still multiplayer (is_multiplayer reads coop_session). end() is
+		# idempotent, so a pre-handshake / already-ended session is safe.
+		if gs.coop_session != null:
+			gs.coop_session.end()
+			gs.coop_session = null
 		gs.current_character = null
 		gs.skill_tree = null
 		gs.dungeon_run_controller = null

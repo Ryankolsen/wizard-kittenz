@@ -209,3 +209,34 @@ func test_confirm_quit_clears_game_state_character():
 		"GameState.skill_tree must be null after confirm_quit_dungeon")
 	assert_null(gs.dungeon_run_controller,
 		"GameState.dungeon_run_controller must be null after confirm_quit_dungeon")
+
+# Regression (#337): quitting the dungeon in co-op must leave the Nakama
+# match so the remaining players receive a presence-leave and despawn the
+# departed kitten. Without the leave_async call, the leaver's RemoteKitten
+# lingers on every peer's screen. Mirrors the lobby screen's leave path
+# (lobby.gd _on_leave_pressed). The lobby reference is also dropped so the
+# leaver doesn't carry a stale lobby into character_creation.
+class _SpyLobby extends NakamaLobby:
+	var leave_called := false
+	func leave_async() -> void:
+		leave_called = true
+
+func test_multiplayer_quit_leaves_nakama_match():
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		pending("GameState autoload not present — skipping")
+		return
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	gs.coop_session = CoopSession.new()
+	var spy := _SpyLobby.new()
+	gs.set_lobby(spy)
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	# change_scene_to_file is deferred, so the synchronous leave + clear runs
+	# before the test runner's scene is torn down — same pattern as the
+	# clears-game-state test above.
+	scene.confirm_quit_dungeon()
+	assert_true(spy.leave_called,
+		"co-op quit must call lobby.leave_async() so peers despawn the kitten")
+	assert_null(gs.lobby,
+		"co-op quit must clear GameState.lobby so the leaver drops the stale match")
