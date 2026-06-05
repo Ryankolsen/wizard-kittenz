@@ -74,6 +74,52 @@ func test_apply_state_op_player_info_missing_character_class_defaults_wizard_kit
 		"missing character_class falls back to the wizard default")
 
 
+func test_apply_state_op_player_info_creates_player_when_presence_not_applied_yet():
+	# Regression (#337 follow-up): a joiner's PLAYER_INFO can reach an
+	# existing peer BEFORE the match-presence join event has added that
+	# joiner to the roster (Nakama doesn't order presence vs match-state
+	# delivery). The old handler did find_player(sender_id) → null → drop,
+	# so once apply_joins later added the joiner at the WIZARD_KITTEN
+	# default, the class was never corrected and the teammate rendered with
+	# the wrong (default) sprite. The handler must instead create the roster
+	# entry from the payload so the carried class survives out-of-order
+	# delivery. apply_joins skips duplicates, so the later presence event
+	# won't clobber it.
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "me"
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("me", "Me", "Wizard Kitten"))
+	# alice is NOT in the roster yet — her presence-join hasn't arrived.
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "alice", {
+		"kitten_name": "Battlecat",
+		"class_name": "Battle Kitten",
+		"character_class": CharacterData.CharacterClass.BATTLE_KITTEN,
+		"equipped_weapon_id": "iron_sword",
+	})
+	var p := lobby.lobby_state.find_player("alice")
+	assert_not_null(p, "PLAYER_INFO must create the roster entry when the "
+		+ "presence-join hasn't been applied yet")
+	assert_eq(p.character_class_int, CharacterData.CharacterClass.BATTLE_KITTEN,
+		"the carried class must survive out-of-order delivery")
+	assert_eq(p.kitten_name, "Battlecat")
+	assert_eq(p.equipped_weapon_id, "iron_sword")
+
+
+func test_apply_state_op_player_info_does_not_fabricate_self_entry():
+	# Defensive: a self-echo (sender_id == local_player_id) that arrives
+	# while we somehow have no roster entry must NOT fabricate a ghost local
+	# player (which would carry is_host=false and duplicate the seeded self).
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "me"
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "me", {
+		"kitten_name": "Me",
+		"character_class": CharacterData.CharacterClass.CHONK_KITTEN,
+	})
+	assert_null(lobby.lobby_state.find_player("me"),
+		"self PLAYER_INFO must not fabricate a local roster entry")
+
+
 func test_lobby_player_round_trip_preserves_character_class():
 	# Defensive: from_dict(to_dict(x)).character_class_int == x.character_class_int
 	# so a persisted lobby roster reload doesn't lose class selection.

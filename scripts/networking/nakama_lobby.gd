@@ -662,6 +662,23 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	match op_code:
 		OP_PLAYER_INFO:
 			var p := lobby_state.find_player(sender_id)
+			if p == null:
+				# A joiner's PLAYER_INFO can arrive before their match-
+				# presence join event has been applied (apply_joins) -
+				# Nakama doesn't order presence vs match-state delivery.
+				# Dropping it here left the joiner stuck at the default
+				# WIZARD_KITTEN class once apply_joins later added them,
+				# so the teammate rendered with the wrong sprite (#337
+				# follow-up). Create the entry from the payload instead;
+				# apply_joins skips duplicates, so the later presence
+				# event won't clobber it. Guard self/empty so a stray
+				# echo can't fabricate a ghost local entry before
+				# _seed_local_player has run.
+				if sender_id != "" and sender_id != local_player_id:
+					p = LobbyPlayer.make(sender_id,
+						String(data.get("kitten_name", "")),
+						String(data.get("class_name", "")))
+					lobby_state.add_player(p)
 			if p != null:
 				p.kitten_name = String(data.get("kitten_name", p.kitten_name))
 				p.class_name_str = String(data.get("class_name", p.class_name_str))
