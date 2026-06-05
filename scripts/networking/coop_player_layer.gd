@@ -227,6 +227,12 @@ func _on_player_hit_received(target_id: String, damage: int, source_position: Ve
 	if kitten == null:
 		return
 	kitten.apply_hit_reaction(damage, source_position)
+	# PRD #341 (issue #344): fan the post-mitigation damage value to the
+	# teammate's avatar as a red floating number, mirroring the local
+	# player's own hit numbers. Non-positive damage is dropped wire-side
+	# in NakamaLobby._route_player_hit; spawn_damage_number gates again
+	# defensively.
+	kitten.spawn_damage_number(damage)
 
 # Slice 8 of PRD #328 (issue #336). Receiver path: fan inbound PLAYER_DIED
 # to the matching RemoteKitten's apply_death so the dead teammate's sprite

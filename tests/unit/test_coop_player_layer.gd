@@ -506,6 +506,34 @@ func test_player_hit_received_ignores_unknown_player_id():
 	assert_true(true)
 
 
+func test_player_hit_received_spawns_damage_number_on_matching_kitten():
+	# Slice of PRD #341 (issue #344). In addition to the existing flash/
+	# knockback reaction, _on_player_hit_received calls the matching
+	# kitten's spawn_damage_number so a red number pops over the
+	# teammate's avatar — parity with the local player's own hit numbers.
+	var gs := get_node("/root/GameState")
+	var lobby := _make_lobby_with_players("me", ["me", "alice"])
+	gs.set_lobby(lobby)
+	gs.coop_session = _make_session_with_party(["alice"])
+	var layer := CoopPlayerLayer.new()
+	add_child_autofree(layer)
+	var alice: RemoteKitten = layer.remote_kitten_for("alice")
+	var parent := alice.get_parent()
+	lobby.player_hit_received.emit("alice", 7, Vector2.ZERO)
+	var found := false
+	for child in parent.get_children():
+		if child is FloatingText:
+			var label := (child as FloatingText).get_node_or_null("Label") as Label
+			if label != null and label.text == "7":
+				found = true
+				assert_eq(label.modulate,
+					DamageKind.color_for(DamageKind.Kind.PHYSICAL),
+					"teammate damage number renders in PHYSICAL red")
+				break
+	assert_true(found,
+		"player_hit_received must spawn a red damage number over the kitten")
+
+
 # ---- Slice 8 of PRD #328 (issue #336): player_died_received fan-out. ----
 
 func test_player_died_received_drives_matching_kitten_apply_death():

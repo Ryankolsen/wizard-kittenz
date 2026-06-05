@@ -227,6 +227,20 @@ func apply_revive() -> void:
 		_sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 
+# Slice of PRD #341 (issue #344). Spawn a red floating damage number over
+# this teammate's avatar when the existing OP_PLAYER_HIT packet arrives,
+# mirroring the number the local player already shows on their own hit.
+# Color pulls from DamageKind.color_for so the kind→color mapping stays
+# single-source with the local melee path and the remote enemy damage
+# visualizer. Non-positive damage is a silent no-op — matches the existing
+# no-spurious-zero rule (the wire-side send guard already drops Miss/0).
+func spawn_damage_number(damage: int) -> void:
+	if damage <= 0:
+		return
+	FloatingText.spawn_at(self, str(damage),
+		DamageKind.color_for(DamageKind.Kind.PHYSICAL))
+
+
 func apply_hit_reaction(damage: int, source_position: Vector2) -> void:
 	if damage <= 0 or _sprite == null:
 		return
