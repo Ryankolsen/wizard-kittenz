@@ -65,3 +65,47 @@ func test_spawn_damage_number_zero_or_negative_spawns_nothing():
 	for child in parent.get_children():
 		assert_false(child is FloatingText,
 			"no FloatingText spawned for non-positive damage")
+
+
+# ---- Slice of PRD #341 (issue #345): heal numbers over teammate avatars. ----
+# Symmetric to spawn_damage_number — the local self-heal path already pops a
+# green FloatingText via RemoteHealApplier on the matching local Player; this
+# method paints the same green number over a teammate's RemoteKitten avatar
+# so every party member sees the heal land on the healed teammate's sprite.
+
+const HEAL_GREEN := Color(0.2, 1.0, 0.4)
+
+
+func test_spawn_heal_number_spawns_floating_text_with_amount():
+	var k := _make_kitten_in_tree()
+	k.spawn_heal_number(5)
+	var ft := _find_floating_text_with_text(k.get_parent(), "5")
+	assert_not_null(ft, "FloatingText spawned on the kitten's scene parent")
+	assert_eq(ft.get_node("Label").text, "5",
+		"label text reflects the heal amount")
+
+
+func test_spawn_heal_number_uses_green():
+	# Matches the existing local-player self-heal color from
+	# RemoteHealApplier so the local and remote views of a heal render
+	# identically.
+	var k := _make_kitten_in_tree()
+	k.spawn_heal_number(3)
+	var ft := _find_floating_text_with_text(k.get_parent(), "3")
+	assert_not_null(ft)
+	assert_eq(ft.get_node("Label").modulate, HEAL_GREEN,
+		"teammate heal number uses the shared green")
+
+
+func test_spawn_heal_number_zero_or_negative_spawns_nothing():
+	# No spurious zeros — mirrors the damage-number guard.
+	var parent := Node2D.new()
+	add_child_autofree(parent)
+	var k := RemoteKitten.new()
+	k.player_id = "alice"
+	parent.add_child(k)
+	k.spawn_heal_number(0)
+	k.spawn_heal_number(-2)
+	for child in parent.get_children():
+		assert_false(child is FloatingText,
+			"no FloatingText spawned for non-positive heal")

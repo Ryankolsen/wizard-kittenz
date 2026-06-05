@@ -157,6 +157,7 @@ func _bind_lobby(new_lobby: NakamaLobby) -> void:
 	new_lobby.attack_received.connect(_on_attack_received)
 	new_lobby.player_hit_received.connect(_on_player_hit_received)
 	new_lobby.player_died_received.connect(_on_player_died_received)
+	new_lobby.heal_received.connect(_on_heal_received)
 	_connected_lobby = new_lobby
 
 func _unbind_lobby() -> void:
@@ -172,6 +173,8 @@ func _unbind_lobby() -> void:
 		_connected_lobby.player_hit_received.disconnect(_on_player_hit_received)
 	if _connected_lobby.player_died_received.is_connected(_on_player_died_received):
 		_connected_lobby.player_died_received.disconnect(_on_player_died_received)
+	if _connected_lobby.heal_received.is_connected(_on_heal_received):
+		_connected_lobby.heal_received.disconnect(_on_heal_received)
 	_connected_lobby = null
 
 func _on_lobby_updated(_state: LobbyState) -> void:
@@ -244,6 +247,29 @@ func _on_player_died_received(target_id: String) -> void:
 	if kitten == null:
 		return
 	kitten.apply_death()
+
+# Slice of PRD #341 (issue #345). Receiver path: fan inbound OP_HEAL to
+# the matching RemoteKitten(s) as a green floating heal number — parity
+# with the local self-heal number that RemoteHealApplier already paints
+# on the local Player. Only the SMART_HEAL / AOE_HEAL effect_kinds spawn
+# a number (the buff variants — GROUP_REGEN / PARTY_BUFF_* — apply HP
+# over time without an instant pop, matching the local-side rule that
+# only the instant-heal effect_kinds spawn FloatingText). target_id ==
+# "" is the AOE / party-wide sentinel: paint a number on every spawned
+# remote kitten. Unknown target_id / non-positive amount drops silently.
+func _on_heal_received(_caster_id: String, target_id: String, effect_kind: String, amount: int, _duration: float) -> void:
+	if amount <= 0:
+		return
+	if effect_kind != "SMART_HEAL" and effect_kind != "AOE_HEAL":
+		return
+	if target_id == "":
+		for kitten in _kittens.values():
+			kitten.spawn_heal_number(amount)
+		return
+	var kitten: RemoteKitten = _kittens.get(target_id)
+	if kitten == null:
+		return
+	kitten.spawn_heal_number(amount)
 
 
 func _bind_session(new_session: CoopSession) -> void:

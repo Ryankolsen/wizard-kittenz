@@ -241,6 +241,19 @@ func spawn_damage_number(damage: int) -> void:
 		DamageKind.color_for(DamageKind.Kind.PHYSICAL))
 
 
+# Slice of PRD #341 (issue #345). Symmetric green heal-number variant of
+# spawn_damage_number — paints the healed amount over a teammate's avatar
+# when a remote heal packet lands. Color matches the local-player self-heal
+# FloatingText in RemoteHealApplier so local and remote views render the
+# same green. Non-positive amounts drop silently (no spurious zeros).
+const HEAL_COLOR := Color(0.2, 1.0, 0.4)
+
+func spawn_heal_number(amount: int) -> void:
+	if amount <= 0:
+		return
+	FloatingText.spawn_at(self, str(amount), HEAL_COLOR)
+
+
 func apply_hit_reaction(damage: int, source_position: Vector2) -> void:
 	if damage <= 0 or _sprite == null:
 		return

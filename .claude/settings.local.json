@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make test *)",
+      "Bash(mktemp *)",
+      "Skill(write-a-prd)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=res://tests/unit/test_dungeon_tilemap_painter.gd)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --quit)",
+      "Bash(python3 -c \"from PIL import Image; print\\('sword', Image.open\\('assets/sprites/weapon_sword_sprite.png'\\).size\\); print\\('wand', Image.open\\('assets/sprites/weapon_wand_sprite.png'\\).size\\)\")",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=gut_config.json)",
+      "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=res://tests/unit/test_chest_spawner.gd)",
+      "Bash(brew list *)",
+      "Bash(\"/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot\" --headless --path . -s addons/gut/gut_cmdln.gd -gexit)",
+      "Bash(\"/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot\" --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gprefix=test_ -gsuffix=.gd -gexit)"
+    ]
+  }
+}
