@@ -104,20 +104,20 @@ const OP_PLAYER_HIT: int = 15
 # arrives (transparent revive — the freeze is purely visual and doesn't
 # gate inbound packets).
 const OP_PLAYER_DIED: int = 16
-# Any-client "advance the party to the next dungeon now" request. Empty
-# payload — only the host acts on it; non-host receivers ignore it. Sent
-# when a player presses "Next Floor" on the CongratulationsScreen. The
-# host responds by broadcasting OP_ADVANCE_FLOOR. Distinct from
-# OP_REQUEST_TRANSITION (which asks the host to MINT a new seed at the
-# exit-door walk-through): by the time the congrats screen is up the seed
-# is already agreed across the party, so the advance request carries no
-# seed and only triggers the synchronized scene reload.
-const OP_REQUEST_ADVANCE: int = 17
-# Host-only "everyone reload into the next dungeon now" broadcast. Empty
-# payload — sender presence checked against the host. All clients
-# (including the host's self-echo) finalize the cleared floor and reload
-# from the already-agreed seed. This is what keeps the whole party moving
-# to the new dungeon together instead of the leader advancing alone.
+# Reserved (was OP_REQUEST_ADVANCE pre-#349). Removed when the floor advance
+# became leader-only and seed-carrying — peers no longer round-trip an
+# advance request to the host. The constant slot is intentionally skipped
+# (not reused) so a mid-version peer sending the old opcode silently drops
+# at the receiver instead of routing to a new handler.
+# Host-only "everyone reload into the next dungeon now" broadcast. Payload:
+# {"seed": <int>} — the authoritative seed for the next floor, minted fresh
+# by the leader's press and applied via DungeonSeedSync.apply_remote_seed on
+# every receiver (including the host self-echo). Sender presence checked
+# against the host. Missing or negative seed is dropped (defensive against
+# payload corruption / a pre-#349 sender). All clients finalize the cleared
+# floor and reload from the broadcast seed — this is what keeps the whole
+# party crawling the same next dungeon instead of each client randomizing
+# its own layout.
 const OP_ADVANCE_FLOOR: int = 18
 
 # Discriminator values for the OP_ATTACK `kind` field (PRD #328 slice 5,
@@ -173,15 +173,13 @@ signal transition_requested_received()
 # drives the local transition() chain so every client reloads into the
 # same next dungeon. Issue #99 AC2.
 signal dungeon_transition_received(seed: int)
-# Any-peer's OP_REQUEST_ADVANCE packet received. Only meaningful on the
-# host; non-host receivers ignore it. Bridged to main_scene which responds
-# by broadcasting OP_ADVANCE_FLOOR so the whole party reloads together.
-signal advance_requested_received()
-# Host's OP_ADVANCE_FLOOR packet rose-edged. Bridged to main_scene which
-# finalizes the cleared floor and reloads into the next dungeon on every
-# client (including the host's self-echo), so the party advances together
-# instead of the leader spawning into the new dungeon alone.
-signal floor_advance_received()
+# Host's OP_ADVANCE_FLOOR packet rose-edged with its carried next-floor
+# seed (#349). Bridged to main_scene which applies the seed via
+# DungeonSeedSync.apply_remote_seed, then finalizes the cleared floor and
+# reloads into the next dungeon on every client (including the host's
+# self-echo), so the party advances into the SAME next dungeon instead of
+# each client randomizing.
+signal floor_advance_received(seed: int)
 # In-match TAUNT event from a remote player. GameState routes this into
 # RemoteTauntApplier.apply when a session is active. Decoupled via signal
 # for the same reason as kill_received — keeps NakamaLobby testable
@@ -559,28 +557,21 @@ func send_dungeon_transition_async(seed: int) -> void:
 		return
 	await _socket.send_match_state_async(_match_id, OP_DUNGEON_TRANSITION_START, JSON.stringify({"seed": seed}))
 
-# Any-client: asks the host to advance the whole party to the next dungeon.
-# Used by peers who press "Next Floor" on the CongratulationsScreen — the
-# host is the authority over WHEN the party reloads, so peers round-trip
-# through the wire. The host responds by broadcasting OP_ADVANCE_FLOOR.
-# Mirror of send_request_transition_async, but seedless (the next-dungeon
-# seed was already agreed at the exit-door walk-through).
-func send_request_advance_async() -> void:
-	if _socket == null or _match_id == "":
-		return
-	await _socket.send_match_state_async(_match_id, OP_REQUEST_ADVANCE, "{}")
-
 # Host-only: tells every client to finalize the cleared floor and reload
-# into the next dungeon now. The local self-emit of floor_advance_received
-# drives the host's own reload, matching the send_dungeon_transition_async
-# / send_host_pause_async pattern.
-func send_floor_advance_async() -> void:
+# into the next dungeon now, carrying the authoritative next-floor seed.
+# The local self-emit of floor_advance_received(seed) drives the host's
+# own apply+reload, matching the send_dungeon_transition_async /
+# send_host_pause_async pattern. Negative seeds are dropped (defense in
+# depth — would bypass DungeonGenerator's deterministic path).
+func send_floor_advance_async(seed: int) -> void:
 	if not is_local_host():
 		return
-	floor_advance_received.emit()
+	if seed < 0:
+		return
+	floor_advance_received.emit(seed)
 	if _socket == null or _match_id == "":
 		return
-	await _socket.send_match_state_async(_match_id, OP_ADVANCE_FLOOR, "{}")
+	await _socket.send_match_state_async(_match_id, OP_ADVANCE_FLOOR, JSON.stringify({"seed": seed}))
 
 func request_start_async() -> bool:
 	if lobby_state == null or not lobby_state.can_start():
@@ -708,11 +699,8 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 	if op_code == OP_DUNGEON_TRANSITION_START:
 		_route_dungeon_transition(sender_id, data)
 		return
-	if op_code == OP_REQUEST_ADVANCE:
-		_route_request_advance(sender_id)
-		return
 	if op_code == OP_ADVANCE_FLOOR:
-		_route_advance_floor(sender_id)
+		_route_advance_floor(sender_id, data)
 		return
 	if lobby_state == null:
 		return
@@ -1022,29 +1010,25 @@ func _route_dungeon_transition(sender_id: String, data: Dictionary) -> void:
 		return
 	dungeon_transition_received.emit(seed)
 
-# Routes an OP_REQUEST_ADVANCE packet. Only the host acts on it; non-host
-# receivers drop it silently (the host is the authority over party
-# advancement). Empty sender_id is dropped (defensive). Idempotency lives
-# downstream in main_scene's _advance_finalized guard so multiple peers
-# pressing "Next Floor" together collapse to one synchronized reload.
-func _route_request_advance(sender_id: String) -> void:
-	if sender_id == "":
-		return
-	if not is_local_host():
-		return
-	advance_requested_received.emit()
-
-# Routes an OP_ADVANCE_FLOOR packet. Sender must be the host. All clients
-# (including the host self-echo) forward it via floor_advance_received; the
-# finalize+reload downstream is guarded so duplicate broadcasts are
-# harmless.
-func _route_advance_floor(sender_id: String) -> void:
+# Routes an OP_ADVANCE_FLOOR packet. Sender must be the host. Payload must
+# carry a non-negative "seed" field (#349); missing/negative drops the
+# packet (mirrors _route_dungeon_transition's defense — emitting -1
+# downstream would desync via DungeonGenerator's randomize-on-negative
+# branch). All clients (including the host self-echo) forward the seed via
+# floor_advance_received(seed); the finalize+reload downstream is guarded
+# by main_scene's _advance_finalized so duplicate broadcasts are harmless.
+func _route_advance_floor(sender_id: String, data: Dictionary) -> void:
 	if sender_id == "" or lobby_state == null:
 		return
 	var h := lobby_state.host()
 	if h == null or h.player_id != sender_id:
 		return
-	floor_advance_received.emit()
+	if not data.has("seed"):
+		return
+	var seed: int = int(data.get("seed", -1))
+	if seed < 0:
+		return
+	floor_advance_received.emit(seed)
 
 # --- Socket signal handlers ---------------------------------------------------
 

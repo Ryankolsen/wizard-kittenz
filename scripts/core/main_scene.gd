@@ -135,8 +135,6 @@ func _connect_lobby_signals() -> void:
 		lobby.transition_requested_received.connect(_on_transition_requested_received)
 	if not lobby.dungeon_transition_received.is_connected(_on_dungeon_transition_received):
 		lobby.dungeon_transition_received.connect(_on_dungeon_transition_received)
-	if not lobby.advance_requested_received.is_connected(_on_advance_requested_received):
-		lobby.advance_requested_received.connect(_on_advance_requested_received)
 	if not lobby.floor_advance_received.is_connected(_on_floor_advance_received):
 		lobby.floor_advance_received.connect(_on_floor_advance_received)
 
@@ -805,41 +803,49 @@ func _on_congrats_next_floor_pressed() -> void:
 	_request_floor_advance()
 
 # Drives the floor advance after a congratulations-screen button press.
-# Solo / no co-op: reload immediately. Co-op: the scene reload must happen
-# on every client at once — otherwise the presser advances into the next
-# dungeon alone while the rest of the party is stranded on the
-# CongratulationsScreen (the bug this fixes). The host broadcasts
-# OP_ADVANCE_FLOOR (its self-echo drives the host's own reload); a peer
-# round-trips OP_REQUEST_ADVANCE to the host, which fans a single
-# OP_ADVANCE_FLOOR back to the whole party. The next-dungeon seed was
-# already minted + broadcast at the exit-door walk-through, so the advance
-# carries no seed — every client reloads from the seed it already agreed on.
-# Not guarded against re-press on purpose: a lost request packet can be
-# retried by pressing again; the actual finalize is guarded downstream in
-# _finalize_and_reload.
+# Solo / no co-op: reload immediately. Co-op (#349): the leader mints a
+# fresh next-floor seed and broadcasts OP_ADVANCE_FLOOR{seed}; its
+# self-echo drives the host's own apply+reload, and every peer applies the
+# same seed before reload so the whole party crawls the same next dungeon.
+# Non-leader peers no-op here (slice 3 / #350 hides the button on peers);
+# the previous OP_REQUEST_ADVANCE round-trip is gone so a peer's stray
+# press can't yank the party. Re-press by the leader is harmless: the
+# wire-side host_mint is idempotent (returns the already-minted seed),
+# and the actual finalize is guarded downstream in _finalize_and_reload.
 func _request_floor_advance() -> void:
 	var gs := get_node_or_null("/root/GameState")
 	var lobby: NakamaLobby = gs.lobby if gs != null else null
 	if lobby == null or lobby.lobby_state == null:
 		_finalize_and_reload()
 		return
-	if lobby.is_local_host():
-		lobby.send_floor_advance_async()
-	else:
-		lobby.send_request_advance_async()
+	if not lobby.is_local_host():
+		return
+	var seed_sync: DungeonSeedSync = _seed_sync_for(gs)
+	if seed_sync == null:
+		_finalize_and_reload()
+		return
+	# Reset the previous floor's agreed seed so host_mint draws a fresh
+	# one — same shape as _host_mint_match_seed inside NakamaLobby.
+	if seed_sync.is_agreed():
+		seed_sync.reset()
+	var seed: int = seed_sync.host_mint()
+	if seed < 0:
+		return
+	lobby.send_floor_advance_async(seed)
 
-# Host-side response to a peer's OP_REQUEST_ADVANCE: broadcast the
-# synchronized floor advance to the whole party. Only the host receives
-# this (NakamaLobby._route_request_advance gates on the host receiver).
-func _on_advance_requested_received() -> void:
+# Inbound OP_ADVANCE_FLOOR (or the host's self-echo): apply the broadcast
+# next-floor seed, then finalize the cleared floor and reload into the
+# next dungeon. Runs on every client so the party moves together into the
+# SAME dungeon. The host's self-echo is harmless: seed_sync already holds
+# the minted seed so the apply_remote_seed is a no-op.
+func _on_floor_advance_received(seed: int) -> void:
 	var gs := get_node_or_null("/root/GameState")
-	if gs != null and gs.lobby != null:
-		gs.lobby.send_floor_advance_async()
-
-# Inbound OP_ADVANCE_FLOOR (or the host's self-echo): finalize the cleared
-# floor and reload into the next dungeon. Runs on every client so the party
-# moves together.
-func _on_floor_advance_received() -> void:
+	var seed_sync: DungeonSeedSync = _seed_sync_for(gs)
+	if seed_sync != null:
+		if seed_sync.is_agreed() and seed_sync.current_seed() != seed:
+			seed_sync.reset()
+		if not seed_sync.is_agreed():
+			seed_sync.apply_remote_seed(seed)
 	_finalize_and_reload()
 
 # PRD #132 / issue #136 — opens the existing pause-menu stat-allocation

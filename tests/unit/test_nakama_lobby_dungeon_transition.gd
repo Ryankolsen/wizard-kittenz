@@ -32,7 +32,6 @@ func test_op_codes_distinct_from_existing():
 		NakamaLobby.OP_ATTACK, NakamaLobby.OP_DAMAGE_DEALT,
 		NakamaLobby.OP_PLAYER_HIT,
 		NakamaLobby.OP_PLAYER_DIED,
-		NakamaLobby.OP_REQUEST_ADVANCE,
 		NakamaLobby.OP_ADVANCE_FLOOR,
 	]
 	var seen: Dictionary = {}
@@ -170,42 +169,21 @@ func test_send_dungeon_transition_async_host_rejects_negative_seed():
 	lobby.send_dungeon_transition_async(-5)
 	assert_signal_not_emitted(lobby, "dungeon_transition_received")
 
-# --- OP_REQUEST_ADVANCE routing ---------------------------------------------
-
-func test_op_request_advance_emits_only_on_host_receiver():
-	# Only the host acts on a peer's "Next Floor" advance request — the host
-	# is the authority over when the whole party reloads into the next dungeon.
-	var host_lobby := _make_lobby_with_host("host-1", "host-1")
-	host_lobby.lobby_state.add_player(LobbyPlayer.make("peer-2", "p", "Mage", false))
-	watch_signals(host_lobby)
-	host_lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "peer-2", {})
-	assert_signal_emitted(host_lobby, "advance_requested_received")
-
-func test_op_request_advance_dropped_on_peer_receiver():
-	var peer_lobby := _make_lobby_with_host("host-1", "peer-2")
-	peer_lobby.lobby_state.add_player(LobbyPlayer.make("peer-2", "p", "Mage", false))
-	peer_lobby.lobby_state.add_player(LobbyPlayer.make("peer-3", "p", "Mage", false))
-	watch_signals(peer_lobby)
-	peer_lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "peer-3", {})
-	assert_signal_not_emitted(peer_lobby, "advance_requested_received",
-		"peer ignores another peer's advance request")
-
-func test_op_request_advance_dropped_on_empty_sender():
-	var lobby := _make_lobby_with_host("host-1", "host-1")
-	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_REQUEST_ADVANCE, "", {})
-	assert_signal_not_emitted(lobby, "advance_requested_received")
-
 # --- OP_ADVANCE_FLOOR routing -----------------------------------------------
+# OP_REQUEST_ADVANCE removed by issue #349 — only the leader's press
+# broadcasts OP_ADVANCE_FLOOR now; non-host receivers no longer round-trip
+# an advance request to the host.
 
-func test_op_advance_floor_emits_from_host_sender():
-	# Host's advance broadcast surfaces as floor_advance_received on every
-	# receiver, including the host's own self-echo, so the party reloads
-	# into the next dungeon together.
+func test_op_advance_floor_emits_seed_from_host_sender():
+	# Issue #349: OP_ADVANCE_FLOOR carries the authoritative next-floor seed.
+	# Host's advance broadcast surfaces as floor_advance_received(seed) on
+	# every receiver, including the host's own self-echo, so the party
+	# reloads into the same next dungeon together (not just "reload now").
 	var lobby := _make_lobby_with_host("host-1", "peer-2")
 	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {})
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {"seed": 12345})
 	assert_signal_emitted(lobby, "floor_advance_received")
+	assert_signal_emitted_with_parameters(lobby, "floor_advance_received", [12345])
 
 func test_op_advance_floor_rejected_from_non_host_sender():
 	# Authority check: a desynced / tampering peer can't yank the party into
@@ -213,26 +191,55 @@ func test_op_advance_floor_rejected_from_non_host_sender():
 	var lobby := _make_lobby_with_host("host-1", "peer-2")
 	lobby.lobby_state.add_player(LobbyPlayer.make("imposter", "i", "Mage", false))
 	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "imposter", {})
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "imposter", {"seed": 1})
 	assert_signal_not_emitted(lobby, "floor_advance_received")
 
 func test_op_advance_floor_rejected_on_empty_sender():
 	var lobby := _make_lobby_with_host("host-1", "host-1")
 	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "", {})
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "", {"seed": 1})
+	assert_signal_not_emitted(lobby, "floor_advance_received")
+
+func test_op_advance_floor_rejected_on_missing_seed():
+	# Defensive against a forward-version / corrupted payload that lost the
+	# seed field — without a seed, applying remote seed downstream would
+	# desync the party, so dropping the packet is safer than emitting -1.
+	var lobby := _make_lobby_with_host("host-1", "peer-2")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {})
+	assert_signal_not_emitted(lobby, "floor_advance_received")
+
+func test_op_advance_floor_rejected_on_negative_seed():
+	# Mirrors OP_DUNGEON_TRANSITION_START's sign-bit defense — a negative
+	# seed would route through DungeonGenerator's randomize-on-negative
+	# branch and desync the party.
+	var lobby := _make_lobby_with_host("host-1", "peer-2")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {"seed": -1})
 	assert_signal_not_emitted(lobby, "floor_advance_received")
 
 func test_send_floor_advance_async_non_host_is_noop():
 	var lobby := _make_lobby_with_host("host-1", "peer-2")
 	watch_signals(lobby)
-	lobby.send_floor_advance_async()
+	lobby.send_floor_advance_async(42)
 	assert_signal_not_emitted(lobby, "floor_advance_received",
 		"non-host send is a no-op")
 
-func test_send_floor_advance_async_host_emits_locally():
+func test_send_floor_advance_async_host_emits_locally_with_seed():
 	# Host's self-echo drives its own finalize+reload chain even offline /
-	# without a real socket, matching send_dungeon_transition_async.
+	# without a real socket, matching send_dungeon_transition_async. The
+	# seed travels through the local emit so the host applies the same
+	# next-floor seed every peer is about to receive.
 	var lobby := _make_lobby_with_host("host-1", "host-1")
 	watch_signals(lobby)
-	lobby.send_floor_advance_async()
+	lobby.send_floor_advance_async(42)
 	assert_signal_emitted(lobby, "floor_advance_received")
+	assert_signal_emitted_with_parameters(lobby, "floor_advance_received", [42])
+
+func test_send_floor_advance_async_host_rejects_negative_seed():
+	# Defense in depth — even on the send side, refuse to ship a negative
+	# seed that would bypass DungeonGenerator's deterministic path.
+	var lobby := _make_lobby_with_host("host-1", "host-1")
+	watch_signals(lobby)
+	lobby.send_floor_advance_async(-5)
+	assert_signal_not_emitted(lobby, "floor_advance_received")
