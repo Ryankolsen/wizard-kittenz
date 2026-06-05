@@ -30,13 +30,15 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 	match spell.effect_kind:
 		Spell.EffectKind.DAMAGE:
 			for t in targets:
-				if t != null and t.is_alive():
-					total += t.take_damage(_mitigated(effective_power, t))
+				var t_data = _data_of(t)
+				if t_data != null and t_data.is_alive():
+					total += _apply_magic_damage_to_target(t, effective_power)
 					break
 		Spell.EffectKind.AREA:
 			for t in targets:
-				if t != null and t.is_alive():
-					total += t.take_damage(_mitigated(effective_power, t))
+				var t_data = _data_of(t)
+				if t_data != null and t_data.is_alive():
+					total += _apply_magic_damage_to_target(t, effective_power)
 		Spell.EffectKind.BUFF:
 			# No-op for the tracer. Future: register an active buff on caster
 			# (+power attack for `cooldown` seconds, refresh on re-cast). The
@@ -165,6 +167,34 @@ static func _read_player_id(target) -> String:
 static func _mitigated(effective_power: int, target) -> int:
 	var resistance := _read_int(target, "magic_resistance", 0)
 	return maxi(1, effective_power - resistance)
+
+# Issue #343 (PRD #341 — Typed damage points): apply the magic-damage pulse
+# and spawn the magic-colored floating number when the target is a scene
+# node. Accepts both legacy data-only targets (CharacterData/EnemyData/test
+# fakes — no scene presence, no label) and Enemy scene nodes (data lives on
+# `.data`, label is parented to the enemy's scene parent so it survives a
+# same-frame queue_free, mirroring FloatingText.spawn_at). Color comes from
+# the single DamageKind.color_for mapping shared with the local melee and
+# remote visualizer paths so solo and co-op render identically.
+static func _apply_magic_damage_to_target(t, effective_power: int) -> int:
+	var t_data = _data_of(t)
+	if t_data == null:
+		return 0
+	var dealt: int = int(t_data.take_damage(_mitigated(effective_power, t_data)))
+	if dealt > 0 and t is Node2D:
+		FloatingText.spawn_at(t, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
+	return dealt
+
+# Resolves the data-bearing object behind a target reference. An Enemy
+# scene node wraps EnemyData on `.data`; legacy data-only targets are
+# returned as-is. Keeps duck-typed extension simple: anything else with a
+# `data` field falls through to data-only handling.
+static func _data_of(t):
+	if t == null:
+		return null
+	if t is Enemy:
+		return (t as Enemy).data
+	return t
 
 static func _read_int(obj, key: String, default_val: int) -> int:
 	if obj == null or typeof(obj) != TYPE_OBJECT:

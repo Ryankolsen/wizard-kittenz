@@ -26,11 +26,11 @@ extends RefCounted
 #   - no matching Enemy in the "enemies" group (already despawned on this
 #     receiver — silent no-op per AC#6)
 
-# Color mirrors the solo melee floating-text color (Player._apply_melee_
-# damage at scripts/core/player.gd:541). The wire intentionally does NOT
-# carry color or damage-source kind — AC pins payload to {enemy_id,
-# damage} only. A future iteration could carry kind to differentiate
-# spell-blue vs melee-red, but slice 6 keeps the wire minimal.
+# Color comes from DamageKind.color_for so solo and co-op render
+# identically (PRD #341 — Typed damage points). The wire today still
+# carries only {enemy_id, damage} and defaults the kind to physical; the
+# upcoming kind-on-wire slice (#346) replaces the literal with the
+# received value.
 const DAMAGE_COLOR: Color = Color(1.0, 0.2, 0.2)
 
 static func spawn(tree: SceneTree, enemy_id: String, damage: int) -> bool:

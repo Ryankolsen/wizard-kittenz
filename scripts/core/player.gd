@@ -582,7 +582,7 @@ func _apply_melee_damage() -> void:
 			if dealt == 0 and data != null and data.attack > 0:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
-				FloatingText.spawn_at(node, str(dealt), Color(1.0, 0.2, 0.2))
+				FloatingText.spawn_at(node, str(dealt), DamageKind.color_for(DamageKind.Kind.PHYSICAL))
 				_broadcast_damage(node.data.enemy_id, dealt)
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
@@ -636,7 +636,7 @@ func _apply_spell_basic_damage() -> void:
 			if dealt == 0 and data != null and data.attack > 0:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
-				FloatingText.spawn_at(node, str(dealt), Color(0.4, 0.6, 1.0))
+				FloatingText.spawn_at(node, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 				_broadcast_damage(node.data.enemy_id, dealt)
 				(node as Enemy).flash_hit()
 			if not node.data.is_alive():
@@ -673,7 +673,7 @@ func _apply_spell_effect(spell: Spell) -> void:
 			continue
 		var dealt: int = hp_before[i] - n.data.hp
 		if dealt > 0:
-			FloatingText.spawn_at(n, str(dealt), Color(0.4, 0.6, 1.0))
+			FloatingText.spawn_at(n, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 			_broadcast_damage(n.data.enemy_id, dealt)
 	var any_killed := false
 	for n in enemy_nodes:
