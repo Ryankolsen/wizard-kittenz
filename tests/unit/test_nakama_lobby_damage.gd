@@ -13,12 +13,40 @@ func test_apply_state_op_damage_dealt_emits_damage_received():
 	var lobby := NakamaLobby.new()
 	lobby.lobby_state = LobbyState.new("ABCDE")
 	watch_signals(lobby)
-	lobby.apply_state(NakamaLobby.OP_DAMAGE_DEALT, "remote_id", {"enemy_id": "e7", "damage": 12})
+	lobby.apply_state(NakamaLobby.OP_DAMAGE_DEALT, "remote_id",
+		{"enemy_id": "e7", "damage": 12, "kind": DamageKind.Kind.PHYSICAL})
 	assert_signal_emitted(lobby, "damage_received")
 	var params: Array = get_signal_parameters(lobby, "damage_received")
 	assert_eq(params[0], "remote_id", "attacker_id from sender presence")
 	assert_eq(params[1], "e7", "enemy_id decoded from payload")
 	assert_eq(params[2], 12, "damage decoded from payload")
+	assert_eq(params[3], DamageKind.Kind.PHYSICAL, "kind decoded from payload")
+
+
+func test_apply_state_op_damage_dealt_kind_magic_decoded():
+	# #346: a magic-kind packet surfaces on the signal so the visualizer
+	# can color the floating number blue on every peer's screen.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_DAMAGE_DEALT, "remote_id",
+		{"enemy_id": "e7", "damage": 9, "kind": DamageKind.Kind.MAGIC})
+	assert_signal_emitted(lobby, "damage_received")
+	var params: Array = get_signal_parameters(lobby, "damage_received")
+	assert_eq(params[3], DamageKind.Kind.MAGIC, "magic kind preserved through decode")
+
+
+func test_apply_state_op_damage_dealt_missing_kind_defaults_physical():
+	# #346 backward-compat: a pre-#346 sender omitting the "kind" key
+	# defaults to PHYSICAL so the receiver paints red — the existing
+	# pre-typed-damage rendering — instead of a blank label.
+	var lobby := NakamaLobby.new()
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_DAMAGE_DEALT, "remote_id",
+		{"enemy_id": "e7", "damage": 4})
+	assert_signal_emitted(lobby, "damage_received")
+	var params: Array = get_signal_parameters(lobby, "damage_received")
+	assert_eq(params[3], DamageKind.Kind.PHYSICAL,
+		"missing kind decodes to PHYSICAL safe default")
 
 func test_apply_state_op_damage_dealt_works_without_lobby_state():
 	# Damage packets must keep flowing after lobby_state is torn down

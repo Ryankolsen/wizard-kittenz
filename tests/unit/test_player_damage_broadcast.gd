@@ -13,9 +13,9 @@ extends GutTest
 
 class SpyLobby:
 	extends NakamaLobby
-	var damages: Array = []  # [enemy_id, damage] pairs
-	func send_damage_dealt_async(enemy_id: String, damage: int) -> void:
-		damages.append([enemy_id, damage])
+	var damages: Array = []  # [enemy_id, damage, kind] tuples
+	func send_damage_dealt_async(enemy_id: String, damage: int, kind: int = DamageKind.Kind.PHYSICAL) -> void:
+		damages.append([enemy_id, damage, kind])
 
 
 class FakeGameStateNoLobby:
@@ -62,6 +62,22 @@ func test_broadcast_damage_emits_single_packet_in_coop():
 	assert_eq(spy.damages.size(), 1, "exactly one OP_DAMAGE_DEALT broadcast")
 	assert_eq(spy.damages[0][0], "e3", "enemy_id matches the hit target")
 	assert_eq(spy.damages[0][1], 12, "damage matches DamageResolver's dealt value")
+	assert_eq(spy.damages[0][2], DamageKind.Kind.PHYSICAL,
+		"default kind is PHYSICAL when caller omits it")
+
+
+func test_broadcast_damage_forwards_magic_kind():
+	# #346: a spell-cast damage site passes MAGIC; the broadcast must
+	# carry it through to the lobby so the wire packet colors blue on
+	# every peer's screen.
+	var fake := FakeGameStateWithLobby.new()
+	var spy := SpyLobby.new()
+	fake.lobby = spy
+	var p := _make_player(fake)
+	p._broadcast_damage("e3", 7, DamageKind.Kind.MAGIC)
+	assert_eq(spy.damages.size(), 1)
+	assert_eq(spy.damages[0][2], DamageKind.Kind.MAGIC,
+		"MAGIC kind forwarded verbatim to the lobby send")
 
 
 func test_solo_broadcast_damage_does_not_crash():

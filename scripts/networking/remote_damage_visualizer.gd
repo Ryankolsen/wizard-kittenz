@@ -27,13 +27,14 @@ extends RefCounted
 #     receiver — silent no-op per AC#6)
 
 # Color comes from DamageKind.color_for so solo and co-op render
-# identically (PRD #341 — Typed damage points). The wire today still
-# carries only {enemy_id, damage} and defaults the kind to physical; the
-# upcoming kind-on-wire slice (#346) replaces the literal with the
-# received value.
-const DAMAGE_COLOR: Color = Color(1.0, 0.2, 0.2)
+# identically (PRD #341 — Typed damage points). With #346 the wire now
+# carries the kind alongside {enemy_id, damage}; pre-#346 senders omit
+# the key and NakamaLobby._route_damage_dealt defaults the decoded kind
+# to PHYSICAL, so an older sender's hits paint the same red overlay
+# they did before this slice. Unknown / out-of-range kinds also fold
+# to PHYSICAL inside DamageKind.color_for.
 
-static func spawn(tree: SceneTree, enemy_id: String, damage: int) -> bool:
+static func spawn(tree: SceneTree, enemy_id: String, damage: int, kind: int = DamageKind.Kind.PHYSICAL) -> bool:
 	if tree == null:
 		return false
 	if enemy_id == "":
@@ -48,6 +49,6 @@ static func spawn(tree: SceneTree, enemy_id: String, damage: int) -> bool:
 			continue
 		if e.data.enemy_id != enemy_id:
 			continue
-		FloatingText.spawn_at(e, str(damage), DAMAGE_COLOR)
+		FloatingText.spawn_at(e, str(damage), DamageKind.color_for(kind))
 		return true
 	return false

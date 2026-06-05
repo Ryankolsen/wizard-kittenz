@@ -503,8 +503,8 @@ func _on_heal_received(_caster_id: String, target_id: String, effect_kind: Strin
 # future "color the number per-attacker" visual without a wire break.
 # Missing enemy (already despawned on receiver) is the visualizer's
 # silent-false-return — AC#6 holds without extra guard here.
-func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int) -> void:
-	_RemoteDamageVisualizerRef.spawn(get_tree(), enemy_id, damage)
+func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int, kind: int) -> void:
+	_RemoteDamageVisualizerRef.spawn(get_tree(), enemy_id, damage, kind)
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's

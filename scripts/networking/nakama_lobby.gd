@@ -71,14 +71,18 @@ const OP_HEAL: int = 12
 # RemoteKitten via play_attack / play_spell_cast — both drive the same
 # AttackChoreographer path.
 const OP_ATTACK: int = 13
-# In-match damage-dealt broadcast (PRD #328 slice 6, issue #334). Payload:
-# {"enemy_id": String, "damage": int}. attacker_id is taken from the socket
-# presence (not the payload) so a client can't spoof another player's hit —
-# same anti-spoofing model as OP_KILL / OP_ATTACK. The receiver does NOT
-# re-roll damage; the sender already computed the number via DamageResolver
-# locally. The receive-side just spawns the same FloatingText overlay solo
-# uses at the matching enemy's world position, so every peer sees the hit
-# number floating above the enemy on every client.
+# In-match damage-dealt broadcast (PRD #328 slice 6, issue #334; kind
+# field added in PRD #341 slice / issue #346). Payload: {"enemy_id":
+# String, "damage": int, "kind": int}. attacker_id is taken from the
+# socket presence (not the payload) so a client can't spoof another
+# player's hit — same anti-spoofing model as OP_KILL / OP_ATTACK. The
+# receiver does NOT re-roll damage; the sender already computed the
+# number via DamageResolver locally. The receive-side spawns the same
+# FloatingText overlay solo uses at the matching enemy's world position,
+# colored via DamageKind.color_for(kind) so a teammate's magic shows
+# blue and melee shows red on every peer's screen. A packet missing the
+# "kind" key (pre-#346 sender in a mixed-version lobby) decodes to
+# PHYSICAL — same shape as the OP_ATTACK kind backward-compat default.
 const OP_DAMAGE_DEALT: int = 14
 # In-match player-hit broadcast (PRD #328 slice 7, issue #335). Payload:
 # {"damage": int, "source_x": float, "source_y": float}. target_id is taken
@@ -202,7 +206,7 @@ signal attack_received(sender_id: String, direction: Vector2, kind: String, spel
 # "enemies" group (same shape as RemoteEnemyDespawner) and spawns
 # FloatingText.spawn_at on the matching enemy. attacker_id is the
 # sender presence, not from the payload (anti-spoofing).
-signal damage_received(attacker_id: String, enemy_id: String, damage: int)
+signal damage_received(attacker_id: String, enemy_id: String, damage: int, kind: int)
 # In-match PLAYER_HIT event from a remote player (PRD #328 slice 7, issue
 # #335). target_id is the sender presence (the hit player is the one who
 # broadcasts), source_position is the hit source's world position so the
@@ -435,14 +439,14 @@ func send_attack_async(direction: Vector2, kind: String = ATTACK_KIND_WEAPON_SWI
 # so the receiving side reads it off the socket envelope (matches the
 # OP_KILL / OP_ATTACK anti-spoofing model). Solo (no socket / no
 # match_id) is a silent no-op.
-func send_damage_dealt_async(enemy_id: String, damage: int) -> void:
+func send_damage_dealt_async(enemy_id: String, damage: int, kind: int = DamageKind.Kind.PHYSICAL) -> void:
 	if enemy_id == "":
 		return
 	if damage <= 0:
 		return
 	if _socket == null or _match_id == "":
 		return
-	var payload := {"enemy_id": enemy_id, "damage": damage}
+	var payload := {"enemy_id": enemy_id, "damage": damage, "kind": kind}
 	await _socket.send_match_state_async(_match_id, OP_DAMAGE_DEALT, JSON.stringify(payload))
 
 # Broadcasts a local PLAYER_HIT to every match participant (PRD #328
@@ -910,7 +914,13 @@ func _route_damage_dealt(sender_id: String, data: Dictionary) -> void:
 	var damage: int = int(data.get("damage", 0))
 	if damage <= 0:
 		return
-	damage_received.emit(sender_id, enemy_id, damage)
+	# kind is optional on the wire — a pre-#346 sender omits it. Default
+	# to PHYSICAL so an older sender's hits color red on a newer receiver
+	# (the existing local-spawn behavior). DamageKind.color_for also
+	# folds unknown / out-of-range values to PHYSICAL, so a forward-
+	# version sender's unrecognized kind never paints a blank label.
+	var kind: int = int(data.get("kind", DamageKind.Kind.PHYSICAL))
+	damage_received.emit(sender_id, enemy_id, damage, kind)
 
 # Decodes the OP_PLAYER_HIT payload and emits player_hit_received. Self-
 # echoes (sender_id == local_player_id) and empty sender_id are dropped at

@@ -210,11 +210,11 @@ func _broadcast_attack(direction: Vector2, kind: String = NakamaLobby.ATTACK_KIN
 # single null-check no-op. Empty enemy_id (pre-spawn-layer / test
 # fixture enemy) and non-positive damage are gated downstream in
 # send_damage_dealt_async — same shape as the OP_KILL send guard.
-func _broadcast_damage(enemy_id: String, damage: int) -> void:
+func _broadcast_damage(enemy_id: String, damage: int, kind: int = DamageKind.Kind.PHYSICAL) -> void:
 	var lob := _lobby()
 	if lob == null:
 		return
-	lob.send_damage_dealt_async(enemy_id, damage)
+	lob.send_damage_dealt_async(enemy_id, damage, kind)
 
 # Slice 7 of PRD #328 (issue #335). Called from enemy-on-player damage
 # sites (Enemy._try_contact_damage and any future hazard / projectile
@@ -583,7 +583,7 @@ func _apply_melee_damage() -> void:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
 				FloatingText.spawn_at(node, str(dealt), DamageKind.color_for(DamageKind.Kind.PHYSICAL))
-				_broadcast_damage(node.data.enemy_id, dealt)
+				_broadcast_damage(node.data.enemy_id, dealt, DamageKind.Kind.PHYSICAL)
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
@@ -637,7 +637,7 @@ func _apply_spell_basic_damage() -> void:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
 				FloatingText.spawn_at(node, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
-				_broadcast_damage(node.data.enemy_id, dealt)
+				_broadcast_damage(node.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
 				(node as Enemy).flash_hit()
 			if not node.data.is_alive():
 				_handle_enemy_killed(node)
@@ -674,7 +674,7 @@ func _apply_spell_effect(spell: Spell) -> void:
 		var dealt: int = hp_before[i] - n.data.hp
 		if dealt > 0:
 			FloatingText.spawn_at(n, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
-			_broadcast_damage(n.data.enemy_id, dealt)
+			_broadcast_damage(n.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
 	var any_killed := false
 	for n in enemy_nodes:
 		if n.data != null and not n.data.is_alive():

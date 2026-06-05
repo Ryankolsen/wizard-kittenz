@@ -85,6 +85,58 @@ func test_spawn_handles_enemy_with_null_data():
 	assert_true(RemoteDamageVisualizer.spawn(get_tree(), "r1_e0", 9))
 	assert_not_null(_find_floating_text(target.get_parent()))
 
+func _find_floating_text_with_text(parent: Node, text: String) -> FloatingText:
+	# Disambiguates between FloatingTexts spawned across sibling tests:
+	# autofree's queue_free is deferred to the next idle frame, so a
+	# label spawned by an earlier test in the same group can still be
+	# parented under the shared test root when the next test runs.
+	# Matching by the damage value (unique per test below) pins us to
+	# the FloatingText this test just spawned.
+	for child in parent.get_children():
+		if child is FloatingText:
+			var ft := child as FloatingText
+			var label := ft.get_node_or_null("Label") as Label
+			if label != null and label.text == text:
+				return ft
+	return null
+
+
+func test_spawn_colors_physical_red():
+	# #346: physical damage paints the FloatingText with the shared
+	# DamageKind PHYSICAL color — same value the local melee path uses.
+	var e := _make_enemy_in_tree("r1_e0", Vector2(10, 10))
+	assert_true(RemoteDamageVisualizer.spawn(get_tree(), "r1_e0", 5, DamageKind.Kind.PHYSICAL))
+	var ft := _find_floating_text_with_text(e.get_parent(), "5")
+	assert_not_null(ft)
+	assert_eq(ft.get_node("Label").modulate, DamageKind.color_for(DamageKind.Kind.PHYSICAL),
+		"physical kind renders in the shared PHYSICAL color")
+
+
+func test_spawn_colors_magic_blue():
+	# #346: magic damage paints the FloatingText with the shared
+	# DamageKind MAGIC color so a teammate's spell shows blue on every
+	# peer's screen, matching the local wizard cast / spell-resolver
+	# spawn paths from #343.
+	var e := _make_enemy_in_tree("r1_e0", Vector2(20, 20))
+	assert_true(RemoteDamageVisualizer.spawn(get_tree(), "r1_e0", 8, DamageKind.Kind.MAGIC))
+	var ft := _find_floating_text_with_text(e.get_parent(), "8")
+	assert_not_null(ft)
+	assert_eq(ft.get_node("Label").modulate, DamageKind.color_for(DamageKind.Kind.MAGIC),
+		"magic kind renders in the shared MAGIC color")
+
+
+func test_spawn_unknown_kind_falls_back_to_physical():
+	# Forward-version peer on the wire (a future kind a pre-this-build
+	# receiver doesn't know): DamageKind.color_for folds to PHYSICAL so
+	# the label is never blank.
+	var e := _make_enemy_in_tree("r1_e0", Vector2(30, 30))
+	assert_true(RemoteDamageVisualizer.spawn(get_tree(), "r1_e0", 3, 999))
+	var ft := _find_floating_text_with_text(e.get_parent(), "3")
+	assert_not_null(ft)
+	assert_eq(ft.get_node("Label").modulate, DamageKind.color_for(DamageKind.Kind.PHYSICAL),
+		"unknown kind falls back to PHYSICAL color")
+
+
 func test_spawn_ignores_non_enemy_node_in_enemies_group():
 	# Defensive — non-Enemy in the group must not crash on the cast.
 	var stray := Node2D.new()
