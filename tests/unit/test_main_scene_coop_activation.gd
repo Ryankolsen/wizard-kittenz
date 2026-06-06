@@ -57,6 +57,7 @@ func before_each():
 		gs.coop_session = null
 		gs.dungeon_run_controller = null
 		gs.local_player_id = ""
+		gs.lobby = null
 
 func after_each():
 	var gs := get_node_or_null("/root/GameState")
@@ -66,6 +67,7 @@ func after_each():
 		gs.coop_session = null
 		gs.dungeon_run_controller = null
 		gs.local_player_id = ""
+		gs.lobby = null
 
 # --- tests -----------------------------------------------------------------
 
@@ -369,6 +371,54 @@ func test_main_scene_rebuilds_dungeon_when_pre_existing_controller_seed_mismatch
 		"rebuilt dungeon room count matches the agreed-seed shape")
 	assert_eq(active_rc.dungeon.boss_id, expected.boss_id,
 		"rebuilt dungeon boss id matches the agreed-seed shape")
+
+# --- single-mint floor advance (#352 regression) ---------------------------
+# The leader's "Next Floor" press must REUSE the seed the exit-door
+# transition already minted + broadcast (OP_DUNGEON_TRANSITION_START), not
+# reset() + re-mint a SECOND, different authoritative seed for the same
+# floor. A double-mint desyncs the party: a peer that already applied the
+# first seed (or a leader double-press) generates a different dungeon, so
+# rooms / monsters land in different places. Pin that _request_floor_advance
+# leaves the already-agreed seed untouched and broadcasts that same value.
+
+func _make_host_lobby() -> NakamaLobby:
+	# No-socket lobby where the local player IS the host, mirroring
+	# test_nakama_lobby_dungeon_transition's pattern. is_local_host() returns
+	# true; send_floor_advance_async emits floor_advance_received locally then
+	# no-ops on the null socket.
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("p1", "Whiskers", "Mage", true))
+	lobby.local_player_id = "p1"
+	return lobby
+
+func test_request_floor_advance_reuses_agreed_seed_no_remint():
+	var session := _make_coop_session()
+	var sync := DungeonSeedSync.new()
+	var agreed: int = sync.host_mint(555000555)
+	session.dungeon_seed_sync = sync
+	_install_session(session)
+
+	var gs := get_node("/root/GameState")
+	gs.lobby = _make_host_lobby()
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+
+	# Capture the seed the leader actually puts on the wire.
+	var captured := {"seed": -1}
+	gs.lobby.floor_advance_received.connect(func(s): captured["seed"] = s)
+	# Neutralize the reload side of the host's self-echo so
+	# reload_current_scene doesn't clobber the GUT runner — we only assert
+	# on the seed decision, not the finalize.
+	inst._advance_finalized = true
+
+	inst._request_floor_advance()
+
+	assert_eq(sync.current_seed(), agreed,
+		"floor advance must NOT reset + re-mint — the already-agreed seed is reused")
+	assert_eq(captured["seed"], agreed,
+		"OP_ADVANCE_FLOOR carries the already-agreed seed, not a fresh second one")
 
 # --- helpers (cont.) -------------------------------------------------------
 

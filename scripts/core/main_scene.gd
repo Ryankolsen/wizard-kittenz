@@ -188,6 +188,15 @@ func _start_new_dungeon(gs) -> void:
 	if gs != null and gs.meta_tracker != null:
 		floor_number = gs.meta_tracker.dungeons_completed + 1
 	var dungeon := DungeonGenerator.generate(seed, floor_number)
+	# TEMP co-op QA instrumentation (issue #352): in co-op only, log the seed +
+	# floor + a structural fingerprint at every dungeon build so two clients can
+	# be compared side by side. Matching seed + fingerprint => synced maps; a
+	# mismatch pinpoints which client forked and on which floor. Remove once the
+	# synced-advance QA pass is signed off.
+	if gs != null and gs.lobby != null and gs.lobby.lobby_state != null:
+		print("[coop-seed] build floor=%d seed=%d host=%s rooms=%d boss_id=%d types=%s" % [
+			floor_number, seed, str(gs.lobby.is_local_host()), dungeon.rooms.size(),
+			dungeon.boss_id, str(dungeon.room_type_sequence())])
 	# Stamp depth so depth-gated content (ChestSpawner rare-unlock — #220)
 	# can branch off it. dungeons_completed is the count BEFORE this run
 	# finalizes, which makes it equivalent to "depth = floor number - 1".
@@ -860,10 +869,16 @@ func _request_floor_advance() -> void:
 	if seed_sync == null:
 		_finalize_and_reload()
 		return
-	# Reset the previous floor's agreed seed so host_mint draws a fresh
-	# one — same shape as _host_mint_match_seed inside NakamaLobby.
-	if seed_sync.is_agreed():
-		seed_sync.reset()
+	# Reuse the seed the exit-door transition already minted + broadcast
+	# (OP_DUNGEON_TRANSITION_START, via _on_dungeon_transition_requested) — by
+	# the time the congratulations screen is up, that path has already reset
+	# the previous floor's seed and minted this floor's. Re-minting here would
+	# broadcast a SECOND, different authoritative seed for the same floor: a
+	# peer that already applied the first one (or a leader double-press) then
+	# generates a different dungeon and the party desyncs. host_mint() is
+	# idempotent on an agreed sync, so it returns the already-agreed seed; it
+	# only mints fresh as defense-in-depth if the transition path somehow left
+	# the sync unagreed (solo / no-lobby already returned above).
 	var seed: int = seed_sync.host_mint()
 	if seed < 0:
 		return
