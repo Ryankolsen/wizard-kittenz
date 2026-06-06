@@ -39,22 +39,33 @@ const STAT_ROWS := [
 var _character: CharacterData = null
 var _unspent_label: Label = null
 var _level_label: Label = null
+var _legend: HBoxContainer = null
 var _stat_labels := {}
-var _tier_labels := {}
+var _name_labels := {}
 var _cost_labels := {}
 var _plus_buttons := {}
 var _continue_button: Button = null
 var _built := false
 
-# Display strings + modulate colors per tier (PRD #316 / issue #320). Kept
-# co-located with the panel rather than on ClassStatTiers so the data
-# module stays presentation-free.
+# Display strings + modulate colors per tier (PRD #316 / issue #320; recolor
+# #352). Tiers are surfaced by coloring each stat's name rather than spelling
+# out the tier in text — the legend built from this table is the key. Kept
+# co-located with the panel rather than on ClassStatTiers so the data module
+# stays presentation-free.
 const _TIER_DISPLAY := {
 	ClassStatTiers.Tier.PRIMARY: {"text": "Primary", "color": Color(1.0, 0.85, 0.2)},
 	ClassStatTiers.Tier.SECONDARY: {"text": "Secondary", "color": Color(0.8, 0.95, 1.0)},
 	ClassStatTiers.Tier.OFF_STAT: {"text": "Off-stat", "color": Color(1.0, 0.65, 0.35)},
 	ClassStatTiers.Tier.FORBIDDEN: {"text": "Forbidden", "color": Color(0.55, 0.55, 0.55)},
 }
+
+# Legend order, top to bottom of the stat sheet's usefulness.
+const _TIER_LEGEND_ORDER := [
+	ClassStatTiers.Tier.PRIMARY,
+	ClassStatTiers.Tier.SECONDARY,
+	ClassStatTiers.Tier.OFF_STAT,
+	ClassStatTiers.Tier.FORBIDDEN,
+]
 
 func _init() -> void:
 	_build()
@@ -76,6 +87,8 @@ func _build() -> void:
 	_level_label.text = "Lv —"
 	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_level_label)
+	_legend = _make_legend()
+	add_child(_legend)
 	for s in STAT_ROWS:
 		add_child(_make_row(s))
 	_continue_button = Button.new()
@@ -84,6 +97,23 @@ func _build() -> void:
 	_continue_button.visible = false
 	_continue_button.pressed.connect(_on_continue_pressed)
 	add_child(_continue_button)
+
+# Color key shown once above the rows: one swatch+name per tier so the
+# row name colors are self-documenting (issue #352). Centered, wraps as a
+# single horizontal strip.
+func _make_legend() -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.name = "TierLegend"
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 16)
+	for tier in _TIER_LEGEND_ORDER:
+		var display: Dictionary = _TIER_DISPLAY[tier]
+		var lbl := Label.new()
+		lbl.name = "Legend_%d" % tier
+		lbl.text = "%s %s" % [String.chr(0x25CF), display.text]
+		lbl.modulate = display.color
+		box.add_child(lbl)
+	return box
 
 func _make_row(s: Dictionary) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -95,11 +125,7 @@ func _make_row(s: Dictionary) -> HBoxContainer:
 	name_lbl.text = s.label
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_lbl)
-	var tier_lbl := Label.new()
-	tier_lbl.name = "TierLabel_%s" % s.key
-	tier_lbl.text = ""
-	row.add_child(tier_lbl)
-	_tier_labels[s.key] = tier_lbl
+	_name_labels[s.key] = name_lbl
 	var val_lbl := Label.new()
 	val_lbl.name = s.node
 	val_lbl.text = "—"
@@ -135,7 +161,7 @@ func refresh(c: CharacterData) -> void:
 		_level_label.text = "Lv —"
 		for key in _stat_labels.keys():
 			(_stat_labels[key] as Label).text = "—"
-			(_tier_labels[key] as Label).text = ""
+			(_name_labels[key] as Label).modulate = Color.WHITE
 			(_cost_labels[key] as Label).text = ""
 			(_plus_buttons[key] as Button).disabled = true
 		return
@@ -145,16 +171,18 @@ func refresh(c: CharacterData) -> void:
 		(_stat_labels[s.key] as Label).text = _format_stat(c, s)
 		_apply_tier_ui(c, s.key)
 
-# Drives tier label / cost label / + button enabled-state for one row.
-# Rules (PRD #316 / issue #320): Forbidden disables the button and zeroes
-# cost; Off-stat shows 2 SP; cap-reached and insufficient-SP both disable
-# with a tooltip explaining why so the player never sees a silent reject.
+# Drives name color / cost label / + button enabled-state for one row.
+# Rules (PRD #316 / issue #320; recolor #352): the stat name is tinted with
+# its tier color (decoded via the legend) instead of a spelled-out tier;
+# Forbidden disables the button and zeroes cost; Off-stat shows 2 SP;
+# cap-reached and insufficient-SP both disable with a tooltip explaining why
+# so the player never sees a silent reject.
 func _apply_tier_ui(c: CharacterData, key: String) -> void:
 	var tier: int = ClassStatTiers.get_tier(c.character_class, key)
 	var display: Dictionary = _TIER_DISPLAY[tier]
-	var tier_lbl := _tier_labels[key] as Label
-	tier_lbl.text = display.text
-	tier_lbl.modulate = display.color
+	var name_lbl := _name_labels[key] as Label
+	name_lbl.modulate = display.color
+	name_lbl.tooltip_text = display.text
 	var cost := ClassStatTiers.get_sp_cost(c.character_class, key)
 	var cap := ClassStatTiers.get_cap(c.character_class, key)
 	var allocated: int = int(c.allocated_points.get(key, 0))
@@ -230,9 +258,13 @@ func get_stat_label(stat_key: String) -> Label:
 	_build()
 	return _stat_labels.get(stat_key)
 
-func get_tier_label(stat_key: String) -> Label:
+func get_name_label(stat_key: String) -> Label:
 	_build()
-	return _tier_labels.get(stat_key)
+	return _name_labels.get(stat_key)
+
+func get_legend() -> HBoxContainer:
+	_build()
+	return _legend
 
 func get_cost_label(stat_key: String) -> Label:
 	_build()

@@ -229,16 +229,34 @@ func test_primary_stat_displays_one_sp_cost():
 	assert_true(cost_lbl.text.contains("1"),
 		"Primary (Battle attack) cost label must show 1 SP, got %s" % cost_lbl.text)
 
-func test_tier_label_shown_per_stat():
+func test_stat_name_colored_per_tier():
 	# Wizard: magic_attack=Primary, defense=Off-stat, attack=Forbidden.
-	# Label text must reflect tier so the player can read class identity at a glance.
+	# Tiers are now shown by tinting the stat name (decoded via the legend)
+	# rather than spelling the tier out, so each name must take its tier color.
 	var panel := StatsTabPanel.new()
 	add_child_autofree(panel)
 	var c := _wizard_with_points(0)
 	panel.refresh(c)
-	assert_eq(panel.get_tier_label("magic_attack").text, "Primary")
-	assert_eq(panel.get_tier_label("defense").text, "Off-stat")
-	assert_eq(panel.get_tier_label("attack").text, "Forbidden")
+	var primary: Color = StatsTabPanel._TIER_DISPLAY[ClassStatTiers.Tier.PRIMARY].color
+	var off_stat: Color = StatsTabPanel._TIER_DISPLAY[ClassStatTiers.Tier.OFF_STAT].color
+	var forbidden: Color = StatsTabPanel._TIER_DISPLAY[ClassStatTiers.Tier.FORBIDDEN].color
+	assert_eq(panel.get_name_label("magic_attack").modulate, primary)
+	assert_eq(panel.get_name_label("defense").modulate, off_stat)
+	assert_eq(panel.get_name_label("attack").modulate, forbidden)
+
+func test_legend_lists_every_tier():
+	# The color key must spell out each tier so the row colors are readable.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var legend := panel.get_legend()
+	assert_not_null(legend, "stats panel must build a tier legend")
+	var texts := ""
+	for child in legend.get_children():
+		texts += (child as Label).text
+	for tier in StatsTabPanel._TIER_DISPLAY:
+		var word: String = StatsTabPanel._TIER_DISPLAY[tier].text
+		assert_true(texts.contains(word),
+			"legend must mention tier '%s', got: %s" % [word, texts])
 
 func test_increment_blocked_when_cap_reached():
 	# Wizard defense is Off-stat (cap 3). With 3 already allocated, even
