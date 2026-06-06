@@ -39,7 +39,7 @@ const STAT_ROWS := [
 var _character: CharacterData = null
 var _unspent_label: Label = null
 var _level_label: Label = null
-var _legend: HBoxContainer = null
+var _legend: GridContainer = null
 var _legend_toggle: Button = null
 var _stat_labels := {}
 var _name_labels := {}
@@ -124,22 +124,27 @@ func _build() -> void:
 	_continue_button.pressed.connect(_on_continue_pressed)
 	add_child(_continue_button)
 
-# Color key shown once above the rows: one swatch+name per tier so the
-# row name colors are self-documenting (issue #352). Centered, wraps as a
-# single horizontal strip.
-func _make_legend() -> HBoxContainer:
-	var box := HBoxContainer.new()
-	box.name = "TierLegend"
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 16)
+# Color key revealed by the toggle: one swatch+name per tier so the row
+# colors are self-documenting (issue #352). Laid out as a compact, centered
+# 2-column grid at a reduced font so it stays narrower than the panel — a
+# full-width single row was wider than the 420px panel and made the whole
+# centered menu jump sideways when toggled.
+func _make_legend() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.name = "TierLegend"
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 2)
 	for tier in _TIER_LEGEND_ORDER:
 		var display: Dictionary = _TIER_DISPLAY[tier]
 		var lbl := Label.new()
 		lbl.name = "Legend_%d" % tier
 		lbl.text = "%s %s" % [String.chr(0x25CF), display.text]
 		lbl.modulate = display.color
-		box.add_child(lbl)
-	return box
+		lbl.add_theme_font_size_override("font_size", 13)
+		grid.add_child(lbl)
+	return grid
 
 func _on_legend_toggled(pressed: bool) -> void:
 	_legend.visible = pressed
@@ -340,7 +345,7 @@ func get_name_label(stat_key: String) -> Label:
 	_build()
 	return _name_labels.get(stat_key)
 
-func get_legend() -> HBoxContainer:
+func get_legend() -> GridContainer:
 	_build()
 	return _legend
 
