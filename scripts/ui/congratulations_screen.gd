@@ -22,6 +22,8 @@ var _floor_label: Label
 var _enemies_label: Label
 var _xp_label: Label
 var _gold_label: Label
+var _next_floor_button: Button
+var _waiting_label: Label
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -30,14 +32,20 @@ func _ready() -> void:
 	_enemies_label = $Backdrop/Center/Panel/VBox/Stats/EnemiesLabel
 	_xp_label = $Backdrop/Center/Panel/VBox/Stats/XPLabel
 	_gold_label = $Backdrop/Center/Panel/VBox/Stats/GoldLabel
-	var next_btn: Button = $Backdrop/Center/Panel/VBox/ButtonRow/NextFloor
+	_next_floor_button = $Backdrop/Center/Panel/VBox/ButtonRow/NextFloor
+	_waiting_label = $Backdrop/Center/Panel/VBox/ButtonRow/WaitingLabel
 	var update_btn: Button = $Backdrop/Center/Panel/VBox/ButtonRow/UpdateCharacter
 	var exit_btn: Button = $Backdrop/Center/Panel/VBox/ButtonRow/SaveAndExit
-	next_btn.pressed.connect(_on_next_floor_pressed)
+	_next_floor_button.pressed.connect(_on_next_floor_pressed)
 	update_btn.pressed.connect(_on_update_character_pressed)
 	exit_btn.pressed.connect(_on_save_and_exit_pressed)
 
-func populate(summary: FloorRunSummary, message: String) -> void:
+# PRD #348 / issue #350 — `is_leader` defaults true so solo (and every
+# pre-#350 caller) keeps the active "Next Floor" button. Co-op peers
+# pass false and get the passive "Waiting for the party leader…" label
+# instead; the button is hidden AND disabled so a stray pressed.emit()
+# (Godot still fires the signal on hidden buttons) drops at the source.
+func populate(summary: FloorRunSummary, message: String, is_leader: bool = true) -> void:
 	if _headline == null:
 		return
 	_headline.text = message
@@ -45,8 +53,17 @@ func populate(summary: FloorRunSummary, message: String) -> void:
 	_enemies_label.text = "Enemies Slain: %d" % summary.enemies_slain
 	_xp_label.text = "XP Earned: %d" % summary.xp_earned
 	_gold_label.text = "Gold Earned: %d" % summary.gold_earned
+	_next_floor_button.visible = is_leader
+	_next_floor_button.disabled = not is_leader
+	_waiting_label.visible = not is_leader
 
 func _on_next_floor_pressed() -> void:
+	# Defense-in-depth: a disabled button shouldn't fire pressed in Godot,
+	# but pin the no-emit contract here so a future style refactor that
+	# leaves the button enabled-but-hidden can't silently re-open the
+	# peer-press path.
+	if _next_floor_button != null and _next_floor_button.disabled:
+		return
 	next_floor_pressed.emit()
 
 func _on_update_character_pressed() -> void:

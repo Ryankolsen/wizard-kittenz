@@ -67,6 +67,11 @@ theme_override_constants/separation = 8
 [node name="NextFloor" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
 text = "Next Floor"
 
+[node name="WaitingLabel" type="Label" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+visible = false
+horizontal_alignment = 1
+text = "Waiting for the party leader to choose the next floor…"
+
 [node name="UpdateCharacter" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
 text = "Update Character"
 

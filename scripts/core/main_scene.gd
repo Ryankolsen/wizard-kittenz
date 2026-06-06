@@ -812,7 +812,15 @@ func _on_dungeon_transitioned() -> void:
 	var boss_name := BossRoster.boss_for_floor(summary.floor_number).display_name
 	var message := CongratulationsMessageBuilder.build(is_first_boss, rng, boss_name)
 	add_child(_congrats_screen)
-	_congrats_screen.populate(summary, message)
+	# #350 — non-leaders in co-op see a "waiting for the leader" status
+	# instead of an active Next Floor button. Solo (no lobby) is treated
+	# as leader so the local-only flow is unchanged.
+	var gs := get_node_or_null("/root/GameState")
+	var lobby: NakamaLobby = gs.lobby if gs != null else null
+	var is_leader := true
+	if lobby != null and lobby.lobby_state != null:
+		is_leader = lobby.is_local_host()
+	_congrats_screen.populate(summary, message, is_leader)
 	_congrats_screen.next_floor_pressed.connect(_on_congrats_next_floor_pressed)
 	_congrats_screen.update_character_pressed.connect(_on_congrats_update_character_pressed)
 	_congrats_screen.save_and_exit_pressed.connect(_on_congrats_save_and_exit_pressed)
