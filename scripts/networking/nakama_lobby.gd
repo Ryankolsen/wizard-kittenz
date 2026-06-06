@@ -327,6 +327,15 @@ func send_player_info_async(player: LobbyPlayer) -> void:
 		"class_name": player.class_name_str,
 		"character_class": player.character_class_int,
 		"equipped_weapon_id": player.equipped_weapon_id,
+		# is_host (#352) propagates the party host's identity to joiners. A
+		# guest's apply_joins adds every existing player via LobbyPlayer.make
+		# with is_host=false, so without this flag on the wire the guest's
+		# roster never marks anyone host → lobby_state.host() returns null →
+		# the host-authoritative routers (boss-cleared / dungeon-transition /
+		# advance-floor) drop every packet on the guest. The host's PLAYER_INFO
+		# is the only packet carrying is_host=true (guests send false),
+		# rebroadcast to each late-joiner in _on_match_presence.
+		"is_host": player.is_host,
 	}
 	await _socket.send_match_state_async(_match_id, OP_PLAYER_INFO, JSON.stringify(payload))
 
@@ -733,6 +742,14 @@ func apply_state(op_code: int, sender_id: String, data: Dictionary) -> void:
 				# doesn't clobber whatever a later #331-aware packet
 				# already set on this player.
 				p.equipped_weapon_id = String(data.get("equipped_weapon_id", p.equipped_weapon_id))
+				# is_host (#352). This is how a joiner learns who the party
+				# host is: only the host's PLAYER_INFO carries is_host=true.
+				# Without it lobby_state.host() stays null on the guest and the
+				# host-authoritative routers (boss-cleared / dungeon-transition
+				# / advance-floor) silently drop every packet. Default to the
+				# stored value so a pre-#352 sender omitting the key doesn't
+				# clobber a flag already learned from another packet.
+				p.is_host = bool(data.get("is_host", p.is_host))
 			lobby_updated.emit(lobby_state)
 		OP_READY_TOGGLE:
 			lobby_state.set_ready(sender_id, bool(data.get("ready", false)))

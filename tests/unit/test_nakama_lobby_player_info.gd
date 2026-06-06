@@ -120,6 +120,75 @@ func test_apply_state_op_player_info_does_not_fabricate_self_entry():
 		"self PLAYER_INFO must not fabricate a local roster entry")
 
 
+func test_send_player_info_async_includes_is_host():
+	# Issue #352: outbound PLAYER_INFO must carry is_host so a joiner learns
+	# who the party host is. Without it the guest's roster marks everyone
+	# is_host=false → lobby_state.host() returns null → the host-authoritative
+	# routers (boss-cleared / dungeon-transition / advance-floor) drop every
+	# packet on the guest.
+	var fixture := _make_lobby_with_socket()
+	var lobby: NakamaLobby = fixture["lobby"]
+	var mock: MockSocket = fixture["socket"]
+	var host := LobbyPlayer.make("me", "Hostcat", "Mage", true)
+	await lobby.send_player_info_async(host)
+	var parsed = JSON.parse_string(mock.sent[0]["raw"])
+	assert_true(parsed["is_host"], "host's PLAYER_INFO must carry is_host=true")
+
+
+func test_apply_state_op_player_info_decodes_is_host_so_host_resolves():
+	# Receiver side (#352): the host's PLAYER_INFO marks the roster entry as
+	# host, so lobby_state.host() resolves to it. apply_joins seeded the host
+	# entry with is_host=false (LobbyPlayer.make default), so this packet is
+	# what flips it.
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "me"
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("me", "Me", "Wizard Kitten"))
+	# the host, as apply_joins would have added it: non-host placeholder.
+	lobby.lobby_state.add_player(LobbyPlayer.make("host-1", "", "", false))
+	assert_null(lobby.lobby_state.host(), "host unknown until PLAYER_INFO arrives")
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "host-1", {
+		"kitten_name": "Hostcat",
+		"class_name": "Mage",
+		"is_host": true,
+	})
+	var h := lobby.lobby_state.host()
+	assert_not_null(h, "host() must resolve once the host's PLAYER_INFO lands")
+	assert_eq(h.player_id, "host-1")
+
+
+func test_apply_state_op_player_info_creates_host_entry_when_presence_not_applied():
+	# Out-of-order delivery (#352 × #337): the host's PLAYER_INFO can reach a
+	# joiner before apply_joins adds the host. The created roster entry must
+	# carry is_host from the payload so host() resolves immediately.
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "me"
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("me", "Me", "Wizard Kitten"))
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "host-1", {
+		"kitten_name": "Hostcat",
+		"class_name": "Mage",
+		"is_host": true,
+	})
+	var h := lobby.lobby_state.host()
+	assert_not_null(h, "PLAYER_INFO must create a host entry on out-of-order delivery")
+	assert_eq(h.player_id, "host-1")
+
+
+func test_apply_state_op_player_info_missing_is_host_preserves_stored():
+	# Backwards-compat: a pre-#352 sender omits is_host. The stored flag must
+	# survive so an is_host already learned from another packet isn't clobbered.
+	var lobby := NakamaLobby.new()
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("host-1", "", "Mage", true))
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "host-1", {
+		"kitten_name": "Hostcat",
+		"class_name": "Mage",
+	})
+	assert_true(lobby.lobby_state.find_player("host-1").is_host,
+		"missing is_host must not clobber the stored host flag")
+
+
 func test_lobby_player_round_trip_preserves_character_class():
 	# Defensive: from_dict(to_dict(x)).character_class_int == x.character_class_int
 	# so a persisted lobby roster reload doesn't lose class selection.

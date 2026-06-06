@@ -243,3 +243,51 @@ func test_send_floor_advance_async_host_rejects_negative_seed():
 	watch_signals(lobby)
 	lobby.send_floor_advance_async(-5)
 	assert_signal_not_emitted(lobby, "floor_advance_received")
+
+# --- #352 host-identity propagation regression ------------------------------
+# The guest never learned who the host was: apply_joins adds the host as a
+# non-host roster row (LobbyPlayer.make default is_host=false) and the old
+# PLAYER_INFO payload didn't carry is_host. So lobby_state.host() returned
+# null on the guest and the three host-authoritative routers dropped every
+# packet — the guest got no congrats and didn't follow the leader to the next
+# floor. These tests reconstruct the guest's roster exactly as the join flow
+# builds it, then confirm the host's PLAYER_INFO unblocks all three packets.
+
+func _make_guest_lobby_before_player_info() -> NakamaLobby:
+	# A guest mid-join: self seeded as non-host, the host added by apply_joins
+	# as a non-host placeholder (is_host=false), PLAYER_INFO not yet applied.
+	var lobby := NakamaLobby.new()
+	lobby.local_player_id = "peer-2"
+	lobby.lobby_state = LobbyState.new("ABCDE")
+	lobby.lobby_state.add_player(LobbyPlayer.make("peer-2", "guest", "Mage", false))
+	lobby.lobby_state.add_player(LobbyPlayer.make("host-1", "", "", false))
+	return lobby
+
+func test_guest_drops_host_packets_until_player_info_marks_host():
+	# Pin the bug: before the host's PLAYER_INFO lands, host() is null and the
+	# transition packet is dropped — exactly the stranded-guest symptom.
+	var lobby := _make_guest_lobby_before_player_info()
+	assert_null(lobby.lobby_state.host(), "host unknown before PLAYER_INFO")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_DUNGEON_TRANSITION_START, "host-1", {"seed": 99})
+	assert_signal_not_emitted(lobby, "dungeon_transition_received",
+		"guest drops the host's transition while host() is null")
+
+func test_guest_honors_host_packets_after_player_info_propagates_host():
+	# The fix: the host's PLAYER_INFO marks the roster's host, so all three
+	# host-authoritative packets the guest used to drop now route through.
+	var lobby := _make_guest_lobby_before_player_info()
+	lobby.apply_state(NakamaLobby.OP_PLAYER_INFO, "host-1", {
+		"kitten_name": "Hostcat", "class_name": "Mage", "is_host": true,
+	})
+	assert_not_null(lobby.lobby_state.host(),
+		"host() resolves once the host's PLAYER_INFO propagates is_host")
+	watch_signals(lobby)
+	lobby.apply_state(NakamaLobby.OP_BOSS_CLEARED, "host-1", {})
+	lobby.apply_state(NakamaLobby.OP_DUNGEON_TRANSITION_START, "host-1", {"seed": 99})
+	lobby.apply_state(NakamaLobby.OP_ADVANCE_FLOOR, "host-1", {"seed": 77})
+	# (boss-cleared = exit door opens; transition/advance = follow + advance —
+	# the three packets the guest used to drop now all route through.)
+	assert_signal_emitted(lobby, "boss_cleared_received")
+	assert_signal_emitted_with_parameters(lobby, "dungeon_transition_received", [99])
+	assert_signal_emitted_with_parameters(lobby, "floor_advance_received", [77])
