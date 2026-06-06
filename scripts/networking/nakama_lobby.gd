@@ -986,6 +986,8 @@ func _route_boss_cleared(sender_id: String) -> void:
 # downstream in DungeonRunController.request_dungeon_transition so multiple
 # peers' simultaneous walk-throughs collapse to one mint.
 func _route_request_transition(sender_id: String) -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	print("[coop-xfer] WIRE recv OP_REQUEST_TRANSITION sender=%s is_local_host=%s" % [sender_id, str(is_local_host())])
 	if sender_id == "":
 		return
 	if not is_local_host():
@@ -998,10 +1000,15 @@ func _route_request_transition(sender_id: String) -> void:
 # seed via dungeon_transition_received; the seed-sync apply downstream is
 # itself idempotent so the self-echo is harmless.
 func _route_dungeon_transition(sender_id: String, data: Dictionary) -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	var _host_pid := lobby_state.host().player_id if (lobby_state != null and lobby_state.host() != null) else "<none>"
+	print("[coop-xfer] WIRE recv OP_DUNGEON_TRANSITION_START sender=%s lobby_state=%s host_pid=%s has_seed=%s" % [
+		sender_id, str(lobby_state != null), _host_pid, str(data.has("seed"))])
 	if sender_id == "" or lobby_state == null:
 		return
 	var h := lobby_state.host()
 	if h == null or h.player_id != sender_id:
+		print("[coop-xfer] WIRE OP_DUNGEON_TRANSITION_START DROPPED (sender != host)")
 		return
 	if not data.has("seed"):
 		return
@@ -1018,10 +1025,15 @@ func _route_dungeon_transition(sender_id: String, data: Dictionary) -> void:
 # floor_advance_received(seed); the finalize+reload downstream is guarded
 # by main_scene's _advance_finalized so duplicate broadcasts are harmless.
 func _route_advance_floor(sender_id: String, data: Dictionary) -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	var _host_pid := lobby_state.host().player_id if (lobby_state != null and lobby_state.host() != null) else "<none>"
+	print("[coop-xfer] WIRE recv OP_ADVANCE_FLOOR sender=%s lobby_state=%s host_pid=%s" % [
+		sender_id, str(lobby_state != null), _host_pid])
 	if sender_id == "" or lobby_state == null:
 		return
 	var h := lobby_state.host()
 	if h == null or h.player_id != sender_id:
+		print("[coop-xfer] WIRE OP_ADVANCE_FLOOR DROPPED (sender != host)")
 		return
 	if not data.has("seed"):
 		return

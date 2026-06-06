@@ -754,6 +754,8 @@ func _on_boss_cleared_received() -> void:
 # to a single transition. Solo path also passes through this gate — first
 # call wins, signal handler drives transition().
 func _on_player_exited_dungeon() -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	print("[coop-xfer] exited dungeon (walked through door); requesting transition")
 	_run_controller.request_dungeon_transition()
 
 # Fans the gated transition request to the right side. Solo / no-co-op:
@@ -766,18 +768,23 @@ func _on_dungeon_transition_requested() -> void:
 	var gs := get_node_or_null("/root/GameState")
 	var lobby: NakamaLobby = gs.lobby if gs != null else null
 	if lobby == null or lobby.lobby_state == null:
+		# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+		print("[coop-xfer] transition_requested: SOLO branch (lobby/lobby_state null) -> local congrats")
 		_on_dungeon_completed()
 		return
 	if lobby.is_local_host():
 		var seed_sync: DungeonSeedSync = _seed_sync_for(gs)
 		if seed_sync == null:
+			print("[coop-xfer] transition_requested: HOST but seed_sync null -> local congrats")
 			_on_dungeon_completed()
 			return
 		if seed_sync.is_agreed():
 			seed_sync.reset()
 		var next_seed := seed_sync.host_mint()
+		print("[coop-xfer] transition_requested: HOST minted seed=%d -> broadcast OP_DUNGEON_TRANSITION_START" % next_seed)
 		lobby.send_dungeon_transition_async(next_seed)
 	else:
+		print("[coop-xfer] transition_requested: PEER -> send OP_REQUEST_TRANSITION to host")
 		lobby.send_request_transition_async()
 
 # Inbound co-op host request from a peer who walked through the exit. Only
@@ -785,6 +792,8 @@ func _on_dungeon_transition_requested() -> void:
 # pipes the request through its own controller gate, which collapses
 # duplicates (two peers walking through together → one mint).
 func _on_transition_requested_received() -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	print("[coop-xfer] HOST received OP_REQUEST_TRANSITION from peer (run_controller=%s)" % str(_run_controller != null))
 	if _run_controller != null:
 		_run_controller.request_dungeon_transition()
 
@@ -800,6 +809,11 @@ func _on_dungeon_transition_received(seed: int) -> void:
 			seed_sync.reset()
 		if not seed_sync.is_agreed():
 			seed_sync.apply_remote_seed(seed)
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA. If
+	# run_controller is null here, transition() below no-ops/errors and the
+	# congrats screen never shows — exactly the "guest stranded" symptom.
+	print("[coop-xfer] received OP_DUNGEON_TRANSITION_START seed=%d run_controller=%s -> driving transition()" % [
+		seed, str(_run_controller != null)])
 	_on_dungeon_completed()
 
 func _seed_sync_for(gs) -> DungeonSeedSync:
@@ -812,6 +826,10 @@ func _on_dungeon_completed() -> void:
 	# Call transition() on the controller so the dungeon_transitioned
 	# listener can open the stat-allocation screen — the actual reload
 	# is deferred until the player presses Continue.
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	if _run_controller == null:
+		print("[coop-xfer] _on_dungeon_completed: run_controller is NULL -> transition() skipped, NO congrats")
+		return
 	_run_controller.transition()
 
 # Listens for DungeonRunController.dungeon_transitioned and shows the
@@ -820,6 +838,9 @@ func _on_dungeon_completed() -> void:
 # typed signals that drive: Next Floor → finalize + reload (this slice);
 # Update Character → #136; Save & Exit → #137 (placeholder prints here).
 func _on_dungeon_transitioned() -> void:
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA. Reaching
+	# here means the congrats screen is about to show on this client.
+	print("[coop-xfer] dungeon_transitioned -> SHOWING congrats screen")
 	var scene := load(CONGRATS_SCENE_PATH)
 	if scene == null:
 		_finalize_and_reload()
