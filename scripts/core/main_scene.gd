@@ -95,7 +95,7 @@ func _ready() -> void:
 	# dungeon_run_controller — freezing every remote kitten at (0,0).
 	# Idempotent: CoopSession.start() returns false when _active is already
 	# true, so solo→co-op scene reloads don't double-build managers.
-	if gs != null and gs.coop_session != null and not gs.coop_session.is_active():
+	if gs != null and gs.coop_session != null and not gs.coop_session.is_active() and _run_controller != null:
 		gs.coop_session.start(_run_controller.dungeon, _local_skill_tree(), gs.lobby)
 
 	_paint_dungeon()
@@ -104,14 +104,18 @@ func _ready() -> void:
 	# ExitDoor, not by killing the boss. The boss-clear edge only opens the
 	# door (via boss_room_cleared -> _exit_door.open); the player's actual
 	# walk-through fires _on_dungeon_completed and drives the transition.
-	_run_controller.boss_room_cleared.connect(_on_boss_room_cleared)
-	_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
-	# Issue #99: rising-edge dedup for dungeon transitions. The exit-door
-	# walk-through now requests the transition through the controller's
-	# idempotent gate; this handler fans the request out to either the
-	# solo path (drive transition() locally) or the co-op path (host mints
-	# + broadcasts a new seed; peer sends a request packet to the host).
-	_run_controller.dungeon_transition_requested.connect(_on_dungeon_transition_requested)
+	# _run_controller may be null when the SEED_COOP_PENDING guard in
+	# _start_new_dungeon held off generation — skip wiring to avoid a null
+	# deref; the next scene reload after the seed arrives will install it.
+	if _run_controller != null:
+		_run_controller.boss_room_cleared.connect(_on_boss_room_cleared)
+		_run_controller.dungeon_transitioned.connect(_on_dungeon_transitioned)
+		# Issue #99: rising-edge dedup for dungeon transitions. The exit-door
+		# walk-through now requests the transition through the controller's
+		# idempotent gate; this handler fans the request out to either the
+		# solo path (drive transition() locally) or the co-op path (host mints
+		# + broadcasts a new seed; peer sends a request packet to the host).
+		_run_controller.dungeon_transition_requested.connect(_on_dungeon_transition_requested)
 
 	_connect_lobby_signals()
 
@@ -158,8 +162,25 @@ func _paint_dungeon() -> void:
 		if camera != null:
 			DungeonTilemapPainter.apply_camera_limits(camera, tilemap)
 
+# Sentinel for "co-op is active but the authoritative seed has not yet been
+# applied to DungeonSeedSync." Distinct from the -1 randomize sentinel:
+# falling through to DungeonGenerator.generate(-1) here would silently fork
+# this client into its own randomly-rolled dungeon (PRD #348 / slice #351 —
+# the "rooms where there aren't any" symptom). The early-return in
+# _start_new_dungeon converts this into a hold instead of a divergence.
+const SEED_COOP_PENDING := -2
+
 func _start_new_dungeon(gs) -> void:
 	var seed := _dungeon_seed_for(gs)
+	if seed == SEED_COOP_PENDING:
+		# Active co-op session without an agreed seed. Slice 1 of PRD #348
+		# guarantees the leader broadcasts the seed before the reload, so
+		# in practice this branch is defense-in-depth — when it does fire
+		# we must NOT call DungeonGenerator.generate(-1) and fork to a
+		# random dungeon. Leave _run_controller null; downstream guards in
+		# _paint_dungeon / _setup_rooms / _spawn_exit_door / _setup_minimap
+		# already no-op on a null controller.
+		return
 	# Floor number is the 1-indexed equivalent of dungeon.depth
 	# (dungeons_completed BEFORE this run finalizes). BossRoster keys on it
 	# to pick the boss kind + sprites deterministically per floor.
@@ -218,10 +239,17 @@ func _coop_seed_mismatch(gs) -> bool:
 
 func _dungeon_seed_for(gs) -> int:
 	if gs == null or gs.coop_session == null:
+		# Solo / no co-op session — -1 keeps DungeonGenerator's randomize
+		# branch as the correct default behavior for solo play.
 		return -1
 	var seed_sync: DungeonSeedSync = gs.coop_session.dungeon_seed_sync
 	if seed_sync == null or not seed_sync.is_agreed():
-		return -1
+		# Active co-op with no agreed seed yet — returning -1 here would
+		# silently fork this client into a random dungeon different from
+		# the host's. SEED_COOP_PENDING surfaces the "hold for the
+		# authoritative seed" state so _start_new_dungeon can early-return
+		# instead of generating divergent content.
+		return SEED_COOP_PENDING
 	return seed_sync.current_seed()
 
 # Spawns every combat room's Enemy node and creates a watcher per room at
@@ -585,7 +613,7 @@ func _spawn_chest() -> void:
 func _chest_spawn_seed() -> int:
 	var gs := get_node_or_null("/root/GameState")
 	var agreed := _dungeon_seed_for(gs)
-	if agreed != -1:
+	if agreed >= 0:
 		return agreed
 	return hash(_run_controller.dungeon.room_type_sequence())
 

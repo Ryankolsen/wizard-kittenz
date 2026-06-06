@@ -33,6 +33,17 @@ func _install_session(session: CoopSession) -> void:
 	# Fresh run_controller is what main_scene._start_new_dungeon mints; clear
 	# any leftover from a previous test so the new-dungeon branch fires.
 	gs.dungeon_run_controller = null
+	# Slice 2 of PRD #348 (#351) added a SEED_COOP_PENDING guard so co-op
+	# without an agreed seed no longer falls through to a random dungeon.
+	# Tests that expect main_scene to BUILD a dungeon (everything except
+	# the pending-guard tests) need an agreed seed installed up front;
+	# pre-agreed seed is the production reality after OP_START_MATCH.
+	# A test that wants to exercise the pending path can set its own
+	# unagreed DungeonSeedSync on the session BEFORE calling this helper.
+	if session != null and session.dungeon_seed_sync == null:
+		var sync := DungeonSeedSync.new()
+		sync.host_mint(12345)
+		session.dungeon_seed_sync = sync
 
 # --- lifecycle -------------------------------------------------------------
 
@@ -272,13 +283,13 @@ func test_dungeon_seed_for_returns_agreed_seed_when_session_has_agreed_sync():
 	assert_eq(inst._dungeon_seed_for(gs), 987654321,
 		"agreed seed surfaces from coop_session.dungeon_seed_sync")
 
-func test_dungeon_seed_for_returns_negative_when_sync_is_not_agreed():
-	# Co-op session exists but the OP_START_MATCH packet hasn't arrived yet
-	# (or the peer somehow reached _start_new_dungeon before the seed apply).
-	# Must fall through to -1 so DungeonGenerator.randomize() doesn't quietly
-	# generate a different layout than the host's agreed seed will pick.
-	# A non-agreed sync surfacing as a positive int would silently desync the
-	# party — pin the sentinel return.
+func test_dungeon_seed_for_does_not_return_negative_one_in_coop_without_agreed_seed():
+	# Slice 2 of PRD #348 (#351): co-op session exists but no agreed seed
+	# yet. Returning -1 here used to fall through to DungeonGenerator's
+	# randomize sentinel and silently fork this client into its own dungeon
+	# (the "rooms where there aren't any" symptom). Pin that the helper now
+	# returns the SEED_COOP_PENDING guard sentinel instead, so the caller
+	# can hold rather than generate.
 	var session := _make_coop_session()
 	session.dungeon_seed_sync = DungeonSeedSync.new()  # fresh, unagreed
 	_install_session(session)
@@ -287,8 +298,28 @@ func test_dungeon_seed_for_returns_negative_when_sync_is_not_agreed():
 	add_child_autofree(inst)
 	var gs := get_node("/root/GameState")
 
-	assert_eq(inst._dungeon_seed_for(gs), -1,
-		"unagreed sync returns -1 so DungeonGenerator randomizes")
+	var seed: int = inst._dungeon_seed_for(gs)
+	assert_ne(seed, -1,
+		"co-op with unagreed sync must NOT return -1 (randomize sentinel)")
+	assert_eq(seed, inst.SEED_COOP_PENDING,
+		"co-op with unagreed sync surfaces the hold-for-seed sentinel")
+
+func test_start_new_dungeon_guards_random_build_when_coop_seed_pending():
+	# Defense-in-depth: even if main_scene._ready reaches _start_new_dungeon
+	# in an active co-op match without an agreed seed, the SEED_COOP_PENDING
+	# branch must early-return BEFORE calling DungeonGenerator.generate. The
+	# visible signal is that gs.dungeon_run_controller stays null — no
+	# randomly-rolled dungeon was installed.
+	var session := _make_coop_session()
+	session.dungeon_seed_sync = DungeonSeedSync.new()  # fresh, unagreed
+	_install_session(session)
+
+	var inst: Node = load(MAIN_SCENE_PATH).instantiate()
+	add_child_autofree(inst)
+	var gs := get_node("/root/GameState")
+
+	assert_null(gs.dungeon_run_controller,
+		"guard prevented random-dungeon build; controller stays null until seed arrives")
 
 func test_dungeon_seed_for_returns_negative_when_no_session():
 	# Solo path: gs.coop_session is null. _dungeon_seed_for must return -1
