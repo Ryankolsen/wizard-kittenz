@@ -40,6 +40,7 @@ var _character: CharacterData = null
 var _unspent_label: Label = null
 var _level_label: Label = null
 var _legend: HBoxContainer = null
+var _legend_toggle: Button = null
 var _stat_labels := {}
 var _name_labels := {}
 var _cost_labels := {}
@@ -95,8 +96,24 @@ func _build() -> void:
 	_level_label.text = "Lv —"
 	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_level_label)
+	# Color key is tucked behind a tap-to-reveal toggle (issue #352): hover
+	# tooltips don't fire on the Android touch target, so a togglable button
+	# is the touch-safe way to keep the key out of the way until wanted.
+	_legend_toggle = Button.new()
+	_legend_toggle.name = "LegendToggle"
+	_legend_toggle.toggle_mode = true
+	_legend_toggle.flat = true
+	_legend_toggle.focus_mode = Control.FOCUS_NONE
+	_legend_toggle.toggled.connect(_on_legend_toggled)
+	var toggle_bar := HBoxContainer.new()
+	toggle_bar.name = "LegendToggleBar"
+	toggle_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	toggle_bar.add_child(_legend_toggle)
+	add_child(toggle_bar)
 	_legend = _make_legend()
+	_legend.visible = false
 	add_child(_legend)
+	_update_legend_toggle_text()
 	add_child(_make_header())
 	for s in STAT_ROWS:
 		add_child(_make_row(s))
@@ -123,6 +140,15 @@ func _make_legend() -> HBoxContainer:
 		lbl.modulate = display.color
 		box.add_child(lbl)
 	return box
+
+func _on_legend_toggled(pressed: bool) -> void:
+	_legend.visible = pressed
+	_update_legend_toggle_text()
+
+func _update_legend_toggle_text() -> void:
+	# ⓘ + a caret that points down when collapsed, up when expanded.
+	var caret := "▴" if _legend_toggle.button_pressed else "▾"
+	_legend_toggle.text = "%s Color key %s" % [String.chr(0x24D8), caret]
 
 # Column headers above the rows so the value / cost columns are explicit
 # (issue #352). Mirrors _make_row's column structure exactly — same flex on
@@ -317,6 +343,10 @@ func get_name_label(stat_key: String) -> Label:
 func get_legend() -> HBoxContainer:
 	_build()
 	return _legend
+
+func get_legend_toggle() -> Button:
+	_build()
+	return _legend_toggle
 
 func get_header_row() -> HBoxContainer:
 	_build()

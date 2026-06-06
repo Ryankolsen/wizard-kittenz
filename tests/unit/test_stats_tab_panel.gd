@@ -256,6 +256,22 @@ func test_stat_value_colored_per_tier():
 	assert_eq(panel.get_stat_label("magic_attack").modulate, primary)
 	assert_eq(panel.get_stat_label("defense").modulate, off_stat)
 
+func test_color_key_collapsed_until_toggled():
+	# The key is tucked behind a tap-to-reveal toggle (issue #352) so it
+	# doesn't eat vertical space — hidden by default, shown after a tap.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	assert_false(panel.get_legend().visible,
+		"color key must be collapsed by default")
+	var toggle := panel.get_legend_toggle()
+	assert_not_null(toggle, "panel must expose a color-key toggle")
+	toggle.button_pressed = true
+	assert_true(panel.get_legend().visible,
+		"tapping the toggle must reveal the color key")
+	toggle.button_pressed = false
+	assert_false(panel.get_legend().visible,
+		"tapping the toggle again must hide the color key")
+
 func test_column_headers_present():
 	# Explicit "Current"/"Cost" column headers sit above the rows.
 	var panel := StatsTabPanel.new()
