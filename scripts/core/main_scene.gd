@@ -283,8 +283,19 @@ func _setup_rooms() -> void:
 	if gs_for_floor != null and gs_for_floor.meta_tracker != null:
 		floor_for_scaling = gs_for_floor.meta_tracker.dungeons_completed + 1
 	_spawn_planner = RoomSpawnPlanner.new()
-	_spawn_planner.register_all_room_enemies(
+	var _registered_ids := _spawn_planner.register_all_room_enemies(
 		_run_controller.dungeon, _dungeon_layout, _coop_session(), floor_for_scaling)
+	# TEMP co-op QA instrumentation (issue #352): log the enemy ids spawned +
+	# registered this floor, plus the registry's alive count, so two clients
+	# can be diffed. Matching id lists => identical spawns; the alive count
+	# surfaces any stale leftover from a prior floor. Remove after QA.
+	if gs_for_floor != null and gs_for_floor.lobby != null and gs_for_floor.lobby.lobby_state != null:
+		var _alive := -1
+		if gs_for_floor.coop_session != null and gs_for_floor.coop_session.enemy_sync != null:
+			_alive = gs_for_floor.coop_session.enemy_sync.alive_count()
+		print("[coop-enemy] floor=%d host=%s spawned_ids=%s registry_alive=%d" % [
+			floor_for_scaling, str(gs_for_floor.lobby.is_local_host()),
+			str(_registered_ids), _alive])
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	var power_up_scene := load(POWER_UP_SCENE_PATH)

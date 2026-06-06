@@ -435,9 +435,13 @@ func _on_position_received(player_id: String, position: Vector2, _timestamp: flo
 # node. AC#4 ("no ghost enemies") closes here: the visible Enemy
 # CharacterBody2D disappears in lockstep with the registry update.
 func _on_kill_received(enemy_id: String, killer_id: String, xp_value: int, is_boss: bool = false) -> void:
-	if not RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value):
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA.
+	var _applied := RemoteKillApplier.apply(coop_session, enemy_id, killer_id, xp_value)
+	if not _applied:
+		print("[coop-enemy] KILL recv id=%s GATED (apply_death false: already-dead/unregistered)" % enemy_id)
 		return
-	RemoteEnemyDespawner.despawn(get_tree(), enemy_id)
+	var _freed := RemoteEnemyDespawner.despawn(get_tree(), enemy_id)
+	print("[coop-enemy] KILL recv id=%s applied=true despawn_freed=%s" % [enemy_id, str(_freed)])
 	# Slice 7 (PRD #201): co-op drop fan-out. Each receiving client rolls
 	# its own item drop locally against current_character — independent of
 	# whatever the killer rolled, so every party member gets a class-
@@ -512,7 +516,10 @@ func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int, ki
 	# boss_health_bar drops on every peer's screen. Self-echo is dropped at
 	# NakamaLobby._route_damage_dealt (sender_id == local_player_id), so the
 	# attacker never double-decrements their own HP copy.
-	_RemoteEnemyDamageApplierRef.apply(get_tree(), enemy_id, damage)
+	var _hit := _RemoteEnemyDamageApplierRef.apply(get_tree(), enemy_id, damage)
+	# TEMP co-op QA instrumentation (issue #352). Remove after QA. _hit=false
+	# means no local enemy node carried this enemy_id — the spawns desynced.
+	print("[coop-enemy] DMG recv id=%s dmg=%d matched_local_enemy=%s" % [enemy_id, damage, str(_hit)])
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's
