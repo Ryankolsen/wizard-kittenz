@@ -244,6 +244,33 @@ func test_stat_name_colored_per_tier():
 	assert_eq(panel.get_name_label("defense").modulate, off_stat)
 	assert_eq(panel.get_name_label("attack").modulate, forbidden)
 
+func test_stat_value_colored_per_tier():
+	# The value column is tinted the same tier color as the name so each stat
+	# reads as one colored unit (issue #352).
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var c := _wizard_with_points(0)
+	panel.refresh(c)
+	var primary: Color = StatsTabPanel._TIER_DISPLAY[ClassStatTiers.Tier.PRIMARY].color
+	var off_stat: Color = StatsTabPanel._TIER_DISPLAY[ClassStatTiers.Tier.OFF_STAT].color
+	assert_eq(panel.get_stat_label("magic_attack").modulate, primary)
+	assert_eq(panel.get_stat_label("defense").modulate, off_stat)
+
+func test_column_headers_present():
+	# Explicit "Current"/"Cost" column headers sit above the rows.
+	var panel := StatsTabPanel.new()
+	add_child_autofree(panel)
+	var header := panel.get_header_row()
+	assert_not_null(header, "stats panel must build a column header row")
+	var texts := ""
+	for child in header.get_children():
+		if child is Label:
+			texts += (child as Label).text + "|"
+	assert_true(texts.contains("Current"),
+		"header must label the value column 'Current', got: %s" % texts)
+	assert_true(texts.contains("Cost"),
+		"header must label the cost column 'Cost', got: %s" % texts)
+
 func test_legend_lists_every_tier():
 	# The color key must spell out each tier so the row colors are readable.
 	var panel := StatsTabPanel.new()

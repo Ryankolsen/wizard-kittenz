@@ -67,6 +67,14 @@ const _TIER_LEGEND_ORDER := [
 	ClassStatTiers.Tier.FORBIDDEN,
 ]
 
+# Fixed widths so the value / cost / "+" columns line up across every row
+# and under the header (issue #352). The name column flexes to fill the rest.
+const _VALUE_COL_MIN_WIDTH := 72
+const _COST_COL_MIN_WIDTH := 52
+const _PLUS_COL_MIN_WIDTH := 36
+# Header tint — muted so it reads as a label, not a stat row.
+const _HEADER_COLOR := Color(0.7, 0.75, 0.82)
+
 func _init() -> void:
 	_build()
 
@@ -89,6 +97,7 @@ func _build() -> void:
 	add_child(_level_label)
 	_legend = _make_legend()
 	add_child(_legend)
+	add_child(_make_header())
 	for s in STAT_ROWS:
 		add_child(_make_row(s))
 	_continue_button = Button.new()
@@ -115,6 +124,39 @@ func _make_legend() -> HBoxContainer:
 		box.add_child(lbl)
 	return box
 
+# Column headers above the rows so the value / cost columns are explicit
+# (issue #352). Mirrors _make_row's column structure exactly — same flex on
+# the name column, same fixed widths and right-alignment on the rest — so the
+# headers sit directly over the data they label.
+func _make_header() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "HeaderRow"
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	row.modulate = _HEADER_COLOR
+	var stat_h := Label.new()
+	stat_h.name = "HeaderStat"
+	stat_h.text = "Stat"
+	stat_h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(stat_h)
+	var val_h := Label.new()
+	val_h.name = "HeaderValue"
+	val_h.text = "Current"
+	val_h.custom_minimum_size.x = _VALUE_COL_MIN_WIDTH
+	val_h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(val_h)
+	var cost_h := Label.new()
+	cost_h.name = "HeaderCost"
+	cost_h.text = "Cost"
+	cost_h.custom_minimum_size.x = _COST_COL_MIN_WIDTH
+	cost_h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(cost_h)
+	var plus_spacer := Control.new()
+	plus_spacer.name = "HeaderPlusSpacer"
+	plus_spacer.custom_minimum_size.x = _PLUS_COL_MIN_WIDTH
+	row.add_child(plus_spacer)
+	return row
+
 func _make_row(s: Dictionary) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "Row_%s" % s.key
@@ -129,16 +171,21 @@ func _make_row(s: Dictionary) -> HBoxContainer:
 	var val_lbl := Label.new()
 	val_lbl.name = s.node
 	val_lbl.text = "—"
+	val_lbl.custom_minimum_size.x = _VALUE_COL_MIN_WIDTH
+	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(val_lbl)
 	_stat_labels[s.key] = val_lbl
 	var cost_lbl := Label.new()
 	cost_lbl.name = "CostLabel_%s" % s.key
 	cost_lbl.text = ""
+	cost_lbl.custom_minimum_size.x = _COST_COL_MIN_WIDTH
+	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(cost_lbl)
 	_cost_labels[s.key] = cost_lbl
 	var btn := Button.new()
 	btn.name = "PlusButton_%s" % s.key
 	btn.text = "+"
+	btn.custom_minimum_size.x = _PLUS_COL_MIN_WIDTH
 	btn.disabled = true
 	var stat_key: String = s.key
 	btn.pressed.connect(func(): _on_plus_pressed(stat_key))
@@ -161,6 +208,7 @@ func refresh(c: CharacterData) -> void:
 		_level_label.text = "Lv —"
 		for key in _stat_labels.keys():
 			(_stat_labels[key] as Label).text = "—"
+			(_stat_labels[key] as Label).modulate = Color.WHITE
 			(_name_labels[key] as Label).modulate = Color.WHITE
 			(_cost_labels[key] as Label).text = ""
 			(_plus_buttons[key] as Button).disabled = true
@@ -183,6 +231,10 @@ func _apply_tier_ui(c: CharacterData, key: String) -> void:
 	var name_lbl := _name_labels[key] as Label
 	name_lbl.modulate = display.color
 	name_lbl.tooltip_text = display.text
+	# Tint the value the same tier color so each stat reads as one colored
+	# unit name + value across the row (issue #352).
+	var val_lbl := _stat_labels[key] as Label
+	val_lbl.modulate = display.color
 	var cost := ClassStatTiers.get_sp_cost(c.character_class, key)
 	var cap := ClassStatTiers.get_cap(c.character_class, key)
 	var allocated: int = int(c.allocated_points.get(key, 0))
@@ -265,6 +317,10 @@ func get_name_label(stat_key: String) -> Label:
 func get_legend() -> HBoxContainer:
 	_build()
 	return _legend
+
+func get_header_row() -> HBoxContainer:
+	_build()
+	return get_node_or_null("HeaderRow") as HBoxContainer
 
 func get_cost_label(stat_key: String) -> Label:
 	_build()
