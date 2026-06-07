@@ -3,10 +3,10 @@ extends RefCounted
 
 const DEFAULT_PATH := "user://save.json"
 
-static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "") -> Error:
+static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inv = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "", consumable_inventory: ConsumableInventory = null, potion_belt: PotionBelt = null) -> Error:
 	if c == null:
 		return ERR_INVALID_PARAMETER
-	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv, item_inventory, quickbar, streak_day, last_login_date)
+	var save_data := KittenSaveData.from_character(c, tree, tracker, xp_tracker, cosmetic_inv, paid_unlocks, dungeon_run_state, currency_ledger, skill_inv, item_inventory, quickbar, streak_day, last_login_date, consumable_inventory, potion_belt)
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return FileAccess.get_open_error()
@@ -40,7 +40,8 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 		run_state = DungeonRunSerializer.serialize(gs.dungeon_run_controller, gs.dungeon_run_controller.seed)
 	var slot := CharacterSlotData.from_state(
 		gs.current_character, gs.skill_tree, gs.item_inventory,
-		gs.current_quickbar, run_state, gs.offline_xp_tracker
+		gs.current_quickbar, run_state, gs.offline_xp_tracker,
+		gs.consumable_inventory, gs.potion_belt
 	)
 	bundle.set_slot(gs.current_character.character_class, slot)
 	bundle.active_slot = SaveBundle.slot_key_for_class(gs.current_character.character_class)

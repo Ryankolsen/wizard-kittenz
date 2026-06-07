@@ -54,6 +54,11 @@ var item_inventory: ItemInventory = ItemInventory.new()
 # now the field resets on session start, which is fine — slice 5's acceptance
 # criterion is just that purchases land in the in-memory inventory.
 var consumable_inventory: ConsumableInventory = ConsumableInventory.new()
+# Per-character potion belt (PRD #358 / slice 4+6). Always non-null so the
+# PotionBeltHUD (slice 8) + input action bindings can read freely without a
+# null check. Slot assignments persist via the save bundle; the shared
+# cooldown intentionally does not survive a session (see slice 4 commit).
+var potion_belt: PotionBelt = PotionBelt.new()
 # Per-character spell quickbar (PRD #210 / slice 5). Built once per
 # character — either deserialized from the save via to_quickbar() (live
 # bindings restored) or freshly auto-filled from the tree's unlocked
@@ -211,6 +216,19 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 		for spell in skill_tree.get_unlocked_spells():
 			qb.on_spell_unlocked(spell)
 	current_quickbar = qb
+	# Potion persistence (PRD #358 / slice 6). Restore stack counts + belt slot
+	# assignments from the slot. Unknown ids (catalog dropped a potion since
+	# the save was written) are filtered defensively inside the helpers.
+	consumable_inventory = ConsumableInventory.new()
+	for k in slot.consumable_inventory_data.keys():
+		var pid := String(k)
+		if PotionCatalog.find(pid) == null:
+			continue
+		var amount := int(slot.consumable_inventory_data[k])
+		if amount > 0:
+			consumable_inventory.add(pid, amount)
+	potion_belt = PotionBelt.new()
+	potion_belt.deserialize({"slots": slot.potion_belt_slots})
 
 # Multi-save slot switching (PRD #250 / slice 3). Persist the outgoing
 # character into the bundle's current active slot first so its progress
@@ -229,6 +247,8 @@ func switch_to_slot(archetype: String) -> void:
 		skill_tree = null
 		current_quickbar = null
 		item_inventory = ItemInventory.new()
+		consumable_inventory = ConsumableInventory.new()
+		potion_belt = PotionBelt.new()
 		offline_xp_tracker = OfflineXPTracker.new()
 		dungeon_run_controller = null
 		return
@@ -271,6 +291,8 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	# "pre-feature saves load and auto-fill from already-unlocked spells in
 	# tree order" relies on this ordering.
 	current_quickbar = save_data.to_quickbar(skill_tree)
+	consumable_inventory = save_data.to_consumable_inventory()
+	potion_belt = save_data.to_potion_belt()
 	streak_day = save_data.streak_day
 	last_login_date = save_data.last_login_date
 
@@ -325,6 +347,10 @@ func set_character(c: CharacterData) -> void:
 	# rebuild item_inventory from the slot themselves, so this only affects the
 	# character-creation entry point.
 	item_inventory = ItemInventory.new()
+	# Brand-new character starts with no potion stacks and an empty belt so it
+	# doesn't inherit the previous character's potions across a slot swap.
+	consumable_inventory = ConsumableInventory.new()
+	potion_belt = PotionBelt.new()
 	skill_tree = _build_tree_for(c)
 	# Issue #126 AC1: a freshly-created level-1 character enters their first
 	# dungeon with the level_required == 1 node already unlocked. Runs for any
@@ -350,6 +376,7 @@ func clear() -> void:
 	skill_inventory = SkillInventoryRef.new()
 	item_inventory = ItemInventory.new()
 	consumable_inventory = ConsumableInventory.new()
+	potion_belt = PotionBelt.new()
 	current_quickbar = null
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to

@@ -81,6 +81,30 @@ func use_slot(n: int, caster, inventory: ConsumableInventory) -> bool:
 	slot_used.emit(n)
 	return true
 
+func serialize() -> Dictionary:
+	return {"slots": _slots.duplicate()}
+
+# Restores slot assignments from a previously-serialized dict (PRD #358 / slice 6).
+# Cooldown state is intentionally NOT round-tripped — see commit notes on slice 4.
+# An id that no longer exists in PotionCatalog is dropped silently so a save
+# written against an old catalog version doesn't pin a slot to an inert string
+# the use_slot guard would just reject every press anyway.
+func deserialize(dict: Dictionary) -> void:
+	_slots = ["", "", ""]
+	_cooldown_remaining = 0.0
+	if typeof(dict) != TYPE_DICTIONARY:
+		return
+	var slots = dict.get("slots", [])
+	if typeof(slots) != TYPE_ARRAY:
+		return
+	for i in range(mini(slots.size(), SLOT_COUNT)):
+		var pid := String(slots[i])
+		if pid == "":
+			continue
+		if PotionCatalog.find(pid) == null:
+			continue
+		_slots[i] = pid
+
 func _index_of(potion_id: String) -> int:
 	for i in range(SLOT_COUNT):
 		if _slots[i] == potion_id:

@@ -35,6 +35,11 @@ var unlocked_skill_ids: Array = []
 var equipped_items: Dictionary = {}
 var item_bag: Array = []
 var quickbar_slots: Array = []
+# Potion stack counts + belt slot assignments (PRD #358 / slice 6). Both default
+# empty so a slot saved before potions shipped round-trips cleanly. Counts are
+# {potion_id: int}; belt is a length-3 array of potion ids ("" for empty slots).
+var consumable_inventory_data: Dictionary = {}
+var potion_belt_slots: Array = []
 var dungeon_run_state: Dictionary = {}
 var offline_xp_earned: int = 0
 
@@ -42,7 +47,7 @@ var offline_xp_earned: int = 0
 # to assemble the active slot of the SaveBundle (PRD #250 / slice 2). Each
 # arg is optional so callers writing a minimal slot (character_creation's
 # initial save) don't have to thread null placeholders.
-static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemInventory = null, qb: Quickbar = null, run_state: Dictionary = {}, xp_tracker: OfflineXPTracker = null) -> CharacterSlotData:
+static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemInventory = null, qb: Quickbar = null, run_state: Dictionary = {}, xp_tracker: OfflineXPTracker = null, consumable_inv: ConsumableInventory = null, potion_belt: PotionBelt = null) -> CharacterSlotData:
 	var s := CharacterSlotData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -78,6 +83,10 @@ static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemI
 			s.item_bag.append(it.id)
 	if qb != null:
 		s.quickbar_slots = qb.serialize().get("slots", [])
+	if consumable_inv != null:
+		s.consumable_inventory_data = consumable_inv.serialize()
+	if potion_belt != null:
+		s.potion_belt_slots = potion_belt.serialize().get("slots", [])
 	s.dungeon_run_state = run_state.duplicate(true)
 	if xp_tracker != null:
 		s.offline_xp_earned = xp_tracker.pending_xp
@@ -112,6 +121,8 @@ func to_dict() -> Dictionary:
 		"equipped_items": equipped_items.duplicate(),
 		"item_bag": item_bag.duplicate(),
 		"quickbar_slots": quickbar_slots.duplicate(),
+		"consumable_inventory_data": consumable_inventory_data.duplicate(),
+		"potion_belt_slots": potion_belt_slots.duplicate(),
 		"dungeon_run_state": dungeon_run_state.duplicate(true),
 		"offline_xp_earned": offline_xp_earned,
 	}
@@ -158,6 +169,12 @@ static func from_dict(d: Dictionary) -> CharacterSlotData:
 	var qb = d.get("quickbar_slots", [])
 	if qb is Array:
 		s.quickbar_slots = qb.duplicate()
+	var inv_data = d.get("consumable_inventory_data", {})
+	if inv_data is Dictionary:
+		s.consumable_inventory_data = inv_data.duplicate()
+	var belt_slots = d.get("potion_belt_slots", [])
+	if belt_slots is Array:
+		s.potion_belt_slots = belt_slots.duplicate()
 	var run_state = d.get("dungeon_run_state", {})
 	if run_state is Dictionary:
 		s.dungeon_run_state = run_state.duplicate(true)

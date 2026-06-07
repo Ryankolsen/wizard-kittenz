@@ -106,13 +106,19 @@ var item_bag: Array = []
 # tree's unlocked spells to auto-fill in that case. Once the migration runs
 # the next save writes the now-filled slots and never re-migrates.
 var quickbar_slots: Array = []
+# Potion persistence (PRD #358 / slice 6). consumable_inventory_data is the
+# {potion_id: count} dict ConsumableInventory.serialize emits; potion_belt_slots
+# is a length-3 array of potion ids ("" for empty). Both default empty so a
+# save written before this slice round-trips cleanly.
+var consumable_inventory_data: Dictionary = {}
+var potion_belt_slots: Array = []
 # Transient: tracks whether the source dict had the quickbar_slots key. Not
 # serialized — `to_dict()` always emits the slots array. Set true by
 # from_character (which is given a live Quickbar) and by from_dict when the
 # key is present. False marks a legacy save so to_quickbar() runs migration.
 var _quickbar_present_in_save: bool = false
 
-static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "") -> KittenSaveData:
+static func from_character(c: CharacterData, tree: SkillTree = null, tracker: MetaProgressionTracker = null, xp_tracker: OfflineXPTracker = null, cosmetic_inventory: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, dungeon_run_state: Dictionary = {}, currency_ledger: CurrencyLedger = null, skill_inventory = null, item_inventory: ItemInventory = null, quickbar: Quickbar = null, streak_day: int = 0, last_login_date: String = "", consumable_inventory: ConsumableInventory = null, potion_belt: PotionBelt = null) -> KittenSaveData:
 	var s := KittenSaveData.new()
 	s.character_name = c.character_name
 	s.character_class = int(c.character_class)
@@ -165,6 +171,10 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	if quickbar != null:
 		s.quickbar_slots = quickbar.serialize().get("slots", [])
 		s._quickbar_present_in_save = true
+	if consumable_inventory != null:
+		s.consumable_inventory_data = consumable_inventory.serialize()
+	if potion_belt != null:
+		s.potion_belt_slots = potion_belt.serialize().get("slots", [])
 	s.streak_day = streak_day
 	s.last_login_date = last_login_date
 	return s
@@ -239,6 +249,8 @@ func to_dict() -> Dictionary:
 		"equipped_items": equipped_items,
 		"item_bag": item_bag,
 		"quickbar_slots": quickbar_slots,
+		"consumable_inventory_data": consumable_inventory_data,
+		"potion_belt_slots": potion_belt_slots,
 	}
 
 static func from_dict(d: Dictionary) -> KittenSaveData:
@@ -319,6 +331,12 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 		var slots = d.get("quickbar_slots", [])
 		if slots is Array:
 			s.quickbar_slots = slots.duplicate()
+	var inv_data = d.get("consumable_inventory_data", {})
+	if inv_data is Dictionary:
+		s.consumable_inventory_data = inv_data.duplicate()
+	var belt_slots = d.get("potion_belt_slots", [])
+	if belt_slots is Array:
+		s.potion_belt_slots = belt_slots.duplicate()
 	return s
 
 func to_tracker() -> MetaProgressionTracker:
@@ -452,7 +470,29 @@ static func from_bundle(bundle: SaveBundle) -> KittenSaveData:
 		s.offline_xp_earned = slot.offline_xp_earned
 		s.quickbar_slots = slot.quickbar_slots.duplicate()
 		s._quickbar_present_in_save = true
+		s.consumable_inventory_data = slot.consumable_inventory_data.duplicate()
+		s.potion_belt_slots = slot.potion_belt_slots.duplicate()
 	return s
+
+# Rebuilds a ConsumableInventory from the persisted counts. Unknown potion ids
+# (no longer in PotionCatalog) are dropped defensively so a save written against
+# an older catalog version doesn't ressurect ghost stacks the rest of the game
+# has no way to interact with.
+func to_consumable_inventory() -> ConsumableInventory:
+	var inv := ConsumableInventory.new()
+	for k in consumable_inventory_data.keys():
+		var pid := String(k)
+		if PotionCatalog.find(pid) == null:
+			continue
+		var amount := int(consumable_inventory_data[k])
+		if amount > 0:
+			inv.add(pid, amount)
+	return inv
+
+func to_potion_belt() -> PotionBelt:
+	var belt := PotionBelt.new()
+	belt.deserialize({"slots": potion_belt_slots})
+	return belt
 
 func to_currency_ledger() -> CurrencyLedger:
 	var ledger := CurrencyLedger.new()
