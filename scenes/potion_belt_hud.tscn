@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://c5potbelthud01"]
+[gd_scene format=3 uid="uid://b3h2jymjdsh2w"]
 
 [ext_resource type="Script" path="res://scripts/ui/potion_belt_hud.gd" id="1_potion_belt_hud"]
 
