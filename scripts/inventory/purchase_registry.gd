@@ -20,6 +20,11 @@ const GRANT_SKILL_UNLOCK := "skill_unlock"
 # (data-driven, not enumerated in ALL_PRODUCT_IDS — gear is Gold-only and
 # never goes through BillingManager).
 const GRANT_ITEM := "item"
+# Gem → Gold exchange ("convert diamonds to money"). Reverse of GRANT_GEM_BUNDLE:
+# the row is priced in Gems (debited by ShopScreen's soft-currency path) and the
+# grant credits the configured Gold amount. Soft-currency only — never goes
+# through BillingManager, so the ids stay out of ALL_PRODUCT_IDS.
+const GRANT_GEM_EXCHANGE := "gem_exchange"
 
 # Tier 1 — class tier upgrades (Kitten -> Cat). The source class is the one
 # being upgraded; `ClassTierUpgrade.TIER_MAP` owns the upgrade target.
@@ -55,6 +60,27 @@ const GEM_BUNDLE_HERO := "gem_bundle_hero"
 const SKILL_UNLOCK_FIREBALL := "skill_unlock_fireball"
 const SKILL_UNLOCK_SHADOWSTEP := "skill_unlock_shadowstep"
 const SKILL_UNLOCK_SMOKE_BOMB := "skill_unlock_smoke_bomb"
+
+# Gem → Gold exchange rows. Priced in Gems; the value is the Gold granted.
+# Rate is a flat 1 Gem = 100 Gold across all three tiers (10 / 50 / 100 Gems).
+const EXCHANGE_SMALL_POUCH := "exchange_small_pouch"
+const EXCHANGE_GOLD_SACK := "exchange_gold_sack"
+const EXCHANGE_TREASURE := "exchange_treasure"
+
+# Gem cost per exchange row. Mirrored into ShopCatalog so the catalog row and
+# the grant agree on what the player paid.
+const EXCHANGE_GEM_COST: Dictionary = {
+	EXCHANGE_SMALL_POUCH: 10,
+	EXCHANGE_GOLD_SACK: 50,
+	EXCHANGE_TREASURE: 100,
+}
+
+# Gold granted per exchange row (1 Gem = 100 Gold).
+const _GEM_EXCHANGE_TO_GOLD: Dictionary = {
+	EXCHANGE_SMALL_POUCH: 1000,
+	EXCHANGE_GOLD_SACK: 5000,
+	EXCHANGE_TREASURE: 10000,
+}
 
 const _GEM_BUNDLE_AMOUNTS: Dictionary = {
 	GEM_BUNDLE_STARTER: 100,
@@ -122,6 +148,8 @@ static func grant_type_for(product_id: String) -> String:
 		return GRANT_GEM_BUNDLE
 	if _SKILL_UNLOCK_TO_SKILL_ID.has(product_id):
 		return GRANT_SKILL_UNLOCK
+	if _GEM_EXCHANGE_TO_GOLD.has(product_id):
+		return GRANT_GEM_EXCHANGE
 	var item_data := ItemCatalog.find(product_id)
 	if item_data != null and item_data.source == ItemData.Source.SHOP:
 		return GRANT_ITEM
@@ -133,6 +161,16 @@ static func grant_type_for(product_id: String) -> String:
 # from minting Gems.
 static func gem_amount_for(product_id: String) -> int:
 	return int(_GEM_BUNDLE_AMOUNTS.get(product_id, 0))
+
+# Gold granted for a gem-exchange product; 0 for any other product kind so a
+# mis-routed product can't mint Gold. Mirrors gem_amount_for's zero sentinel.
+static func gold_amount_for(product_id: String) -> int:
+	return int(_GEM_EXCHANGE_TO_GOLD.get(product_id, 0))
+
+# Gem cost for a gem-exchange product; 0 for any other product kind. ShopCatalog
+# reads this to price the row in Gems.
+static func exchange_gem_cost_for(product_id: String) -> int:
+	return int(EXCHANGE_GEM_COST.get(product_id, 0))
 
 # Returns the canonical skill_id for a skill-unlock product. Empty string for
 # any other product kind so callers can branch off the empty sentinel.

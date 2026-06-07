@@ -29,6 +29,8 @@ static func handle(product_id: String, character: CharacterData,
 			return _handle_class_unlock(product_id, paid_unlocks)
 		PurchaseRegistry.GRANT_GEM_BUNDLE:
 			return _handle_gem_bundle(product_id, currency_ledger)
+		PurchaseRegistry.GRANT_GEM_EXCHANGE:
+			return _handle_gem_exchange(product_id, currency_ledger)
 		PurchaseRegistry.GRANT_SKILL_UNLOCK:
 			return _handle_skill_unlock(product_id, skill_inventory)
 		PurchaseRegistry.GRANT_ITEM:
@@ -76,6 +78,22 @@ static func _handle_gem_bundle(product_id: String,
 	if amount <= 0:
 		return false
 	return currency_ledger.try_grant_bundle(product_id, amount)
+
+# Gem-exchange products ("convert diamonds to money") credit the configured
+# Gold amount. The matching Gem debit is the caller's job — ShopScreen's
+# soft-currency path debits item.price (Gems) before calling handle(), so this
+# only mints the Gold half. No replay guard: an exchange is a repeatable
+# consumable, not a one-time grant. Returns true iff Gold was credited so the
+# caller can refund the Gem debit on a null ledger / mis-routed product.
+static func _handle_gem_exchange(product_id: String,
+		currency_ledger: CurrencyLedger) -> bool:
+	if currency_ledger == null:
+		return false
+	var gold := PurchaseRegistry.gold_amount_for(product_id)
+	if gold <= 0:
+		return false
+	currency_ledger.credit(gold, CurrencyLedger.Currency.GOLD)
+	return true
 
 # Skill-unlock products grant a permanent skill entry. Mirrors the class-unlock
 # path but routes into SkillInventory (#71's eventual SkillTree consults this

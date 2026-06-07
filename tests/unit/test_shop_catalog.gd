@@ -4,7 +4,7 @@ extends GutTest
 # without coupling to the scene; tests here pin the contract every row must
 # satisfy so a future row addition can't silently land malformed.
 
-const VALID_CATEGORIES := ["class_upgrade", "class_unlock", "skill", "gem_bundle", "gear"]
+const VALID_CATEGORIES := ["class_upgrade", "class_unlock", "skill", "gem_bundle", "gear", "exchange"]
 
 func test_items_returns_non_empty_array():
 	var items := ShopCatalog.items()

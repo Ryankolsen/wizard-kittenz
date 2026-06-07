@@ -438,4 +438,5 @@ func _category_display_name(category: String) -> String:
 		ShopCatalogItem.CATEGORY_SKILL: return "Skills"
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE: return "Gem Bundles"
 		ShopCatalogItem.CATEGORY_GEAR: return "Gear"
+		ShopCatalogItem.CATEGORY_EXCHANGE: return "Exchange Gems for Gold"
 	return category

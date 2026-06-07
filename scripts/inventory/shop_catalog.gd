@@ -97,6 +97,16 @@ static func items(character_class: int = -1) -> Array[ShopCatalogItem]:
 		CurrencyLedger.Currency.GEM, PRICE_CENTS_HERO,
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE))
 
+	# Gem → Gold exchange rows ("convert diamonds to money"). Priced in Gems;
+	# the description names the Gold granted. Routed through the soft-currency
+	# path in ShopScreen (debit Gems → PurchaseGrantHandler credits Gold).
+	out.append(_exchange_row(
+		PurchaseRegistry.EXCHANGE_SMALL_POUCH, "Small Pouch of Gold"))
+	out.append(_exchange_row(
+		PurchaseRegistry.EXCHANGE_GOLD_SACK, "Sack of Gold"))
+	out.append(_exchange_row(
+		PurchaseRegistry.EXCHANGE_TREASURE, "Treasure Chest of Gold"))
+
 	if character_class >= 0:
 		for item_data in ItemCatalog.all_items():
 			if item_data.source != ItemData.Source.SHOP:
@@ -119,6 +129,16 @@ static func find(product_id: String) -> ShopCatalogItem:
 	if item_data != null and item_data.source == ItemData.Source.SHOP:
 		return _gear_row(item_data)
 	return null
+
+static func _exchange_row(product_id: String, display_name: String) -> ShopCatalogItem:
+	var gold := PurchaseRegistry.gold_amount_for(product_id)
+	return ShopCatalogItem.make(
+		product_id,
+		display_name,
+		"Convert Gems into %d Gold." % gold,
+		CurrencyLedger.Currency.GEM,
+		PurchaseRegistry.exchange_gem_cost_for(product_id),
+		ShopCatalogItem.CATEGORY_EXCHANGE)
 
 static func gear_price_for_rarity(rarity: int) -> int:
 	match rarity:
