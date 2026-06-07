@@ -847,6 +847,9 @@ func _make_potion_row(row_data: Dictionary, belt: PotionBelt) -> HBoxContainer:
 	var count: int = row_data["count"]
 	var row := HBoxContainer.new()
 	row.name = "PotionRow_%s" % potion_id
+	row.add_theme_constant_override("separation", 8)
+	if def.icon != null:
+		row.add_child(_make_potion_row_icon(potion_id, def))
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var name_label := Label.new()
@@ -864,6 +867,21 @@ func _make_potion_row(row_data: Dictionary, belt: PotionBelt) -> HBoxContainer:
 	row.add_child(col)
 	row.add_child(_make_potion_assign_cluster(potion_id, belt))
 	return row
+
+# Leading icon for a potion row — the generic per-kind bottle carried on
+# def.icon (sourced from PotionImageResolver). Fixed square, aspect-fit so the
+# narrow mana vial keeps its proportions, nearest filter to preserve the
+# pixel-art crispness. Only added when the potion actually has art.
+func _make_potion_row_icon(potion_id: String, def: PotionDefinition) -> TextureRect:
+	var icon := TextureRect.new()
+	icon.name = "PotionRowIcon_%s" % potion_id
+	icon.custom_minimum_size = Vector2(40, 40)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = def.icon
+	return icon
 
 func _make_potion_assign_cluster(potion_id: String, belt: PotionBelt) -> HBoxContainer:
 	var cluster := HBoxContainer.new()
