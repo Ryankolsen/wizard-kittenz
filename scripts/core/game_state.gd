@@ -48,6 +48,12 @@ var skill_inventory = SkillInventoryRef.new()
 # a null check. Hydrated from KittenSaveData.to_item_inventory() in
 # apply_merged_save; reset to a fresh inventory in clear().
 var item_inventory: ItemInventory = ItemInventory.new()
+# Per-character potion stack counts (PRD #358 / slice 5). Always non-null so the
+# shop grant handler and the future PotionBeltHUD can read freely without a null
+# check. Slice 6 (#364) wires serialize/deserialize into the save bundle; for
+# now the field resets on session start, which is fine — slice 5's acceptance
+# criterion is just that purchases land in the in-memory inventory.
+var consumable_inventory: ConsumableInventory = ConsumableInventory.new()
 # Per-character spell quickbar (PRD #210 / slice 5). Built once per
 # character — either deserialized from the save via to_quickbar() (live
 # bindings restored) or freshly auto-filled from the tree's unlocked
@@ -106,7 +112,7 @@ func _on_purchase_succeeded(product_id: String) -> void:
 	# server replays for already-owned cosmetics return false here, so a
 	# user opening the app twenty times doesn't rewrite the save file twenty
 	# times for no reason.
-	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory, item_inventory):
+	if PurchaseGrantHandler.handle(product_id, current_character, cosmetic_inventory, paid_unlocks, currency_ledger, skill_inventory, item_inventory, consumable_inventory):
 		SaveManager.save_from_state()
 
 func _try_load_save() -> void:
@@ -343,6 +349,7 @@ func clear() -> void:
 	currency_ledger = CurrencyLedger.new()
 	skill_inventory = SkillInventoryRef.new()
 	item_inventory = ItemInventory.new()
+	consumable_inventory = ConsumableInventory.new()
 	current_quickbar = null
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to

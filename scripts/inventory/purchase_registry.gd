@@ -25,6 +25,24 @@ const GRANT_ITEM := "item"
 # grant credits the configured Gold amount. Soft-currency only — never goes
 # through BillingManager, so the ids stay out of ALL_PRODUCT_IDS.
 const GRANT_GEM_EXCHANGE := "gem_exchange"
+# Potion consumables (PRD #358 / slice 5). Product_id is the PotionCatalog id
+# directly (data-driven, not enumerated in ALL_PRODUCT_IDS — potions are Gold-
+# only and never go through BillingManager). Repeatable consumable: no replay
+# guard, no "Owned" state, each successful purchase increments the count by 1.
+const GRANT_POTION := "potion"
+
+# Slice 5 of PRD #358 — flat Gold price per potion. The PotionCatalog id is the
+# shop product_id directly; the price is looked up here so a content add only
+# needs one entry in PotionCatalog and one row here.
+const PRICE_POTION_HEALTH := 100
+const PRICE_POTION_MANA := 100
+const PRICE_POTION_SHIELD := 200
+
+const _POTION_GOLD_PRICES: Dictionary = {
+	"health_potion": PRICE_POTION_HEALTH,
+	"mana_potion": PRICE_POTION_MANA,
+	"shield_potion": PRICE_POTION_SHIELD,
+}
 
 # Tier 1 — class tier upgrades (Kitten -> Cat). The source class is the one
 # being upgraded; `ClassTierUpgrade.TIER_MAP` owns the upgrade target.
@@ -150,6 +168,8 @@ static func grant_type_for(product_id: String) -> String:
 		return GRANT_SKILL_UNLOCK
 	if _GEM_EXCHANGE_TO_GOLD.has(product_id):
 		return GRANT_GEM_EXCHANGE
+	if PotionCatalog.find(product_id) != null:
+		return GRANT_POTION
 	var item_data := ItemCatalog.find(product_id)
 	if item_data != null and item_data.source == ItemData.Source.SHOP:
 		return GRANT_ITEM
@@ -171,6 +191,11 @@ static func gold_amount_for(product_id: String) -> int:
 # reads this to price the row in Gems.
 static func exchange_gem_cost_for(product_id: String) -> int:
 	return int(EXCHANGE_GEM_COST.get(product_id, 0))
+
+# Gold price for a potion product; 0 for any other product kind so a mis-routed
+# product can't be priced. ShopCatalog reads this to price the POTION rows.
+static func potion_gold_price_for(product_id: String) -> int:
+	return int(_POTION_GOLD_PRICES.get(product_id, 0))
 
 # Returns the canonical skill_id for a skill-unlock product. Empty string for
 # any other product kind so callers can branch off the empty sentinel.

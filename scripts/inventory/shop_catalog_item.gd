@@ -12,6 +12,7 @@ const CATEGORY_SKILL := "skill"
 const CATEGORY_GEM_BUNDLE := "gem_bundle"
 const CATEGORY_GEAR := "gear"
 const CATEGORY_EXCHANGE := "exchange"
+const CATEGORY_POTION := "potion"
 
 var product_id: String = ""
 var display_name: String = ""

@@ -53,6 +53,7 @@ var _paid_unlocks_override: PaidUnlockInventory = null
 var _billing_override = null
 var _character_override: CharacterData = null
 var _item_inventory_override: ItemInventory = null
+var _consumable_inventory_override: ConsumableInventory = null
 
 # product_id -> HBoxContainer row. Lets _refresh_row mutate a single row
 # (Buy → Owned) after a successful grant without rebuilding the whole list.
@@ -89,13 +90,15 @@ func _connect_dependency_signals() -> void:
 # call sites that instance the scene directly keep working unchanged.
 func setup(ledger: CurrencyLedger, skill_inventory, paid_unlocks: PaidUnlockInventory,
 		billing = null, character: CharacterData = null,
-		item_inventory: ItemInventory = null) -> void:
+		item_inventory: ItemInventory = null,
+		consumable_inventory: ConsumableInventory = null) -> void:
 	_ledger_override = ledger
 	_skill_inventory_override = skill_inventory
 	_paid_unlocks_override = paid_unlocks
 	_billing_override = billing
 	_character_override = character
 	_item_inventory_override = item_inventory
+	_consumable_inventory_override = consumable_inventory
 	if is_inside_tree():
 		_refresh_currency()
 		_rebuild_item_list()
@@ -145,6 +148,14 @@ func _item_inventory() -> ItemInventory:
 	if gs == null:
 		return null
 	return gs.item_inventory
+
+func _consumable_inventory() -> ConsumableInventory:
+	if _consumable_inventory_override != null:
+		return _consumable_inventory_override
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.consumable_inventory
 
 func _character_class() -> int:
 	var c := _character()
@@ -313,7 +324,8 @@ func _on_buy_pressed(product_id: String) -> void:
 		return
 	var granted := PurchaseGrantHandler.handle(
 		product_id, _character(), null,
-		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory())
+		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory(),
+		_consumable_inventory())
 	if granted:
 		_refresh_row(product_id)
 		if _rows_by_product.has(product_id):
@@ -341,7 +353,8 @@ func _on_billing_purchase_succeeded(product_id: String) -> void:
 	# no-op on the same ledger instance.
 	PurchaseGrantHandler.handle(
 		product_id, _character(), null,
-		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory())
+		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory(),
+		_consumable_inventory())
 	_refresh_currency()
 	_refresh_row(product_id)
 
@@ -439,4 +452,5 @@ func _category_display_name(category: String) -> String:
 		ShopCatalogItem.CATEGORY_GEM_BUNDLE: return "Gem Bundles"
 		ShopCatalogItem.CATEGORY_GEAR: return "Gear"
 		ShopCatalogItem.CATEGORY_EXCHANGE: return "Exchange Gems for Gold"
+		ShopCatalogItem.CATEGORY_POTION: return "Potions"
 	return category

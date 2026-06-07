@@ -107,6 +107,13 @@ static func items(character_class: int = -1) -> Array[ShopCatalogItem]:
 	out.append(_exchange_row(
 		PurchaseRegistry.EXCHANGE_TREASURE, "Treasure Chest of Gold"))
 
+	# Potion consumables (PRD #358 / slice 5). Gold-priced, repeatable, no
+	# "Owned" affordance — every purchase increments the player's count of that
+	# potion by 1. Iterating PotionCatalog.all() keeps a new potion a one-spot
+	# add: drop an entry into the catalog and it surfaces here automatically.
+	for potion: PotionDefinition in PotionCatalog.all():
+		out.append(_potion_row(potion))
+
 	if character_class >= 0:
 		for item_data in ItemCatalog.all_items():
 			if item_data.source != ItemData.Source.SHOP:
@@ -128,6 +135,9 @@ static func find(product_id: String) -> ShopCatalogItem:
 	var item_data := ItemCatalog.find(product_id)
 	if item_data != null and item_data.source == ItemData.Source.SHOP:
 		return _gear_row(item_data)
+	var potion := PotionCatalog.find(product_id)
+	if potion != null:
+		return _potion_row(potion)
 	return null
 
 static func _exchange_row(product_id: String, display_name: String) -> ShopCatalogItem:
@@ -139,6 +149,15 @@ static func _exchange_row(product_id: String, display_name: String) -> ShopCatal
 		CurrencyLedger.Currency.GEM,
 		PurchaseRegistry.exchange_gem_cost_for(product_id),
 		ShopCatalogItem.CATEGORY_EXCHANGE)
+
+static func _potion_row(potion: PotionDefinition) -> ShopCatalogItem:
+	return ShopCatalogItem.make(
+		potion.id,
+		potion.display_name,
+		potion.description,
+		CurrencyLedger.Currency.GOLD,
+		PurchaseRegistry.potion_gold_price_for(potion.id),
+		ShopCatalogItem.CATEGORY_POTION)
 
 static func gear_price_for_rarity(rarity: int) -> int:
 	match rarity:

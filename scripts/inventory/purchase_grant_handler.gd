@@ -16,7 +16,8 @@ static func handle(product_id: String, character: CharacterData,
 		paid_unlocks: PaidUnlockInventory = null,
 		currency_ledger: CurrencyLedger = null,
 		skill_inventory = null,
-		item_inventory: ItemInventory = null) -> bool:
+		item_inventory: ItemInventory = null,
+		consumable_inventory: ConsumableInventory = null) -> bool:
 	var grant_type := PurchaseRegistry.grant_type_for(product_id)
 	match grant_type:
 		PurchaseRegistry.GRANT_CLASS_UPGRADE:
@@ -35,7 +36,23 @@ static func handle(product_id: String, character: CharacterData,
 			return _handle_skill_unlock(product_id, skill_inventory)
 		PurchaseRegistry.GRANT_ITEM:
 			return _handle_item(product_id, item_inventory)
+		PurchaseRegistry.GRANT_POTION:
+			return _handle_potion(product_id, consumable_inventory)
 	return false
+
+# Potion consumables (PRD #358 / slice 5). Each successful purchase adds 1 to
+# the matching ConsumableInventory bucket — repeatable, no replay guard so
+# buying twice yields count 2 (mirrors the gem-exchange semantics, unlike the
+# one-time class/gear paths). Returns true iff the credit landed so the shop
+# can refund the Gold debit on a null inventory / mis-routed product rather
+# than silently eating the currency.
+static func _handle_potion(product_id: String, consumable_inventory: ConsumableInventory) -> bool:
+	if consumable_inventory == null:
+		return false
+	if PotionCatalog.find(product_id) == null:
+		return false
+	consumable_inventory.add(product_id, 1)
+	return true
 
 # Shop gear (PRD #201 / Slice 6). The product_id is the ItemCatalog id; we
 # look the ItemData back up and append a fresh copy to the bag. Returns true
