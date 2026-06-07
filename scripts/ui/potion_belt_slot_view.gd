@@ -18,12 +18,13 @@ const EMPTY_PLUS_COLOR := Color(0.8, 0.8, 0.85, 0.6)
 const SLOT_BG_COLOR := Color(0.08, 0.10, 0.16, 0.85)
 const SLOT_BORDER_COLOR := Color(0.55, 0.6, 0.75, 0.85)
 
-# Category-keyed placeholder colors when PotionDefinition.icon is null. The
-# Items-tab UI in slice 9 will read the same palette to keep belt and picker
-# visually consistent.
-const PLACEHOLDER_HEAL := Color(0.45, 0.85, 0.35, 1.0)
+# Category-keyed placeholder colors when PotionDefinition.icon is null. Matches
+# the generic potion art palette (red HP / blue MP / green shield) so the
+# no-art fallback reads the same as the real bottles. Gold is intentionally
+# absent — it is reserved for future special / loot-box potions.
+const PLACEHOLDER_HEAL := Color(0.85, 0.25, 0.25, 1.0)
 const PLACEHOLDER_MANA := Color(0.3, 0.55, 0.95, 1.0)
-const PLACEHOLDER_SHIELD := Color(0.95, 0.85, 0.3, 1.0)
+const PLACEHOLDER_SHIELD := Color(0.4, 0.8, 0.4, 1.0)
 
 @export var slot_index: int = 1
 @export var action_name: StringName = &"use_potion_1"
@@ -126,14 +127,27 @@ func _draw_icon() -> void:
 	if _potion_def == null:
 		return
 	if _state.get("uses_texture", false) and _potion_def.icon != null:
-		var pad := 4.0
-		draw_texture_rect(_potion_def.icon, Rect2(Vector2(pad, pad), size - Vector2(pad * 2.0, pad * 2.0)), false)
+		_draw_texture_aspect_fit(_potion_def.icon, 4.0)
 		return
 	# Placeholder: colored bottle silhouette as a centered rounded rect. Keeps
 	# the no-art path readable at 32px without needing per-potion glyphs.
 	var color := _placeholder_color(_potion_def.effect_kind)
 	var inner := Rect2(size * 0.25, size * 0.5)
 	draw_rect(inner, color, true)
+
+# Draw the icon centered inside the padded box, preserving the texture's aspect
+# ratio. autocrop emits varying bottle dimensions (a tall narrow mana vial vs a
+# round flask); a plain stretch-to-fill would squash the narrow ones into squat
+# blobs, so we letterbox to the box's shorter constraint instead.
+func _draw_texture_aspect_fit(tex: Texture2D, pad: float) -> void:
+	var box := Rect2(Vector2(pad, pad), size - Vector2(pad * 2.0, pad * 2.0))
+	var tex_size := tex.get_size()
+	if tex_size.x <= 0.0 or tex_size.y <= 0.0:
+		return
+	var scale := minf(box.size.x / tex_size.x, box.size.y / tex_size.y)
+	var draw_size := tex_size * scale
+	var origin := box.position + (box.size - draw_size) * 0.5
+	draw_texture_rect(tex, Rect2(origin, draw_size), false)
 
 func _placeholder_color(kind: int) -> Color:
 	match kind:

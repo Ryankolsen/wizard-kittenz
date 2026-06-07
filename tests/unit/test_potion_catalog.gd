@@ -13,8 +13,9 @@ func test_health_potion_definition_fields():
 	assert_eq(def.effect_kind, PotionDefinition.EffectKind.HEAL_PERCENT)
 	assert_eq(def.magnitude, 50)
 	assert_eq(def.duration, 0.0)
-	# Icon defaults to null until art lands (slice 7/8 wires the belt HUD).
-	assert_null(def.icon)
+	# Slice 8: the catalog now seeds each potion's generic per-kind icon via
+	# PotionImageResolver, so every shipped potion carries a texture.
+	assert_not_null(def.icon)
 
 func test_find_unknown_id_returns_null():
 	assert_null(PotionCatalog.find("nope"))

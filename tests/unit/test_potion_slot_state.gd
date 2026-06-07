@@ -12,7 +12,11 @@ func _def_with_icon() -> PotionDefinition:
 		PotionDefinition.EffectKind.HEAL_PERCENT, 50, 0.0, "healing", tex)
 
 func _def_no_icon() -> PotionDefinition:
-	return PotionCatalog.find("health_potion")
+	# Built directly (not via the catalog, which now seeds icons) so the
+	# no-art placeholder path stays covered.
+	return PotionDefinition.make(
+		"hp_no_icon", "Health Potion", "",
+		PotionDefinition.EffectKind.HEAL_PERCENT, 50, 0.0, "healing")
 
 func test_empty_slot_state_is_empty_disabled():
 	var state := PotionSlotState.derive(null, 0, 0.0)
