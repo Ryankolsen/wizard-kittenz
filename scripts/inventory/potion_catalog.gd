@@ -1,0 +1,31 @@
+class_name PotionCatalog
+extends RefCounted
+
+# Static registry of every potion in the game (PRD #358 / slice 1). Pure data —
+# every later slice (effect resolver, belt, shop integration, save layer, UI)
+# iterates this list rather than hardcoding the three starter potions, so a new
+# potion only needs an entry here. Mirrors SkillTree's static-factory pattern.
+
+static func all() -> Array:
+	var out: Array = []
+	# Magnitudes / durations are PRD-stated starting values; tuning happens in
+	# the QA slice (#368). Categories double as the shop-tab id in slice 5.
+	out.append(PotionDefinition.make(
+		"health_potion", "Health Potion",
+		"Restores 50% of your max HP.",
+		PotionDefinition.EffectKind.HEAL_PERCENT, 50, 0.0, "healing"))
+	out.append(PotionDefinition.make(
+		"mana_potion", "Mana Potion",
+		"Restores 50% of your max MP.",
+		PotionDefinition.EffectKind.MANA_PERCENT, 50, 0.0, "mana"))
+	out.append(PotionDefinition.make(
+		"shield_potion", "Shield Potion",
+		"Absorbs the next 30 damage.",
+		PotionDefinition.EffectKind.SHIELD, 30, 30.0, "protect"))
+	return out
+
+static func find(potion_id: String) -> PotionDefinition:
+	for d in all():
+		if d.id == potion_id:
+			return d
+	return null
