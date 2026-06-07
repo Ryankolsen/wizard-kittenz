@@ -47,6 +47,20 @@ const _QuickbarScript := preload("res://scripts/character/quickbar.gd")
 # injects one directly so test cases don't need to instance a Player scene.
 var _quickbar = null
 
+# PRD #353 slice 3 (#356). Tap-to-reveal color key for the Skills tab,
+# mirroring the stat-tier legend in StatsTabPanel: a flat toggle button
+# whose body (the 3-entry category grid) is hidden by default and shown
+# on press. Built once in _ready and inserted into SkillsPanel between
+# SkillPointsLabel and SkillsList.
+var _skills_legend_toggle: Button = null
+var _skills_legend: GridContainer = null
+
+const _SKILLS_LEGEND_ORDER: Array = [
+	SkillCategory.Category.ATTACK,
+	SkillCategory.Category.HEALING,
+	SkillCategory.Category.PROTECT,
+]
+
 func _ready() -> void:
 	visible = false
 	var resume_btn := find_child("Resume", true, false) as Button
@@ -94,6 +108,66 @@ func _ready() -> void:
 	var host_pause_toggle := find_child("HostPauseToggle", true, false) as Button
 	if host_pause_toggle != null:
 		host_pause_toggle.pressed.connect(_on_host_pause_toggle_pressed)
+	_install_skills_legend()
+
+# Inserts the Skills tab color key (toggle + collapsed legend body) into
+# SkillsPanel between SkillPointsLabel and SkillsList. Mirrors the stats
+# tab legend's interaction and styling (issue #356 / commits 2d5664a,
+# ada3414) — same flat toggle, ⓘ + ▾/▴ caret, hidden-by-default 2-column
+# grid at a reduced font so it stays inside the panel width.
+func _install_skills_legend() -> void:
+	var panel := find_child("SkillsPanel", true, false) as VBoxContainer
+	if panel == null:
+		return
+	var skills_list := panel.get_node_or_null("SkillsList") as Node
+	_skills_legend_toggle = Button.new()
+	_skills_legend_toggle.name = "SkillsLegendToggle"
+	_skills_legend_toggle.toggle_mode = true
+	_skills_legend_toggle.flat = true
+	_skills_legend_toggle.focus_mode = Control.FOCUS_NONE
+	_skills_legend_toggle.toggled.connect(_on_skills_legend_toggled)
+	var toggle_bar := HBoxContainer.new()
+	toggle_bar.name = "SkillsLegendToggleBar"
+	toggle_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	toggle_bar.add_child(_skills_legend_toggle)
+	panel.add_child(toggle_bar)
+	_skills_legend = _make_skills_legend()
+	_skills_legend.visible = false
+	panel.add_child(_skills_legend)
+	# Place toggle + legend just above SkillsList so the key sits between
+	# the skill-points header and the list of rows it explains.
+	if skills_list != null:
+		var list_index := skills_list.get_index()
+		panel.move_child(toggle_bar, list_index)
+		panel.move_child(_skills_legend, list_index + 1)
+	_update_skills_legend_toggle_text()
+
+func _make_skills_legend() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.name = "SkillsLegend"
+	grid.columns = 3
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 2)
+	for category in _SKILLS_LEGEND_ORDER:
+		var lbl := Label.new()
+		lbl.name = "SkillsLegend_%d" % category
+		lbl.text = "%s %s" % [String.chr(0x25CF), SkillCategory.label_for_category(category)]
+		lbl.modulate = SkillCategory.color_for_category(category)
+		lbl.add_theme_font_size_override("font_size", 13)
+		grid.add_child(lbl)
+	return grid
+
+func _on_skills_legend_toggled(pressed: bool) -> void:
+	if _skills_legend != null:
+		_skills_legend.visible = pressed
+	_update_skills_legend_toggle_text()
+
+func _update_skills_legend_toggle_text() -> void:
+	if _skills_legend_toggle == null:
+		return
+	var caret := "▴" if _skills_legend_toggle.button_pressed else "▾"
+	_skills_legend_toggle.text = "%s Color key %s" % [String.chr(0x24D8), caret]
 
 func _process(_dt: float) -> void:
 	_update_stats_tab_badge()
