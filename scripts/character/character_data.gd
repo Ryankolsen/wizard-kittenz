@@ -268,8 +268,48 @@ func apply_stat_delta(stat_name: String, delta: float) -> void:
 func is_alive() -> bool:
 	return hp > 0
 
+# Absorb-shield (PRD #358 / issue #360). Built generally so a future
+# Spell.EffectKind.SHIELD calls the same method as the Shield potion.
+# Refresh semantics: re-applying takes the larger pool and resets duration,
+# mirroring add_buff's "biggest wins, duration refreshes" intent without
+# accidentally shrinking an active shield.
+var _shield_amount: int = 0
+var _shield_remaining: float = 0.0
+
+func add_shield(amount: int, duration: float) -> void:
+	if amount <= 0 or duration <= 0.0:
+		return
+	_shield_amount = maxi(_shield_amount, amount)
+	_shield_remaining = duration
+
+func shield_amount() -> int:
+	return _shield_amount
+
+func shield_remaining() -> float:
+	return _shield_remaining
+
+func tick_shield(delta: float) -> void:
+	if delta <= 0.0 or _shield_remaining <= 0.0:
+		return
+	_shield_remaining -= delta
+	if _shield_remaining <= 0.0:
+		_shield_remaining = 0.0
+		_shield_amount = 0
+
 func take_damage(amount: int) -> int:
-	var dealt := mini(amount, hp)
+	if amount <= 0:
+		return 0
+	var remaining := amount
+	if _shield_amount > 0:
+		var absorbed := mini(_shield_amount, remaining)
+		_shield_amount -= absorbed
+		remaining -= absorbed
+		if _shield_amount <= 0:
+			_shield_amount = 0
+			_shield_remaining = 0.0
+	if remaining <= 0:
+		return 0
+	var dealt := mini(remaining, hp)
 	hp -= dealt
 	return dealt
 
