@@ -49,3 +49,13 @@ static func label_for_category(category: Category) -> String:
 
 static func color_for_kind(kind: int) -> Color:
 	return color_for_category(category_for_kind(kind))
+
+# PRD #353, slice 2 (issue #355). Returns the {dot, name} colors a Skills
+# menu row should paint for a given unlocked-state + spell. Locked rows and
+# unlocked passive nodes (no spell to categorize) collapse to LOCKED gray so
+# the color exclusively signals "a categorized skill I can actually use."
+static func row_colors(unlocked: bool, spell: Spell) -> Dictionary:
+	if not unlocked or spell == null:
+		return { "dot": COLOR_LOCKED, "name": COLOR_LOCKED }
+	var c := color_for_kind(spell.effect_kind)
+	return { "dot": c, "name": c }

@@ -63,6 +63,33 @@ func test_color_for_kind_composes_with_category():
 	assert_eq(SkillCategory.color_for_kind(Spell.EffectKind.TAUNT),
 		SkillCategory.color_for_category(SkillCategory.Category.PROTECT))
 
+func test_row_colors_locked_uses_gray_for_both():
+	# Slice 2 (#355): locked rows surface LOCKED gray for both the dot and
+	# the name tint so color exclusively signals "usable" skills.
+	var spell := Spell.make("x", "X", Spell.EffectKind.HEAL, 1, 1.0)
+	var colors := SkillCategory.row_colors(false, spell)
+	assert_eq(colors["dot"], SkillCategory.COLOR_LOCKED)
+	assert_eq(colors["name"], SkillCategory.COLOR_LOCKED)
+
+func test_row_colors_unlocked_categorized_by_spell():
+	var spell := Spell.make("h", "Heal", Spell.EffectKind.HEAL, 1, 1.0)
+	var colors := SkillCategory.row_colors(true, spell)
+	assert_eq(colors["dot"], SkillCategory.COLOR_HEALING)
+	assert_eq(colors["name"], SkillCategory.COLOR_HEALING)
+	var atk := Spell.make("a", "Atk", Spell.EffectKind.DAMAGE, 1, 1.0)
+	var atk_colors := SkillCategory.row_colors(true, atk)
+	assert_eq(atk_colors["dot"], SkillCategory.COLOR_ATTACK)
+	var taunt := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
+	var taunt_colors := SkillCategory.row_colors(true, taunt)
+	assert_eq(taunt_colors["dot"], SkillCategory.COLOR_PROTECT)
+
+func test_row_colors_unlocked_passive_no_spell_uses_gray():
+	# A passive unlocked node with no spell has no kind to categorize, so
+	# fall back to LOCKED gray rather than mis-labeling it as ATTACK.
+	var colors := SkillCategory.row_colors(true, null)
+	assert_eq(colors["dot"], SkillCategory.COLOR_LOCKED)
+	assert_eq(colors["name"], SkillCategory.COLOR_LOCKED)
+
 func test_unknown_kind_falls_back_to_attack():
 	# Defined fallback so an out-of-range int can't crash callers. ATTACK is
 	# the most common category and the safest visual default.

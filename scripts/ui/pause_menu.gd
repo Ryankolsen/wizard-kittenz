@@ -529,10 +529,19 @@ func _refresh_skills_panel() -> void:
 func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "SkillRow_%s" % node.id
+	# PRD #353 slice 2 (#355): category-colored dot at the start of the row
+	# (gray for locked / passive-no-spell), with the name tinted to match.
+	var colors := SkillCategory.row_colors(node.unlocked, node.spell)
+	var dot := Label.new()
+	dot.name = "SkillRowDot_%s" % node.id
+	dot.text = "●"
+	dot.add_theme_color_override("font_color", colors["dot"])
+	row.add_child(dot)
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var label := Label.new()
 	label.name = "SkillRowLabel_%s" % node.id
+	label.add_theme_color_override("font_color", colors["name"])
 	# Per #130: locked rows advertise the level required to auto-unlock the
 	# node — skills are no longer purchased with skill points. Unlocked
 	# rows keep the "Unlocked" status suffix so existing visual contracts
