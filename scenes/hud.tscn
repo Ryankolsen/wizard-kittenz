@@ -130,10 +130,10 @@ offset_right = 460.0
 offset_bottom = 196.0
 
 [node name="PotionBeltHUD" parent="." instance=ExtResource("4_potion_belt")]
-offset_left = 288.0
-offset_top = 164.0
-offset_right = 392.0
-offset_bottom = 196.0
+offset_left = 356.0
+offset_top = 202.0
+offset_right = 460.0
+offset_bottom = 234.0
 
 [node name="YouDied" type="Control" parent="."]
 visible = false
