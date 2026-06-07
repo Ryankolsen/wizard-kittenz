@@ -292,6 +292,21 @@ func _teardown_choreographer() -> void:
 func get_quickbar():
 	return _quickbar
 
+# Slice 8 of PRD #358. PotionBeltHUD reads the belt + inventory off Player
+# rather than poking /root/GameState directly so the same bind_player(player)
+# binding pattern QuickbarHUD uses works for both. The lifetime owner stays
+# GameState — Player just forwards the reference; persistence (slice 6) is
+# the source of truth on session boundaries.
+func get_potion_belt():
+	if _game_state == null:
+		return null
+	return _game_state.get("potion_belt")
+
+func get_consumable_inventory():
+	if _game_state == null:
+		return null
+	return _game_state.get("consumable_inventory")
+
 # Slice 2 of PRD #210. Player owns one Quickbar + a child QuickbarController.
 # The controller polls cast_slot_1..cast_slot_4 InputMap actions each frame
 # and dispatches into Quickbar.fire_slot, which gates via Spell.cast
