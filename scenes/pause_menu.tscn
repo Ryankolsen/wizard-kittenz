@@ -89,6 +89,9 @@ text = "Skills"
 [node name="InventoryTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Inventory"
 
+[node name="ItemsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
+text = "Items"
+
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
 custom_minimum_size = Vector2(0, 130)
 size_flags_vertical = 0
@@ -121,6 +124,24 @@ theme_override_constants/separation = 2
 visible = false
 theme_override_constants/separation = 2
 script = ExtResource("3_equipment_tab_panel")
+
+[node name="ItemsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent"]
+visible = false
+theme_override_constants/separation = 4
+
+[node name="ItemsHeader" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/ItemsPanel"]
+horizontal_alignment = 1
+text = "Potions"
+
+[node name="ItemsList" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/ItemsPanel"]
+theme_override_constants/separation = 2
+
+[node name="ItemsEmpty" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/ItemsPanel"]
+visible = false
+horizontal_alignment = 1
+text = "No potions. Buy some in the shop."
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
 
 [node name="Back" type="Button" parent="Center/CharacterSubmenu/VBox"]
 text = "Back"

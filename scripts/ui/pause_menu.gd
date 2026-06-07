@@ -47,6 +47,13 @@ const _QuickbarScript := preload("res://scripts/character/quickbar.gd")
 # injects one directly so test cases don't need to instance a Player scene.
 var _quickbar = null
 
+# Slice 9 of PRD #358 (issue #366). The Items tab renders one row per owned
+# potion with a 3-button assignment cluster bound to the local player's
+# PotionBelt. Resolved off the player group by default; tests inject directly
+# via bind_potion_belt / bind_consumable_inventory.
+var _potion_belt: PotionBelt = null
+var _consumable_inventory: ConsumableInventory = null
+
 # PRD #353 slice 3 (#356). Tap-to-reveal color key for the Skills tab,
 # mirroring the stat-tier legend in StatsTabPanel: a flat toggle button
 # whose body (the 3-entry category grid) is hidden by default and shown
@@ -93,6 +100,9 @@ func _ready() -> void:
 	var inventory_tab := find_child("InventoryTabButton", true, false) as Button
 	if inventory_tab != null:
 		inventory_tab.pressed.connect(_on_inventory_tab_pressed)
+	var items_tab := find_child("ItemsTabButton", true, false) as Button
+	if items_tab != null:
+		items_tab.pressed.connect(_on_items_tab_pressed)
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)
@@ -550,16 +560,25 @@ func _show_stats_tab() -> void:
 	_set_tab_visible("StatsPanel", true)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", false)
+	_set_tab_visible("ItemsPanel", false)
 
 func _show_skills_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", true)
 	_set_tab_visible("InventoryTab", false)
+	_set_tab_visible("ItemsPanel", false)
 
 func _show_inventory_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", true)
+	_set_tab_visible("ItemsPanel", false)
+
+func _show_items_tab() -> void:
+	_set_tab_visible("StatsPanel", false)
+	_set_tab_visible("SkillsPanel", false)
+	_set_tab_visible("InventoryTab", false)
+	_set_tab_visible("ItemsPanel", true)
 
 func _set_tab_visible(node_name: String, vis: bool) -> void:
 	var n := find_child(node_name, true, false) as Control
@@ -722,6 +741,49 @@ func _refresh_assign_visuals() -> void:
 func bind_quickbar(qb) -> void:
 	_quickbar = qb
 
+# Items-tab injection seams parallel to bind_quickbar. The real path resolves
+# both off GameState in _refresh_items_panel; tests skip GameState by binding
+# in pure data classes.
+func bind_potion_belt(belt: PotionBelt) -> void:
+	_potion_belt = belt
+
+func bind_consumable_inventory(inv: ConsumableInventory) -> void:
+	_consumable_inventory = inv
+
+# Pure helper — true iff slot_n of belt holds potion_id. Mirrors
+# _slot_holds_spell but takes the belt explicitly so the Items-tab tests don't
+# need a scene instance to assert the toggle-state contract (issue #366).
+static func _slot_holds_potion(belt: PotionBelt, slot_n: int, potion_id: String) -> bool:
+	if belt == null:
+		return false
+	return belt.get_slot(slot_n) == potion_id
+
+# Pure helper — toggle-press routing parallel to _on_assign_slot_pressed. If
+# the slot already holds this potion the press unassigns; otherwise it routes
+# through PotionBelt.assign (which handles the swap-with-existing case on its
+# own, same as Quickbar.assign).
+static func _on_potion_assign_slot_pressed(belt: PotionBelt, slot_n: int, potion_id: String) -> void:
+	if belt == null:
+		return
+	if belt.get_slot(slot_n) == potion_id:
+		belt.unassign(slot_n)
+	else:
+		belt.assign(slot_n, potion_id)
+
+# Pure helper — list of {id, def, count} for every potion the player owns (count
+# > 0), iterated in PotionCatalog.all() order so a new catalog entry shows up
+# in the Items tab without a UI change. Empty array on null inventory.
+static func _owned_potion_rows(inventory: ConsumableInventory) -> Array:
+	var out: Array = []
+	if inventory == null:
+		return out
+	for def in PotionCatalog.all():
+		var count := inventory.count_of(def.id)
+		if count <= 0:
+			continue
+		out.append({"id": def.id, "def": def, "count": count})
+	return out
+
 func _resolve_quickbar():
 	if _quickbar != null:
 		return _quickbar
@@ -753,6 +815,97 @@ func _on_skills_tab_pressed() -> void:
 func _on_inventory_tab_pressed() -> void:
 	_show_inventory_tab()
 	_refresh_equipment_panel()
+
+func _on_items_tab_pressed() -> void:
+	_show_items_tab()
+	_refresh_items_panel()
+
+# Rebuilds the Items tab from GameState (or the test-injected belt / inventory).
+# One row per owned potion; each row carries a 3-button assignment cluster
+# routing through PotionBelt via _on_potion_assign_slot_pressed. Empty-state
+# message shows when the player owns nothing — mirrors the Skills tab's
+# "no skills unlocked yet" affordance shape.
+func _refresh_items_panel() -> void:
+	var list := find_child("ItemsList", true, false) as VBoxContainer
+	if list == null:
+		return
+	for child in list.get_children():
+		list.remove_child(child)
+		child.free()
+	var inv := _resolve_consumable_inventory()
+	var belt := _resolve_potion_belt()
+	var rows := _owned_potion_rows(inv)
+	var empty_label := find_child("ItemsEmpty", true, false) as Label
+	if empty_label != null:
+		empty_label.visible = rows.is_empty()
+	for row_data in rows:
+		list.add_child(_make_potion_row(row_data, belt))
+
+func _make_potion_row(row_data: Dictionary, belt: PotionBelt) -> HBoxContainer:
+	var potion_id: String = row_data["id"]
+	var def: PotionDefinition = row_data["def"]
+	var count: int = row_data["count"]
+	var row := HBoxContainer.new()
+	row.name = "PotionRow_%s" % potion_id
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name_label := Label.new()
+	name_label.name = "PotionRowLabel_%s" % potion_id
+	name_label.text = "%s  x%d" % [def.display_name, count]
+	col.add_child(name_label)
+	if def.description != "":
+		var desc := Label.new()
+		desc.name = "PotionRowDesc_%s" % potion_id
+		desc.text = def.description
+		desc.add_theme_font_size_override("font_size", 10)
+		desc.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 1.0))
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(desc)
+	row.add_child(col)
+	row.add_child(_make_potion_assign_cluster(potion_id, belt))
+	return row
+
+func _make_potion_assign_cluster(potion_id: String, belt: PotionBelt) -> HBoxContainer:
+	var cluster := HBoxContainer.new()
+	cluster.name = "PotionAssignCluster"
+	for i in range(1, PotionBelt.SLOT_COUNT + 1):
+		var btn := Button.new()
+		btn.name = "potion_assign_slot_%d" % i
+		btn.text = str(i)
+		btn.toggle_mode = true
+		btn.button_pressed = _slot_holds_potion(belt, i, potion_id)
+		var slot_n := i
+		var pid := potion_id
+		btn.pressed.connect(func() -> void: _on_potion_row_slot_pressed(slot_n, pid))
+		cluster.add_child(btn)
+	return cluster
+
+# Routes a per-row button press into the pure helper, then refreshes the
+# tab so every row's button state reflects the new belt layout (a swap on
+# one row flips a button on another row). Mirrors _refresh_assign_visuals's
+# in-place refresh shape, but cheaper given ≤3 rows × 3 buttons.
+func _on_potion_row_slot_pressed(slot_n: int, potion_id: String) -> void:
+	var belt := _resolve_potion_belt()
+	if belt == null:
+		return
+	_on_potion_assign_slot_pressed(belt, slot_n, potion_id)
+	_refresh_items_panel()
+
+func _resolve_potion_belt() -> PotionBelt:
+	if _potion_belt != null:
+		return _potion_belt
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.potion_belt
+
+func _resolve_consumable_inventory() -> ConsumableInventory:
+	if _consumable_inventory != null:
+		return _consumable_inventory
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.consumable_inventory
 
 # Pushes GameState.item_inventory + current_character into the
 # EquipmentTabPanel script attached to the InventoryTab node (#82).
