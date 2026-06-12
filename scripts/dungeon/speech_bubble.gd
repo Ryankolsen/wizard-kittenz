@@ -23,14 +23,20 @@ extends Node2D
 signal option_confirmed(effect_id: String)
 signal dismissed()
 
+# The bubble's bottom edge sits this many world px above the NPC's origin. The
+# width is NOT fixed — it grows to fit the widest row (see _resize_to_content).
+const BOTTOM_MARGIN := 32.0
+
 var selection: BubbleSelectionController = null
 
 var _list: NPCOptionList = null
 var _row_labels: Array[Label] = []
 var _rows_container: VBoxContainer = null
+var _panel: PanelContainer = null
 
 
 func _ready() -> void:
+	_panel = get_node_or_null("Panel") as PanelContainer
 	_rows_container = get_node_or_null("Panel/Rows") as VBoxContainer
 
 
@@ -116,6 +122,20 @@ func _rebuild_rows() -> void:
 			lbl.modulate = Color(0.5, 0.5, 0.5, 1.0)
 		_rows_container.add_child(lbl)
 		_row_labels.append(lbl)
+	_resize_to_content()
+
+
+# The Panel is a free-floating Control under a Node2D, so no parent container
+# lays it out — its scene offsets pinned it to a fixed 96px box that clipped
+# longer labels like "Get a beer". Shrink-wrap it to the rows' combined minimum
+# size, then centre it horizontally over the NPC with its bottom edge
+# BOTTOM_MARGIN above the origin.
+func _resize_to_content() -> void:
+	if _panel == null:
+		return
+	_panel.reset_size()
+	var sz := _panel.size
+	_panel.position = Vector2(-sz.x * 0.5, -BOTTOM_MARGIN - sz.y)
 
 
 func _refresh_highlight() -> void:

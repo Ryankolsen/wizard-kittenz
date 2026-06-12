@@ -76,3 +76,35 @@ func test_attack_polling_confirms_highlighted_option():
 	assert_eq(rec.calls, 1, "polling attack confirms exactly once (touch attack-button path)")
 	assert_eq(rec.last_effect_id, "do_first",
 		"confirm emits the highlighted row's effect_id")
+
+
+# Clipping regression: the Panel used to be pinned to a fixed 96px box by scene
+# offsets, so longer labels like "Get a beer" were cut off. The panel must now
+# shrink-wrap to contain its widest row.
+func test_panel_widens_to_contain_longest_label():
+	var list := NPCOptionList.make([
+		NPCOption.make("Shop", "open_shop"),
+		NPCOption.make("Get a beer", "buy_beer"),
+		NPCOption.make("Exit", "close"),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	var widest := 0.0
+	for lbl in bubble._row_labels:
+		widest = maxf(widest, lbl.get_minimum_size().x)
+	assert_gt(widest, 0.0, "precondition: labels report a non-zero text width")
+	assert_true(bubble._panel.size.x >= widest,
+		"panel widens to contain its longest label (no horizontal clipping)")
+
+
+# The bubble floats above the NPC: its bottom edge sits BOTTOM_MARGIN above the
+# origin regardless of how tall the content grew.
+func test_panel_bottom_edge_anchored_above_npc():
+	var bubble := _make_open_bubble()
+	var bottom_edge := bubble._panel.position.y + bubble._panel.size.y
+	assert_almost_eq(bottom_edge, -SpeechBubble.BOTTOM_MARGIN, 0.5,
+		"bubble bottom edge sits BOTTOM_MARGIN above the NPC origin")
+	assert_almost_eq(bubble._panel.position.x, -bubble._panel.size.x * 0.5, 0.5,
+		"bubble is centred horizontally over the NPC origin")
