@@ -28,3 +28,22 @@ func test_zero_max_hp_returns_zero_width():
 
 func test_format_level_renders_lv_n():
 	assert_eq(EnemyHealthBar.format_level(4), "Lv 4")
+
+# --- elite visuals (PRD #376 / issue #381) ---------------------------------
+
+func test_label_color_elite_is_gold():
+	assert_eq(EnemyHealthBar.label_color(true), EnemyHealthBar.ELITE_LABEL_COLOR)
+
+func test_label_color_non_elite_is_default():
+	assert_eq(EnemyHealthBar.label_color(false), EnemyHealthBar.LABEL_COLOR)
+
+func test_elite_label_color_differs_from_default():
+	# Sanity: the gold elite color must not collide with the default white
+	# label color, otherwise the elite readout would be invisible in-game.
+	assert_ne(EnemyHealthBar.ELITE_LABEL_COLOR, EnemyHealthBar.LABEL_COLOR)
+
+func test_elite_sprite_tint_is_non_default():
+	# Smoke: the elite sprite modulate must not be identity white, otherwise
+	# applying it in Enemy._ready would be a no-op and elites wouldn't read
+	# as distinct from same-kind non-elites.
+	assert_ne(EnemyHealthBar.ELITE_SPRITE_TINT, Color(1, 1, 1, 1))

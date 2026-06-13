@@ -15,6 +15,13 @@ const BAR_HEIGHT: float = 4.0
 const Y_OFFSET: float = -32.0
 const BG_COLOR: Color = Color(0.1, 0.1, 0.1, 0.85)
 const FILL_COLOR: Color = Color(0.85, 0.25, 0.25, 1.0)
+# Level label colors (PRD #376 / issue #381). Elites get a gold readout so
+# they're pickable at a glance in a busy room; everyone else stays white.
+const LABEL_COLOR: Color = Color(1, 1, 1, 1)
+const ELITE_LABEL_COLOR: Color = Color(1.0, 0.84, 0.0, 1.0)
+# Subtle warm-gold sprite modulate applied by Enemy._ready when data.is_elite.
+# Kept here so it's co-located with the gold label color and pinnable in tests.
+const ELITE_SPRITE_TINT: Color = Color(1.3, 1.15, 0.7, 1.0)
 
 var _enemy: Node = null
 var _bg: ColorRect = null
@@ -26,6 +33,12 @@ var _level_label: Label = null
 # instancing the node.
 static func format_level(level: int) -> String:
 	return "Lv %d" % level
+
+# Pure-function label color picker (PRD #376 / issue #381). Gold for elites,
+# default white otherwise. Held as a static so the elite/normal mapping can
+# be pinned in unit tests without instancing the node.
+static func label_color(is_elite: bool) -> Color:
+	return ELITE_LABEL_COLOR if is_elite else LABEL_COLOR
 
 # Pure-function fill width. Multiplied form of HUD.hp_bar_ratio kept here so
 # tests can pin the per-bar math (width, ratio, clamps) without instancing a
@@ -83,3 +96,6 @@ func _process(_dt: float) -> void:
 		_fill.size.x = fill_width(data.hp, data.max_hp, BAR_WIDTH)
 	if _level_label != null:
 		_level_label.text = format_level(int(data.level))
+		_level_label.add_theme_color_override(
+			"font_color", label_color(bool(data.is_elite))
+		)

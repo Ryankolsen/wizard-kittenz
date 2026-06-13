@@ -75,6 +75,13 @@ func _ready() -> void:
 		else:
 			path = _TEXTURE_BY_KIND.get(data.kind, "res://assets/sprites/angry_pigeon_right.png")
 		sprite.texture = load(path)
+		# Elite tint (PRD #376 / issue #381). Subtle warm-gold modulate so
+		# elites read as distinct from same-kind non-elites at a glance —
+		# pairs with the gold "Lv N" label from EnemyHealthBar. Bosses skip
+		# the elite system entirely (their elite flag is never set), so
+		# this branch is naturally boss-safe.
+		if not data.is_boss and data.is_elite:
+			sprite.modulate = EnemyHealthBar.ELITE_SPRITE_TINT
 	# Wall collision wiring (issue #263). Normal kinds mask the dedicated walls
 	# bit so move_and_slide is blocked by the dungeon painter's wall tiles;
 	# HauntedSprayBottle (issue #165) opts out via wall_mask_for returning 0,
