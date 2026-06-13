@@ -43,6 +43,12 @@ enum EnemyKind {
 # so pre-#377 fixtures and tests that mint EnemyData directly still get a
 # sensible Lv N readout instead of "Lv 0".
 @export var level: int = 1
+# Elite flag (PRD #376 / issue #380). Set true for the ~10% of standard mobs
+# rolled elite at dungeon-generation time by RoomPopulationPlanner. Drives:
+# the "skip downward party-level clamp" branch in StandardEnemyScaling, the
+# 2.5× xp/gold reward bonus, and the gold "Lv N" label + tint in #381.
+# Bosses are never elite — the boss path in plan_enemy leaves this false.
+@export var is_elite: bool = false
 # Stable per-spawn identifier. Empty by default — pre-spawn-layer code paths
 # (test fixtures, the static enemy in main.tscn) leave it unset. The future
 # dungeon spawn layer mints a unique id (e.g. "r3_e0" for room 3 enemy 0)

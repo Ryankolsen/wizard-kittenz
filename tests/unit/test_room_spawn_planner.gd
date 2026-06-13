@@ -771,3 +771,32 @@ func test_plan_enemy_sets_level():
 	var r := _make_standard_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
 	assert_eq(d.level, 4)
+
+# --- elites (PRD #376 / issue #380) ----------------------------------------
+
+func test_plan_enemy_marks_elite():
+	# When the population plan flags spawn_idx 0 as elite with a +4 bonus,
+	# plan_enemy stamps data.is_elite, lifts data.level by the bonus, and
+	# pays elite rewards (2.5× non-elite xp/gold at floor 1 identity).
+	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
+	r.enemy_kinds = [EnemyData.EnemyKind.DOG_KNIGHT]
+	r.enemy_elites = [true]
+	r.enemy_elite_bonuses = [4]
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_true(d.is_elite, "elite flag threads through to EnemyData")
+	# Dog Knight floor-1 kind baseline is 4; +4 elite bonus → level 8.
+	assert_eq(d.level, EnemyLevel.compute_level(EnemyData.EnemyKind.DOG_KNIGHT, 1) + 4)
+	# Floor 1 identity for stats, 2.5× xp/gold for rewards.
+	var base_xp := EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	var base_gold := EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	assert_eq(d.xp_reward, int(roundf(float(base_xp) * StandardEnemyScaling.ELITE_REWARD_MULT)))
+	assert_eq(d.gold_reward, int(roundf(float(base_gold) * StandardEnemyScaling.ELITE_REWARD_MULT)))
+
+func test_plan_enemy_non_elite_defaults_when_flag_absent():
+	# Pre-#380 / legacy rooms with empty enemy_elites arrays default to
+	# non-elite + bonus 0 — the level matches EnemyLevel.compute_level and
+	# is_elite is false.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_false(d.is_elite)
+	assert_eq(d.level, EnemyLevel.compute_level(EnemyData.EnemyKind.DOG_KNIGHT, 1))

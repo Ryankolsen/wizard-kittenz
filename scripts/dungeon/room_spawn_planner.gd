@@ -82,8 +82,20 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 	# Stamp mob level for standard mobs (PRD #376 / issue #377). Boss level
 	# is a later slice — bosses keep the default level value here so the
 	# display surface in #382 can fold a boss-specific level in then.
+	# Elite flag + level bonus (PRD #380) come from the parallel arrays
+	# RoomPopulationPlanner stamped on the room at generation time, indexed
+	# by spawn_idx. Pre-#380 fixtures / rooms with empty arrays default to
+	# non-elite with 0 bonus so legacy callers and serialized rooms keep
+	# their stats.
 	if not data.is_boss:
-		data.level = EnemyLevel.compute_level(kind, floor_number)
+		var elite_flag: bool = false
+		var elite_bonus: int = 0
+		if spawn_idx < room.enemy_elites.size():
+			elite_flag = room.enemy_elites[spawn_idx]
+		if spawn_idx < room.enemy_elite_bonuses.size():
+			elite_bonus = room.enemy_elite_bonuses[spawn_idx]
+		data.is_elite = elite_flag
+		data.level = EnemyLevel.compute_level(kind, floor_number) + elite_bonus
 	if data.is_boss:
 		var scaled := BossScaling.compute_boss_stats({
 			"hp": data.max_hp,
@@ -122,7 +134,7 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 			"defense": data.defense,
 			"xp": data.xp_reward,
 			"gold": data.gold_reward,
-		}, data.level, floor_number, party_size, avg_party_level, floor_baseline_level)
+		}, data.level, floor_number, party_size, avg_party_level, floor_baseline_level, data.is_elite)
 		data.max_hp = scaled["hp"]
 		data.hp = data.max_hp
 		data.attack = scaled["attack"]

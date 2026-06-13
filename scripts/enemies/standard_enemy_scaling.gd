@@ -29,7 +29,19 @@ const DEFENSE_GROWTH_PER_LEVEL: float = 0.05
 const XP_GROWTH_PER_LEVEL: float = 0.10
 const GOLD_GROWTH_PER_LEVEL: float = 0.08
 
-static func compute_standard_stats(base_stats: Dictionary, level: int, floor_number: int, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1) -> Dictionary:
+# Elite reward multiplier (PRD #376 / issue #380). Elite mobs pay ~2.5× xp and
+# gold of the same kind's non-elite reward. Applied after level growth so the
+# floor curve still flows through; rewards still skip party-size / party-level
+# mults, matching the standard mob contract (no double-dip on rewards).
+const ELITE_REWARD_MULT: float = 2.5
+
+# Lower bound for the party-level mult on the elite path (PRD #380). Elites
+# skip the downward clamp — they're "never softer than honest 1.0×" — but keep
+# the upward clamp (LEVEL_MULT_MAX) and the party-size mult so an overleveled
+# party still feels them as a meaningful threat.
+const ELITE_LEVEL_MULT_MIN: float = 1.0
+
+static func compute_standard_stats(base_stats: Dictionary, level: int, floor_number: int, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1, is_elite: bool = false) -> Dictionary:
 	var hp: float = float(int(base_stats.get("hp", 0)))
 	var attack: float = float(int(base_stats.get("attack", 0)))
 	var defense: float = float(int(base_stats.get("defense", 0)))
@@ -69,9 +81,20 @@ static func compute_standard_stats(base_stats: Dictionary, level: int, floor_num
 	# unchanged behavior.
 	if floor_baseline_level >= 0:
 		var raw: float = 1.0 + BossScaling.LEVEL_MULT_PER_LEVEL_DIFF * (avg_party_level - float(floor_baseline_level))
-		var level_mult: float = clampf(raw, BossScaling.LEVEL_MULT_MIN, BossScaling.LEVEL_MULT_MAX)
+		# Elite path skips the downward clamp — an elite is never scaled below
+		# its honest 1.0× value. Upward clamp stays so an overleveled party
+		# still sees the LEVEL_MULT_MAX ceiling (#380 acceptance criterion).
+		var lower: float = ELITE_LEVEL_MULT_MIN if is_elite else BossScaling.LEVEL_MULT_MIN
+		var level_mult: float = clampf(raw, lower, BossScaling.LEVEL_MULT_MAX)
 		hp *= level_mult
 		attack *= level_mult
+
+	# Elite reward bonus — applied last so xp/gold growth from the floor curve
+	# flows through, then 2.5× on top. Party-size / party-level mults still
+	# skip xp/gold (same no-double-dip contract as the non-elite path).
+	if is_elite:
+		xp *= ELITE_REWARD_MULT
+		gold *= ELITE_REWARD_MULT
 
 	return {
 		"hp": int(roundf(hp)),

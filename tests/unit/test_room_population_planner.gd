@@ -65,3 +65,64 @@ func test_seed_stability():
 		var ka: Array = RoomPopulationPlanner.plan_for_room_type(a, Room.TYPE_STANDARD)
 		var kb: Array = RoomPopulationPlanner.plan_for_room_type(b, Room.TYPE_STANDARD)
 		assert_eq(ka, kb, "same seed -> same kinds list")
+
+# --- elites (PRD #376 / issue #380) ----------------------------------------
+
+func test_elite_roll_is_deterministic():
+	# Same seed → identical elite flag + bonus sequences. Host and clients
+	# need this to agree on which spawns are elite without a sync packet.
+	var a := _rng(7777)
+	var b := _rng(7777)
+	for _i in range(60):
+		var pa: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(a, Room.TYPE_STANDARD)
+		var pb: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(b, Room.TYPE_STANDARD)
+		assert_eq(pa["kinds"], pb["kinds"], "kinds match")
+		assert_eq(pa["elites"], pb["elites"], "elites match")
+		assert_eq(pa["elite_bonuses"], pb["elite_bonuses"], "bonuses match")
+
+func test_elite_frequency_about_ten_percent():
+	# Over a large fixed-seed sample, the elite fraction sits within tolerance
+	# of ELITE_CHANCE. Sample many rooms to smooth the roll variance.
+	var rng := _rng(20260613)
+	var total_spawns := 0
+	var elite_count := 0
+	for _i in range(2000):
+		var p: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(rng, Room.TYPE_STANDARD)
+		var elites: Array = p["elites"]
+		total_spawns += elites.size()
+		for is_elite in elites:
+			if is_elite:
+				elite_count += 1
+	var fraction := float(elite_count) / float(total_spawns)
+	assert_between(fraction, 0.07, 0.13,
+		"elite fraction %f should be ~%f" % [fraction, RoomPopulationPlanner.ELITE_CHANCE])
+
+func test_boss_room_never_elite():
+	# Bosses are never elite. The elite arrays for a boss room are length-1
+	# and all-false.
+	for seed in [1, 7, 42, 1234, 99999]:
+		var p: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(_rng(seed), Room.TYPE_BOSS)
+		assert_eq(p["kinds"].size(), 1)
+		assert_eq(p["elites"].size(), 1)
+		assert_false(p["elites"][0], "seed %d boss is not elite" % seed)
+		assert_eq(p["elite_bonuses"][0], 0)
+
+func test_elite_level_bonus_in_range():
+	# Every elite's bonus is in [3, 5]. Non-elites carry 0.
+	var rng := _rng(424242)
+	var seen_elite := false
+	for _i in range(500):
+		var p: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(rng, Room.TYPE_STANDARD)
+		var elites: Array = p["elites"]
+		var bonuses: Array = p["elite_bonuses"]
+		assert_eq(elites.size(), bonuses.size(), "parallel array sizes match")
+		for j in range(elites.size()):
+			if elites[j]:
+				seen_elite = true
+				assert_between(bonuses[j],
+					RoomPopulationPlanner.ELITE_LEVEL_BONUS_MIN,
+					RoomPopulationPlanner.ELITE_LEVEL_BONUS_MAX,
+					"elite bonus in [3, 5]")
+			else:
+				assert_eq(bonuses[j], 0, "non-elite bonus is 0")
+	assert_true(seen_elite, "sample large enough to see at least one elite")

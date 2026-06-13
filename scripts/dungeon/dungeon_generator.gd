@@ -107,7 +107,10 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 			room.power_up_type = powerup_room_ids[i]
 		else:
 			room = Room.make(i, Room.TYPE_STANDARD)
-			room.enemy_kinds = RoomPopulationPlanner.plan_for_room_type(rng, Room.TYPE_STANDARD)
+			var pop: Dictionary = RoomPopulationPlanner.plan_full_for_room_type(rng, Room.TYPE_STANDARD)
+			room.enemy_kinds = pop["kinds"]
+			room.enemy_elites = pop["elites"]
+			room.enemy_elite_bonuses = pop["elite_bonuses"]
 			room.enemy_kind = room.enemy_kinds[0]
 		var parent_idx: int
 		if i == bar_child_a or i == bar_child_b:

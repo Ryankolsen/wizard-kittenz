@@ -96,3 +96,43 @@ func test_missing_keys_and_party_clamp():
 	var p9: Dictionary = StandardEnemyScaling.compute_standard_stats(base, 1, 1, 9)
 	var p4: Dictionary = StandardEnemyScaling.compute_standard_stats(base, 1, 1, 4)
 	assert_eq(p9, p4)
+
+# --- elites (PRD #376 / issue #380) ----------------------------------------
+
+func test_elite_not_softened_for_underleveled():
+	# avg=0, baseline=3 → raw mult 0.76. Non-elite applies that softening;
+	# elite skips the downward clamp and stays at the honest 1.0×.
+	var base := {"hp": 24, "attack": 4, "defense": 2, "xp": 15, "gold": 2}
+	var non_elite := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 1, 0.0, 3, false)
+	var elite := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 1, 0.0, 3, true)
+	assert_lt(non_elite["hp"], base["hp"], "non-elite is softened by underleveled party")
+	assert_eq(elite["hp"], base["hp"], "elite floor 1 identity holds — no downward softening")
+	assert_eq(elite["attack"], base["attack"], "elite attack not softened")
+	assert_gt(elite["hp"], non_elite["hp"], "elite tougher than the same-kind non-elite for an underleveled party")
+
+func test_elite_still_scales_up():
+	# Upward party-level clamp still applies for elites: avg=50, baseline=3
+	# clamps to 2.0× just like non-elites. Party-size mult also still applies.
+	var base := {"hp": 24, "attack": 4, "defense": 2, "xp": 15, "gold": 2}
+	var elite_over := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 1, 50.0, 3, true)
+	assert_eq(elite_over["hp"], int(roundf(24.0 * BossScaling.LEVEL_MULT_MAX)),
+		"elite still clamps at LEVEL_MULT_MAX for overleveled party")
+	assert_eq(elite_over["attack"], int(roundf(4.0 * BossScaling.LEVEL_MULT_MAX)))
+	# 4-player elite: floor 1 identity (no level growth), no avg/baseline so
+	# only the party-size mult applies.
+	var elite_quad := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 4, -1.0, -1, true)
+	assert_eq(elite_quad["hp"], int(roundf(24.0 * 2.0)),
+		"elite still gets the 4-player party HP bump")
+	assert_eq(elite_quad["attack"], int(roundf(4.0 * 1.3)))
+
+func test_elite_rewards_multiplied():
+	# Floor 1 solo on-baseline → identity scaling so the 2.5× multiplier lands
+	# exactly. Elite xp/gold = round(non_elite * 2.5).
+	var base := {"hp": 24, "attack": 4, "defense": 2, "xp": 15, "gold": 2}
+	var non_elite := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 1, -1.0, -1, false)
+	var elite := StandardEnemyScaling.compute_standard_stats(base, 4, 1, 1, -1.0, -1, true)
+	assert_eq(elite["xp"], int(roundf(float(non_elite["xp"]) * StandardEnemyScaling.ELITE_REWARD_MULT)))
+	assert_eq(elite["gold"], int(roundf(float(non_elite["gold"]) * StandardEnemyScaling.ELITE_REWARD_MULT)))
+	# Sanity: stats not multiplied — only xp/gold get the elite bonus.
+	assert_eq(elite["hp"], non_elite["hp"], "elite reward bump doesn't leak into hp")
+	assert_eq(elite["attack"], non_elite["attack"])

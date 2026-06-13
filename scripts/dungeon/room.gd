@@ -27,6 +27,16 @@ var enemy_kind: int = -1
 # power-up) keep this empty. enemy_kind stays in place for legacy callers
 # (spawn planner single-mob path) and equals enemy_kinds[0] when populated.
 var enemy_kinds: Array = []
+# Parallel to enemy_kinds. true at index i means the mob at spawn_idx i is an
+# elite (PRD #376 / issue #380). Populated by RoomPopulationPlanner via the
+# shared RNG so host + clients agree. Empty for non-combat rooms and for
+# pre-#380 serialized rooms / test fixtures whose generator predates this
+# field — RoomSpawnPlanner.plan_enemy treats absent entries as non-elite.
+var enemy_elites: Array = []
+# Parallel to enemy_kinds. Per-spawn elite level bonus (PRD: 3..5 for elites,
+# 0 for non-elites). plan_enemy adds this on top of EnemyLevel.compute_level
+# to produce data.level. Empty for non-combat rooms / pre-#380 fixtures.
+var enemy_elite_bonuses: Array = []
 var power_up_type: String = ""
 # Boss room only. Stamped by DungeonGenerator from BossRoster.boss_for_floor
 # at generation time so the per-floor boss sprite travels with the room
