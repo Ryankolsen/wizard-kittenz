@@ -645,6 +645,27 @@ func test_register_all_room_enemies_threads_floor_into_scaling():
 	assert_gt(boss_f5.max_hp, boss_f1.max_hp,
 		"floor-5 boss is tougher than floor-1 boss after register_all")
 
+func test_plan_enemy_uses_standard_scaling():
+	# Locks the contract that a standard (non-boss) mob spawned via plan_enemy
+	# has stats matching StandardEnemyScaling.compute_standard_stats for the
+	# same inputs — i.e. the planner routes the non-boss path through the new
+	# module, not the removed apply_floor_scaling helper.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 2, 4, 1.0, 5)
+	var expected := StandardEnemyScaling.compute_standard_stats({
+		"hp": EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT),
+		"attack": EnemyData.base_attack_for(EnemyData.EnemyKind.DOG_KNIGHT),
+		"defense": EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT),
+		"xp": EnemyData.base_xp_for(EnemyData.EnemyKind.DOG_KNIGHT),
+		"gold": EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT),
+	}, EnemyLevel.compute_level(EnemyData.EnemyKind.DOG_KNIGHT, 2), 2, 4, 1.0, 5)
+	assert_eq(d.max_hp, expected["hp"])
+	assert_eq(d.attack, expected["attack"])
+	assert_eq(d.defense, expected["defense"])
+	assert_eq(d.xp_reward, expected["xp"])
+	assert_eq(d.gold_reward, expected["gold"])
+	assert_eq(d.hp, d.max_hp, "hp starts full after scaling")
+
 # --- party-size scaling (issue #324) ---------------------------------------
 
 func test_register_room_enemies_threads_party_size_into_boss_stats():

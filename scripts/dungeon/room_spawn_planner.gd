@@ -112,40 +112,24 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 		data.boss_sprite_left_path = room.boss_sprite_left_path
 		data.boss_sprite_right_path = room.boss_sprite_right_path
 	else:
-		# Boss path already includes floor scaling via BossScaling.compute_boss_stats;
-		# non-boss enemies get it applied here.
-		apply_floor_scaling(data, floor_number)
+		# Standard mobs route through StandardEnemyScaling (#379), which owns
+		# the level-growth curve + party guardrails for the non-boss path.
+		# Floor-1 / solo / on-baseline is identity, so the per-kind base
+		# profiles from #378 show through unchanged on floor 1.
+		var scaled := StandardEnemyScaling.compute_standard_stats({
+			"hp": data.max_hp,
+			"attack": data.attack,
+			"defense": data.defense,
+			"xp": data.xp_reward,
+			"gold": data.gold_reward,
+		}, data.level, floor_number, party_size, avg_party_level, floor_baseline_level)
+		data.max_hp = scaled["hp"]
+		data.hp = data.max_hp
+		data.attack = scaled["attack"]
+		data.defense = scaled["defense"]
+		data.xp_reward = scaled["xp"]
+		data.gold_reward = scaled["gold"]
 	return data
-
-# Multiplies the enemy's combat stats and rewards by the per-floor scale
-# (1.0 at floor 1; +FLOOR_*_SCALE_PER_LEVEL per additional floor). Applied
-# after the boss multipliers so floor scaling stacks on top of boss-tier
-# stats — a floor-5 boss is appreciably nastier than a floor-1 boss without
-# the planner having to special-case boss scaling separately. Safe for
-# floor_number <= 1 (no-op) so callers that don't yet thread the floor
-# argument keep current behavior.
-static func apply_floor_scaling(data: EnemyData, floor_number: int) -> void:
-	if data == null:
-		return
-	var depth: int = maxi(0, floor_number - 1)
-	if depth <= 0:
-		return
-	var hp_mult: float = 1.0 + BossScaling.FLOOR_HP_SCALE_PER_LEVEL * float(depth)
-	var atk_mult: float = 1.0 + BossScaling.FLOOR_ATTACK_SCALE_PER_LEVEL * float(depth)
-	var def_mult: float = 1.0 + BossScaling.FLOOR_DEFENSE_SCALE_PER_LEVEL * float(depth)
-	var xp_mult: float = 1.0 + BossScaling.FLOOR_XP_SCALE_PER_LEVEL * float(depth)
-	var gold_mult: float = 1.0 + BossScaling.FLOOR_GOLD_SCALE_PER_LEVEL * float(depth)
-	data.max_hp = int(roundf(float(data.max_hp) * hp_mult))
-	data.hp = data.max_hp
-	data.attack = int(roundf(float(data.attack) * atk_mult))
-	# Defense only grows when there's a base to grow from. Floor-1 kinds
-	# with defense 0 stay at 0 until the spawn layer adds gear, which keeps
-	# the "non-Dog-Knight kinds share base defense" contract intact at
-	# floor 1 and gives Dog Knight / bosses a meaningful scaling curve.
-	if data.defense > 0:
-		data.defense = int(roundf(float(data.defense) * def_mult))
-	data.xp_reward = int(roundf(float(data.xp_reward) * xp_mult))
-	data.gold_reward = int(roundf(float(data.gold_reward) * gold_mult))
 
 # Returns the power-up type string for a power-up room, or empty string
 # otherwise. Sibling to plan_enemy: the future scene-tree spawn layer
