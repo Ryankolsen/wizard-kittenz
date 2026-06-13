@@ -34,6 +34,8 @@ func test_save_load_preserves_belt_slot_assignments():
 	var belt := PotionBelt.new()
 	belt.assign(1, "health_potion")
 	belt.assign(2, "mana_potion")
+	# Belt is 2 slots since PRD #384 / #385; slot 3 is out of range and assign
+	# is a safe no-op. Round-trip preserves slots 1 and 2 only.
 	belt.assign(3, "shield_potion")
 	var err := SaveManager.save(character, TMP_PATH, null, null, null, null, null, {}, null, null, null, null, 0, "", null, belt)
 	assert_eq(err, OK)
@@ -42,12 +44,14 @@ func test_save_load_preserves_belt_slot_assignments():
 	var rebuilt := loaded.to_potion_belt()
 	assert_eq(rebuilt.get_slot(1), "health_potion")
 	assert_eq(rebuilt.get_slot(2), "mana_potion")
-	assert_eq(rebuilt.get_slot(3), "shield_potion")
+	assert_eq(rebuilt.get_slot(3), "")
 
 func test_save_load_preserves_partial_belt_with_empty_slot():
 	var character := _character()
 	var belt := PotionBelt.new()
 	belt.assign(1, "health_potion")
+	# Slot 3 is out of range post-#385 — this assign is a no-op, so slot 2 stays
+	# empty. Pins the "partial belt with empty slot" round-trip in the new shape.
 	belt.assign(3, "shield_potion")
 	var err := SaveManager.save(character, TMP_PATH, null, null, null, null, null, {}, null, null, null, null, 0, "", null, belt)
 	assert_eq(err, OK)
@@ -55,7 +59,7 @@ func test_save_load_preserves_partial_belt_with_empty_slot():
 	var rebuilt := loaded.to_potion_belt()
 	assert_eq(rebuilt.get_slot(1), "health_potion")
 	assert_eq(rebuilt.get_slot(2), "")
-	assert_eq(rebuilt.get_slot(3), "shield_potion")
+	assert_eq(rebuilt.get_slot(3), "")
 
 func test_empty_inventory_and_belt_round_trip_to_empty():
 	var character := _character()

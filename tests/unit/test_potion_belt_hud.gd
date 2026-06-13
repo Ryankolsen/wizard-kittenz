@@ -26,15 +26,19 @@ func _make_hud(belt, inventory, caster = null) -> PotionBeltHUD:
 	hud.bind(belt, inventory, caster)
 	return hud
 
-func test_scene_instantiates_three_slot_views():
+func test_scene_instantiates_two_slot_views():
+	# PRD #384 / slice 1 (#385). Exactly two slot views; no Slot3 child.
 	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
 	add_child_autofree(hud)
+	assert_eq(PotionBelt.SLOT_COUNT, 2)
 	for i in range(1, PotionBelt.SLOT_COUNT + 1):
 		var v = hud.get_node_or_null("Slot%d" % i)
 		assert_not_null(v, "Slot%d must exist" % i)
 		assert_true(v is PotionBeltSlotView)
 		assert_eq(v.slot_index, i)
 		assert_eq(v.action_name, StringName("use_potion_%d" % i))
+	assert_null(hud.get_node_or_null("Slot3"), "Slot3 must not exist after 3→2 reduction")
+	assert_eq(hud.get_node("Slot2").action_name, StringName("use_potion_2"))
 
 func test_action_to_slot_helper_maps_use_potion_N_to_slot_N():
 	# Pure mapping helper, parallel to the cast_slot_N pattern in
@@ -42,7 +46,7 @@ func test_action_to_slot_helper_maps_use_potion_N_to_slot_N():
 	# a static keeps the routing logic unit-testable without driving Input.
 	assert_eq(PotionBeltHUDScript.slot_for_action(&"use_potion_1"), 1)
 	assert_eq(PotionBeltHUDScript.slot_for_action(&"use_potion_2"), 2)
-	assert_eq(PotionBeltHUDScript.slot_for_action(&"use_potion_3"), 3)
+	assert_eq(PotionBeltHUDScript.slot_for_action(&"use_potion_3"), 0, "use_potion_3 removed in #385")
 	assert_eq(PotionBeltHUDScript.slot_for_action(&"use_potion_4"), 0, "unknown returns 0")
 	assert_eq(PotionBeltHUDScript.slot_for_action(&"cast_slot_1"), 0, "non-potion action returns 0")
 

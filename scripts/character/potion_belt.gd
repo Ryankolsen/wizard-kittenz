@@ -1,19 +1,20 @@
 class_name PotionBelt
 extends RefCounted
 
-# Pure-data 3-slot potion belt (PRD #358 / slice 4). Slots hold potion ids
+# Pure-data 2-slot potion belt (PRD #358 / slice 4; reduced 3→2 in PRD #384 /
+# slice 1, issue #385). Slots hold potion ids
 # (strings) — not PotionDefinitions — so the belt can survive a session
 # without a catalog reference and so save/load is trivial. Mirrors Quickbar's
 # assign/swap semantics, but a shared cooldown gates every slot's fire instead
 # of per-spell cooldowns on each entry.
 
-const SLOT_COUNT := 3
+const SLOT_COUNT := 2
 const COOLDOWN_SECONDS := 30.0
 
 signal slot_changed(slot: int)
 signal slot_used(slot: int)
 
-var _slots: Array = ["", "", ""]
+var _slots: Array = ["", ""]
 var _cooldown_remaining: float = 0.0
 
 func get_slot(n: int) -> String:
@@ -90,7 +91,7 @@ func serialize() -> Dictionary:
 # written against an old catalog version doesn't pin a slot to an inert string
 # the use_slot guard would just reject every press anyway.
 func deserialize(dict: Dictionary) -> void:
-	_slots = ["", "", ""]
+	_slots = ["", ""]
 	_cooldown_remaining = 0.0
 	if typeof(dict) != TYPE_DICTIONARY:
 		return

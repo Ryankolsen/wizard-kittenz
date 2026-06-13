@@ -3,6 +3,18 @@ extends GutTest
 # PRD #358 / slice 4 — PotionBelt data class. Pure-data 3-slot belt referencing
 # potion ids (not PotionDefinitions), with shared cooldown gating use_slot.
 
+func test_slot_count_is_two():
+	# PRD #384 / slice 1 (#385). Belt is exactly two slots end-to-end.
+	assert_eq(PotionBelt.SLOT_COUNT, 2)
+	var belt := PotionBelt.new()
+	assert_eq(belt.get_slot(1), "")
+	assert_eq(belt.get_slot(2), "")
+	# Slot 3 is out of range now — get returns "" and assign/use are safe no-ops.
+	assert_eq(belt.get_slot(3), "")
+	belt.assign(3, "health_potion")
+	assert_eq(belt.get_slot(3), "")
+	assert_false(belt.use_slot(3, _caster(), ConsumableInventory.new()))
+
 func test_assign_places_potion_in_slot():
 	var belt := PotionBelt.new()
 	watch_signals(belt)
@@ -89,3 +101,12 @@ func test_tick_past_cooldown_reenables_use():
 	belt.tick(PotionBelt.COOLDOWN_SECONDS + 0.1)
 	assert_true(belt.use_slot(1, caster, inv))
 	assert_eq(inv.count_of("health_potion"), 0)
+
+func test_deserialize_drops_extra_slot_entries():
+	# PRD #384 / slice 1 (#385). A save written before the 3→2 reduction may
+	# carry three slot entries; deserialize must drop the third silently.
+	var belt := PotionBelt.new()
+	belt.deserialize({"slots": ["health_potion", "mana_potion", "shield_potion"]})
+	assert_eq(belt.get_slot(1), "health_potion")
+	assert_eq(belt.get_slot(2), "mana_potion")
+	assert_eq(belt.get_slot(3), "")
