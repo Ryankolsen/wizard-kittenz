@@ -26,6 +26,17 @@ func _make_hud(belt, inventory, caster = null) -> PotionBeltHUD:
 	hud.bind(belt, inventory, caster)
 	return hud
 
+func test_slot_size_is_28_and_strip_is_60_by_28():
+	# PRD #384 / slice 2 (#386). SLOT_SIZE shrinks 32→28; 2-slot strip becomes
+	# 60×28 (2*28 + 1*4 spacing).
+	assert_eq(PotionBeltHUD.SLOT_SIZE, 28.0)
+	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
+	add_child_autofree(hud)
+	assert_eq(hud.size, Vector2(60, 28))
+	assert_eq(hud.get_node("Slot1").position, Vector2(0, 0))
+	assert_eq(hud.get_node("Slot2").position, Vector2(32, 0))
+	assert_eq(hud.get_node("Slot1").size, Vector2(28, 28))
+
 func test_scene_instantiates_two_slot_views():
 	# PRD #384 / slice 1 (#385). Exactly two slot views; no Slot3 child.
 	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()

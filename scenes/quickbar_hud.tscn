@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/ui/quickbar_hud.gd" id="1_quickbar_hud"]
 
 [node name="QuickbarHUD" type="Control"]
-custom_minimum_size = Vector2(68, 68)
-offset_right = 68.0
-offset_bottom = 68.0
+custom_minimum_size = Vector2(60, 60)
+offset_right = 60.0
+offset_bottom = 60.0
 mouse_filter = 1
 script = ExtResource("1_quickbar_hud")

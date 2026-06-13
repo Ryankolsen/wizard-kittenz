@@ -19,7 +19,7 @@ const SlotViewScript := preload("res://scripts/ui/quickbar_slot_view.gd")
 const _QuickbarScript := preload("res://scripts/character/quickbar.gd")
 const _QuickbarSlotStateScript := preload("res://scripts/ui/quickbar_slot_state.gd")
 
-const SLOT_SIZE: float = 32.0
+const SLOT_SIZE: float = 28.0
 const SLOT_SPACING: float = 4.0
 
 signal empty_slot_pressed(slot: int)
@@ -124,8 +124,10 @@ func _layout_slots() -> void:
 		var row := i / 2
 		var v: Control = _slots[i]
 		v.position = Vector2(col * (SLOT_SIZE + SLOT_SPACING), row * (SLOT_SIZE + SLOT_SPACING))
+		# custom_minimum_size first — the slot view's _ready sets a default
+		# minimum that would otherwise clamp v.size back up.
+		v.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
 		v.size = Vector2(SLOT_SIZE, SLOT_SIZE)
-		v.custom_minimum_size = v.size
 	var w := 2.0 * SLOT_SIZE + SLOT_SPACING
 	var h := 2.0 * SLOT_SIZE + SLOT_SPACING
 	custom_minimum_size = Vector2(w, h)

@@ -29,6 +29,24 @@ func _make_hud(player) -> QuickbarHUD:
 func _wizard_tree() -> SkillTree:
 	return SkillTree.make_wizard_kitten_tree()
 
+func test_slot_size_is_28():
+	# PRD #384 / slice 2 (#386). SLOT_SIZE shrinks 32→28; computed 2×2 grid
+	# becomes 60×60 (2*28 + 4 spacing).
+	assert_eq(QuickbarHUD.SLOT_SIZE, 28.0)
+	var hud: QuickbarHUD = QuickbarHUDScene.instantiate()
+	add_child_autofree(hud)
+	assert_eq(hud.size, Vector2(60, 60))
+
+func test_slot_positions_use_32px_stride():
+	# 28 (SLOT_SIZE) + 4 (SLOT_SPACING) = 32 stride between slot origins.
+	var hud: QuickbarHUD = QuickbarHUDScene.instantiate()
+	add_child_autofree(hud)
+	assert_eq(hud.get_node("Slot1").position, Vector2(0, 0))
+	assert_eq(hud.get_node("Slot2").position, Vector2(32, 0))
+	assert_eq(hud.get_node("Slot3").position, Vector2(0, 32))
+	assert_eq(hud.get_node("Slot4").position, Vector2(32, 32))
+	assert_eq(hud.get_node("Slot1").size, Vector2(28, 28))
+
 func test_quickbar_hud_scene_instantiates_four_slots():
 	var hud: QuickbarHUD = QuickbarHUDScene.instantiate()
 	add_child_autofree(hud)

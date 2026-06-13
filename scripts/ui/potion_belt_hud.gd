@@ -16,7 +16,7 @@ extends Control
 
 const SlotViewScript := preload("res://scripts/ui/potion_belt_slot_view.gd")
 
-const SLOT_SIZE: float = 32.0
+const SLOT_SIZE: float = 28.0
 const SLOT_SPACING: float = 4.0
 
 signal slot_used(slot: int)
@@ -117,8 +117,10 @@ func _layout_slots() -> void:
 	for i in range(_slots.size()):
 		var v: Control = _slots[i]
 		v.position = Vector2(i * (SLOT_SIZE + SLOT_SPACING), 0)
+		# custom_minimum_size first so the slot view's _ready default doesn't
+		# clamp v.size back up.
+		v.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
 		v.size = Vector2(SLOT_SIZE, SLOT_SIZE)
-		v.custom_minimum_size = v.size
 	var w := PotionBelt.SLOT_COUNT * SLOT_SIZE + (PotionBelt.SLOT_COUNT - 1) * SLOT_SPACING
 	custom_minimum_size = Vector2(w, SLOT_SIZE)
 	size = Vector2(w, SLOT_SIZE)

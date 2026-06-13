@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/ui/potion_belt_hud.gd" id="1_potion_belt_hud"]
 
 [node name="PotionBeltHUD" type="Control"]
-custom_minimum_size = Vector2(68, 32)
-offset_right = 68.0
-offset_bottom = 32.0
+custom_minimum_size = Vector2(60, 28)
+offset_right = 60.0
+offset_bottom = 28.0
 mouse_filter = 1
 script = ExtResource("1_potion_belt_hud")

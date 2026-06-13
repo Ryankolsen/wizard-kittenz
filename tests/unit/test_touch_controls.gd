@@ -55,6 +55,17 @@ func test_touch_controls_scene_can_load():
 	assert_true(quickbar is QuickbarHUD)
 	inst.free()
 
+func test_touch_controls_quickbar_offset_box_is_60_by_60():
+	# PRD #384 / slice 2 (#386). Slot shrink 32→28 cascades to the offset box
+	# in touch_controls.tscn: 2*28 + 4 = 60 footprint.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var quickbar: Control = inst.get_node("QuickbarHUD")
+	assert_eq(quickbar.offset_right - quickbar.offset_left, 60.0,
+		"QuickbarHUD width box must be 60 (2*28 + 4)")
+	assert_eq(quickbar.offset_bottom - quickbar.offset_top, 60.0,
+		"QuickbarHUD height box must be 60 (2*28 + 4)")
+
 func test_set_menu_open_true_hides_overlay():
 	# While the pause menu is open the overlay must hide — its QuickbarHUD
 	# slots share the menu's CanvasLayer and would otherwise intercept taps
