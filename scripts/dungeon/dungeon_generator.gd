@@ -107,7 +107,8 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 			room.power_up_type = powerup_room_ids[i]
 		else:
 			room = Room.make(i, Room.TYPE_STANDARD)
-			room.enemy_kind = STANDARD_ENEMY_KINDS[rng.randi_range(0, STANDARD_ENEMY_KINDS.size() - 1)]
+			room.enemy_kinds = RoomPopulationPlanner.plan_for_room_type(rng, Room.TYPE_STANDARD)
+			room.enemy_kind = room.enemy_kinds[0]
 		var parent_idx: int
 		if i == bar_child_a or i == bar_child_b:
 			parent_idx = bar_id
@@ -128,6 +129,7 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	# they just read what's on the data they were handed.
 	var boss_info := BossRoster.boss_for_floor(floor_number)
 	boss.enemy_kind = boss_info.kind
+	boss.enemy_kinds = [boss_info.kind]
 	boss.boss_sprite_left_path = boss_info.sprite_left_path
 	boss.boss_sprite_right_path = boss_info.sprite_right_path
 	boss.boss_display_name = boss_info.display_name

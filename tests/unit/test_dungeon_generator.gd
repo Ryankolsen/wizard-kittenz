@@ -281,6 +281,37 @@ func test_room_type_sequence_starts_with_start_ends_with_boss():
 	assert_eq(seq[0], Room.TYPE_START)
 	assert_eq(seq[seq.size() - 1], Room.TYPE_BOSS)
 
+# --- #371: per-room enemy_kinds list ---
+
+func test_room_enemy_kinds_populated_per_type_across_seeds():
+	# Standard rooms hold 1..MULTI_MAX kinds, boss exactly 1, non-combat empty.
+	# Across a single large dungeon there must be both single and multi rooms.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var saw_single := false
+		var saw_multi := false
+		for r in d.rooms:
+			match r.type:
+				Room.TYPE_START, Room.TYPE_BAR, Room.TYPE_POWERUP:
+					assert_eq(r.enemy_kinds.size(), 0,
+						"seed %d: %s room enemy_kinds should be empty" % [s, r.type])
+				Room.TYPE_BOSS:
+					assert_eq(r.enemy_kinds.size(), 1,
+						"seed %d: boss enemy_kinds should be exactly 1" % s)
+				Room.TYPE_STANDARD:
+					var n: int = r.enemy_kinds.size()
+					assert_between(n, 1, RoomPopulationPlanner.MULTI_MAX,
+						"seed %d: standard room %d kinds out of range" % [s, r.id])
+					for k in r.enemy_kinds:
+						assert_true(DungeonGenerator.STANDARD_ENEMY_KINDS.has(k),
+							"seed %d: standard kind %s in roster" % [s, k])
+					if n == 1:
+						saw_single = true
+					elif n >= 2:
+						saw_multi = true
+		assert_true(saw_single, "seed %d: at least one single-mob standard room" % s)
+		assert_true(saw_multi, "seed %d: at least one multi-mob standard room" % s)
+
 # Strong fingerprint of a dungeon for collision tests. Captures size, type
 # sequence, all connections, and enemy ids — the chance of two unseeded
 # runs colliding on this is vanishingly small.

@@ -21,6 +21,12 @@ var type: String = TYPE_STANDARD
 # friendly; the spawn/transition layer (lands with the room-transition step)
 # resolves these into actual nodes.
 var enemy_kind: int = -1
+# Full mob roster for this room (#371). For boss rooms this is exactly one
+# kind (mirroring enemy_kind). For standard rooms it's 1..6 entries — populated
+# by RoomPopulationPlanner via DungeonGenerator. Non-combat rooms (start, bar,
+# power-up) keep this empty. enemy_kind stays in place for legacy callers
+# (spawn planner single-mob path) and equals enemy_kinds[0] when populated.
+var enemy_kinds: Array = []
 var power_up_type: String = ""
 # Boss room only. Stamped by DungeonGenerator from BossRoster.boss_for_floor
 # at generation time so the per-floor boss sprite travels with the room
