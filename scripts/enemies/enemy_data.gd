@@ -89,19 +89,34 @@ var taunt_remaining: float = 0.0
 # unset, and tick_taunt clears it on expiry alongside taunt_target.
 var taunt_source_id: String = ""
 
-# All 5 kinds share identical base stats this phase (PRD #151). Per-enemy
-# differentiation is a future PRD — the static helpers stay kind-keyed so
-# that future change is a body edit, not a signature change.
-static func base_max_hp_for(_k: EnemyKind) -> int:
+# Per-kind floor-1 stat profiles (PRD #376 / issue #378). Replaces the
+# uniform 8/2 baseline so each kind has a role: Pigeon glass-cannon swarmer,
+# Roomba erratic skirmisher, Catnip medium all-rounder, Spray fragile ranged
+# poke, Dog Knight tank. Boss-tier kinds (Sir Pickleton onward) keep the
+# legacy 8/2 baseline since BossScaling multiplies on top and per-boss
+# differentiation is sprite/AI-driven.
+static func base_max_hp_for(k: EnemyKind) -> int:
+	match k:
+		EnemyKind.ANGRY_PIGEON: return 6
+		EnemyKind.ROGUE_ROOMBA: return 12
+		EnemyKind.CATNIP_DEALER: return 14
+		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 10
+		EnemyKind.DOG_KNIGHT: return 24
 	return 8
 
-static func base_attack_for(_k: EnemyKind) -> int:
+static func base_attack_for(k: EnemyKind) -> int:
+	match k:
+		EnemyKind.ANGRY_PIGEON: return 2
+		EnemyKind.ROGUE_ROOMBA: return 3
+		EnemyKind.CATNIP_DEALER: return 3
+		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 4
+		EnemyKind.DOG_KNIGHT: return 4
 	return 2
 
 static func base_defense_for(k: EnemyKind) -> int:
-	# Dog Knight (issue #163) is the documented exception to the equal-stats
-	# rule — its raised armor is the gameplay reason to drop the mead bottle
-	# instead of front-line tanking. Other kinds stay at 0 per PRD #151.
+	# Dog Knight (issue #163) remains the only standard kind with nonzero
+	# defense — its raised armor is the gameplay reason to drop the mead
+	# bottle instead of front-line tanking.
 	if k == EnemyKind.DOG_KNIGHT:
 		return 2
 	return 0

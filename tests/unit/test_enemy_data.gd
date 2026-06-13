@@ -27,8 +27,8 @@ func test_make_new_angry_pigeon_has_expected_defaults():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.enemy_name, "Angry Pigeon")
-	assert_eq(e.max_hp, 8)
-	assert_eq(e.hp, 8)
+	assert_eq(e.max_hp, 6)
+	assert_eq(e.hp, 6)
 	assert_eq(e.attack, 2)
 	assert_eq(e.defense, 0)
 	assert_eq(e.xp_reward, 15)
@@ -52,29 +52,52 @@ func test_enum_has_expected_values():
 	for old in ["SLIME", "BAT", "RAT"]:
 		assert_false(names.has(old), "EnemyKind still contains retired %s" % old)
 
-func test_all_kinds_share_equal_base_stats():
-	# PRD #151 phase 1: all 5 kinds use the same base stats; differentiation
-	# is a future PRD. If a future change reintroduces per-kind stats this
-	# test fails fast and the maintainer can update the contract.
-	var hp_set := {}
-	var atk_set := {}
-	var def_set := {}
-	var xp_set := {}
-	var gold_set := {}
+# PRD #376 / issue #378: per-kind base stat profiles replace the uniform
+# 8/2/0 baseline. Each kind has a distinct role; the pinned values below
+# encode that spec — adjust together with EnemyData.base_*_for if tuning.
+const _EXPECTED_PROFILES := {
+	EnemyData.EnemyKind.ANGRY_PIGEON: [6, 2, 0],
+	EnemyData.EnemyKind.ROGUE_ROOMBA: [12, 3, 0],
+	EnemyData.EnemyKind.CATNIP_DEALER: [14, 3, 0],
+	EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: [10, 4, 0],
+	EnemyData.EnemyKind.DOG_KNIGHT: [24, 4, 2],
+}
+
+func test_pigeon_base_profile():
+	assert_eq(EnemyData.base_max_hp_for(EnemyData.EnemyKind.ANGRY_PIGEON), 6)
+	assert_eq(EnemyData.base_attack_for(EnemyData.EnemyKind.ANGRY_PIGEON), 2)
+	assert_eq(EnemyData.base_defense_for(EnemyData.EnemyKind.ANGRY_PIGEON), 0)
+
+func test_dog_knight_is_tanky():
+	assert_eq(EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT), 24)
+	assert_eq(EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT), 2)
+	assert_gt(
+		EnemyData.base_max_hp_for(EnemyData.EnemyKind.DOG_KNIGHT),
+		EnemyData.base_max_hp_for(EnemyData.EnemyKind.ANGRY_PIGEON))
+
+func test_remaining_kind_profiles():
+	# Roomba 12/3/0, Catnip 14/3/0, Spray 10/4/0.
+	for k in [
+		EnemyData.EnemyKind.ROGUE_ROOMBA,
+		EnemyData.EnemyKind.CATNIP_DEALER,
+		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
+	]:
+		var p: Array = _EXPECTED_PROFILES[k]
+		assert_eq(EnemyData.base_max_hp_for(k), p[0], "kind %d hp" % k)
+		assert_eq(EnemyData.base_attack_for(k), p[1], "kind %d attack" % k)
+		assert_eq(EnemyData.base_defense_for(k), p[2], "kind %d defense" % k)
+
+func test_make_new_uses_profile():
+	var d := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
+	assert_eq(d.max_hp, 24)
+	assert_eq(d.hp, 24)
+	assert_eq(d.defense, 2)
+
+func test_only_dog_knight_has_defense():
 	for k in _NEW_KINDS:
-		hp_set[EnemyData.base_max_hp_for(k)] = true
-		atk_set[EnemyData.base_attack_for(k)] = true
-		# DOG_KNIGHT (issue #163) is the documented exception to the equal-
-		# stats rule — its raised defense is exercised by test_enemy_behavior.
-		if k != EnemyData.EnemyKind.DOG_KNIGHT:
-			def_set[EnemyData.base_defense_for(k)] = true
-		xp_set[EnemyData.base_xp_for(k)] = true
-		gold_set[EnemyData.base_gold_for(k)] = true
-	assert_eq(hp_set.size(), 1, "all kinds must share base hp")
-	assert_eq(atk_set.size(), 1, "all kinds must share base attack")
-	assert_eq(def_set.size(), 1, "non-DOG_KNIGHT kinds must share base defense")
-	assert_eq(xp_set.size(), 1, "all kinds must share base xp")
-	assert_eq(gold_set.size(), 1, "all kinds must share base gold")
+		if k == EnemyData.EnemyKind.DOG_KNIGHT:
+			continue
+		assert_eq(EnemyData.base_defense_for(k), 0, "kind %d should have 0 defense" % k)
 
 func test_display_names_are_non_empty_and_distinct():
 	var names := []
@@ -94,8 +117,8 @@ func test_take_damage_clamps_and_kills():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
 	assert_true(e.is_alive())
 	assert_eq(e.take_damage(2), 2)
-	assert_eq(e.hp, 6)
-	assert_eq(e.take_damage(99), 6, "overkill returns only damage actually dealt")
+	assert_eq(e.hp, 22)
+	assert_eq(e.take_damage(99), 22, "overkill returns only damage actually dealt")
 	assert_eq(e.hp, 0)
 	assert_false(e.is_alive())
 
@@ -104,7 +127,7 @@ func test_make_new_returns_independent_instances():
 	var b := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	a.take_damage(99)
 	assert_eq(a.hp, 0)
-	assert_eq(b.hp, 8, "second instance should be untouched")
+	assert_eq(b.hp, 6, "second instance should be untouched")
 
 func test_static_helpers_match_make_new():
 	for k in _NEW_KINDS:
