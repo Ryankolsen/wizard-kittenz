@@ -19,6 +19,14 @@ const SlotViewScript := preload("res://scripts/ui/potion_belt_slot_view.gd")
 const SLOT_SIZE: float = 28.0
 const SLOT_SPACING: float = 4.0
 
+enum Orientation { HORIZONTAL, VERTICAL }
+
+@export_enum("Horizontal", "Vertical") var orientation: int = Orientation.HORIZONTAL:
+	set(value):
+		orientation = value
+		if is_inside_tree() and _slots.size() > 0:
+			_layout_slots()
+
 signal slot_used(slot: int)
 
 var _player = null
@@ -111,19 +119,22 @@ func _ensure_slot_views() -> void:
 		add_child(v)
 		_slots.append(v)
 
-# Horizontal 1×3 strip. Parent scene positions the whole HUD; we lay out the
-# three slots from (0,0) rightward.
+# Lays slots out as a row (HORIZONTAL, default) or column (VERTICAL). Parent
+# scene positions the whole HUD; we lay out the slots from (0,0).
 func _layout_slots() -> void:
+	var vertical := orientation == Orientation.VERTICAL
 	for i in range(_slots.size()):
 		var v: Control = _slots[i]
-		v.position = Vector2(i * (SLOT_SIZE + SLOT_SPACING), 0)
+		var step := i * (SLOT_SIZE + SLOT_SPACING)
+		v.position = Vector2(0, step) if vertical else Vector2(step, 0)
 		# custom_minimum_size first so the slot view's _ready default doesn't
 		# clamp v.size back up.
 		v.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
 		v.size = Vector2(SLOT_SIZE, SLOT_SIZE)
-	var w := PotionBelt.SLOT_COUNT * SLOT_SIZE + (PotionBelt.SLOT_COUNT - 1) * SLOT_SPACING
-	custom_minimum_size = Vector2(w, SLOT_SIZE)
-	size = Vector2(w, SLOT_SIZE)
+	var long_axis := PotionBelt.SLOT_COUNT * SLOT_SIZE + (PotionBelt.SLOT_COUNT - 1) * SLOT_SPACING
+	var dims := Vector2(SLOT_SIZE, long_axis) if vertical else Vector2(long_axis, SLOT_SIZE)
+	custom_minimum_size = dims
+	size = dims
 
 # Pure mapping: returns 1..SLOT_COUNT for a recognized use_potion_N action,
 # else 0. Pulled out as a static so a test can pin the routing without driving

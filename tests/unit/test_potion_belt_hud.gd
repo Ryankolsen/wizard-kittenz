@@ -37,6 +37,35 @@ func test_slot_size_is_28_and_strip_is_60_by_28():
 	assert_eq(hud.get_node("Slot2").position, Vector2(32, 0))
 	assert_eq(hud.get_node("Slot1").size, Vector2(28, 28))
 
+func test_default_orientation_is_horizontal_layout_preserved():
+	# PRD #384 / slice 3 (#387). Edge case: when orientation is not specified,
+	# the existing horizontal layout (#386) must be byte-for-byte unchanged.
+	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
+	add_child_autofree(hud)
+	assert_eq(hud.orientation, PotionBeltHUD.Orientation.HORIZONTAL)
+	assert_eq(hud.size, Vector2(60, 28))
+	assert_eq(hud.get_node("Slot1").position, Vector2(0, 0))
+	assert_eq(hud.get_node("Slot2").position, Vector2(32, 0))
+
+func test_vertical_orientation_lays_slots_in_a_column():
+	# PRD #384 / slice 3 (#387). Core wiring: in vertical mode, slot i sits at
+	# (0, i*(SLOT_SIZE+SLOT_SPACING)) so a 2-slot belt @ 28px renders at
+	# (0,0) and (0,32).
+	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
+	add_child_autofree(hud)
+	hud.orientation = PotionBeltHUD.Orientation.VERTICAL
+	assert_eq(hud.get_node("Slot1").position, Vector2(0, 0))
+	assert_eq(hud.get_node("Slot2").position, Vector2(0, 32))
+	assert_eq(hud.get_node("Slot1").size, Vector2(28, 28))
+
+func test_vertical_orientation_total_size_is_28_by_60():
+	# PRD #384 / slice 3 (#387). Content detail: 1-column-wide × 2-slots-tall
+	# strip computes to Vector2(28, 60).
+	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
+	add_child_autofree(hud)
+	hud.orientation = PotionBeltHUD.Orientation.VERTICAL
+	assert_eq(hud.size, Vector2(28, 60))
+
 func test_scene_instantiates_two_slot_views():
 	# PRD #384 / slice 1 (#385). Exactly two slot views; no Slot3 child.
 	var hud: PotionBeltHUD = PotionBeltHUDScene.instantiate()
