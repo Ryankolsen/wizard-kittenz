@@ -23,13 +23,17 @@ var _fill: ColorRect = null
 var _label: Label = null
 var _hud: CanvasLayer = null
 
-# Pure label render for the boss bar: "Name  cur/max". Double-space
-# separator picks out the name from the numbers without a heavier
-# delimiter and reads as one phrase at HUD font size. Empty name is
-# allowed — defensive against an unconfigured EnemyData; surfaces as a
-# leading "  cur/max" rather than crashing the HUD poll.
-static func format_boss_hp(boss_name: String, hp: int, max_hp: int) -> String:
-	return "%s  %d/%d" % [boss_name, hp, max_hp]
+# Pure label render for the boss bar: "Name  Lv N  cur/max", or
+# "Name  cur/max" when level <= 0. Double-space separator picks out the
+# segments without a heavier delimiter and reads as one phrase at HUD
+# font size. Empty name is allowed — defensive against an unconfigured
+# EnemyData; surfaces as a leading "  cur/max" rather than crashing the
+# HUD poll. Level defaults to 0 so pre-#382 callers (and EnemyData with
+# a zero/unset level) keep the original two-segment form.
+static func format_boss_hp(boss_name: String, hp: int, max_hp: int, level: int = 0) -> String:
+	if level <= 0:
+		return "%s  %d/%d" % [boss_name, hp, max_hp]
+	return "%s  Lv %d  %d/%d" % [boss_name, level, hp, max_hp]
 
 # Room gate: the boss bar only shows once the player is physically inside the
 # boss room. The boss enemy spawns at dungeon load, so existence alone isn't
@@ -100,7 +104,7 @@ func _process(_dt: float) -> void:
 	if _fill != null:
 		_fill.size.x = BAR_WIDTH * HUD.hp_bar_ratio(data.hp, data.max_hp)
 	if _label != null:
-		_label.text = format_boss_hp(data.enemy_name, data.hp, data.max_hp)
+		_label.text = format_boss_hp(data.enemy_name, data.hp, data.max_hp, data.level)
 
 func _find_boss() -> Node:
 	if not is_inside_tree():

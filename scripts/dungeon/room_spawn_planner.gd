@@ -97,6 +97,12 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 		data.is_elite = elite_flag
 		data.level = EnemyLevel.compute_level(kind, floor_number) + elite_bonus
 	if data.is_boss:
+		# Stamp boss level off the floor baseline (PRD #376 / issue #382) so
+		# the boss HUD bar surfaces "Lv N" with the same scale as mob levels.
+		# Mirrors the floor-derived baseline BossScaling already uses for
+		# level-mult clamps — single source of truth for "what level is this
+		# floor's content" across both presentation and stat scaling.
+		data.level = BossScaling.baseline_level_for_floor(floor_number)
 		var scaled := BossScaling.compute_boss_stats({
 			"hp": data.max_hp,
 			"attack": data.attack,

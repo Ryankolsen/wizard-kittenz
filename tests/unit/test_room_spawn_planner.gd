@@ -103,6 +103,14 @@ func test_plan_enemy_boss_room_has_boosted_stats():
 	assert_eq(d.gold_reward, int(roundf(float(EnemyData.base_gold_for(EnemyData.EnemyKind.DOG_KNIGHT)) * BossScaling.BOSS_GOLD_MULT)))
 	assert_eq(d.enemy_name, "The Vacuum")
 
+func test_boss_plan_sets_level():
+	# PRD #376 / issue #382 — boss EnemyData carries a level derived from
+	# floor so the boss HUD bar can render "Lv N" alongside the name.
+	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_eq(d.level, BossScaling.baseline_level_for_floor(1),
+		"boss level matches the floor baseline so HUD readout stays consistent with mob levels")
+
 func test_plan_enemy_boss_room_has_wide_detection_radius():
 	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
 	var d := RoomSpawnPlanner.plan_enemy(r)

@@ -59,3 +59,14 @@ func test_format_uses_roster_name_for_floor_2():
 	var info := BossRoster.boss_for_floor(2)
 	var label := BossHealthBar.format_boss_hp(info.display_name, 40, 40)
 	assert_true(label.find("Sir Pickleton") != -1, "label '%s' should contain Floor 2 boss name" % label)
+
+# PRD #376 / issue #382 — boss bar surfaces the boss's level so mob + boss
+# readouts stay consistent. Level arg defaults to 0 (no label) for backward
+# compat with single-floor callers that don't yet thread the level through.
+func test_format_includes_level():
+	assert_eq(BossHealthBar.format_boss_hp("The Vacuum", 48, 48, 3), "The Vacuum  Lv 3  48/48")
+
+func test_format_zero_level_omits_label():
+	# Empty / zero level renders the original "Name  cur/max" form without a
+	# stray "Lv 0" — guards EnemyData defaults and pre-#382 callers.
+	assert_eq(BossHealthBar.format_boss_hp("The Vacuum", 48, 48, 0), "The Vacuum  48/48")
