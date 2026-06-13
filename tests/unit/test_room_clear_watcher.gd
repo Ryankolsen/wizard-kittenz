@@ -12,6 +12,17 @@ func _make_standard_room(room_id: int, kind: int = EnemyData.EnemyKind.ANGRY_PIG
 	r.enemy_kind = kind
 	return r
 
+func _make_multi_mob_room(room_id: int, count: int) -> Room:
+	# #373: a standard room seeded with N mobs. enemy_kinds carries the per-
+	# spawn-idx kind list (RoomPopulationPlanner's contract); enemy_kind keeps
+	# enemy_kinds[0] so legacy consumers still see the room as combat.
+	var r := Room.make(room_id, Room.TYPE_STANDARD)
+	r.enemy_kinds = []
+	for _i in range(count):
+		r.enemy_kinds.append(EnemyData.EnemyKind.ANGRY_PIGEON)
+	r.enemy_kind = r.enemy_kinds[0]
+	return r
+
 func _make_boss_room(room_id: int, kind: int = EnemyData.EnemyKind.DOG_KNIGHT) -> Room:
 	var r := Room.make(room_id, Room.TYPE_BOSS)
 	r.enemy_kind = kind
@@ -201,6 +212,90 @@ func test_notify_death_does_not_double_fire_mark_room_cleared():
 	w.notify_death("r3_e0")
 	w.notify_death("r3_e0")  # duplicate
 	assert_signal_emit_count(controller, "room_cleared", 1, "single rising-edge fire")
+
+# --- multi-mob rooms (#373) ------------------------------------------------
+
+func test_watch_multi_mob_room_initializes_expected_count():
+	# A 3-mob room expects 3 deaths before clearing.
+	var room := _make_multi_mob_room(3, 3)
+	var controller := _make_controller_for(room)
+	var w := RoomClearWatcher.new()
+	assert_true(w.watch(room, controller))
+	assert_eq(w.initial_count(), 3, "expected count matches enemy_kinds.size()")
+	assert_eq(w.remaining_count(), 3, "no deaths yet")
+	assert_false(w.is_cleared(), "multi-mob room defaults uncleared")
+	assert_false(controller.is_room_cleared(3),
+		"controller agrees: multi-mob not auto-cleared")
+
+func test_notify_death_multi_mob_clears_on_last_death():
+	# AC: notify_death returns false for the first two ids (remaining_count
+	# decrements) and true only on the third, with is_cleared() true and
+	# the controller's is_room_cleared(room.id) now true.
+	var room := _make_multi_mob_room(3, 3)
+	var controller := _make_controller_for(room)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller)
+	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
+	assert_eq(ids.size(), 3, "planner mints 3 ids for 3-mob room")
+
+	assert_false(w.notify_death(ids[0]), "first death does not clear")
+	assert_eq(w.remaining_count(), 2)
+	assert_false(w.is_cleared())
+	assert_false(controller.is_room_cleared(3))
+
+	assert_false(w.notify_death(ids[1]), "second death does not clear")
+	assert_eq(w.remaining_count(), 1)
+	assert_false(w.is_cleared())
+	assert_false(controller.is_room_cleared(3))
+
+	assert_true(w.notify_death(ids[2]), "third (last) death clears room")
+	assert_eq(w.remaining_count(), 0)
+	assert_true(w.is_cleared())
+	assert_true(controller.is_room_cleared(3))
+
+func test_notify_death_multi_mob_fires_mark_room_cleared_exactly_once():
+	# RoomClearWatcher must call mark_room_cleared exactly once on the
+	# last expected death — not on every intermediate death.
+	var room := _make_multi_mob_room(3, 3)
+	var controller := _make_controller_for(room)
+	watch_signals(controller)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller)
+	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
+	w.notify_death(ids[0])
+	w.notify_death(ids[1])
+	assert_signal_emit_count(controller, "room_cleared", 0,
+		"no clear edge while mobs remain")
+	w.notify_death(ids[2])
+	assert_signal_emit_count(controller, "room_cleared", 1,
+		"single rising-edge on last death")
+
+func test_notify_death_multi_mob_unknown_id_safe_no_op():
+	# An enemy-died packet for a mob in a different room must not
+	# decrement this room's expected set.
+	var room := _make_multi_mob_room(3, 3)
+	var controller := _make_controller_for(room)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller)
+	assert_false(w.notify_death("r999_e0"), "unknown id rejected")
+	assert_eq(w.remaining_count(), 3, "expected set unchanged")
+	assert_false(controller.is_room_cleared(3))
+
+func test_notify_death_multi_mob_duplicate_after_clear_safe_no_op():
+	# AC: a duplicate notify after the room cleared is a safe no-op.
+	# mark_room_cleared fires at most once across the watcher's lifetime.
+	var room := _make_multi_mob_room(3, 3)
+	var controller := _make_controller_for(room)
+	watch_signals(controller)
+	var w := RoomClearWatcher.new()
+	w.watch(room, controller)
+	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
+	w.notify_death(ids[0])
+	w.notify_death(ids[1])
+	w.notify_death(ids[2])
+	assert_false(w.notify_death(ids[2]), "duplicate after clear is a no-op")
+	assert_signal_emit_count(controller, "room_cleared", 1,
+		"mark_room_cleared still fired exactly once")
 
 # --- end-to-end: planner + watcher + controller ----------------------------
 

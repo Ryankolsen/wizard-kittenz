@@ -15,12 +15,15 @@ extends RefCounted
 #   - The controller owns the `_cleared` dictionary so a fresh `start(d)`
 #     resets state cleanly without rebuilding the graph.
 #
-# Auto-clear rule: rooms with no seeded enemy (enemy_kind == -1) — start
-# rooms and power-up rooms — are considered cleared as soon as they're in
-# the dungeon. The player can step through them without an explicit
-# mark_room_cleared call. Boss + standard rooms always seed an enemy, so
-# they require explicit clearing via mark_room_cleared(room_id) when the
-# room's last enemy dies.
+# Auto-clear rule: rooms with no seeded enemies — start, bar, and power-up
+# rooms — are considered cleared as soon as they're in the dungeon. The
+# player can step through them without an explicit mark_room_cleared
+# call. Boss + standard rooms always seed at least one enemy, so they
+# require explicit clearing via mark_room_cleared(room_id) when the
+# room's last mob dies. A room is considered seedless when both its
+# multi-mob `enemy_kinds` list is empty AND the legacy single
+# `enemy_kind` is unset — mirroring RoomSpawnPlanner._kinds_for_room
+# so the auto-clear edge agrees with what the planner actually spawns.
 #
 # As of issue #97 the controller no longer drives room-to-room
 # progression: the player walks freely between all rooms on the
@@ -98,9 +101,10 @@ func current_room() -> Room:
 	return dungeon.get_room(current_room_id)
 
 # True when the room has no enemies left to fight: either it was explicitly
-# marked cleared, or it never had an enemy seeded in the first place
-# (start / power-up rooms). Boss / standard rooms always have an enemy
-# kind set by the generator so they're never auto-cleared.
+# marked cleared, or it never had any mobs seeded in the first place
+# (start / bar / power-up rooms). Boss / standard rooms always have at
+# least one entry in enemy_kinds (or, for pre-#371 fixtures, the legacy
+# enemy_kind field) so they're never auto-cleared.
 func is_room_cleared(room_id: int) -> bool:
 	if _cleared.get(room_id, false):
 		return true
@@ -109,7 +113,7 @@ func is_room_cleared(room_id: int) -> bool:
 	var r := dungeon.get_room(room_id)
 	if r == null:
 		return false
-	return r.enemy_kind == -1
+	return r.enemy_kinds.is_empty() and r.enemy_kind < 0
 
 # Returns true on the first mark (a fresh "this room just got cleared"
 # transition), false on repeats. Caller drives the per-room enemy-count

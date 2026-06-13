@@ -137,6 +137,43 @@ func test_is_room_cleared_auto_for_powerup_room():
 	c.start(d)
 	assert_true(c.is_room_cleared(2), "powerup room auto-cleared")
 
+func test_is_room_cleared_auto_for_empty_enemy_kinds_list():
+	# #373: the canonical auto-clear signal is `enemy_kinds.is_empty()` (paired
+	# with the legacy enemy_kind == -1). A non-combat room — e.g. a bar — has
+	# both unset and must auto-clear without a kill.
+	var d := Dungeon.new()
+	var s := Room.make(0, Room.TYPE_START)
+	var bar := Room.make(1, Room.TYPE_BAR)
+	# enemy_kinds defaults to []; enemy_kind defaults to -1.
+	s.connections = [1]
+	d.add_room(s)
+	d.add_room(bar)
+	d.start_id = 0
+	d.boss_id = -1
+	var c := DungeonRunController.new()
+	c.start(d)
+	assert_true(c.is_room_cleared(1), "bar room (no enemy_kinds) auto-cleared")
+
+func test_is_room_cleared_false_for_multi_mob_room_until_marked():
+	# #373: a standard room seeded with multiple mobs (enemy_kinds.size() > 1)
+	# is not auto-cleared. The watcher must explicitly mark_room_cleared on
+	# the last expected death.
+	var d := Dungeon.new()
+	var s := Room.make(0, Room.TYPE_START)
+	var n := Room.make(1, Room.TYPE_STANDARD)
+	n.enemy_kinds = [EnemyData.EnemyKind.ANGRY_PIGEON, EnemyData.EnemyKind.ANGRY_PIGEON, EnemyData.EnemyKind.ANGRY_PIGEON]
+	n.enemy_kind = n.enemy_kinds[0]
+	s.connections = [1]
+	d.add_room(s)
+	d.add_room(n)
+	d.start_id = 0
+	d.boss_id = -1
+	var c := DungeonRunController.new()
+	c.start(d)
+	assert_false(c.is_room_cleared(1), "multi-mob room not auto-cleared")
+	c.mark_room_cleared(1)
+	assert_true(c.is_room_cleared(1), "multi-mob room cleared after explicit mark")
+
 func test_is_room_cleared_explicit_after_mark():
 	var d := _make_linear_dungeon()
 	var c := DungeonRunController.new()
