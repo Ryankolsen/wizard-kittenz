@@ -14,12 +14,12 @@ const COUNT_BADGE_TEXT_COLOR := Color(1, 1, 1, 1)
 const DISABLED_TINT := Color(0.4, 0.4, 0.4, 0.7)
 const COOLDOWN_OVERLAY := Color(0, 0, 0, 0.55)
 const FIRE_GLOW_COLOR := Color(1.0, 0.95, 0.5, 0.85)
-# Green-tinted slot chrome so item hotkeys read as distinct from the
-# blue-grey ability (quickbar) slots. Same darkness/alpha as the ability
-# slots — only the hue shifts.
-const EMPTY_PLUS_COLOR := Color(0.72, 0.85, 0.72, 0.6)
-const SLOT_BG_COLOR := Color(0.07, 0.14, 0.09, 0.85)
-const SLOT_BORDER_COLOR := Color(0.45, 0.75, 0.5, 0.85)
+# Bright-yellow slot chrome so item hotkeys read as distinct from the
+# blue-grey ability (quickbar) slots. The border + plus pop bright yellow;
+# the background stays a dark warm tint so icons/badges stay legible.
+const EMPTY_PLUS_COLOR := Color(1.0, 0.92, 0.35, 0.85)
+const SLOT_BG_COLOR := Color(0.16, 0.14, 0.05, 0.85)
+const SLOT_BORDER_COLOR := Color(1.0, 0.85, 0.15, 0.95)
 
 # Category-keyed placeholder colors when PotionDefinition.icon is null. Matches
 # the generic potion art palette (red HP / blue MP / green shield) so the
