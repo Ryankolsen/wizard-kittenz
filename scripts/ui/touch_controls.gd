@@ -62,11 +62,18 @@ func apply_layout(layout: String) -> void:
 	var quickbar := get_node_or_null("QuickbarHUD") as Control
 	if joystick == null or attack == null or quickbar == null:
 		return
+	# Slice 4 of PRD #384 (#388): the potion belt is part of the cluster on
+	# touch; mirror it alongside the quickbar so the column stays adjacent to
+	# the magic grid on the opposite side. Optional — older scenes without a
+	# PotionBeltHUD child still mirror the rest cleanly.
+	var potion := get_node_or_null("PotionBeltHUD") as Control
 	var viewport_w := float(ProjectSettings.get_setting("display/window/size/viewport_width", 480))
 	if layout == ControlsSettings.LAYOUT_RIGHT_HAND:
 		_mirror_x(joystick, viewport_w)
 		_mirror_x(attack, viewport_w)
 		_mirror_x(quickbar, viewport_w)
+		if potion != null:
+			_mirror_x(potion, viewport_w)
 
 func _mirror_x(node: Control, viewport_w: float) -> void:
 	var new_left := viewport_w - node.offset_right

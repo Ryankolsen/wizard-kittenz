@@ -52,6 +52,12 @@ func _ready() -> void:
 	var quickbar_hud := get_node_or_null("QuickbarHUD") as Control
 	if quickbar_hud != null and TouchControls.is_touch_platform():
 		quickbar_hud.visible = false
+	# Slice 4 of PRD #384 (#388): mirror the quickbar hide for the potion belt.
+	# On touch the cluster lives in TouchControls; hiding the HUD-layer copy
+	# prevents a double-render at the old desktop position.
+	var potion_belt_hud := get_node_or_null("PotionBeltHUD") as Control
+	if potion_belt_hud != null and TouchControls.is_touch_platform():
+		potion_belt_hud.visible = false
 	# Host-pause overlay (#43). Eagerly instanced so a remote host-pause
 	# packet that arrives before the player presses their own pause button
 	# still has a surface to render the "Host has paused" banner on. The

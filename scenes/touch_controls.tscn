@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://cwt4raxkn3p7r"]
+[gd_scene load_steps=6 format=3 uid="uid://cwt4raxkn3p7r"]
 
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1_touch_controls"]
 [ext_resource type="Script" path="res://scripts/ui/virtual_joystick.gd" id="2_joystick"]
 [ext_resource type="Script" path="res://scripts/ui/touch_action_button.gd" id="3_action_button"]
 [ext_resource type="PackedScene" path="res://scenes/quickbar_hud.tscn" id="4_quickbar_hud"]
+[ext_resource type="PackedScene" path="res://scenes/potion_belt_hud.tscn" id="5_potion_belt_hud"]
 
 [node name="TouchControls" type="CanvasLayer"]
 layer = 2
@@ -42,3 +43,11 @@ offset_left = 396.0
 offset_top = 116.0
 offset_right = 456.0
 offset_bottom = 176.0
+
+[node name="PotionBeltHUD" parent="." instance=ExtResource("5_potion_belt_hud")]
+custom_minimum_size = Vector2(28, 60)
+offset_left = 364.0
+offset_top = 116.0
+offset_right = 392.0
+offset_bottom = 176.0
+orientation = 1

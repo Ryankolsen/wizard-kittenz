@@ -93,6 +93,66 @@ func test_ready_registers_pause_hideable_group():
 	assert_true(inst.is_in_group("touch_controls"),
 		"TouchControls must join the 'touch_controls' group so the pause menu can hide it")
 
+func test_touch_controls_contains_vertical_potion_belt():
+	# PRD #384 / slice 4 (#388). The mobile cluster owns its own PotionBeltHUD
+	# in vertical orientation, sitting left of the QuickbarHUD magic grid.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var potion: Control = inst.get_node_or_null("PotionBeltHUD") as Control
+	assert_not_null(potion, "TouchControls must instance a PotionBeltHUD child")
+	assert_true(potion is PotionBeltHUD,
+		"PotionBeltHUD child must be bound to the PotionBeltHUD script")
+	assert_eq(potion.orientation, PotionBeltHUD.Orientation.VERTICAL,
+		"mobile potion belt must be in vertical orientation")
+
+func test_touch_potion_belt_sits_left_of_quickbar_top_aligned():
+	# Content detail: the potion column's right edge must be at or left of the
+	# QuickbarHUD's left edge (no overlap), and tops aligned within a small
+	# tolerance so the column reads as one cluster with the magic grid.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var potion: Control = inst.get_node("PotionBeltHUD") as Control
+	var quickbar: Control = inst.get_node("QuickbarHUD") as Control
+	assert_true(potion.offset_right <= quickbar.offset_left,
+		"potion column right edge must not overlap the magic grid's left edge")
+	assert_almost_eq(potion.offset_top, quickbar.offset_top, 1.0,
+		"potion column must top-align with the magic grid")
+
+func test_apply_layout_right_hand_mirrors_potion_belt():
+	# Mirroring keeps the potion column adjacent to the (now mirrored) magic
+	# grid on the opposite side of the screen.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var potion: Control = inst.get_node("PotionBeltHUD") as Control
+	var quickbar: Control = inst.get_node("QuickbarHUD") as Control
+	var pot_w := potion.offset_right - potion.offset_left
+	var qb_w := quickbar.offset_right - quickbar.offset_left
+	inst.apply_layout("right_hand")
+	# After mirror, potion sits to the RIGHT of the quickbar.
+	assert_true(potion.offset_left >= quickbar.offset_right,
+		"after right-hand mirror, potion column must sit to the right of the magic grid")
+	# Widths preserved.
+	assert_almost_eq(potion.offset_right - potion.offset_left, pot_w, 0.01,
+		"mirror must preserve potion column width")
+	assert_almost_eq(quickbar.offset_right - quickbar.offset_left, qb_w, 0.01,
+		"mirror must preserve quickbar width")
+
+func test_hud_hides_potion_belt_on_touch_platform():
+	# PRD #384 / slice 4 (#388). On touch, the cluster lives in TouchControls;
+	# the HUD-layer PotionBeltHUD must hide so we don't double-render at the
+	# old desktop position. Mirrors the existing QuickbarHUD hide path.
+	if not TouchControls.is_touch_platform():
+		# Reuse the same gate the HUD hide branch checks. On desktop the HUD
+		# layer keeps the PotionBeltHUD visible; nothing to verify here.
+		pending("hud potion-belt hide is touch-only")
+		return
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	var potion = hud.get_node_or_null("PotionBeltHUD") as Control
+	assert_not_null(potion, "hud.tscn must still ship a PotionBeltHUD for desktop")
+	assert_false(potion.visible,
+		"on touch platforms, HUD-layer PotionBeltHUD must be hidden")
+
 func test_main_scene_includes_touch_controls():
 	# Regression guard: the wire-up into main.tscn is the only thing
 	# that makes the controls actually visible in-game. If a future edit
