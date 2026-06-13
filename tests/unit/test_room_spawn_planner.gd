@@ -310,26 +310,27 @@ func _generate_dungeon_with_layout(seed: int = 1234) -> Array:
 
 # --- register_all_room_enemies (multi-room, issue #96) ---------------------
 
-func test_register_all_room_enemies_returns_one_id_per_combat_room():
-	# Core wiring: every STANDARD + BOSS room in the dungeon mints exactly one
-	# enemy id at dungeon load (vs. the lazy per-room-enter pattern this
-	# replaces). START + POWERUP rooms produce no ids.
+func test_register_all_room_enemies_returns_one_id_per_mob_across_rooms():
+	# Core wiring (#372): every STANDARD + BOSS room mints one id PER mob in
+	# its enemy_kinds list (from #371's RoomPopulationPlanner). Total ids
+	# equals the sum of enemy_kinds sizes across all combat rooms; START +
+	# POWERUP + BAR rooms contribute 0.
 	var pair = _generate_dungeon_with_layout()
 	var dungeon: Dungeon = pair[0]
 	var layout: DungeonLayout = pair[1]
 	var planner := RoomSpawnPlanner.new()
 	var ids := planner.register_all_room_enemies(dungeon, layout)
-	var combat_room_count := 0
+	var expected_mob_count := 0
 	for r in dungeon.rooms:
 		if r.type == Room.TYPE_STANDARD or r.type == Room.TYPE_BOSS:
-			combat_room_count += 1
-	assert_eq(ids.size(), combat_room_count,
-		"one enemy_id per combat room")
+			expected_mob_count += r.enemy_kinds.size()
+	assert_eq(ids.size(), expected_mob_count,
+		"one enemy_id per mob across all combat rooms")
 
 func test_register_all_room_enemies_assigns_spawn_position_from_layout():
-	# Each combat room's EnemyData.spawn_position equals the layout's
-	# room_center_world(room_id). Locks the contract the scene-tree spawner
-	# reads to drop the Enemy node at the right pixel coordinate.
+	# Each spawned mob's spawn_position lands inside its room's world rect.
+	# Single-mob rooms (count == 1) place the mob at the room center to
+	# preserve pre-#372 behavior; multi-mob rooms spread within the rect.
 	var pair = _generate_dungeon_with_layout()
 	var dungeon: Dungeon = pair[0]
 	var layout: DungeonLayout = pair[1]
@@ -338,10 +339,15 @@ func test_register_all_room_enemies_assigns_spawn_position_from_layout():
 	for r in dungeon.rooms:
 		if r.type != Room.TYPE_STANDARD and r.type != Room.TYPE_BOSS:
 			continue
-		var data := planner.enemy_data_for_room(r.id)
-		assert_not_null(data, "combat room %d has planned data" % r.id)
-		assert_eq(data.spawn_position, layout.room_center_world(r.id),
-			"room %d spawn_position matches layout center" % r.id)
+		var records := planner.enemy_data_list_for_room(r.id)
+		assert_gt(records.size(), 0, "combat room %d has planned data" % r.id)
+		var rect: Rect2 = layout.room_rect_world(r.id)
+		for data in records:
+			assert_true(rect.has_point(data.spawn_position),
+				"room %d spawn at %s lies in rect %s" % [r.id, str(data.spawn_position), str(rect)])
+		if records.size() == 1:
+			assert_eq(records[0].spawn_position, layout.room_center_world(r.id),
+				"single-mob room %d preserves center placement" % r.id)
 
 func test_register_all_room_enemies_skips_non_combat_rooms():
 	# START and POWERUP rooms must not have a planned EnemyData — the
@@ -418,12 +424,12 @@ func test_register_all_room_enemies_idempotent_on_repeat_call():
 	var dungeon: Dungeon = pair[0]
 	var layout: DungeonLayout = pair[1]
 	var planner := RoomSpawnPlanner.new()
-	planner.register_all_room_enemies(dungeon, layout, session)
+	var first := planner.register_all_room_enemies(dungeon, layout, session)
 	var before := session.enemy_sync.alive_count()
 	var second := planner.register_all_room_enemies(dungeon, layout, session)
 	assert_eq(session.enemy_sync.alive_count(), before,
 		"no registry growth on repeat call")
-	assert_eq(second.size(), planner.planned_room_ids().size(),
+	assert_eq(second.size(), first.size(),
 		"second call still returns the full id list")
 
 func test_register_all_room_enemies_null_dungeon_safe():
@@ -447,6 +453,127 @@ func test_planned_enemy_id_round_trips_through_apply_death():
 	assert_true(session.enemy_sync.is_alive(spawned[0].enemy_id))
 	assert_true(session.enemy_sync.apply_death(spawned[0].enemy_id))
 	assert_false(session.enemy_sync.is_alive(spawned[0].enemy_id))
+
+# --- multi-mob fan-out (issue #372) ---------------------------------------
+
+func _make_multi_room(room_id: int, kinds: Array) -> Room:
+	# Helper for #372: a standard room with an explicit enemy_kinds list
+	# (the data RoomPopulationPlanner produces). enemy_kind stays in place
+	# (= kinds[0]) for the legacy single-mob callers.
+	var r := Room.make(room_id, Room.TYPE_STANDARD)
+	r.enemy_kinds = kinds
+	r.enemy_kind = kinds[0]
+	return r
+
+func test_enemy_ids_for_multi_mob_room_returns_n_ids():
+	# A standard room with 3 enemy_kinds yields three ids "r{id}_e0..e2".
+	var room := _make_multi_room(4, [
+		EnemyData.EnemyKind.ANGRY_PIGEON,
+		EnemyData.EnemyKind.ROGUE_ROOMBA,
+		EnemyData.EnemyKind.DOG_KNIGHT,
+	])
+	var ids := RoomSpawnPlanner.enemy_ids_for_room(room)
+	assert_eq(ids.size(), 3)
+	assert_eq(ids[0], "r4_e0")
+	assert_eq(ids[1], "r4_e1")
+	assert_eq(ids[2], "r4_e2")
+
+func test_register_room_enemies_multi_mob_returns_one_record_per_kind():
+	# register_room_enemies fans out N records, each with the matching kind
+	# from enemy_kinds and a unique enemy_id.
+	var session := _make_session_with_lobby()
+	var room := _make_multi_room(3, [
+		EnemyData.EnemyKind.ANGRY_PIGEON,
+		EnemyData.EnemyKind.ROGUE_ROOMBA,
+		EnemyData.EnemyKind.DOG_KNIGHT,
+	])
+	var spawned := RoomSpawnPlanner.register_room_enemies(session, room)
+	assert_eq(spawned.size(), 3)
+	assert_eq(spawned[0].enemy_id, "r3_e0")
+	assert_eq(spawned[1].enemy_id, "r3_e1")
+	assert_eq(spawned[2].enemy_id, "r3_e2")
+	assert_eq(spawned[0].kind, EnemyData.EnemyKind.ANGRY_PIGEON)
+	assert_eq(spawned[1].kind, EnemyData.EnemyKind.ROGUE_ROOMBA)
+	assert_eq(spawned[2].kind, EnemyData.EnemyKind.DOG_KNIGHT)
+	for d in spawned:
+		assert_true(session.enemy_sync.is_alive(d.enemy_id),
+			"each minted id is registered: %s" % d.enemy_id)
+
+func test_register_all_room_enemies_fans_out_per_kind_with_distinct_positions():
+	# Wire the multi-mob list through register_all_room_enemies: a room with
+	# 3 enemy_kinds must yield 3 records exposed via enemy_data_list_for_room,
+	# each with its own spread spawn_position.
+	var dungeon := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	var combat := _make_multi_room(1, [
+		EnemyData.EnemyKind.ANGRY_PIGEON,
+		EnemyData.EnemyKind.ROGUE_ROOMBA,
+		EnemyData.EnemyKind.DOG_KNIGHT,
+	])
+	var boss := Room.make(2, Room.TYPE_BOSS)
+	boss.enemy_kinds = [EnemyData.EnemyKind.DOG_KNIGHT]
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
+	start.connections = [1]
+	combat.connections = [2]
+	dungeon.add_room(start)
+	dungeon.add_room(combat)
+	dungeon.add_room(boss)
+	dungeon.start_id = 0
+	dungeon.boss_id = 2
+	var layout := DungeonLayoutEngine.new().compute(dungeon)
+
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	var records := planner.enemy_data_list_for_room(1)
+	assert_eq(records.size(), 3, "fan-out: 3 records for 3 enemy_kinds")
+	var seen_ids := {}
+	var seen_positions := {}
+	for d in records:
+		seen_ids[d.enemy_id] = true
+		seen_positions[d.spawn_position] = true
+	assert_eq(seen_ids.size(), 3, "each record carries a unique enemy_id")
+	assert_eq(seen_positions.size(), 3, "each record carries a distinct spawn_position")
+
+func test_register_all_room_enemies_boss_room_still_single_record():
+	# The boss room remains a single record with is_boss=true; the spread
+	# call for count=1 places it at the room center (room_bounds is set so
+	# the boss stays clamped inside its room).
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	var boss_records := planner.enemy_data_list_for_room(dungeon.boss_id)
+	assert_eq(boss_records.size(), 1, "boss room yields exactly one record")
+	assert_true(boss_records[0].is_boss)
+	assert_eq(boss_records[0].spawn_position, layout.room_center_world(dungeon.boss_id),
+		"boss spawns at the room center")
+
+func test_register_all_room_enemies_non_combat_rooms_have_empty_list():
+	# Power-up and start rooms expose an empty list (the spawner uses that as
+	# the gate for "instantiate nothing combat-related here").
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	planner.register_all_room_enemies(dungeon, layout)
+	for r in dungeon.rooms:
+		if r.type == Room.TYPE_START or r.type == Room.TYPE_POWERUP or r.type == Room.TYPE_BAR:
+			assert_eq(planner.enemy_data_list_for_room(r.id).size(), 0,
+				"non-combat room %d (%s) has no planned mobs" % [r.id, r.type])
+
+func test_register_all_room_enemies_registers_every_minted_id_with_session():
+	# Co-op: every fanned-out id is registered on enemy_sync so OP_KILL
+	# packets converge at the receiver for every mob, not just the first.
+	var session := _make_session_with_lobby()
+	var pair = _generate_dungeon_with_layout()
+	var dungeon: Dungeon = pair[0]
+	var layout: DungeonLayout = pair[1]
+	var planner := RoomSpawnPlanner.new()
+	var ids := planner.register_all_room_enemies(dungeon, layout, session)
+	for id in ids:
+		assert_true(session.enemy_sync.is_alive(id),
+			"session.enemy_sync registered fanned-out id %s" % id)
 
 # --- floor scaling ---------------------------------------------------------
 

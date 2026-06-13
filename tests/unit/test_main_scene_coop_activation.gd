@@ -107,14 +107,18 @@ func test_main_scene_registers_all_combat_enemies_with_session():
 
 	var rc: DungeonRunController = get_node("/root/GameState").dungeon_run_controller
 	assert_not_null(rc, "main_scene must install the run controller")
-	var combat_count := 0
+	var expected_mob_count := 0
 	for r in rc.dungeon.rooms:
 		if r.type == Room.TYPE_STANDARD or r.type == Room.TYPE_BOSS:
-			combat_count += 1
-			assert_true(session.enemy_sync.is_alive("r%d_e0" % r.id),
-				"enemy_sync must contain combat room %d's planned id" % r.id)
-	assert_eq(session.enemy_sync.alive_count(), combat_count,
-		"registry has exactly one id per combat room — no over- or under-registration")
+			# #372: one id per mob in the room's enemy_kinds list. Each id
+			# follows the "r{room_id}_e{idx}" format, so we walk the list to
+			# pin that every fanned-out id is in the registry.
+			for idx in range(r.enemy_kinds.size()):
+				expected_mob_count += 1
+				assert_true(session.enemy_sync.is_alive("r%d_e%d" % [r.id, idx]),
+					"enemy_sync must contain combat room %d's planned id %d" % [r.id, idx])
+	assert_eq(session.enemy_sync.alive_count(), expected_mob_count,
+		"registry has exactly one id per planned mob — no over- or under-registration")
 
 func test_main_scene_solo_path_does_not_crash_with_null_session():
 	# Solo / pre-handshake / no-multiplayer path: coop_session is null.

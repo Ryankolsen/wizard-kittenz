@@ -67,12 +67,16 @@ var _enemy_data_by_room_id: Dictionary = {}
 # 300 px gives the boss sight-line to the doorway without reaching into the corridor.
 const BOSS_DETECTION_RADIUS: float = 300.0
 
-static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1) -> EnemyData:
+static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1, kind_override: int = -1) -> EnemyData:
 	if room == null:
 		return null
-	if room.enemy_kind < 0:
+	# kind_override lets the multi-mob fan-out (#372) pick a specific kind from
+	# room.enemy_kinds while keeping single-mob callers untouched. Default -1
+	# falls back to the room's legacy single enemy_kind field.
+	var kind: int = kind_override if kind_override >= 0 else room.enemy_kind
+	if kind < 0:
 		return null
-	var data := EnemyData.make_new(room.enemy_kind)
+	var data := EnemyData.make_new(kind)
 	data.enemy_id = "r%d_e%d" % [room.id, spawn_idx]
 	data.is_boss = (room.type == Room.TYPE_BOSS)
 	if data.is_boss:
@@ -173,12 +177,17 @@ static func plan_powerup(room: Room) -> String:
 # DungeonRunController.is_room_cleared).
 static func enemy_ids_for_room(room: Room) -> Array[String]:
 	var ids: Array[String] = []
-	if room == null or room.enemy_kind < 0:
+	if room == null:
 		return ids
-	# One enemy per combat room today. When a future "multiple enemies
-	# per standard room" rule lands, the loop bound becomes
-	# enemies_per_room(room) and plan_enemy gets the matching spawn_idx.
-	ids.append("r%d_e%d" % [room.id, 0])
+	# Prefer the multi-mob enemy_kinds list (#371). Fall back to the legacy
+	# single enemy_kind field so pre-#371 test fixtures and serialized rooms
+	# still mint one id (the per-room watcher's expected set matches the
+	# spawn planner's actual list).
+	var n: int = room.enemy_kinds.size()
+	if n == 0 and room.enemy_kind >= 0:
+		n = 1
+	for idx in range(n):
+		ids.append("r%d_e%d" % [room.id, idx])
 	return ids
 
 # Builds + registers every enemy this room will spawn. Returns the list
@@ -194,21 +203,35 @@ static func enemy_ids_for_room(room: Room) -> Array[String]:
 # a subsequent kill flow doesn't crash on a half-built session.
 static func register_room_enemies(session: CoopSession, room: Room, floor_number: int = 1) -> Array[EnemyData]:
 	var spawned: Array[EnemyData] = []
-	if room == null or room.enemy_kind < 0:
+	if room == null:
+		return spawned
+	var kinds: Array = _kinds_for_room(room)
+	if kinds.is_empty():
 		return spawned
 	var party_size: int = _party_size_from_session(session)
 	var avg_level: float = _avg_party_level_from_session(session)
 	var baseline_level: int = BossScaling.baseline_level_for_floor(floor_number)
-	# Mirrors enemy_ids_for_room's loop bound — one enemy per combat
-	# room today; the multi-spawn future grows here.
-	for spawn_idx in range(1):
-		var data := plan_enemy(room, spawn_idx, floor_number, party_size, avg_level, baseline_level)
+	for spawn_idx in range(kinds.size()):
+		var kind: int = kinds[spawn_idx]
+		var data := plan_enemy(room, spawn_idx, floor_number, party_size, avg_level, baseline_level, kind)
 		if data == null:
 			continue
 		if session != null and session.enemy_sync != null:
 			session.enemy_sync.register_enemy(data.enemy_id)
 		spawned.append(data)
 	return spawned
+
+# Returns the list of enemy kinds this room should spawn. Prefer the multi-mob
+# enemy_kinds list (#371); fall back to the legacy single enemy_kind so test
+# fixtures and pre-#371 serialized rooms still spawn one mob.
+static func _kinds_for_room(room: Room) -> Array:
+	if room == null:
+		return []
+	if room.enemy_kinds.size() > 0:
+		return room.enemy_kinds
+	if room.enemy_kind >= 0:
+		return [room.enemy_kind]
+	return []
 
 # Plans and (in co-op) registers every combat room's enemy in a single pass at
 # dungeon load. Replaces the lazy "spawn on room enter" pattern with an
@@ -237,25 +260,57 @@ func register_all_room_enemies(dungeon: Dungeon, layout: DungeonLayout, session:
 	var avg_level: float = _avg_party_level_from_session(session)
 	var baseline_level: int = BossScaling.baseline_level_for_floor(floor_number)
 	for room in dungeon.rooms:
-		var data := plan_enemy(room, 0, floor_number, party_size, avg_level, baseline_level)
-		if data == null:
+		var kinds: Array = _kinds_for_room(room)
+		if kinds.is_empty():
 			continue
+		# Compute spread positions once per room. Boss rooms only have one
+		# slot, so the spreader returns the room center — same as the
+		# pre-#372 single-mob center placement.
+		var positions: Array = []
 		if layout != null:
-			data.spawn_position = layout.room_center_world(room.id)
-			if data.is_boss:
+			var rect: Rect2 = layout.room_rect_world(room.id)
+			if rect.size != Vector2.ZERO:
+				positions = SpawnPositionSpreader.spread(rect.position, rect.size, kinds.size())
+		var room_records: Array[EnemyData] = []
+		for spawn_idx in range(kinds.size()):
+			var kind: int = kinds[spawn_idx]
+			var data := plan_enemy(room, spawn_idx, floor_number, party_size, avg_level, baseline_level, kind)
+			if data == null:
+				continue
+			if spawn_idx < positions.size():
+				data.spawn_position = positions[spawn_idx]
+			if data.is_boss and layout != null:
 				data.room_bounds = layout.boss_room_bounds(room.id)
-		_enemy_data_by_room_id[room.id] = data
-		if session != null and session.enemy_sync != null:
-			session.enemy_sync.register_enemy(data.enemy_id)
-		ids.append(data.enemy_id)
+			room_records.append(data)
+			if session != null and session.enemy_sync != null:
+				session.enemy_sync.register_enemy(data.enemy_id)
+			ids.append(data.enemy_id)
+		if not room_records.is_empty():
+			_enemy_data_by_room_id[room.id] = room_records
 	return ids
 
-# Per-room lookup of the EnemyData minted by register_all_room_enemies. Returns
-# null for non-combat rooms and for rooms not yet planned (caller must call
-# register_all_room_enemies first). The scene-tree spawner uses this to read
-# spawn_position / enemy_id / is_boss for each room's Enemy node.
+# Per-room lookup of the first EnemyData minted by register_all_room_enemies.
+# Returns null for non-combat rooms and for rooms not yet planned. Kept for
+# backward-compat with the single-mob consumers (main_scene's spawn loop, tests
+# pinning the boss record); the multi-mob spawner (#374) reads
+# enemy_data_list_for_room instead.
 func enemy_data_for_room(room_id: int) -> EnemyData:
-	return _enemy_data_by_room_id.get(room_id, null)
+	if not _enemy_data_by_room_id.has(room_id):
+		return null
+	var arr: Array = _enemy_data_by_room_id[room_id]
+	if arr.is_empty():
+		return null
+	return arr[0]
+
+# Full list of EnemyData records planned for this room (#372). One entry per
+# spawned mob; empty array for non-combat rooms and for rooms not yet planned.
+# The scene-tree spawner iterates this list to instantiate one Enemy node per
+# mob with its own spread spawn_position.
+func enemy_data_list_for_room(room_id: int) -> Array[EnemyData]:
+	if not _enemy_data_by_room_id.has(room_id):
+		var empty: Array[EnemyData] = []
+		return empty
+	return _enemy_data_by_room_id[room_id]
 
 # Returns the list of combat room ids the planner has spawned for. Useful for
 # the scene-tree spawner to know which rooms to iterate without re-deriving

@@ -41,6 +41,17 @@ func room_center_world(room_id: int) -> Vector2:
 	var origin := grid_to_world(room_positions[room_id], ROOM_SIZE_PX, CORRIDOR_WIDTH_PX)
 	return origin + Vector2(room_size / 2, room_size / 2)
 
+# World-space bounding rect of any room (standard or boss). Used by the spawn-
+# position spreader to fan out multi-mob rooms (#372) — origin is the top-left
+# pixel of the floor area, size is the room's pixel dimensions. Returns an
+# empty Rect2 for unknown room ids (mirrors room_center_world's sentinel).
+func room_rect_world(room_id: int) -> Rect2:
+	if not room_positions.has(room_id):
+		return Rect2()
+	var room_size: int = BOSS_ROOM_SIZE_PX if room_id == boss_id else ROOM_SIZE_PX
+	var origin: Vector2 = grid_to_world(room_positions[room_id], ROOM_SIZE_PX, CORRIDOR_WIDTH_PX)
+	return Rect2(origin, Vector2(room_size, room_size))
+
 # World position and rotation for the exit door on the boss room's south wall.
 # The corridor always enters from the north (layout engine invariant), so the
 # exit door lives on the opposite south wall — the player enters freely, kills
