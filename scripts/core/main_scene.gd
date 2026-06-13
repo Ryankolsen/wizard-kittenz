@@ -300,13 +300,15 @@ func _setup_rooms() -> void:
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	var power_up_scene := load(POWER_UP_SCENE_PATH)
 	for room in _run_controller.dungeon.rooms:
-		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
-		if data != null and not _run_controller.is_room_cleared(room.id):
-			var enemy: Enemy = enemy_scene.instantiate()
-			enemy.data = data
-			enemy.position = data.spawn_position
-			enemy.died.connect(_on_enemy_died.bind(enemy))
-			add_child(enemy)
+		if not _run_controller.is_room_cleared(room.id):
+			for data in _spawn_planner.enemy_data_list_for_room(room.id):
+				if data == null:
+					continue
+				var enemy: Enemy = enemy_scene.instantiate()
+				enemy.data = data
+				enemy.position = data.spawn_position
+				enemy.died.connect(_on_enemy_died.bind(enemy))
+				add_child(enemy)
 		var pu_type := RoomSpawnPlanner.plan_powerup(room)
 		if pu_type != "" and _dungeon_layout != null and not _run_controller.cleared_ids().has(room.id):
 			var pickup: PowerUpPickup = power_up_scene.instantiate()
@@ -572,13 +574,15 @@ func _respawn_all_enemies() -> void:
 
 	var enemy_scene := load(ENEMY_SCENE_PATH)
 	for room in _run_controller.dungeon.rooms:
-		var data: EnemyData = _spawn_planner.enemy_data_for_room(room.id)
-		if data != null and not _run_controller.is_room_cleared(room.id):
-			var enemy: Enemy = enemy_scene.instantiate()
-			enemy.data = data
-			enemy.position = data.spawn_position
-			enemy.died.connect(_on_enemy_died.bind(enemy))
-			add_child(enemy)
+		if not _run_controller.is_room_cleared(room.id):
+			for data in _spawn_planner.enemy_data_list_for_room(room.id):
+				if data == null:
+					continue
+				var enemy: Enemy = enemy_scene.instantiate()
+				enemy.data = data
+				enemy.position = data.spawn_position
+				enemy.died.connect(_on_enemy_died.bind(enemy))
+				add_child(enemy)
 		var watcher := RoomClearWatcher.new()
 		watcher.watch(room, _run_controller, _local_character(), _coop_session(), _currency_ledger(), _local_skill_tree())
 		_watchers.append(watcher)
@@ -591,6 +595,14 @@ func _spawn_healing_box() -> void:
 	var box := HealingBox.new()
 	box.position = _dungeon_layout.room_center_world(start_id)
 	add_child(box)
+	# #374: second healing box on the boss room's incoming corridor — a pre-boss
+	# top-up. Sentinel Vector2.ZERO means no resolvable boss corridor (degenerate
+	# layout); skip the spawn so the scene still loads.
+	var pre_boss_pos: Vector2 = BossCorridorLocator.locate(_run_controller.dungeon, _dungeon_layout)
+	if pre_boss_pos != Vector2.ZERO:
+		var pre_boss_box := HealingBox.new()
+		pre_boss_box.position = pre_boss_pos
+		add_child(pre_boss_box)
 
 
 # Slice 2 of PRD #217 / issue #219: ChestSpawner returns up to TARGET_COUNT
