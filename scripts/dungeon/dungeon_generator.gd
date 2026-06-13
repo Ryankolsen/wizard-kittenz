@@ -28,8 +28,8 @@ extends RefCounted
 #      multipliers, not from a separate stronger pool. A future per-dungeon
 #      data-driven enemy config will replace the constants below.
 
-const MIN_ROOMS := 10
-const MAX_ROOMS := 14
+const MIN_ROOMS := 100
+const MAX_ROOMS := 150
 
 # Standard rooms still draw a random kind from the full 5-kind roster
 # (PRD #151). All kinds share equal base stats this phase; per-room

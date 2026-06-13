@@ -11,6 +11,39 @@ func test_generate_returns_min_to_max_rooms():
 		assert_between(d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS,
 			"seed %d produced %d rooms (expected %d..%d)" % [s, d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS])
 
+func test_room_count_band_is_100_to_150():
+	# #370: scaled dungeon lives in the ~100–150 room band.
+	assert_gte(DungeonGenerator.MIN_ROOMS, 100,
+		"MIN_ROOMS %d should be >= 100" % DungeonGenerator.MIN_ROOMS)
+	assert_lte(DungeonGenerator.MAX_ROOMS, 150,
+		"MAX_ROOMS %d should be <= 150" % DungeonGenerator.MAX_ROOMS)
+
+func test_structural_guarantees_at_scale():
+	# #370: across seeds, large dungeons still have exactly 1 start, 1 bar,
+	# 3 power-up, 1 boss, with growth landing in standard combat rooms.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var counts := {Room.TYPE_START: 0, Room.TYPE_BAR: 0, Room.TYPE_POWERUP: 0, Room.TYPE_BOSS: 0, Room.TYPE_STANDARD: 0}
+		for r in d.rooms:
+			counts[r.type] = counts.get(r.type, 0) + 1
+		assert_eq(counts[Room.TYPE_START], 1, "seed %d: exactly 1 start" % s)
+		assert_eq(counts[Room.TYPE_BAR], 1, "seed %d: exactly 1 bar" % s)
+		assert_eq(counts[Room.TYPE_POWERUP], 3, "seed %d: exactly 3 power-up" % s)
+		assert_eq(counts[Room.TYPE_BOSS], 1, "seed %d: exactly 1 boss" % s)
+		assert_gte(counts[Room.TYPE_STANDARD], 90,
+			"seed %d: at least 90 standard rooms, got %d" % [s, counts[Room.TYPE_STANDARD]])
+
+func test_full_reachability_and_terminal_boss_at_scale():
+	# #370: every room reachable from start and boss has no outgoing edges
+	# at the larger scale.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var visited := d.bfs_from_start()
+		assert_eq(visited.size(), d.size(),
+			"seed %d: BFS visited %d / %d rooms" % [s, visited.size(), d.size()])
+		assert_eq(d.boss_room().connections.size(), 0,
+			"seed %d: boss is terminal" % s)
+
 func test_every_dungeon_has_at_least_four_standard_combat_rooms():
 	# Minimum mob requirement: every dungeon must have at least 4 standard
 	# combat rooms so the player fights at least 4 mobs + the boss per level.

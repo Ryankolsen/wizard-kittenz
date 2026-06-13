@@ -110,6 +110,26 @@ func test_corridors_count_matches_edge_count():
 		assert_eq(layout.corridors.size(), edge_count,
 			"seed %d: corridor count matches edge count" % s)
 
+func test_layout_handles_max_size_dungeon_without_collisions():
+	# #370: at the scaled size (~100–150 rooms), every room id still has a
+	# position and no two rooms share a grid cell.
+	for s in [1, 2, 3, 42, 9999]:
+		var dungeon := DungeonGenerator.generate(s)
+		var layout := DungeonLayoutEngine.new().compute(dungeon)
+		assert_eq(layout.room_positions.size(), dungeon.size(),
+			"seed %d: position per room (%d / %d)"
+			% [s, layout.room_positions.size(), dungeon.size()])
+		for r in dungeon.rooms:
+			assert_true(layout.room_positions.has(r.id),
+				"seed %d: room %d has a position" % [s, r.id])
+		var seen: Dictionary = {}
+		for rid in layout.room_positions:
+			var p: Vector2i = layout.room_positions[rid]
+			assert_false(seen.has(p),
+				"seed %d: cell %s collision (rooms %s and %d)"
+				% [s, p, str(seen.get(p, -1)), rid])
+			seen[p] = rid
+
 func test_boss_parent_is_always_above_boss():
 	# North-wall invariant: the boss room's parent must always be at a strictly
 	# smaller grid y than the boss so the corridor enters through the north wall.
