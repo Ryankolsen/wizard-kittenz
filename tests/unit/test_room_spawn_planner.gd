@@ -742,3 +742,11 @@ func test_all_five_kinds_reachable_in_standard_pool():
 			seen[data.enemy_name] = true
 	for expected in ["Angry Pigeon", "Rogue Roomba", "Dog Knight", "Catnip Dealer", "Haunted Spray Bottle"]:
 		assert_true(seen.has(expected), "kind %s appeared in standard pool" % expected)
+
+# --- mob level (PRD #376 / issue #377) -------------------------------------
+
+func test_plan_enemy_sets_level():
+	# Standard floor-1 Dog Knight: per-kind offset 4 + floor baseline 0 = 4.
+	var r := _make_standard_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r, 0, 1)
+	assert_eq(d.level, 4)

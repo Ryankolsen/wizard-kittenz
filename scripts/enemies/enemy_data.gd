@@ -37,6 +37,12 @@ enum EnemyKind {
 # never accidentally registers as a boss; the dungeon spawner sets it true
 # on the boss room's enemy.
 @export var is_boss: bool = false
+# Mob level (PRD #376 / issue #377). Standard mobs get this stamped by
+# RoomSpawnPlanner via EnemyLevel.compute_level(kind, floor); display-only
+# this slice — later slices route stat scaling through it. Defaults to 1
+# so pre-#377 fixtures and tests that mint EnemyData directly still get a
+# sensible Lv N readout instead of "Lv 0".
+@export var level: int = 1
 # Stable per-spawn identifier. Empty by default — pre-spawn-layer code paths
 # (test fixtures, the static enemy in main.tscn) leave it unset. The future
 # dungeon spawn layer mints a unique id (e.g. "r3_e0" for room 3 enemy 0)

@@ -23,3 +23,8 @@ func test_zero_max_hp_returns_zero_width():
 	# Divide-by-zero guard inherited from HUD.hp_bar_ratio — an
 	# unconfigured enemy (max_hp = 0) renders an empty bar instead of NaN.
 	assert_almost_eq(EnemyHealthBar.fill_width(4, 0, 32.0), 0.0, 0.0001)
+
+# --- level label (PRD #376 / issue #377) -----------------------------------
+
+func test_format_level_renders_lv_n():
+	assert_eq(EnemyHealthBar.format_level(4), "Lv 4")

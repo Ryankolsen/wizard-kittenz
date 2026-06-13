@@ -19,6 +19,13 @@ const FILL_COLOR: Color = Color(0.85, 0.25, 0.25, 1.0)
 var _enemy: Node = null
 var _bg: ColorRect = null
 var _fill: ColorRect = null
+var _level_label: Label = null
+
+# Pure-function level-label formatter (PRD #376 / issue #377). Held as a
+# static so the format ("Lv N") can be pinned in unit tests without
+# instancing the node.
+static func format_level(level: int) -> String:
+	return "Lv %d" % level
 
 # Pure-function fill width. Multiplied form of HUD.hp_bar_ratio kept here so
 # tests can pin the per-bar math (width, ratio, clamps) without instancing a
@@ -52,6 +59,19 @@ func _ready() -> void:
 	_fill.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
 	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_fill)
+	# "Lv N" label centered above the bar. Positioned via its own size on
+	# resize so the text sits just above the bg without overlapping.
+	_level_label = Label.new()
+	_level_label.text = format_level(1)
+	_level_label.add_theme_font_size_override("font_size", 8)
+	_level_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_level_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	_level_label.add_theme_constant_override("outline_size", 2)
+	_level_label.size = Vector2(BAR_WIDTH, 10)
+	_level_label.position = Vector2(0, -10)
+	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_level_label)
 
 func _process(_dt: float) -> void:
 	if _enemy == null or not is_instance_valid(_enemy):
@@ -61,3 +81,5 @@ func _process(_dt: float) -> void:
 		return
 	if _fill != null:
 		_fill.size.x = fill_width(data.hp, data.max_hp, BAR_WIDTH)
+	if _level_label != null:
+		_level_label.text = format_level(int(data.level))

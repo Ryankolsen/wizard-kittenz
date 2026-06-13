@@ -79,6 +79,11 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 	var data := EnemyData.make_new(kind)
 	data.enemy_id = "r%d_e%d" % [room.id, spawn_idx]
 	data.is_boss = (room.type == Room.TYPE_BOSS)
+	# Stamp mob level for standard mobs (PRD #376 / issue #377). Boss level
+	# is a later slice — bosses keep the default level value here so the
+	# display surface in #382 can fold a boss-specific level in then.
+	if not data.is_boss:
+		data.level = EnemyLevel.compute_level(kind, floor_number)
 	if data.is_boss:
 		var scaled := BossScaling.compute_boss_stats({
 			"hp": data.max_hp,
