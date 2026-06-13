@@ -30,6 +30,22 @@ func test_hud_panel_contains_xp_bar():
 	assert_not_null(xp_bar, "XPBar must be a descendant of StatsPanel")
 	scene.free()
 
+func test_hud_potion_belt_is_vertical_beside_quickbar():
+	# PRD #384 follow-up: the desktop HUD potion belt stacks vertically next to
+	# the magic grid (matching the mobile cluster), not horizontally below it.
+	var scene = load("res://scenes/hud.tscn").instantiate()
+	var belt = scene.find_child("PotionBeltHUD", true, false) as Control
+	var quickbar = scene.find_child("QuickbarHUD", true, false) as Control
+	assert_not_null(belt, "hud.tscn must have a PotionBeltHUD")
+	assert_not_null(quickbar, "hud.tscn must have a QuickbarHUD")
+	assert_eq(belt.orientation, PotionBeltHUD.Orientation.VERTICAL,
+		"desktop potion belt must use vertical orientation")
+	assert_true(belt.offset_right <= quickbar.offset_left,
+		"potion column must sit to the left of the magic grid, not overlap it")
+	assert_eq(belt.offset_top, quickbar.offset_top,
+		"potion column must be top-aligned with the magic grid")
+	scene.free()
+
 func test_hud_panel_has_stylebox_with_border():
 	var scene = load("res://scenes/hud.tscn").instantiate()
 	var panel = scene.find_child("StatsPanel", true, false) as PanelContainer
