@@ -40,14 +40,14 @@ mouse_filter = 2
 
 [node name="QuickbarHUD" parent="." instance=ExtResource("4_quickbar_hud")]
 offset_left = 396.0
-offset_top = 116.0
+offset_top = 126.0
 offset_right = 456.0
-offset_bottom = 176.0
+offset_bottom = 186.0
 
 [node name="PotionBeltHUD" parent="." instance=ExtResource("5_potion_belt_hud")]
 custom_minimum_size = Vector2(28, 60)
 offset_left = 364.0
-offset_top = 116.0
+offset_top = 126.0
 offset_right = 392.0
-offset_bottom = 176.0
+offset_bottom = 186.0
 orientation = 1

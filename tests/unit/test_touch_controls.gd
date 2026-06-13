@@ -153,6 +153,55 @@ func test_hud_hides_potion_belt_on_touch_platform():
 	assert_false(potion.visible,
 		"on touch platforms, HUD-layer PotionBeltHUD must be hidden")
 
+func test_cluster_top_clears_minimap_bottom():
+	# PRD #384 / slice 5 (#389). The minimap (HUD layer) bottom edge is y=122.
+	# The mobile cluster sits on a higher CanvasLayer, so any overlap draws
+	# magic buttons on top of the minimap. The cluster must clear that edge
+	# by at least 4px.
+	const MINIMAP_BOTTOM := 122.0
+	const MIN_GAP := 4.0
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var quickbar: Control = inst.get_node("QuickbarHUD") as Control
+	assert_true(quickbar.offset_top >= MINIMAP_BOTTOM + MIN_GAP,
+		"magic grid top edge must clear minimap bottom (122) by >= 4px")
+
+func test_potion_column_top_clears_minimap_bottom():
+	# Same contract for the potion column — it top-aligns with the magic grid,
+	# so it must clear the minimap by the same threshold.
+	const MINIMAP_BOTTOM := 122.0
+	const MIN_GAP := 4.0
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var potion: Control = inst.get_node("PotionBeltHUD") as Control
+	assert_true(potion.offset_top >= MINIMAP_BOTTOM + MIN_GAP,
+		"potion column top edge must clear minimap bottom (122) by >= 4px")
+
+func test_cluster_does_not_overlap_attack_button_left_hand():
+	# Edge case: pushing the cluster down must not collide with the AttackButton.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var quickbar: Control = inst.get_node("QuickbarHUD") as Control
+	var potion: Control = inst.get_node("PotionBeltHUD") as Control
+	var attack: Control = inst.get_node("AttackButton") as Control
+	assert_true(quickbar.offset_bottom <= attack.offset_top,
+		"magic grid bottom edge must not overlap the attack button (left-hand layout)")
+	assert_true(potion.offset_bottom <= attack.offset_top,
+		"potion column bottom edge must not overlap the attack button (left-hand layout)")
+
+func test_cluster_does_not_overlap_attack_button_right_hand():
+	# Mirroring swaps X only; the vertical clearance must still hold.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	inst.apply_layout("right_hand")
+	var quickbar: Control = inst.get_node("QuickbarHUD") as Control
+	var potion: Control = inst.get_node("PotionBeltHUD") as Control
+	var attack: Control = inst.get_node("AttackButton") as Control
+	assert_true(quickbar.offset_bottom <= attack.offset_top,
+		"magic grid bottom edge must not overlap the attack button (right-hand layout)")
+	assert_true(potion.offset_bottom <= attack.offset_top,
+		"potion column bottom edge must not overlap the attack button (right-hand layout)")
+
 func test_main_scene_includes_touch_controls():
 	# Regression guard: the wire-up into main.tscn is the only thing
 	# that makes the controls actually visible in-game. If a future edit
