@@ -141,7 +141,32 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	dungeon.add_room(boss)
 	dungeon.boss_id = boss_id
 
+	# Ease the player into a crawl: rooms directly connected to the start are
+	# the first encounters, so trim each start-adjacent standard room down to a
+	# single mob. Done as a post-pass (rather than during population) so it
+	# doesn't perturb the RNG stream — the multi-mob roll still happens, we just
+	# discard the extras for these specific rooms. Non-standard neighbours
+	# (powerup/bar) carry no enemies and are skipped.
+	_ease_start_adjacent_rooms(dungeon)
+
 	return dungeon
+
+# Trims every standard room directly connected to the start down to one mob,
+# keeping the parallel enemy arrays consistent.
+static func _ease_start_adjacent_rooms(dungeon: Dungeon) -> void:
+	var start := dungeon.get_room(dungeon.start_id)
+	if start == null:
+		return
+	for child_id in start.connections:
+		var child: Room = dungeon.get_room(child_id)
+		if child == null or child.type != Room.TYPE_STANDARD:
+			continue
+		if child.enemy_kinds.size() <= 1:
+			continue
+		child.enemy_kinds = [child.enemy_kinds[0]]
+		child.enemy_elites = [child.enemy_elites[0]]
+		child.enemy_elite_bonuses = [child.enemy_elite_bonuses[0]]
+		child.enemy_kind = child.enemy_kinds[0]
 
 # Picks a random parent in [0, child_id - 1] that is not `excluded_id`.
 # child_id >= 1 and excluded_id may be -1 (no exclusion) or a value in range.

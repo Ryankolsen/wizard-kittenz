@@ -312,6 +312,29 @@ func test_room_enemy_kinds_populated_per_type_across_seeds():
 		assert_true(saw_single, "seed %d: at least one single-mob standard room" % s)
 		assert_true(saw_multi, "seed %d: at least one multi-mob standard room" % s)
 
+func test_start_adjacent_standard_rooms_have_a_single_mob():
+	# Rooms directly connected to the start are the player's first encounters;
+	# they must hold exactly one mob so the opening of a crawl eases the player
+	# in rather than dropping a multi-mob pack at the door. Non-standard
+	# start-adjacent rooms (powerup/bar) carry no enemies and are unaffected.
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var start := d.start_room()
+		assert_not_null(start, "seed %d: start room exists" % s)
+		for child_id in start.connections:
+			var child: Room = d.get_room(child_id)
+			if child == null or child.type != Room.TYPE_STANDARD:
+				continue
+			assert_eq(child.enemy_kinds.size(), 1,
+				"seed %d: start-adjacent standard room %d must have exactly one mob" % [s, child_id])
+			# Parallel arrays must stay consistent with the trimmed kinds.
+			assert_eq(child.enemy_elites.size(), 1,
+				"seed %d: room %d elites array must match single mob" % [s, child_id])
+			assert_eq(child.enemy_elite_bonuses.size(), 1,
+				"seed %d: room %d elite_bonuses array must match single mob" % [s, child_id])
+			assert_eq(child.enemy_kind, child.enemy_kinds[0],
+				"seed %d: room %d legacy enemy_kind must equal first kind" % [s, child_id])
+
 # Strong fingerprint of a dungeon for collision tests. Captures size, type
 # sequence, all connections, and enemy ids — the chance of two unseeded
 # runs colliding on this is vanishingly small.

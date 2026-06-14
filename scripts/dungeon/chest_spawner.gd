@@ -22,9 +22,9 @@ extends RefCounted
 # stayed put, so a full crawl could surface zero chests. We now spawn one
 # general chest per CHEST_PER_N_ROOMS candidate rooms (non-start, non-bar),
 # floored at MIN_GENERAL_CHESTS so tiny/test dungeons still feel rewarding.
-# At ~1 per 10 a 100-150 room dungeon yields ~10-15 general chests (plus the
+# At ~1 per 5 a 100-150 room dungeon yields ~20-30 general chests (plus the
 # 3 boss-room chests below).
-const CHEST_PER_N_ROOMS: int = 10
+const CHEST_PER_N_ROOMS: int = 5
 const MIN_GENERAL_CHESTS: int = 3
 
 # Number of general-pool chests for a dungeon with `candidate_count` eligible

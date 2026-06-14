@@ -51,24 +51,24 @@ func test_plan_returns_scaled_general_count_plus_boss():
 	assert_eq(placements.size(), expected_general + 3)
 
 func test_general_count_scales_with_room_count():
-	# Regression for the expanded dungeon (#: 100-150 rooms). A big dungeon must
+	# Regression for the expanded dungeon (100-150 rooms). A big dungeon must
 	# yield far more than the old fixed 5 general chests so a crawl reliably
-	# encounters loot. At ~1 per 10 candidate rooms a 124-candidate dungeon
-	# should land around 12 general chests.
+	# encounters loot. At ~1 per 5 candidate rooms a 124-candidate dungeon
+	# should land around 25 general chests.
 	var big := _make_dungeon(123)  # 123 standard + 1 boss = 124 candidates
 	var placements := ChestSpawner.plan(big, _seeded_rng(1))
 	var general := _general_count(placements)
 	assert_eq(general, ChestSpawner.general_chest_count(124))
-	assert_true(general >= 10 and general <= 15,
-		"124-candidate dungeon should yield ~12 general chests, got %d" % general)
+	assert_true(general >= 20 and general <= 30,
+		"124-candidate dungeon should yield ~25 general chests, got %d" % general)
 
 func test_general_count_helper_density_and_floor():
 	# 1 general chest per CHEST_PER_N_ROOMS candidate rooms, floored at
 	# MIN_GENERAL_CHESTS so tiny dungeons still feel rewarding.
 	assert_eq(ChestSpawner.general_chest_count(0), ChestSpawner.MIN_GENERAL_CHESTS)
-	assert_eq(ChestSpawner.general_chest_count(10), ChestSpawner.MIN_GENERAL_CHESTS)
-	assert_eq(ChestSpawner.general_chest_count(100), 10)
-	assert_eq(ChestSpawner.general_chest_count(150), 15)
+	assert_eq(ChestSpawner.general_chest_count(5), ChestSpawner.MIN_GENERAL_CHESTS)
+	assert_eq(ChestSpawner.general_chest_count(100), 20)
+	assert_eq(ChestSpawner.general_chest_count(150), 30)
 
 func test_placement_struct_has_room_position_and_chest():
 	var d := _make_dungeon(6)
