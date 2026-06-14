@@ -70,24 +70,28 @@ func test_minimal_dungeon_two_rooms_one_edge():
 
 # --- Coverage beyond the 6 issue scenarios ---
 
-func test_boss_is_at_furthest_grid_distance():
-	# Acceptance criterion: boss is placed at the furthest manhattan distance
-	# from the start room. The generator picks the boss's parent randomly,
-	# so the boss is not always the deepest tree node — the layout engine
-	# must enforce this independently of the graph shape.
+func test_boss_drops_straight_south_of_its_parent_with_a_short_corridor():
+	# The boss room used to be teleported out to the furthest grid cell while its
+	# corridor still anchored to a possibly-near parent — an L-shaped corridor
+	# whose horizontal leg spanned the whole map (the "crazy long hallway" bug).
+	# The boss now drops directly south of its (frontier) parent: same grid
+	# column, a single short vertical corridor. A small south nudge is allowed
+	# for the double-width boss footprint, but never a cross-map run.
 	for s in [1, 2, 3, 7, 42, 100, 123, 9999]:
 		var dungeon := DungeonGenerator.generate(s)
 		var layout := DungeonLayoutEngine.new().compute(dungeon)
 		var boss_pos: Vector2i = layout.room_positions[dungeon.boss_id]
-		var boss_dist: int = abs(boss_pos.x) + abs(boss_pos.y)
-		for rid in layout.room_positions:
-			if rid == dungeon.boss_id:
-				continue
-			var p: Vector2i = layout.room_positions[rid]
-			var d: int = abs(p.x) + abs(p.y)
-			assert_true(boss_dist > d,
-				"seed %d: boss dist %d not strictly greater than room %d dist %d"
-				% [s, boss_dist, rid, d])
+		var parent_pos := boss_pos
+		for pair in layout.corridors:
+			if pair[1] == dungeon.boss_id and layout.room_positions.has(pair[0]):
+				parent_pos = layout.room_positions[pair[0]]
+				break
+		assert_eq(boss_pos.x, parent_pos.x,
+			"seed %d: boss shares its parent's column (no horizontal hallway)" % s)
+		var corridor_len: int = boss_pos.y - parent_pos.y
+		assert_eq(corridor_len, 1,
+			"seed %d: boss is one cell south of its anchor (%d grid steps)"
+			% [s, corridor_len])
 
 func test_grid_to_world_uses_room_size_plus_corridor_width():
 	# DungeonLayout.grid_to_world is a tiny pure helper, but the renderer

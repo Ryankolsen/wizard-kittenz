@@ -136,6 +136,11 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	boss.boss_sprite_left_path = boss_info.sprite_left_path
 	boss.boss_sprite_right_path = boss_info.sprite_right_path
 	boss.boss_display_name = boss_info.display_name
+	# Attach the boss so the graph stays connected (BFS-from-start reaches it).
+	# This parent is provisional: the layout engine re-points the boss's incoming
+	# edge at a grid-aware anchor (a far room with open space to its south) so the
+	# boss corridor is one short step instead of a map-spanning hallway. Excluded
+	# from the bar (#180: boss must not be bar-adjacent).
 	var boss_parent_idx := _pick_parent_excluding(rng, boss_id, bar_id)
 	dungeon.rooms[boss_parent_idx].connections.append(boss_id)
 	dungeon.add_room(boss)

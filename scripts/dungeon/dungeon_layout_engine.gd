@@ -12,11 +12,14 @@ extends RefCounted
 #      at the first free cell spiraling outward from its parent in the
 #      cardinal order right/down/left/up. Cardinal order is fixed, so the
 #      layout is a deterministic function of the dungeon graph.
-#   3. Place boss *last* at the first free cell along +x past the current
-#      max manhattan distance — this enforces the "boss is furthest from
-#      start" invariant regardless of where the boss attaches in the tree
-#      (the generator picks the boss's parent randomly, so boss is not
-#      always the deepest tree node).
+#   3. Place boss *last*. Re-point its single incoming edge at a grid-aware
+#      anchor — the room furthest from start whose south footprint is clear — and
+#      drop the boss one cell south of it. That yields a one-step vertical
+#      corridor entering the boss's north wall (exit door on the south wall).
+#      (Earlier this teleported the boss to the furthest grid cell while its
+#      corridor still anchored to a possibly-near parent, so the L-shaped corridor
+#      spanned the whole map — the "crazy long hallway" bug. The generator's boss
+#      parent is provisional, only there to keep the graph connected.)
 #   4. Corridors mirror the directed edges of the dungeon graph one-for-one.
 
 const DIRECTIONS := [
@@ -56,31 +59,24 @@ func compute(dungeon: Dungeon) -> DungeonLayout:
 			occupied[child_pos] = cid
 			queue.append(cid)
 
-	# Boss placement: furthest manhattan distance from origin. Walk +x past
-	# the current max distance, then nudge forward until we find a free cell.
-	# North-wall invariant: boss must be strictly south of (y >) its parent
-	# so the exit door always sits on the boss room's north wall.
+	# Boss placement: pick a grid-aware anchor (a far room with open space to its
+	# south), re-point the boss's incoming edge at it, and drop the boss one cell
+	# south. North-wall invariant: boss is strictly south of its parent so the
+	# exit door always sits on the boss room's south wall.
 	if dungeon.boss_id >= 0 and not positions.has(dungeon.boss_id):
-		var max_dist: int = 0
-		for p in positions.values():
-			var d: int = abs(p.x) + abs(p.y)
-			if d > max_dist:
-				max_dist = d
+		var anchor_id: int = _pick_boss_anchor(dungeon, positions, occupied)
+		if anchor_id >= 0:
+			# Re-point the boss's single incoming edge at the anchor. Idempotent:
+			# repeated compute() on the same dungeon re-picks the same anchor and
+			# re-attaches the already-attached boss, so the graph is unchanged.
+			for r in dungeon.rooms:
+				r.connections.erase(dungeon.boss_id)
+			dungeon.get_room(anchor_id).connections.append(dungeon.boss_id)
 
-		# Find the boss's parent grid position before placing the boss.
-		var parent_pos := Vector2i(0, 0)
-		for rid in positions:
-			var room := dungeon.get_room(rid)
-			if room != null and room.connections.has(dungeon.boss_id):
-				parent_pos = positions[rid]
-				break
-
-		# Start one row below the parent so the corridor enters north wall.
-		var boss_pos := Vector2i(max_dist + 1, parent_pos.y + 1)
-		while occupied.has(boss_pos):
-			boss_pos.x += 1
-		positions[dungeon.boss_id] = boss_pos
-		occupied[boss_pos] = dungeon.boss_id
+			var anchor_pos: Vector2i = positions[anchor_id]
+			var boss_pos := Vector2i(anchor_pos.x, anchor_pos.y + 1)
+			positions[dungeon.boss_id] = boss_pos
+			occupied[boss_pos] = dungeon.boss_id
 
 	layout.room_positions = positions
 	layout.boss_id = dungeon.boss_id
@@ -93,6 +89,40 @@ func compute(dungeon: Dungeon) -> DungeonLayout:
 	layout.corridors = corridors
 
 	return layout
+
+# Picks the room the boss should hang off: the room furthest (manhattan) from
+# start whose cell-to-the-south has a clear boss footprint, so the boss drops one
+# cell south with a one-step corridor and no overlap. The southmost room always
+# qualifies, so an anchor always exists. The bar is excluded (#180: boss must not
+# be bar-adjacent). Ties break to the lowest id — deterministic regardless of the
+# positions-dict iteration order, so co-op peers and repeated compute() agree.
+func _pick_boss_anchor(dungeon: Dungeon, positions: Dictionary, occupied: Dictionary) -> int:
+	var best_id: int = -1
+	var best_dist: int = -1
+	for rid in positions:
+		if rid == dungeon.boss_id:
+			continue
+		var room := dungeon.get_room(rid)
+		if room != null and room.type == Room.TYPE_BAR:
+			continue
+		var pos: Vector2i = positions[rid]
+		if not _boss_footprint_clear(Vector2i(pos.x, pos.y + 1), occupied):
+			continue
+		var dist: int = abs(pos.x) + abs(pos.y)
+		if dist > best_dist or (dist == best_dist and rid < best_id):
+			best_dist = dist
+			best_id = rid
+	return best_id
+
+# The boss room spans BOSS_ROOM_TILES (~1.4 grid steps), so it bleeds into the
+# +x and +y neighbour cells. All four cells of its 2x2 grid footprint must be
+# free or the boss room would visually overlap an adjacent room.
+func _boss_footprint_clear(boss_pos: Vector2i, occupied: Dictionary) -> bool:
+	for dy in range(2):
+		for dx in range(2):
+			if occupied.has(boss_pos + Vector2i(dx, dy)):
+				return false
+	return true
 
 # Deterministic spiral search: try each cardinal direction at distance 1,
 # then 2, etc. The cardinal order (right/down/left/up) is fixed so the same
