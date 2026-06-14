@@ -118,22 +118,22 @@ theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
 theme_override_font_sizes/font_size = 12
 
 [node name="MinimapHUD" parent="." instance=ExtResource("3_minimap")]
-offset_left = 392.0
+offset_left = 408.0
 offset_top = 42.0
-offset_right = 460.0
+offset_right = 476.0
 offset_bottom = 122.0
 
 [node name="QuickbarHUD" parent="." instance=ExtResource("2_quickbar")]
-offset_left = 396.0
+offset_left = 416.0
 offset_top = 128.0
-offset_right = 456.0
+offset_right = 476.0
 offset_bottom = 188.0
 
 [node name="PotionBeltHUD" parent="." instance=ExtResource("4_potion_belt")]
 custom_minimum_size = Vector2(28, 60)
-offset_left = 364.0
+offset_left = 384.0
 offset_top = 128.0
-offset_right = 392.0
+offset_right = 412.0
 offset_bottom = 188.0
 orientation = 1
 
