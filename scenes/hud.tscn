@@ -118,9 +118,9 @@ theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
 theme_override_font_sizes/font_size = 12
 
 [node name="MinimapHUD" parent="." instance=ExtResource("3_minimap")]
-offset_left = 408.0
+offset_left = 396.0
 offset_top = 42.0
-offset_right = 476.0
+offset_right = 464.0
 offset_bottom = 122.0
 
 [node name="QuickbarHUD" parent="." instance=ExtResource("2_quickbar")]
