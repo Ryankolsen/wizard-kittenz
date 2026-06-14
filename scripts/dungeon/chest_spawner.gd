@@ -2,8 +2,9 @@ class_name ChestSpawner
 extends RefCounted
 
 # Pure-data placement layer for treasure chests (PRD #217 / issue #219).
-# Given a Dungeon and a seeded RandomNumberGenerator, returns up to
-# TARGET_COUNT placements, each a Dictionary { room_id, position, chest }.
+# Given a Dungeon and a seeded RandomNumberGenerator, returns a set of
+# placements, each a Dictionary { room_id, position, chest }. The general-pool
+# count scales with dungeon size (see general_chest_count).
 #
 # Slice 2 keeps every roll STANDARD; the rare-unlock branch lands in slice 3
 # (#220). Multiple chests per room are allowed — sampling is with replacement
@@ -16,7 +17,22 @@ extends RefCounted
 # time. Keeping the spawner layout-agnostic preserves the "pure-data,
 # easy to unit-test" property RoomSpawnPlanner established.
 
-const TARGET_COUNT: int = 5
+# General-pool chest count scales with dungeon size. The dungeon expanded from
+# 10-14 rooms to 100-150 rooms (commit 46505ee) but the old fixed count of 5
+# stayed put, so a full crawl could surface zero chests. We now spawn one
+# general chest per CHEST_PER_N_ROOMS candidate rooms (non-start, non-bar),
+# floored at MIN_GENERAL_CHESTS so tiny/test dungeons still feel rewarding.
+# At ~1 per 10 a 100-150 room dungeon yields ~10-15 general chests (plus the
+# 3 boss-room chests below).
+const CHEST_PER_N_ROOMS: int = 10
+const MIN_GENERAL_CHESTS: int = 3
+
+# Number of general-pool chests for a dungeon with `candidate_count` eligible
+# rooms. Pure function so it's trivially unit-testable and the orchestrator can
+# reason about expected loot without re-running plan().
+static func general_chest_count(candidate_count: int) -> int:
+	var scaled: int = int(round(float(candidate_count) / float(CHEST_PER_N_ROOMS)))
+	return max(MIN_GENERAL_CHESTS, scaled)
 
 # Half-width / half-height of the random offset box around a room's center,
 # in pixels. ROOM_SIZE_PX is 192 (DungeonLayout); ±70 keeps chests inside
@@ -49,7 +65,8 @@ static func plan(dungeon: Dungeon, rng: RandomNumberGenerator) -> Array:
 	if candidates.is_empty():
 		return placements
 	var rare_unlocked: bool = dungeon.depth >= RARE_UNLOCK_DEPTH
-	for _i in range(TARGET_COUNT):
+	var target_count: int = general_chest_count(candidates.size())
+	for _i in range(target_count):
 		var idx: int = rng.randi_range(0, candidates.size() - 1)
 		var room: Room = candidates[idx]
 		var offset := Vector2(

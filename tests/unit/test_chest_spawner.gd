@@ -33,11 +33,42 @@ func _make_dungeon(standard_count: int) -> Dungeon:
 	d.boss_id = boss_id
 	return d
 
-func test_plan_returns_target_count_placements():
+func _general_count(placements: Array) -> int:
+	var n := 0
+	for p in placements:
+		if not String(p["chest_id"]).begins_with("boss_chest_"):
+			n += 1
+	return n
+
+func test_plan_returns_scaled_general_count_plus_boss():
+	# Small dungeon: 6 standard + 1 boss = 7 candidates. Below the per-N-rooms
+	# threshold it clamps to MIN_GENERAL_CHESTS.
 	var d := _make_dungeon(6)
 	var placements := ChestSpawner.plan(d, _seeded_rng(1))
-	# 5 general + 3 boss-room (PRD #311 / issue #313).
-	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT + 3)
+	var expected_general := ChestSpawner.general_chest_count(7)
+	assert_eq(_general_count(placements), expected_general)
+	# 3 boss-room (PRD #311 / issue #313).
+	assert_eq(placements.size(), expected_general + 3)
+
+func test_general_count_scales_with_room_count():
+	# Regression for the expanded dungeon (#: 100-150 rooms). A big dungeon must
+	# yield far more than the old fixed 5 general chests so a crawl reliably
+	# encounters loot. At ~1 per 10 candidate rooms a 124-candidate dungeon
+	# should land around 12 general chests.
+	var big := _make_dungeon(123)  # 123 standard + 1 boss = 124 candidates
+	var placements := ChestSpawner.plan(big, _seeded_rng(1))
+	var general := _general_count(placements)
+	assert_eq(general, ChestSpawner.general_chest_count(124))
+	assert_true(general >= 10 and general <= 15,
+		"124-candidate dungeon should yield ~12 general chests, got %d" % general)
+
+func test_general_count_helper_density_and_floor():
+	# 1 general chest per CHEST_PER_N_ROOMS candidate rooms, floored at
+	# MIN_GENERAL_CHESTS so tiny dungeons still feel rewarding.
+	assert_eq(ChestSpawner.general_chest_count(0), ChestSpawner.MIN_GENERAL_CHESTS)
+	assert_eq(ChestSpawner.general_chest_count(10), ChestSpawner.MIN_GENERAL_CHESTS)
+	assert_eq(ChestSpawner.general_chest_count(100), 10)
+	assert_eq(ChestSpawner.general_chest_count(150), 15)
 
 func test_placement_struct_has_room_position_and_chest():
 	var d := _make_dungeon(6)
@@ -190,10 +221,10 @@ func _boss_placements(placements: Array) -> Array:
 			out.append(p)
 	return out
 
-func test_spawner_returns_5_plus_3_placements_for_dungeon_with_boss():
-	var d := _make_dungeon(6)
+func test_spawner_returns_general_plus_3_placements_for_dungeon_with_boss():
+	var d := _make_dungeon(6)  # 6 standard + 1 boss = 7 candidates
 	var placements := ChestSpawner.plan(d, _seeded_rng(1))
-	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT + 3)
+	assert_eq(placements.size(), ChestSpawner.general_chest_count(7) + 3)
 
 func test_spawner_boss_placements_have_correct_ids_and_kinds():
 	var d := _make_dungeon(6)
@@ -233,9 +264,9 @@ func test_spawner_skips_boss_placements_when_no_boss_room():
 	d.start_id = 0
 	d.add_room(Room.make(1, Room.TYPE_STANDARD))
 	d.get_room(0).connections.append(1)
-	# d.boss_id stays at -1 (the default).
+	# d.boss_id stays at -1 (the default). 1 standard room = 1 candidate.
 	var placements := ChestSpawner.plan(d, _seeded_rng(1))
-	assert_eq(placements.size(), ChestSpawner.TARGET_COUNT)
+	assert_eq(placements.size(), ChestSpawner.general_chest_count(1))
 	for p in placements:
 		assert_false(String(p["chest_id"]).begins_with("boss_chest_"),
 			"no boss placements when boss_id is invalid")

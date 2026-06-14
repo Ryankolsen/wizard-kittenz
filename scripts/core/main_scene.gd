@@ -605,7 +605,7 @@ func _spawn_healing_box() -> void:
 		add_child(pre_boss_box)
 
 
-# Slice 2 of PRD #217 / issue #219: ChestSpawner returns up to TARGET_COUNT
+# Slice 2 of PRD #217 / issue #219: ChestSpawner returns a size-scaled set of
 # placements scattered across non-start rooms; we instantiate one ChestEntity
 # per placement and add it to world at (room_center + offset). The RNG is
 # seeded from the dungeon's seed so a re-roll of the same dungeon places
