@@ -47,6 +47,22 @@ static func is_aggroed(enemy) -> bool:
 func tick(_delta: float, _enemy) -> void:
 	pass
 
+# Idle wander hooks (PRD #391 / tracer slice #392). The IDLE branch of the
+# Enemy node calls `idle_velocity(enemy, delta)` each physics frame to drive
+# the wander; per-kind subclasses override the trio below to declare their
+# style + tuning. Base impl is a no-op (zero velocity) so kinds that haven't
+# opted into idle motion yet keep the prior "stand still" behavior.
+func idle_style() -> int:
+	# Default literal (0 == WanderProfile.Style.STATIONARY_ISH) — avoid a hard
+	# class_name ref here so the EnemyBehavior load order stays leaf-free.
+	return 0
+
+func idle_speed_fraction() -> float:
+	return 0.0
+
+func idle_velocity(_enemy, _delta: float) -> Vector2:
+	return Vector2.ZERO
+
 # When a behavior wants to take exclusive control of motion this frame
 # (e.g., Angry Pigeon's straight-line dive bomb that must ignore steering),
 # it returns true and the Enemy node skips its state-machine match block,

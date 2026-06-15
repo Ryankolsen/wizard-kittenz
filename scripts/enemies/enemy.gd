@@ -126,7 +126,13 @@ func _physics_process(delta: float) -> void:
 				velocity = Vector2.ZERO
 				queue_free()
 			_:
-				velocity = Vector2.ZERO
+				# IDLE branch — drive idle wander via the behavior (PRD #391 /
+				# slice #392). Behaviors that haven't opted in return Vector2.ZERO
+				# (base impl) so this stays a no-op for them.
+				if _behavior != null:
+					velocity = _behavior.idle_velocity(self, delta)
+				else:
+					velocity = Vector2.ZERO
 				move_and_slide()
 	# Per-kind behavior hook (issue #157). Runs after the base state machine so
 	# kinds layer on top of chase/attack — overrides can read enemy.state /

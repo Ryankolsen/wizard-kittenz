@@ -825,6 +825,67 @@ func test_spray_bottle_idle_does_not_fire():
 		"IDLE spray bottle must not accrue fire cadence")
 
 
+# ---------------------------------------------------------------------------
+# Idle wander hooks (PRD #391 / slice #392) — HauntedSprayBottle stationary-ish.
+# ---------------------------------------------------------------------------
+
+class _MockIdleEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 0  # EnemyAIState.State.IDLE
+	var move_speed: float = EnemyAIState.CHASE_SPEED
+	var data = null
+
+
+class _MockIdleData:
+	var enemy_id: String = "test-bottle-1"
+	var spawn_position: Vector2 = Vector2.ZERO
+
+
+func test_spray_bottle_reports_stationary_ish_idle_style_and_fraction():
+	# Regression guard: the spray bottle declares stationary-ish wander at ~10%
+	# of its chase speed. Drift here means the mob's idle personality changed.
+	var b := HauntedSprayBottleBehavior.new()
+	assert_eq(b.idle_style(), WanderProfile.Style.STATIONARY_ISH,
+		"haunted spray bottle should declare stationary-ish style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.10, 0.0001,
+		"haunted spray bottle should idle at ~10% of chase speed")
+
+
+func test_spray_bottle_idle_velocity_returns_bounded_motion_in_idle():
+	# Idle-velocity hook delegates to the profile module and returns a velocity
+	# bounded by idle_speed. Over many ticks at least one is non-zero (the
+	# stationary-ish shuffle fires) and none exceeds the bound.
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	var idle_speed: float = e.move_speed * HauntedSprayBottleBehavior.IDLE_SPEED_FRACTION
+	var any_nonzero := false
+	for _i in range(500):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_true(v.length() <= idle_speed + 0.0001,
+			"idle velocity should stay bounded by idle_speed")
+		if v.length() > 0.0:
+			any_nonzero = true
+	assert_true(any_nonzero,
+		"idle-velocity hook should produce some non-zero motion over time")
+
+
+func test_spray_bottle_idle_velocity_is_zero_when_aggroed():
+	# Aggro takeover: when state is CHASE, the idle path returns Vector2.ZERO
+	# so it can't fight the base _chase loop. Same for ATTACK and DEAD.
+	var b := HauntedSprayBottleBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	for s in [EnemyAIState.State.CHASE, EnemyAIState.State.ATTACK,
+			EnemyAIState.State.DEAD]:
+		e.state = s
+		for _i in range(20):
+			var v: Vector2 = b.idle_velocity(e, 0.05)
+			assert_eq(v, Vector2.ZERO,
+				"idle velocity must be zero outside IDLE state (state=%d)" % s)
+
+
 func test_spray_bottle_chase_still_fires():
 	var b := HauntedSprayBottleBehavior.new()
 	var e := _MockSprayEnemy.new()
