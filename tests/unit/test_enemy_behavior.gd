@@ -355,6 +355,33 @@ func test_dog_knight_for_kind_dispatches_subclass():
 	assert_true(b is DogKnightBehavior, "DOG_KNIGHT kind must dispatch to DogKnightBehavior")
 
 
+func test_dog_knight_reports_pacer_idle_style_and_fraction():
+	# PRD #391 / slice #393: the dog knight declares pacer wander at ~50% of
+	# its chase speed (PRD mapping table). Drift here means the mob's idle
+	# personality changed.
+	var b := DogKnightBehavior.new()
+	assert_eq(b.idle_style(), WanderProfile.Style.PACER,
+		"dog knight should declare pacer style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.50, 0.0001,
+		"dog knight should idle at ~50% of chase speed")
+
+
+func test_dog_knight_idle_velocity_suppressed_while_charging():
+	# Acceptance: while mid-charge (is_overriding_motion true), the idle pacer
+	# path must not drive motion — the override takes exclusive control.
+	var b := DogKnightBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	# Mid-charge: begin_charge flips is_charging true → is_overriding_motion true.
+	b.begin_charge(Vector2.RIGHT)
+	assert_true(b.is_overriding_motion(),
+		"precondition: charge should make is_overriding_motion true")
+	for _i in range(20):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_eq(v, Vector2.ZERO,
+			"idle velocity must be zero while charge override is active")
+
+
 func test_dog_knight_dead_enemy_skips_charge():
 	var b := DogKnightBehavior.new()
 	var e := _MockDogEnemy.new()

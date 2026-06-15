@@ -7,8 +7,9 @@ extends RefCounted
 # Per-mob wander is reproducible from the seed so unit tests and host/client
 # simulation are deterministic (PRD #391, tracer slice #392).
 #
-# Styles ship in subsequent slices; this slice implements STATIONARY_ISH and
-# the shared leash so the haunted spray bottle's tiny shuffle reads on-screen.
+# STATIONARY_ISH (slice #392) wires the spray bottle's tiny shuffle; PACER
+# (slice #393) wires the dog knight's deliberate patrol; RESTLESS lands later.
+# The shared leash applies to every style.
 
 enum Style { STATIONARY_ISH, PACER, RESTLESS }
 
@@ -61,9 +62,22 @@ func _advance_phase(style: int, change_cadence: float, pause_length: float) -> v
 				var theta := _rng.randf() * TAU
 				_heading = Vector2(cos(theta), sin(theta))
 				_phase_time_left = change_cadence
+		Style.PACER:
+			# Deterministic move/pause alternation — "patrolling its post". Each
+			# move phase re-rolls a fresh heading so the patrol path isn't a
+			# single line back-and-forth. Dog knight wires this in (slice #393).
+			if _is_paused:
+				_is_paused = false
+				var theta := _rng.randf() * TAU
+				_heading = Vector2(cos(theta), sin(theta))
+				_phase_time_left = change_cadence
+			else:
+				_is_paused = true
+				_heading = Vector2.ZERO
+				_phase_time_left = pause_length
 		_:
-			# PACER and RESTLESS land in slices #393 / #394; fall through to
-			# a paused phase so unmapped styles don't crash.
+			# RESTLESS lands in slice #394; fall through to a paused phase so
+			# unmapped styles don't crash.
 			_is_paused = true
 			_heading = Vector2.ZERO
 			_phase_time_left = pause_length
