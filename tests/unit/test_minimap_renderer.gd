@@ -248,3 +248,39 @@ func test_boss_room_not_drawn_when_unrevealed():
 	var ids := MinimapRenderer.rooms_to_draw(d, s)
 	assert_false(ids.has(d.boss_id), "Boss room must be hidden until revealed")
 	assert_true(ids.has(d.start_id))
+
+# --- boss-direction X marker ------------------------------------------------
+
+func test_bounds_ids_includes_boss_even_when_unrevealed():
+	# The boss-direction X needs the boss room inside the projected bounds so
+	# it stays on the chip. bounds_ids unions the revealed set with the boss
+	# id even though the boss room itself is never in rooms_to_draw yet.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var s := FloorMapState.new()
+	s.mark_revealed(0)  # only the start is revealed
+	var ids := MinimapRenderer.bounds_ids(d, s, l)
+	assert_true(ids.has(0), "revealed start stays in the bounds set")
+	assert_true(ids.has(d.boss_id), "boss must widen the bounds even unrevealed")
+
+func test_bounds_ids_no_duplicate_boss_when_revealed():
+	# Once the boss room is revealed it's already in the set; bounds_ids must
+	# not append a second copy.
+	var d := _make_dungeon()
+	var l := _layout_three_in_a_row()
+	var s := FloorMapState.new()
+	s.mark_revealed(0)
+	s.mark_revealed(d.boss_id)
+	var ids := MinimapRenderer.bounds_ids(d, s, l)
+	assert_eq(ids.count(d.boss_id), 1, "boss id appears exactly once")
+
+func test_bounds_ids_skips_boss_with_no_layout_position():
+	# Defensive: a boss id absent from the layout (degenerate dungeon) is not
+	# added — projecting it would ask the layout for a position it lacks.
+	var d := _make_dungeon()
+	var l := DungeonLayout.new()
+	l.room_positions[0] = Vector2i(0, 0)  # boss (id 2) deliberately missing
+	var s := FloorMapState.new()
+	s.mark_revealed(0)
+	var ids := MinimapRenderer.bounds_ids(d, s, l)
+	assert_false(ids.has(d.boss_id), "boss without a layout position is skipped")

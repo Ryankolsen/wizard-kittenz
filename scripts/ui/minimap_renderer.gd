@@ -20,6 +20,13 @@ const PLAYER_MARKER_RADIUS: float = 3.0
 const PLAYER_MARKER_COLOR := Color(1.0, 0.15, 0.85, 1.0)
 const TEAMMATE_MARKER_RADIUS: float = 2.0
 const TEAMMATE_MARKER_COLOR := Color(0.4, 0.85, 1.0, 1.0)
+# Boss-direction hint: a red X drawn at the boss room's centre regardless of
+# reveal state, so the player always has a heading toward the boss on a big
+# floor. The room itself stays fog-of-war'd (no rect, no corridors) — only
+# the X leaks, deliberately, as a navigation aid.
+const BOSS_MARKER_RADIUS: float = 4.0
+const BOSS_MARKER_WIDTH: float = 1.8
+const BOSS_MARKER_COLOR := Color(0.95, 0.15, 0.15, 1.0)
 # Inner margin so the projected world bounds don't kiss the chip border.
 const MAP_MARGIN_PX: float = 4.0
 
@@ -61,8 +68,10 @@ func _draw() -> void:
 	if dungeon == null or floor_state == null or layout == null:
 		return
 	var target := Rect2(Vector2.ZERO, size)
-	var revealed := floor_state.revealed_ids()
-	var world_bounds := compute_world_bounds(dungeon, layout, revealed)
+	# Project the bounds over the revealed set *plus* the boss room so the chip
+	# always zooms out far enough to keep the boss X marker on-screen, even
+	# before any path to it is revealed.
+	var world_bounds := compute_world_bounds(dungeon, layout, bounds_ids(dungeon, floor_state, layout))
 	if world_bounds.size.x <= 0.0 or world_bounds.size.y <= 0.0:
 		return
 	var scale := compute_scale(world_bounds, target)
@@ -91,6 +100,12 @@ func _draw() -> void:
 		var style := style_for_room_type(room2.type if room2 != null else Room.TYPE_STANDARD)
 		var color: Color = STYLE_COLORS.get(style, ROOM_COLOR)
 		draw_rect(Rect2(tl, size_mini), color, true)
+	# Boss-direction X. Drawn whether or not the boss room is revealed — it's a
+	# deliberate navigation hint, not a fog-of-war leak of the room contents.
+	if dungeon.boss_id >= 0 and layout.room_positions.has(dungeon.boss_id):
+		var boss_world := room_center_world(dungeon.boss_id, dungeon, layout)
+		var boss_pt := world_to_minimap(boss_world, world_bounds, target)
+		_draw_boss_x(boss_pt)
 	# Player marker on top. Only draw when the player is inside a revealed
 	# room — otherwise a marker dragged through a corridor would leak the
 	# unrevealed room at the other end.
@@ -114,6 +129,26 @@ func _player_in_revealed_room() -> bool:
 		if bounds.has_point(player_world_pos):
 			return true
 	return false
+
+# Draws the boss-direction X centred on `pt` (two diagonal strokes).
+func _draw_boss_x(pt: Vector2) -> void:
+	var r := BOSS_MARKER_RADIUS
+	draw_line(pt + Vector2(-r, -r), pt + Vector2(r, r), BOSS_MARKER_COLOR, BOSS_MARKER_WIDTH)
+	draw_line(pt + Vector2(-r, r), pt + Vector2(r, -r), BOSS_MARKER_COLOR, BOSS_MARKER_WIDTH)
+
+# Pure helper — room ids whose world rects define the projected minimap
+# bounds: the revealed set unioned with the boss room. Including the boss
+# (even unrevealed) keeps the boss X marker inside the chip instead of
+# projecting off-edge once the player explores away from it. A boss with no
+# layout position (degenerate dungeon) is skipped.
+static func bounds_ids(d: Dungeon, s: FloorMapState, l: DungeonLayout) -> Array:
+	var ids: Array = []
+	if s != null:
+		ids = s.revealed_ids()
+	if d != null and l != null and d.boss_id >= 0 \
+			and l.room_positions.has(d.boss_id) and not ids.has(d.boss_id):
+		ids.append(d.boss_id)
+	return ids
 
 # Pure helper — returns the intersection of dungeon room ids and the
 # revealed set. Skips stale ids so a corrupt save / off-by-one doesn't
