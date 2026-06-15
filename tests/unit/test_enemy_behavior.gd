@@ -1011,6 +1011,127 @@ func test_angry_pigeon_idle_velocity_is_zero_when_aggroed():
 				"idle velocity must be zero outside IDLE state (state=%d)" % s)
 
 
+func test_catnip_dealer_reports_stationary_ish_idle_style_and_fraction():
+	# PRD #391 / slice #395: the dealer declares stationary-ish at ~15% of chase
+	# speed — mostly holds ground with a little drift, tighter than the spray
+	# bottle's tiny shuffle. Drift here means the mob's idle personality changed.
+	var b := CatnipDealerBehavior.new()
+	assert_eq(b.idle_style(), WanderProfile.Style.STATIONARY_ISH,
+		"catnip dealer should declare stationary-ish style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.15, 0.0001,
+		"catnip dealer should idle at ~15% of chase speed")
+
+
+func test_catnip_dealer_idle_velocity_returns_bounded_motion_in_idle():
+	# Idle-velocity hook delegates to the profile module and stays bounded by
+	# idle_speed. Over many ticks at least one sample is non-zero (the dealer's
+	# small drift fires) and none exceeds the bound.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	var idle_speed: float = e.move_speed * CatnipDealerBehavior.IDLE_SPEED_FRACTION
+	var any_nonzero := false
+	for _i in range(500):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_true(v.length() <= idle_speed + 0.0001,
+			"idle velocity should stay bounded by idle_speed")
+		if v.length() > 0.0:
+			any_nonzero = true
+	assert_true(any_nonzero,
+		"stationary-ish idle hook should produce some non-zero motion over time")
+
+
+func test_catnip_dealer_idle_velocity_is_zero_when_aggroed():
+	# Aggro takeover: CHASE/ATTACK/DEAD all suppress the idle path so it can't
+	# fight the base _chase loop or animate after death.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	for s in [EnemyAIState.State.CHASE, EnemyAIState.State.ATTACK,
+			EnemyAIState.State.DEAD]:
+		e.state = s
+		for _i in range(20):
+			var v: Vector2 = b.idle_velocity(e, 0.05)
+			assert_eq(v, Vector2.ZERO,
+				"idle velocity must be zero outside IDLE state (state=%d)" % s)
+
+
+# ---------------------------------------------------------------------------
+# PRD #391 mapping table regression guard — all five kinds in one place so
+# drift in any kind's idle personality breaks one obvious test.
+# ---------------------------------------------------------------------------
+
+func test_full_idle_mapping_table_regression_guard():
+	# Anti-drift guard for PRD #391 §Solution: every kind's (style, idle-speed
+	# fraction) pair is asserted in one place so silent retunes are caught.
+	var expected := [
+		{
+			"kind": EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
+			"style": WanderProfile.Style.STATIONARY_ISH,
+			"fraction": 0.10,
+			"label": "haunted spray bottle",
+		},
+		{
+			"kind": EnemyData.EnemyKind.CATNIP_DEALER,
+			"style": WanderProfile.Style.STATIONARY_ISH,
+			"fraction": 0.15,
+			"label": "catnip dealer",
+		},
+		{
+			"kind": EnemyData.EnemyKind.ANGRY_PIGEON,
+			"style": WanderProfile.Style.RESTLESS,
+			"fraction": 0.35,
+			"label": "angry pigeon",
+		},
+		{
+			"kind": EnemyData.EnemyKind.DOG_KNIGHT,
+			"style": WanderProfile.Style.PACER,
+			"fraction": 0.50,
+			"label": "dog knight",
+		},
+		{
+			"kind": EnemyData.EnemyKind.ROGUE_ROOMBA,
+			"style": WanderProfile.Style.RESTLESS,
+			"fraction": 0.60,
+			"label": "rogue roomba",
+		},
+	]
+	for row in expected:
+		var b := EnemyBehavior.for_kind(row.kind)
+		assert_eq(b.idle_style(), row.style,
+			"%s should declare style %d" % [row.label, row.style])
+		assert_almost_eq(b.idle_speed_fraction(), row.fraction, 0.0001,
+			"%s idle fraction should be %f" % [row.label, row.fraction])
+
+
+func test_idle_velocity_pulls_displaced_mob_back_toward_anchor():
+	# Edge case — resume-in-place after aggro loss. A mob displaced from its
+	# spawn anchor and dropped back to IDLE must drift home rather than snap.
+	# The wander module's leash kicks in past the radius and overrides velocity
+	# with a vector pointed at the anchor — drives the "meander home, no snap"
+	# behavior from PRD #391 §Implementation Decisions.
+	var b := CatnipDealerBehavior.new()
+	var e := _MockIdleEnemy.new()
+	var d := _MockIdleData.new()
+	# Non-zero spawn so _resolve_anchor picks up the spawn point (the falsy-zero
+	# guard treats Vector2.ZERO as unset for legacy fixtures).
+	var anchor := Vector2(500.0, 500.0)
+	d.spawn_position = anchor
+	e.data = d
+	e.state = EnemyAIState.State.IDLE
+	# Drop the mob well past the leash radius along +X from the anchor so the
+	# leash branch dominates regardless of which phase the RNG happened on.
+	var displaced := anchor + Vector2(CatnipDealerBehavior.IDLE_RADIUS * 4.0, 0.0)
+	e.global_position = displaced
+	var v: Vector2 = b.idle_velocity(e, 0.05)
+	assert_true(v.x < 0.0,
+		"displaced mob's idle velocity should point back toward the anchor (got %s)" % v)
+	# Snap-home would teleport global_position to the anchor on the IDLE drop;
+	# the leash never mutates position directly — only the velocity does.
+	assert_eq(e.global_position, displaced,
+		"idle velocity must not snap-teleport the mob home")
+
+
 func test_spray_bottle_chase_still_fires():
 	var b := HauntedSprayBottleBehavior.new()
 	var e := _MockSprayEnemy.new()
