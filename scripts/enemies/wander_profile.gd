@@ -8,14 +8,20 @@ extends RefCounted
 # simulation are deterministic (PRD #391, tracer slice #392).
 #
 # STATIONARY_ISH (slice #392) wires the spray bottle's tiny shuffle; PACER
-# (slice #393) wires the dog knight's deliberate patrol; RESTLESS lands later.
-# The shared leash applies to every style.
+# (slice #393) wires the dog knight's deliberate patrol; RESTLESS (slice #394)
+# wires the rogue roomba's near-constant scurry and the angry pigeon's twitchy
+# hop. The shared leash applies to every style.
 
 enum Style { STATIONARY_ISH, PACER, RESTLESS }
 
 # Stationary-ish phase mix — mostly pauses with occasional tiny shuffles.
 # Picked at the edge of the kind's flavor: ~80% paused, ~20% drifting.
 const _STATIONARY_PAUSE_CHANCE: float = 0.8
+
+# Restless rarely pauses — ~5% of phase transitions go to a brief pause and
+# the other ~95% re-roll a fresh moving heading. Combined with a short
+# change_cadence, the path reads as near-constant twitchy motion.
+const _RESTLESS_PAUSE_CHANCE: float = 0.05
 
 var _rng: RandomNumberGenerator
 var _heading: Vector2 = Vector2.ZERO
@@ -75,9 +81,22 @@ func _advance_phase(style: int, change_cadence: float, pause_length: float) -> v
 				_is_paused = true
 				_heading = Vector2.ZERO
 				_phase_time_left = pause_length
+		Style.RESTLESS:
+			# Near-constant motion: most phase transitions re-roll a fresh moving
+			# heading; only a small chance flips to a brief pause. Wired to rogue
+			# roomba (most active) and angry pigeon (twitchy) in slice #394.
+			if _rng.randf() < _RESTLESS_PAUSE_CHANCE:
+				_is_paused = true
+				_heading = Vector2.ZERO
+				_phase_time_left = pause_length
+			else:
+				_is_paused = false
+				var theta := _rng.randf() * TAU
+				_heading = Vector2(cos(theta), sin(theta))
+				_phase_time_left = change_cadence
 		_:
-			# RESTLESS lands in slice #394; fall through to a paused phase so
-			# unmapped styles don't crash.
+			# Unknown style — fall through to a paused phase so unmapped styles
+			# don't crash.
 			_is_paused = true
 			_heading = Vector2.ZERO
 			_phase_time_left = pause_length

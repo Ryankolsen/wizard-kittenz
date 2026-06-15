@@ -157,3 +157,115 @@ func test_pacer_alternates_move_and_pause_with_changing_headings():
 	var second: Vector2 = move_headings[1]
 	assert_ne(first, second,
 		"pacer should re-roll its heading between consecutive move phases")
+
+
+# ---------------------------------------------------------------------------
+# RESTLESS style (PRD #391 / slice #394) — wired to rogue roomba + angry pigeon.
+# ---------------------------------------------------------------------------
+
+const _RESTLESS_IDLE_SPEED: float = 24.0  # CHASE_SPEED 40 * roomba fraction 0.60
+const _RESTLESS_RADIUS: float = 56.0
+const _RESTLESS_CHANGE: float = 0.2
+const _RESTLESS_PAUSE: float = 0.3
+
+
+func _restless_params() -> Dictionary:
+	return {
+		"idle_speed": _RESTLESS_IDLE_SPEED,
+		"radius": _RESTLESS_RADIUS,
+		"change_cadence": _RESTLESS_CHANGE,
+		"pause_length": _RESTLESS_PAUSE,
+	}
+
+
+func test_restless_emits_non_zero_velocity():
+	# Core wiring: restless produces a non-zero velocity quickly. Near-constant
+	# motion → the very first phase advance lands on a moving heading with
+	# overwhelming probability (95% per the pause chance).
+	var wp := WanderProfile.new(_SEED)
+	var saw_move := false
+	for _i in range(20):
+		var v := wp.desired_velocity(
+			WanderProfile.Style.RESTLESS, _restless_params(),
+			Vector2.ZERO, Vector2.ZERO, 0.05)
+		if v.length() > 0.0:
+			saw_move = true
+			assert_almost_eq(v.length(), _RESTLESS_IDLE_SPEED, 0.0001,
+				"restless move-phase velocity magnitude should equal idle_speed")
+			break
+	assert_true(saw_move, "restless should emit a non-zero velocity within 20 ticks")
+
+
+func test_restless_changes_headings_more_often_than_pacer():
+	# Drive both styles across the same wall-clock window with their natural
+	# tuning (restless cadence 0.2s vs pacer cadence 1.0s) and assert restless
+	# produces more distinct headings — its defining "twitchy" property.
+	var wp_restless := WanderProfile.new(_SEED)
+	var wp_pacer := WanderProfile.new(_SEED)
+	var anchor := Vector2.ZERO
+	var dt := 0.05
+	var ticks := 600
+	var restless_headings := _collect_distinct_headings(
+		wp_restless, WanderProfile.Style.RESTLESS, _restless_params(),
+		anchor, dt, ticks)
+	var pacer_headings := _collect_distinct_headings(
+		wp_pacer, WanderProfile.Style.PACER, _pacer_params(),
+		anchor, dt, ticks)
+	assert_gt(restless_headings, pacer_headings,
+		"restless should change headings more often than pacer over the same span")
+
+
+func _collect_distinct_headings(wp: WanderProfile, style: int, params: Dictionary,
+		anchor: Vector2, dt: float, ticks: int) -> int:
+	var pos := Vector2.ZERO
+	var distinct := 0
+	var last_heading := Vector2.ZERO
+	for _i in range(ticks):
+		var v := wp.desired_velocity(style, params, anchor, pos, dt)
+		pos += v * dt
+		if v.length() > 0.0:
+			var heading := v.normalized()
+			if not heading.is_equal_approx(last_heading):
+				distinct += 1
+				last_heading = heading
+		else:
+			last_heading = Vector2.ZERO
+	return distinct
+
+
+func test_restless_rarely_pauses():
+	# Defining property of restless: near-constant motion. Pause frames should
+	# be a tiny fraction of the run (much less than half). 5% pause chance plus
+	# pause_length 0.3s vs change_cadence 0.2s puts the expected pause fraction
+	# around ~7%; assert <25% so a single rare pause-burst still passes.
+	var wp := WanderProfile.new(_SEED)
+	var anchor := Vector2.ZERO
+	var pos := Vector2.ZERO
+	var dt := 0.05
+	var ticks := 600
+	var pause_frames := 0
+	for _i in range(ticks):
+		var v := wp.desired_velocity(
+			WanderProfile.Style.RESTLESS, _restless_params(), anchor, pos, dt)
+		pos += v * dt
+		if v.length() == 0.0:
+			pause_frames += 1
+	var pause_fraction := float(pause_frames) / float(ticks)
+	assert_lt(pause_fraction, 0.25,
+		"restless should rarely pause (got %f pause fraction)" % pause_fraction)
+
+
+func test_restless_stays_leashed_within_radius():
+	# Position must stay within the anchor radius across many ticks. Tolerance
+	# is one full step (idle_speed * dt = 1.2 px) since the leash engages on
+	# the tick the position reaches the radius — same physics as pacer.
+	var wp := WanderProfile.new(_SEED)
+	var anchor := Vector2.ZERO
+	var pos := Vector2.ZERO
+	var dt := 0.05
+	for _i in range(2000):
+		var v := wp.desired_velocity(
+			WanderProfile.Style.RESTLESS, _restless_params(), anchor, pos, dt)
+		pos += v * dt
+		assert_true(pos.length() <= _RESTLESS_RADIUS + 1.5,
+			"restless should stay leashed within the radius (got %f)" % pos.length())

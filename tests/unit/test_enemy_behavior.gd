@@ -913,6 +913,104 @@ func test_spray_bottle_idle_velocity_is_zero_when_aggroed():
 				"idle velocity must be zero outside IDLE state (state=%d)" % s)
 
 
+func test_rogue_roomba_reports_restless_idle_style_and_fraction():
+	# PRD #391 / slice #394: roomba declares restless wander at ~60% of chase
+	# speed — the most active idle mob (PRD mapping table). Drift here means
+	# the mob's idle personality changed.
+	var b := RogueRoombaBehavior.new()
+	assert_eq(b.idle_style(), WanderProfile.Style.RESTLESS,
+		"rogue roomba should declare restless style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.60, 0.0001,
+		"rogue roomba should idle at ~60% of chase speed")
+
+
+func test_rogue_roomba_idle_velocity_produces_motion_in_idle():
+	# Restless wander runs in IDLE: over many ticks the hook produces non-zero
+	# motion bounded by idle_speed (chase_speed * 0.60).
+	var b := RogueRoombaBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	var idle_speed: float = e.move_speed * RogueRoombaBehavior.IDLE_SPEED_FRACTION
+	var any_nonzero := false
+	for _i in range(200):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_true(v.length() <= idle_speed + 0.0001,
+			"idle velocity should stay bounded by idle_speed")
+		if v.length() > 0.0:
+			any_nonzero = true
+	assert_true(any_nonzero,
+		"restless idle hook should produce non-zero motion over time")
+
+
+func test_rogue_roomba_idle_velocity_is_zero_when_aggroed():
+	# Aggro takeover: chase/attack/dead all suppress the idle path so it can't
+	# fight the base _chase loop or animate after death.
+	var b := RogueRoombaBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	for s in [EnemyAIState.State.CHASE, EnemyAIState.State.ATTACK,
+			EnemyAIState.State.DEAD]:
+		e.state = s
+		for _i in range(20):
+			var v: Vector2 = b.idle_velocity(e, 0.05)
+			assert_eq(v, Vector2.ZERO,
+				"idle velocity must be zero outside IDLE state (state=%d)" % s)
+
+
+func test_angry_pigeon_reports_restless_idle_style_and_fraction():
+	# PRD #391 / slice #394: pigeon declares restless at ~35% of chase speed —
+	# twitchy hops, narrower tether than roomba (PRD mapping table).
+	var b := AngryPigeonBehavior.new()
+	assert_eq(b.idle_style(), WanderProfile.Style.RESTLESS,
+		"angry pigeon should declare restless style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.35, 0.0001,
+		"angry pigeon should idle at ~35% of chase speed")
+
+
+func test_angry_pigeon_idle_velocity_produces_motion_in_idle():
+	var b := AngryPigeonBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	var idle_speed: float = e.move_speed * AngryPigeonBehavior.IDLE_SPEED_FRACTION
+	var any_nonzero := false
+	for _i in range(200):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_true(v.length() <= idle_speed + 0.0001,
+			"idle velocity should stay bounded by idle_speed")
+		if v.length() > 0.0:
+			any_nonzero = true
+	assert_true(any_nonzero,
+		"restless idle hook should produce non-zero motion over time")
+
+
+func test_angry_pigeon_idle_velocity_suppressed_during_dive():
+	# Edge case #4: when the pigeon is mid-dive (is_overriding_motion true), the
+	# idle restless path must not drive motion — the dive owns global_position.
+	var b := AngryPigeonBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	b.begin_charge(Vector2(200.0, 0.0))
+	assert_true(b.is_overriding_motion(),
+		"precondition: dive should make is_overriding_motion true")
+	for _i in range(20):
+		var v: Vector2 = b.idle_velocity(e, 0.05)
+		assert_eq(v, Vector2.ZERO,
+			"idle velocity must be zero while dive override is active")
+
+
+func test_angry_pigeon_idle_velocity_is_zero_when_aggroed():
+	var b := AngryPigeonBehavior.new()
+	var e := _MockIdleEnemy.new()
+	e.data = _MockIdleData.new()
+	for s in [EnemyAIState.State.CHASE, EnemyAIState.State.ATTACK,
+			EnemyAIState.State.DEAD]:
+		e.state = s
+		for _i in range(20):
+			var v: Vector2 = b.idle_velocity(e, 0.05)
+			assert_eq(v, Vector2.ZERO,
+				"idle velocity must be zero outside IDLE state (state=%d)" % s)
+
+
 func test_spray_bottle_chase_still_fires():
 	var b := HauntedSprayBottleBehavior.new()
 	var e := _MockSprayEnemy.new()
