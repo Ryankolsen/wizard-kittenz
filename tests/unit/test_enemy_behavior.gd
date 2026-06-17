@@ -957,12 +957,12 @@ func test_rogue_roomba_idle_velocity_is_zero_when_aggroed():
 				"idle velocity must be zero outside IDLE state (state=%d)" % s)
 
 
-func test_angry_pigeon_reports_restless_idle_style_and_fraction():
-	# PRD #391 / slice #394: pigeon declares restless at ~35% of chase speed —
-	# twitchy hops, narrower tether than roomba (PRD mapping table).
+func test_angry_pigeon_reports_pacer_idle_style_and_fraction():
+	# PRD #391 (retuned): pigeon declares pacer at ~35% of chase speed, sharing
+	# the same pacer path tuning as the catnip dealer.
 	var b := AngryPigeonBehavior.new()
-	assert_eq(b.idle_style(), WanderProfile.Style.RESTLESS,
-		"angry pigeon should declare restless style")
+	assert_eq(b.idle_style(), WanderProfile.Style.PACER,
+		"angry pigeon should declare pacer style")
 	assert_almost_eq(b.idle_speed_fraction(), 0.35, 0.0001,
 		"angry pigeon should idle at ~35% of chase speed")
 
@@ -980,12 +980,12 @@ func test_angry_pigeon_idle_velocity_produces_motion_in_idle():
 		if v.length() > 0.0:
 			any_nonzero = true
 	assert_true(any_nonzero,
-		"restless idle hook should produce non-zero motion over time")
+		"pacer idle hook should produce non-zero motion over time")
 
 
 func test_angry_pigeon_idle_velocity_suppressed_during_dive():
 	# Edge case #4: when the pigeon is mid-dive (is_overriding_motion true), the
-	# idle restless path must not drive motion — the dive owns global_position.
+	# idle pacer path must not drive motion — the dive owns global_position.
 	var b := AngryPigeonBehavior.new()
 	var e := _MockIdleEnemy.new()
 	e.data = _MockIdleData.new()
@@ -1011,15 +1011,15 @@ func test_angry_pigeon_idle_velocity_is_zero_when_aggroed():
 				"idle velocity must be zero outside IDLE state (state=%d)" % s)
 
 
-func test_catnip_dealer_reports_stationary_ish_idle_style_and_fraction():
-	# PRD #391 / slice #395: the dealer declares stationary-ish at ~15% of chase
-	# speed — mostly holds ground with a little drift, tighter than the spray
-	# bottle's tiny shuffle. Drift here means the mob's idle personality changed.
+func test_catnip_dealer_reports_pacer_idle_style_and_fraction():
+	# PRD #391 (retuned): the dealer declares pacer at ~35% of chase speed,
+	# sharing the same pacer path tuning as the angry pigeon. Drift here means
+	# the mob's idle personality changed.
 	var b := CatnipDealerBehavior.new()
-	assert_eq(b.idle_style(), WanderProfile.Style.STATIONARY_ISH,
-		"catnip dealer should declare stationary-ish style")
-	assert_almost_eq(b.idle_speed_fraction(), 0.15, 0.0001,
-		"catnip dealer should idle at ~15% of chase speed")
+	assert_eq(b.idle_style(), WanderProfile.Style.PACER,
+		"catnip dealer should declare pacer style")
+	assert_almost_eq(b.idle_speed_fraction(), 0.35, 0.0001,
+		"catnip dealer should idle at ~35% of chase speed")
 
 
 func test_catnip_dealer_idle_velocity_returns_bounded_motion_in_idle():
@@ -1038,7 +1038,7 @@ func test_catnip_dealer_idle_velocity_returns_bounded_motion_in_idle():
 		if v.length() > 0.0:
 			any_nonzero = true
 	assert_true(any_nonzero,
-		"stationary-ish idle hook should produce some non-zero motion over time")
+		"pacer idle hook should produce some non-zero motion over time")
 
 
 func test_catnip_dealer_idle_velocity_is_zero_when_aggroed():
@@ -1073,13 +1073,13 @@ func test_full_idle_mapping_table_regression_guard():
 		},
 		{
 			"kind": EnemyData.EnemyKind.CATNIP_DEALER,
-			"style": WanderProfile.Style.STATIONARY_ISH,
-			"fraction": 0.15,
+			"style": WanderProfile.Style.PACER,
+			"fraction": 0.35,
 			"label": "catnip dealer",
 		},
 		{
 			"kind": EnemyData.EnemyKind.ANGRY_PIGEON,
-			"style": WanderProfile.Style.RESTLESS,
+			"style": WanderProfile.Style.PACER,
 			"fraction": 0.35,
 			"label": "angry pigeon",
 		},

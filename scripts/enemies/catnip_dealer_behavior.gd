@@ -27,17 +27,17 @@ const DEBUFF_SLOWNESS: String = "slowness"
 const DEBUFF_MISFIRE: String = "misfire"
 const DEBUFF_TYPES: Array = [DEBUFF_CONFUSION, DEBUFF_SLOWNESS, DEBUFF_MISFIRE]
 
-# Idle wander tuning (PRD #391 / slice #395). Stationary-ish at ~15% of chase
-# speed — the dealer mostly holds ground and drifts a little around the spawn,
-# tighter than the spray bottle's tiny shuffle. 0 == WanderProfile.Style.STATIONARY_ISH;
+# Idle wander tuning (PRD #391; retuned to pacer). Pacer at ~35% of chase speed,
+# patrolling on a leash around the spawn. Shares the SAME pacer path tuning as
+# the angry pigeon so the two read as the same patrol. 1 == WanderProfile.Style.PACER;
 # held as an int literal so the const block resolves at parse time without
 # depending on WanderProfile's load order (Godot can't fold cross-class enum
-# lookups into a `const`). Mirrors the pattern in #392/#393/#394.
-const IDLE_STYLE: int = 0
-const IDLE_SPEED_FRACTION: float = 0.15
-const IDLE_RADIUS: float = 28.0
-const IDLE_CHANGE_CADENCE: float = 0.5
-const IDLE_PAUSE_LENGTH: float = 1.6
+# lookups into a `const`).
+const IDLE_STYLE: int = 1
+const IDLE_SPEED_FRACTION: float = 0.35
+const IDLE_RADIUS: float = 48.0
+const IDLE_CHANGE_CADENCE: float = 1.0
+const IDLE_PAUSE_LENGTH: float = 0.6
 
 # Variant null sentinel — Vector2 once a fire is queued and the Enemy-side
 # observer has not yet consumed the spawn request. Observer clears it after

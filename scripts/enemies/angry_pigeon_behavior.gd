@@ -16,15 +16,16 @@ const HAZARD_SLOW_PERCENT: float = 0.5
 const HAZARD_RADIUS: float = 32.0
 const HAZARD_COLOR: Color = Color(0.6, 0.5, 0.7, 0.4)
 
-# Idle wander tuning (PRD #391 / slice #394). Restless at ~35% of chase speed —
-# twitchy hops, narrow tether. 2 == WanderProfile.Style.RESTLESS; int literal so
-# the const block resolves at parse time (Godot can't fold cross-class enum
-# lookups into a `const`).
-const IDLE_STYLE: int = 2
+# Idle wander tuning (PRD #391; retuned to pacer). Pacer at ~35% of chase speed,
+# patrolling on a leash around the spawn. Shares the SAME pacer path tuning as
+# the catnip dealer so the two read as the same patrol. 1 == WanderProfile.Style.PACER;
+# int literal so the const block resolves at parse time (Godot can't fold
+# cross-class enum lookups into a `const`).
+const IDLE_STYLE: int = 1
 const IDLE_SPEED_FRACTION: float = 0.35
-const IDLE_RADIUS: float = 40.0
-const IDLE_CHANGE_CADENCE: float = 0.18
-const IDLE_PAUSE_LENGTH: float = 0.25
+const IDLE_RADIUS: float = 48.0
+const IDLE_CHANGE_CADENCE: float = 1.0
+const IDLE_PAUSE_LENGTH: float = 0.6
 
 var is_charging: bool = false
 var charge_target: Vector2 = Vector2.ZERO
