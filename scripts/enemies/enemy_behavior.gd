@@ -1,6 +1,11 @@
 class_name EnemyBehavior
 extends RefCounted
 
+# Lazily seeded from enemy_id so wander is reproducible per spawn. Untyped to
+# keep load order resilient. Shared by idle_velocity below — every kind that
+# wanders owns exactly one profile instance for its lifetime.
+var _wander_profile = null  # WanderProfile
+
 # Per-kind tick hook (issue #157). The Enemy node calls `behavior.tick(delta, self)`
 # each physics frame after the base state machine resolves; subclasses override
 # `tick` to layer kind-specific behavior (dive bomb charge, wall bounce, water
@@ -60,8 +65,70 @@ func idle_style() -> int:
 func idle_speed_fraction() -> float:
 	return 0.0
 
-func idle_velocity(_enemy, _delta: float) -> Vector2:
+# Idle-velocity template method (PRD #391 / tracer slice #392, deepened out of
+# 5x per-kind duplication). Zero unless the enemy is in IDLE state and not mid-
+# override (is_overriding_motion() owns motion exclusively, e.g. a dive bomb or
+# drunk charge). Subclasses declare tuning via idle_style / idle_speed_fraction
+# / idle_radius / idle_change_cadence / idle_pause_length; this base drives the
+# shared WanderProfile from that tuning so no per-kind file re-derives it.
+func idle_velocity(enemy, delta: float) -> Vector2:
+	if enemy == null:
+		return Vector2.ZERO
+	if is_overriding_motion():
+		return Vector2.ZERO
+	if enemy.get("state") != EnemyAIState.State.IDLE:
+		return Vector2.ZERO
+	_ensure_wander_profile(enemy)
+	var chase_speed: float = EnemyAIState.CHASE_SPEED
+	var ms = enemy.get("move_speed")
+	if ms != null:
+		chase_speed = float(ms)
+	var params := {
+		"idle_speed": chase_speed * idle_speed_fraction(),
+		"radius": idle_radius(),
+		"change_cadence": idle_change_cadence(),
+		"pause_length": idle_pause_length(),
+	}
+	var anchor := _resolve_anchor(enemy)
+	var current_pos: Vector2 = Vector2.ZERO
+	var gp = enemy.get("global_position")
+	if gp != null:
+		current_pos = gp
+	return _wander_profile.desired_velocity(idle_style(), params, anchor, current_pos, delta)
+
+func _ensure_wander_profile(enemy) -> void:
+	if _wander_profile != null:
+		return
+	var seed_value: int = 0
+	var d = enemy.get("data")
+	if d != null:
+		var eid = d.get("enemy_id")
+		if eid != null and str(eid) != "":
+			seed_value = hash(eid)
+	_wander_profile = WanderProfile.new(seed_value)
+
+func _resolve_anchor(enemy) -> Vector2:
+	var d = enemy.get("data")
+	if d != null:
+		var sp = d.get("spawn_position")
+		if sp != null and sp != Vector2.ZERO:
+			return sp
+	var gp = enemy.get("global_position")
+	if gp != null:
+		return gp
 	return Vector2.ZERO
+
+# Leash radius / phase timing for idle wander (PRD #391). Subclasses override
+# to declare their tuning; base defaults keep the no-op contract (zero radius,
+# so WanderProfile's leash never engages, matching a kind with no wander).
+func idle_radius() -> float:
+	return 0.0
+
+func idle_change_cadence() -> float:
+	return 1.0
+
+func idle_pause_length() -> float:
+	return 0.5
 
 # When a behavior wants to take exclusive control of motion this frame
 # (e.g., Angry Pigeon's straight-line dive bomb that must ignore steering),

@@ -39,10 +39,6 @@ var _cooldown_elapsed: float = 0.0
 var _charge_elapsed: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-# Lazily seeded from enemy_id so wander is reproducible per spawn. Same shape
-# as HauntedSprayBottleBehavior._wander_profile.
-var _wander_profile = null  # WanderProfile; untyped to keep load order resilient
-
 func _init() -> void:
 	_rng.randomize()
 
@@ -82,58 +78,16 @@ func idle_speed_fraction() -> float:
 	return IDLE_SPEED_FRACTION
 
 
-# Idle-velocity hook. Returns Vector2.ZERO unless the enemy is in IDLE state
-# and not mid-charge (the override path owns motion exclusively). Anchor is
-# data.spawn_position when set, falling back to current position so legacy
-# fixtures with spawn_position unset don't pull the wanderer to the origin.
-func idle_velocity(enemy, delta: float) -> Vector2:
-	if enemy == null:
-		return Vector2.ZERO
-	if is_overriding_motion():
-		return Vector2.ZERO
-	if enemy.get("state") != EnemyAIState.State.IDLE:
-		return Vector2.ZERO
-	_ensure_wander_profile(enemy)
-	var chase_speed: float = EnemyAIState.CHASE_SPEED
-	var ms = enemy.get("move_speed")
-	if ms != null:
-		chase_speed = float(ms)
-	var params := {
-		"idle_speed": chase_speed * IDLE_SPEED_FRACTION,
-		"radius": IDLE_RADIUS,
-		"change_cadence": IDLE_CHANGE_CADENCE,
-		"pause_length": IDLE_PAUSE_LENGTH,
-	}
-	var anchor := _resolve_anchor(enemy)
-	var current_pos: Vector2 = Vector2.ZERO
-	var gp = enemy.get("global_position")
-	if gp != null:
-		current_pos = gp
-	return _wander_profile.desired_velocity(IDLE_STYLE, params, anchor, current_pos, delta)
+func idle_radius() -> float:
+	return IDLE_RADIUS
 
 
-func _ensure_wander_profile(enemy) -> void:
-	if _wander_profile != null:
-		return
-	var seed_value: int = 0
-	var d = enemy.get("data")
-	if d != null:
-		var eid = d.get("enemy_id")
-		if eid != null and str(eid) != "":
-			seed_value = hash(eid)
-	_wander_profile = WanderProfile.new(seed_value)
+func idle_change_cadence() -> float:
+	return IDLE_CHANGE_CADENCE
 
 
-func _resolve_anchor(enemy) -> Vector2:
-	var d = enemy.get("data")
-	if d != null:
-		var sp = d.get("spawn_position")
-		if sp != null and sp != Vector2.ZERO:
-			return sp
-	var gp = enemy.get("global_position")
-	if gp != null:
-		return gp
-	return Vector2.ZERO
+func idle_pause_length() -> float:
+	return IDLE_PAUSE_LENGTH
 
 # Called by the Enemy node on its `died` signal so the behavior can publish
 # the mead drop request. Pure data — the observer reads pending_mead_drop_position
