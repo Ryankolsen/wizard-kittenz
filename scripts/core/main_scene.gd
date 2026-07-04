@@ -77,6 +77,8 @@ var _hidden_dungeon_nodes: Array = []
 var _disabled_tilemap_layers: Array[int] = []
 
 func _ready() -> void:
+	MusicManager.play_music()
+
 	_hud = $HUD
 	_tilemap = $TileMap
 	_player = $Player

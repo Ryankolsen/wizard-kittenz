@@ -21,6 +21,7 @@ Nakama="*res://addons/com.heroiclabs.nakama/Nakama.gd"
 NakamaService="*res://scripts/networking/nakama_client.gd"
 GameState="*res://scripts/core/game_state.gd"
 BillingManager="*res://scripts/core/billing_manager.gd"
+MusicManager="*res://scripts/core/music_manager.gd"
 
 [audio]
 
