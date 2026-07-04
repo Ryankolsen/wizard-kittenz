@@ -23,10 +23,6 @@ GameState="*res://scripts/core/game_state.gd"
 BillingManager="*res://scripts/core/billing_manager.gd"
 MusicManager="*res://scripts/core/music_manager.gd"
 
-[audio]
-
-buses/default_bus_layout="res://default_bus_layout.tres"
-
 [display]
 
 window/size/viewport_width=480
