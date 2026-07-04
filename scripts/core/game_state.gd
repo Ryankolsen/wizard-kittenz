@@ -10,6 +10,7 @@ const _RemoteHealApplierRef = preload("res://scripts/networking/remote_heal_appl
 const _RemoteItemDropResolverRef = preload("res://scripts/networking/remote_item_drop_resolver.gd")
 const _RemoteDamageVisualizerRef = preload("res://scripts/networking/remote_damage_visualizer.gd")
 const _RemoteEnemyDamageApplierRef = preload("res://scripts/networking/remote_enemy_damage_applier.gd")
+const AudioSettingsManagerRef = preload("res://scripts/core/audio_settings_manager.gd")
 
 signal save_synced(merged: KittenSaveData)
 
@@ -98,6 +99,9 @@ var streak_day: int = 0
 var last_login_date: String = ""
 
 func _ready() -> void:
+	# Applied here (first autoload) so saved BGM/SFX volume takes effect
+	# immediately at boot, rather than only once the pause menu is opened.
+	AudioSettingsManagerRef.apply_loaded()
 	_try_load_save()
 	NakamaService.authenticated.connect(_on_nakama_authenticated)
 	# BillingManager is declared after GameState in project.godot, so its

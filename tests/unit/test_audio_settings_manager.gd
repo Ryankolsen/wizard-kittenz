@@ -31,6 +31,10 @@ func test_settings_submenu_has_bgm_and_sfx_sliders():
 	assert_true(sfx is HSlider, "SFXSlider must be an HSlider")
 	scene.free()
 
+func test_bgm_and_sfx_buses_exist():
+	assert_true(AudioServer.get_bus_index("BGM") >= 0, "BGM bus must exist in the default bus layout")
+	assert_true(AudioServer.get_bus_index("SFX") >= 0, "SFX bus must exist in the default bus layout")
+
 func test_set_bgm_volume_updates_audio_server():
 	var bus_idx := AudioServer.get_bus_index("BGM")
 	if bus_idx < 0:
@@ -50,6 +54,39 @@ func test_set_sfx_volume_updates_audio_server():
 	AudioSettings.set_sfx_volume(0.5)
 	var db := AudioServer.get_bus_volume_db(bus_idx)
 	assert_true(db > -80.0, "SFX bus volume must be set above mute floor")
+
+func test_apply_loaded_sets_bus_volume_from_saved_settings():
+	AudioSettings.save_settings({"bgm": 0.5, "sfx": 0.3}, TEST_PATH)
+	AudioSettings.apply_loaded(TEST_PATH)
+	var bgm_idx := AudioServer.get_bus_index("BGM")
+	var sfx_idx := AudioServer.get_bus_index("SFX")
+	if bgm_idx < 0 or sfx_idx < 0:
+		return
+	assert_almost_eq(AudioServer.get_bus_volume_db(bgm_idx), linear_to_db(0.5), 0.01,
+		"apply_loaded must set BGM bus volume from saved settings")
+	assert_almost_eq(AudioServer.get_bus_volume_db(sfx_idx), linear_to_db(0.3), 0.01,
+		"apply_loaded must set SFX bus volume from saved settings")
+
+func test_apply_loaded_with_no_saved_file_uses_defaults():
+	AudioSettings.apply_loaded("user://no_such_audio_settings.json")
+	var bgm_idx := AudioServer.get_bus_index("BGM")
+	var sfx_idx := AudioServer.get_bus_index("SFX")
+	if bgm_idx < 0 or sfx_idx < 0:
+		return
+	assert_almost_eq(AudioServer.get_bus_volume_db(bgm_idx), 0.0, 0.01,
+		"Missing settings file must default BGM volume to 0dB (linear 1.0)")
+	assert_almost_eq(AudioServer.get_bus_volume_db(sfx_idx), 0.0, 0.01,
+		"Missing settings file must default SFX volume to 0dB (linear 1.0)")
+
+func test_game_state_applies_loaded_audio_settings_at_startup():
+	# GameState is the first autoload in project.godot; its _ready() must
+	# call AudioSettingsManager.apply_loaded() so saved volume takes effect
+	# before the player can ever open the pause menu. Calling _ready() again
+	# here to re-verify would double-connect GameState's Nakama/Billing
+	# signal wiring, so this asserts the wiring by source inspection instead.
+	var source := FileAccess.get_file_as_string("res://scripts/core/game_state.gd")
+	assert_true(source.contains("AudioSettingsManagerRef.apply_loaded()"),
+		"GameState._ready() must call AudioSettingsManager.apply_loaded() at boot")
 
 func test_audio_settings_persist_and_reload():
 	AudioSettings.save_settings({"bgm": 0.8, "sfx": 0.4}, TEST_PATH)
