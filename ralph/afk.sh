@@ -18,7 +18,7 @@ for ((i=1; i<=$1; i++)); do
 
   commits=$(git log -n 5 --format="%H%n%ad%n%B---" --date=short 2>/dev/null || echo "No commits found")
   repo=$(git remote get-url origin | sed 's|.*github\.com[/:]||;s|\.git$||')
-  issues=$(gh issue list --repo "$repo" --state open --json number,title --jq '.[] | "#\(.number): \(.title)"')
+  issues=$(gh issue list --repo "$repo" --state open --author "Ryankolsen" --json number,title --jq '.[] | "#\(.number): \(.title)"')
   prompt=$(cat ralph/prompt.md)
 
   docker sandbox run claude . -- \
