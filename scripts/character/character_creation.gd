@@ -351,6 +351,16 @@ func _ensure_session_async() -> NakamaSession:
 		return NakamaService.session
 	return await NakamaService.authenticate_device_async(_resolved_device_id())
 
+# Issue #404: on record where OS.get_unique_id() returns "" (Godot's support
+# varies per platform, notably iOS), user:// stores a generated UUID so the
+# device still gets a stable Nakama identity across restarts.
+const DEVICE_ID_FALLBACK_PATH: String = "user://device_id_fallback.txt"
+
+# Test injection seam for _raw_device_id() — defaults to the real OS call so
+# tests can stub an empty return without depending on the platform's actual
+# get_unique_id() support.
+var _device_id_provider: Callable = Callable(OS, "get_unique_id")
+
 # Dev-time fan-out for local multi-client testing: when two Godot instances
 # run on the same machine, OS.get_unique_id() returns the same value and both
 # authenticate as the same Nakama user — collapsing the match to one presence
@@ -361,7 +371,7 @@ func _ensure_session_async() -> NakamaSession:
 # testers can pin reproducible identities across restarts. Release builds
 # always return the raw device id so a real player's account persists.
 func _resolved_device_id() -> String:
-	var base: String = OS.get_unique_id()
+	var base: String = _raw_device_id()
 	if not OS.is_debug_build():
 		return base
 	var suffix: String = ""
@@ -374,6 +384,47 @@ func _resolved_device_id() -> String:
 	if suffix == "":
 		suffix = "pid" + str(OS.get_process_id())
 	return base + "-" + suffix
+
+# Raw device-ID lookup, falling back to a persisted generated UUID when the
+# platform's OS.get_unique_id() comes back empty. Kept separate from
+# _resolved_device_id() so tests can stub _device_id_provider without
+# depending on the real platform return value.
+func _raw_device_id() -> String:
+	var base: String = _device_id_provider.call()
+	if base != "":
+		return base
+	return _fallback_device_id(DEVICE_ID_FALLBACK_PATH)
+
+func _fallback_device_id(path: String) -> String:
+	var persisted := _read_persisted_uuid(path)
+	if persisted != "":
+		return persisted
+	var generated := _generate_uuid()
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(generated)
+	return generated
+
+func _read_persisted_uuid(path: String) -> String:
+	if not FileAccess.file_exists(path):
+		return ""
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return ""
+	return f.get_as_text().strip_edges()
+
+# UUID v4 (RFC 4122): 16 random bytes with the version/variant nibbles fixed.
+func _generate_uuid() -> String:
+	var b := PackedByteArray()
+	for i in range(16):
+		b.append(randi() % 256)
+	b[6] = (b[6] & 0x0F) | 0x40
+	b[8] = (b[8] & 0x3F) | 0x80
+	var hex := b.hex_encode()
+	return "%s-%s-%s-%s-%s" % [
+		hex.substr(0, 8), hex.substr(8, 4), hex.substr(12, 4),
+		hex.substr(16, 4), hex.substr(20, 12),
+	]
 
 func _on_create_room_pressed() -> void:
 	var c := GameState.current_character

@@ -322,3 +322,62 @@ func test_quick_start_clears_stale_dungeon_run_controller():
 	assert_null(GameState.dungeon_run_controller,
 		"_finalize must clear dungeon_run_controller so main_scene starts a new dungeon")
 
+# Issue #404: OS.get_unique_id() is empty/unsupported on some platforms
+# (notably iOS depending on Godot version). _raw_device_id() must fall back
+# to a generated, persisted UUID rather than authenticating with "".
+func _clear_device_id_fallback_file() -> void:
+	var abs_path := ProjectSettings.globalize_path(CharacterCreation.DEVICE_ID_FALLBACK_PATH)
+	if FileAccess.file_exists(CharacterCreation.DEVICE_ID_FALLBACK_PATH):
+		DirAccess.remove_absolute(abs_path)
+
+func test_resolved_device_id_falls_back_when_base_empty():
+	_clear_device_id_fallback_file()
+	var scene := _instantiate_creation_scene()
+	scene._device_id_provider = func(): return ""
+	var id: String = scene._raw_device_id()
+	assert_true(id.length() > 0, "must generate a fallback id instead of returning empty")
+	_clear_device_id_fallback_file()
+
+func test_fallback_uuid_persists_across_calls():
+	_clear_device_id_fallback_file()
+	var scene := _instantiate_creation_scene()
+	scene._device_id_provider = func(): return ""
+	var first: String = scene._raw_device_id()
+	var second: String = scene._raw_device_id()
+	assert_eq(first, second, "repeated calls within a run must reuse the same fallback id")
+
+	# Simulate a restart: a fresh scene instance re-reading the persisted file
+	# (rather than any in-memory state) must still return the same id.
+	var scene_b := _instantiate_creation_scene()
+	scene_b._device_id_provider = func(): return ""
+	var after_restart: String = scene_b._raw_device_id()
+	assert_eq(first, after_restart,
+		"a fresh instance must reuse the persisted uuid rather than generating a new one")
+	_clear_device_id_fallback_file()
+
+func test_resolved_device_id_unchanged_when_base_present():
+	_clear_device_id_fallback_file()
+	var scene := _instantiate_creation_scene()
+	scene._device_id_provider = func(): return "real-device-id"
+	assert_eq(scene._raw_device_id(), "real-device-id",
+		"the fallback path must never engage when a real id is available")
+
+func test_fallback_handles_missing_or_corrupt_persisted_file():
+	_clear_device_id_fallback_file()
+	var scene := _instantiate_creation_scene()
+	scene._device_id_provider = func(): return ""
+	# Missing file: must generate rather than crash.
+	var id: String = scene._raw_device_id()
+	assert_true(id.length() > 0)
+
+	# Corrupt/unreadable file: an empty stored value must not be treated as
+	# a valid persisted id, and a fresh uuid must still be produced.
+	var f := FileAccess.open(CharacterCreation.DEVICE_ID_FALLBACK_PATH, FileAccess.WRITE)
+	f.store_string("")
+	f = null
+	var scene_b := _instantiate_creation_scene()
+	scene_b._device_id_provider = func(): return ""
+	var id_b: String = scene_b._raw_device_id()
+	assert_true(id_b.length() > 0, "a blank persisted file must not crash the fallback")
+	_clear_device_id_fallback_file()
+
