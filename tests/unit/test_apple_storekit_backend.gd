@@ -102,47 +102,76 @@ func test_purchase_ok_finishes_transaction_and_emits_succeeded():
 	var backend := AppleStoreKitBackend.new(plugin)
 	watch_signals(backend)
 	backend.start()
-	backend.start_purchase("gem_bundle_hero")
+	backend.start_purchase("gem_bundle_starter")
 	plugin.push_event({"result": "ok", "type": "product_info", "invalid_ids": []})
 	backend.poll()
 
-	plugin.push_event({"result": "ok", "type": "purchase", "product_id": "gem_bundle_hero"})
+	plugin.push_event({"result": "ok", "type": "purchase", "product_id": "gem_bundle_starter"})
 	backend.poll()
 
-	assert_eq(plugin.finished_product_ids, ["gem_bundle_hero"],
+	assert_eq(plugin.finished_product_ids, ["gem_bundle_starter"],
 		"a successful purchase must be finished so StoreKit doesn't redeliver it forever")
-	assert_signal_emitted_with_parameters(backend, "purchase_succeeded", ["gem_bundle_hero"])
+	assert_signal_emitted_with_parameters(backend, "purchase_succeeded", ["gem_bundle_starter"])
 
 func test_purchase_error_emits_failed_without_finishing():
 	var plugin := FakePlugin.new()
 	var backend := AppleStoreKitBackend.new(plugin)
 	watch_signals(backend)
 	backend.start()
-	backend.start_purchase("gem_bundle_hero")
+	backend.start_purchase("gem_bundle_starter")
 	plugin.push_event({"result": "ok", "type": "product_info", "invalid_ids": []})
 	backend.poll()
 
-	plugin.push_event({"result": "error", "type": "purchase", "product_id": "gem_bundle_hero"})
+	plugin.push_event({"result": "error", "type": "purchase", "product_id": "gem_bundle_starter"})
 	backend.poll()
 
 	assert_push_error("purchase error", "a failed purchase must be logged")
 	assert_eq(plugin.finished_product_ids, [], "an errored purchase must not be finished")
-	assert_signal_emitted_with_parameters(backend, "purchase_failed", ["gem_bundle_hero"])
+	assert_signal_emitted_with_parameters(backend, "purchase_failed", ["gem_bundle_starter"])
 
 func test_purchase_progress_event_does_not_resolve_yet():
 	var plugin := FakePlugin.new()
 	var backend := AppleStoreKitBackend.new(plugin)
 	watch_signals(backend)
 	backend.start()
-	backend.start_purchase("gem_bundle_hero")
+	backend.start_purchase("gem_bundle_starter")
 	plugin.push_event({"result": "ok", "type": "product_info", "invalid_ids": []})
 	backend.poll()
 
-	plugin.push_event({"result": "progress", "type": "purchase", "product_id": "gem_bundle_hero"})
+	plugin.push_event({"result": "progress", "type": "purchase", "product_id": "gem_bundle_starter"})
 	backend.poll()
 
 	assert_signal_not_emitted(backend, "purchase_succeeded")
 	assert_signal_not_emitted(backend, "purchase_failed")
+
+# gem_bundle_hero is registered in App Store Connect under a different id
+# (gem_bundle_hero_ios) than PurchaseRegistry's canonical "gem_bundle_hero" —
+# the original App Store product id was accidentally deleted and Apple
+# permanently reserves deleted ids. This exercises that translation in both
+# directions: the plugin must be called with the App Store id, but callers of
+# this backend must only ever see the canonical PurchaseRegistry id.
+func test_hero_bundle_purchase_uses_apple_specific_id_but_emits_canonical_id():
+	var plugin := FakePlugin.new()
+	var backend := AppleStoreKitBackend.new(plugin)
+	watch_signals(backend)
+	backend.start()
+	backend.start_purchase("gem_bundle_hero")
+
+	assert_eq(plugin.requested_product_ids, ["gem_bundle_hero_ios"],
+		"must query product info using the real App Store Connect product id")
+
+	plugin.push_event({"result": "ok", "type": "product_info", "invalid_ids": []})
+	backend.poll()
+
+	assert_eq(plugin.purchased_product_ids, ["gem_bundle_hero_ios"],
+		"must launch the purchase using the real App Store Connect product id")
+
+	plugin.push_event({"result": "ok", "type": "purchase", "product_id": "gem_bundle_hero_ios"})
+	backend.poll()
+
+	assert_eq(plugin.finished_product_ids, ["gem_bundle_hero_ios"],
+		"must finish the transaction using the id the plugin actually reported")
+	assert_signal_emitted_with_parameters(backend, "purchase_succeeded", ["gem_bundle_hero"])
 
 func test_restore_event_finishes_transaction_and_emits_succeeded():
 	var plugin := FakePlugin.new()
