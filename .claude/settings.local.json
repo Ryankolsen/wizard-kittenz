@@ -13,7 +13,14 @@
       "Bash(/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=res://tests/unit/test_chest_spawner.gd)",
       "Bash(brew list *)",
       "Bash(\"/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot\" --headless --path . -s addons/gut/gut_cmdln.gd -gexit)",
-      "Bash(\"/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot\" --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gprefix=test_ -gsuffix=.gd -gexit)"
+      "Bash(\"/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot\" --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gprefix=test_ -gsuffix=.gd -gexit)",
+      "Read(//Users/ryankolsen/IdeaProjects/godot-ios-plugins/**)",
+      "Read(//Users/ryankolsen/IdeaProjects/godot-ios-plugins/godot/bin/**)",
+      "WebFetch(domain:help.apple.com)",
+      "Bash(/private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/imgvenv/bin/python /private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/make_promo_square.py assets/iOS_shop_image_1.png assets/iOS_shop_image_1_review.png 2778 1284)",
+      "Bash(/private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/imgvenv/bin/python /private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/make_promo_square.py 'assets/iOS_shop_image_2 .png' assets/iOS_shop_image_2_review.png 2778 1284)",
+      "Bash(sips -g pixelWidth -g pixelHeight -g dpiWidth -g dpiHeight -g hasAlpha -g space \"assets/iOS_shop_image_1_review.png\")",
+      "Bash(sips -g pixelWidth -g pixelHeight -g dpiWidth -g dpiHeight -g hasAlpha -g space \"assets/iOS_shop_image_2_review.png\")"
     ]
   }
 }
