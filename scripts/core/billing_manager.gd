@@ -17,6 +17,12 @@ signal purchase_failed(product_id: String)
 var is_ready := false
 
 var _backend = null
+var _poll_timer: Timer
+
+# How often to drain the Apple backend's event queue (see poll() on
+# AppleStoreKitBackend — that plugin has no signals, only a pending-event
+# queue). Cheap no-op on the Google backend, so one timer serves both.
+const POLL_INTERVAL_SECONDS := 0.25
 
 func _ready() -> void:
 	if Engine.has_singleton("GodotGooglePlayBilling"):
@@ -28,6 +34,11 @@ func _ready() -> void:
 		return
 	_wire_backend()
 	_backend.start()
+	_poll_timer = Timer.new()
+	_poll_timer.wait_time = POLL_INTERVAL_SECONDS
+	_poll_timer.autostart = true
+	_poll_timer.timeout.connect(func() -> void: _backend.poll())
+	add_child(_poll_timer)
 
 # Connects a backend's normalized signals to BillingManager's own. Split out
 # from _ready() so tests can inject a fake backend double and wire it up

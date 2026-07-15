@@ -34,6 +34,12 @@ var _pending_query: String = ""
 func _init(plugin) -> void:
 	_plugin = plugin
 
+# No-op: GodotGooglePlayBilling is signal-driven, unlike the Apple backend's
+# poll-based event queue. BillingManager calls poll() on both backends
+# uniformly without needing to know which platform is active.
+func poll() -> void:
+	pass
+
 func start() -> void:
 	_plugin.initPlugin()
 	_plugin.connected.connect(_on_connected)
