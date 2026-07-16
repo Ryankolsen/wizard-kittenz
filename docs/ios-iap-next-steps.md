@@ -1,6 +1,8 @@
 # iOS In-App Purchases — Next Steps
 
-Status as of 2026-07-15. Picks up where PRD #401 / issues #402–#406 left off.
+Status as of 2026-07-15. Picks up where PRD #401 / issues #402–#406 left off,
+and now also PRD #407 / issues #408–#409 (rebuilding the plugin against the
+correct Godot point release).
 
 ## Where things stand
 
@@ -19,6 +21,16 @@ Status as of 2026-07-15. Picks up where PRD #401 / issues #402–#406 left off.
   `inappstore.xcframework` is linked into the generated Xcode project and all
   2812 GUT tests still pass. What's left is entirely manual: App Store
   Connect setup (#405) and on-device QA (#406).
+- **#407/#408 (Godot version pin for the plugin)**: done. The originally
+  committed plugin was built against the `godot` submodule's `4.6-stable`
+  tag, which actually resolves to the 4.6.0 release — a mismatch against the
+  installed editor/export templates (`4.6.2.stable.official.71f334935`) that
+  broke the Xcode archive link step with undefined `ClassDB`/`MethodBind`
+  symbols. The plugin has been rebuilt against the `4.6.2-stable` tag
+  specifically, in `release` config (not `release_debug`), matching the
+  installed editor/templates exactly. See the **Godot version pin** note
+  below — this must be redone any time the editor/export template version
+  changes.
 
 ## Step 1 — Build the InAppStore plugin
 
@@ -27,13 +39,37 @@ only Godot 3.x header/plugin bundles exist). It has to be built locally
 against a matching Godot checkout. This project is on **Godot 4.6**
 (`config/features` in `project.godot`).
 
+### Godot version pin — read this before rebuilding
+
+The `godot` submodule tag used to build the plugin **must match the
+installed Godot editor and export templates exactly**, down to the point
+release. Currently that's **`4.6.2-stable`**, matching the installed editor
+`4.6.2.stable.official.71f334935` and the export templates at
+`~/Library/Application Support/Godot/export_templates/4.6.2.stable`.
+
+Do **not** use the `4.6-stable` tag — despite the name, it resolves to the
+**4.6.0** release, not the latest 4.6.x point release. Building against it
+while running a newer 4.6.x editor is exactly what broke the Xcode archive
+previously (see PRD #407 / issue #408): the link step failed with undefined
+`ClassDB`/`MethodBind` symbols.
+
+The reason this matters: Godot's iOS plugins are statically linked directly
+against the engine's internal `ClassDB`/`MethodBind` ABI, which is **not**
+guaranteed stable across point releases — unlike GDExtension's stable ABI,
+which is designed to tolerate this. A plugin built against 4.6.0 can
+reference symbols that don't exist, or don't match, in a 4.6.2 engine core,
+and that mismatch is invisible until Xcode's link step (a headless
+`--export-debug` will not catch it). **Any time the installed Godot
+editor/export template version changes, the plugin must be rebuilt from a
+submodule checkout of the matching tag** — this is not a one-time fix.
+
 ```bash
 git clone https://github.com/godot-sdk-integrations/godot-ios-plugins.git
 cd godot-ios-plugins
 
 # Get a matching Godot checkout for headers. Either clone the submodule:
 git submodule update --init godot
-cd godot && git checkout 4.6-stable && cd ..
+cd godot && git checkout 4.6.2-stable && cd ..   # must match installed editor/templates exactly
 
 # Build Godot for iOS (this is the slow part — expect 30-60+ min):
 brew install scons   # if not already installed
@@ -41,16 +77,19 @@ cd godot
 scons platform=ios target=editor
 cd ..
 
-# Build the InAppStore plugin as an xcframework:
-./scripts/generate_xcframework.sh inappstore release_debug 4.0
+# Build the InAppStore plugin as an xcframework (release, not release_debug,
+# for anything headed to actual App Store submission):
+./scripts/generate_xcframework.sh inappstore release 4.0
 ```
 
-Output lands in `godot-ios-plugins/bin/` as `inappstore.xcframework` (and
-matching debug/release `.a` files if you need those instead).
+Output lands in `godot-ios-plugins/bin/` as `inappstore.release.xcframework`
+(and matching `.a` files if you need those instead).
 
 If `scons platform=ios target=editor` fails on a version mismatch, check
 `plugins/inappstore/` in the repo for any per-version notes, and confirm the
-`godot` submodule is checked out at `4.6-stable` (not `master`).
+`godot` submodule is checked out at the tag matching your installed
+editor/templates (not `master`, and not the bare `X.Y-stable` branch tag,
+which points at `X.Y.0`).
 
 ## Step 2 — Install the plugin into the project (done)
 
@@ -75,11 +114,12 @@ error — the exporter just finds zero `.gdip` files).
    singleton("InAppStore")` should be true on-device (it's never true in the
    editor/GUT — iOS plugin singletons only exist in exported builds).
 4. The plugin binaries were built locally (not committed anywhere outside
-   this repo) from `godot-sdk-integrations/godot-ios-plugins` at Godot
-   `4.6-stable`, using `release_debug` config per the doc's original command.
-   If you need to rebuild (e.g. for a `release` config before App Store
-   submission), the working tree is at `~/IdeaProjects/godot-ios-plugins`
-   with the `godot` submodule already checked out to `4.6-stable`.
+   this repo) from `godot-sdk-integrations/godot-ios-plugins`, at Godot
+   `4.6.2-stable`, using `release` config — see the **Godot version pin**
+   note in Step 1. The working tree is at `~/IdeaProjects/godot-ios-plugins`
+   with the `godot` submodule checked out to `4.6.2-stable`. If the installed
+   editor/export templates are ever upgraded past 4.6.2, this must be redone
+   against the new matching tag.
 
 ## Step 3 — App Store Connect setup (issue #405, all manual)
 
@@ -121,11 +161,17 @@ full checklist in #406 — in particular the purchase-specific items:
   `wizard-kittenz/`) — these regenerate on every export and shouldn't be
   committed. Don't `git add -A` a fresh export without checking `git status`
   first in case new generated paths show up.
-- The committed `inappstore.xcframework` was built with `release_debug`
-  (matching the doc's original Step 1 command). That's fine for TestFlight/
-  sandbox QA (#406). Before a real App Store submission, rebuild with
-  `./scripts/generate_xcframework.sh inappstore release 4.0` and swap it in —
-  `release_debug` binaries can behave differently under App Review.
+- The committed `inappstore.xcframework` is now built with `release` config
+  against Godot `4.6.2-stable` (see the **Godot version pin** note in Step
+  1) — appropriate for actual App Store submission, not just TestFlight/
+  sandbox QA. `release_debug` binaries can behave differently under App
+  Review, so don't swap back to a `release_debug` build for a real
+  submission.
+- The plugin's iOS ABI is not stable across Godot point releases (see Step
+  1). If the installed editor or export templates are upgraded, rebuild the
+  plugin from a submodule checkout of the new matching tag before trusting
+  the archive to link — a version mismatch here is invisible until Xcode's
+  `Product > Archive` link step, not at export or GUT-test time.
 - Headless export from the CLI works and is a fast way to sanity-check the
   plugin wiring without opening the editor: `Godot --headless --export-debug
   "iOS" ./wizard-kittenz.xcodeproj` (the app icon `ERROR: Can't open file`
