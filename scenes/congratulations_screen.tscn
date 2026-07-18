@@ -60,9 +60,10 @@ text = "XP Earned: 0"
 horizontal_alignment = 1
 text = "Gold Earned: 0"
 
-[node name="ButtonRow" type="HBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="ButtonRow" type="HFlowContainer" parent="Backdrop/Center/Panel/VBox"]
 alignment = 1
-theme_override_constants/separation = 8
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 
 [node name="NextFloor" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
 text = "Next Floor"
@@ -70,6 +71,7 @@ text = "Next Floor"
 [node name="WaitingLabel" type="Label" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
 visible = false
 horizontal_alignment = 1
+autowrap_mode = 2
 text = "Waiting for the party leader to choose the next floor…"
 
 [node name="UpdateCharacter" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]

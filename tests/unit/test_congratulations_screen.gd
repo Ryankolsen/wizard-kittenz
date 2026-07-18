@@ -79,3 +79,72 @@ func test_save_and_exit_pressed_signal_declared():
 	var s := _instantiate()
 	assert_true(s.has_signal("save_and_exit_pressed"),
 		"CongratulationsScreen must declare 'save_and_exit_pressed' signal")
+
+# --- #416: panel stays within viewport width on narrow (phone) aspect ---
+#
+# The real OS viewport can't be resized in the headless test runner (the
+# project's fixed "canvas_items" stretch resolution snaps it straight
+# back), so these tests drive the same _update_panel_width(vp_width) seam
+# the real get_viewport().size_changed handler calls, passing an explicit
+# narrow/wide width to stand in for the viewport.
+
+const NARROW_VIEWPORT_WIDTH := 320.0
+const WIDE_VIEWPORT_WIDTH := 800.0
+
+func test_panel_width_fits_narrow_viewport():
+	var s := _instantiate()
+	s.populate(FloorRunSummary.new(1, 0, 0, 0), "Test message")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	s._update_panel_width(NARROW_VIEWPORT_WIDTH)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var panel: Control = s.get_node("Backdrop/Center/Panel")
+	assert_lte(panel.size.x, NARROW_VIEWPORT_WIDTH,
+		"Panel width must not exceed the narrow viewport width")
+
+func test_headline_and_waiting_label_wrap_and_button_row_fits_narrow_viewport():
+	var s := _instantiate()
+	s.populate(FloorRunSummary.new(1, 0, 0, 0),
+		"A very long congratulatory headline that should reflow instead of widening the panel",
+		false)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	s._update_panel_width(NARROW_VIEWPORT_WIDTH)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var headline: Label = s.get_node("Backdrop/Center/Panel/VBox/Headline")
+	var waiting_label: Label = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/WaitingLabel")
+	assert_ne(headline.autowrap_mode, TextServer.AUTOWRAP_OFF,
+		"Headline must have wrapping enabled")
+	assert_ne(waiting_label.autowrap_mode, TextServer.AUTOWRAP_OFF,
+		"WaitingLabel must have wrapping enabled")
+	var panel: Control = s.get_node("Backdrop/Center/Panel")
+	var button_row: Control = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow")
+	assert_lte(button_row.size.x, panel.size.x,
+		"ButtonRow must fit within the constrained panel width, not force it wider")
+
+func test_panel_does_not_shrink_below_natural_size_on_wide_viewport():
+	var s := _instantiate()
+	s.populate(FloorRunSummary.new(1, 0, 0, 0), "Test message")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var panel: Control = s.get_node("Backdrop/Center/Panel")
+	var natural_width := panel.size.x
+	s._update_panel_width(WIDE_VIEWPORT_WIDTH)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_almost_eq(panel.size.x, natural_width, 1.0,
+		"Panel must keep its normal unconstrained width on a wide viewport")
+
+func test_leader_panel_fits_narrow_viewport():
+	var s := _instantiate()
+	s.populate(FloorRunSummary.new(1, 0, 0, 0), "Test message", true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	s._update_panel_width(NARROW_VIEWPORT_WIDTH)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var panel: Control = s.get_node("Backdrop/Center/Panel")
+	assert_lte(panel.size.x, NARROW_VIEWPORT_WIDTH,
+		"Solo/leader panel (single button) must also fit within the narrow viewport")
