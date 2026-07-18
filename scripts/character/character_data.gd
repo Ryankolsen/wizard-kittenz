@@ -17,6 +17,11 @@ const SAVE_PATH := "user://character.tres"
 @export var character_class: CharacterClass = CharacterClass.BATTLE_KITTEN
 @export var level: int = 1
 @export var xp: int = 0
+# Lifetime XP counter (PRD #412 / issue #413). Unlike `xp`, this never rolls
+# over on level-up — it only ever increases. Used by the floor-summary screen
+# to compute XP-earned-this-floor via a before/after diff, since `xp` alone
+# goes negative-relative when a level-up consumes it mid-floor.
+@export var total_xp: int = 0
 @export var hp: int = 10
 @export var max_hp: int = 10
 @export var attack: int = 2
@@ -238,6 +243,7 @@ static func make_new(klass: CharacterClass, n: String = "Kitten") -> CharacterDa
 	c.character_class = klass
 	c.level = 1
 	c.xp = 0
+	c.total_xp = 0
 	var hp_max := base_max_hp_for(klass, 1)
 	c.max_hp = hp_max
 	c.hp = hp_max
@@ -391,6 +397,7 @@ func clone() -> CharacterData:
 	c.character_class = character_class
 	c.level = level
 	c.xp = xp
+	c.total_xp = total_xp
 	c.hp = hp
 	c.max_hp = max_hp
 	c.attack = attack

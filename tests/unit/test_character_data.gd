@@ -295,6 +295,16 @@ func test_mp_regen_survives_clone():
 	var copy := c.clone()
 	assert_eq(copy.mp_regen, 2.5, "mp_regen preserved through clone()")
 
+func test_make_new_initializes_total_xp_to_zero():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_eq(c.total_xp, 0, "total_xp starts at 0 for a freshly created character")
+
+func test_total_xp_survives_clone():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.total_xp = 500
+	var copy := c.clone()
+	assert_eq(copy.total_xp, 500, "total_xp preserved through clone()")
+
 func test_stat_allocator_can_invest_in_mp_regen():
 	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
 	c.skill_points = 2

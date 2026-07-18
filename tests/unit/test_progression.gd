@@ -21,6 +21,20 @@ func test_add_xp_with_zero_or_negative_is_noop():
 	assert_eq(c.xp, 0)
 	assert_eq(ProgressionSystem.add_xp(c, -10), 0, "negative xp is rejected, not subtracted")
 	assert_eq(c.xp, 0)
+	assert_eq(c.total_xp, 0, "total_xp is also unaffected by no-op add_xp calls")
+
+func test_add_xp_increments_total_xp_alongside_xp():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	ProgressionSystem.add_xp(c, 50)
+	assert_eq(c.total_xp, 50, "total_xp tracks amount added when no level-up occurs")
+
+func test_total_xp_is_unaffected_by_level_up_rollover():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var total: int = ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2
+	ProgressionSystem.add_xp(c, total)
+	assert_eq(c.total_xp, total, "total_xp equals the full raw amount added, ignoring rollover")
+	assert_eq(c.xp, 2, "level-relative xp still rolls over per existing behavior")
 
 func test_xp_to_next_level_curve():
 	# Soft power curve floor(100 * n^1.5).

@@ -34,6 +34,7 @@ static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null,
 	if amount <= 0:
 		return 0
 	c.xp += amount
+	c.total_xp += amount
 	var levels_gained := 0
 	while c.xp >= xp_to_next_level(c.level):
 		c.xp -= xp_to_next_level(c.level)
