@@ -19,8 +19,7 @@
       "WebFetch(domain:help.apple.com)",
       "Bash(/private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/imgvenv/bin/python /private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/make_promo_square.py assets/iOS_shop_image_1.png assets/iOS_shop_image_1_review.png 2778 1284)",
       "Bash(/private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/imgvenv/bin/python /private/tmp/claude-501/-Users-ryankolsen-IdeaProjects-wizard-kittenz/e65570b0-b305-4e6e-96cc-9684d42a29b1/scratchpad/make_promo_square.py 'assets/iOS_shop_image_2 .png' assets/iOS_shop_image_2_review.png 2778 1284)",
-      "Bash(sips -g pixelWidth -g pixelHeight -g dpiWidth -g dpiHeight -g hasAlpha -g space \"assets/iOS_shop_image_1_review.png\")",
-      "Bash(sips -g pixelWidth -g pixelHeight -g dpiWidth -g dpiHeight -g hasAlpha -g space \"assets/iOS_shop_image_2_review.png\")"
+      "Bash(cp -R ~/IdeaProjects/godot-ios-plugins/bin/inappstore.release.xcframework ios/plugins/inappstore.xcframework)"
     ]
   }
 }
