@@ -45,3 +45,41 @@ func test_fields_are_typed_int():
 	assert_true(s.enemies_slain is int)
 	assert_true(s.xp_earned is int)
 	assert_true(s.gold_earned is int)
+
+# Issue #415 — _build_floor_summary diffs total_xp (not the level-relative
+# xp, which rolls over on level-up and previously produced negative
+# xp_earned) against the start-of-floor snapshot. These tests exercise the
+# real ProgressionSystem.add_xp path rather than just FloorRunSummary's
+# constructor.
+
+func test_total_xp_delta_with_no_level_up():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var start_total_xp := int(c.total_xp)
+	ProgressionSystem.add_xp(c, 5)
+	var xp_earned := int(c.total_xp) - start_total_xp
+	assert_eq(xp_earned, 5)
+	assert_true(xp_earned >= 0)
+
+func test_total_xp_delta_with_one_level_up():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var start_total_xp := int(c.total_xp)
+	var amount := ProgressionSystem.xp_to_next_level(1) + 2
+	ProgressionSystem.add_xp(c, amount)
+	var xp_earned := int(c.total_xp) - start_total_xp
+	assert_eq(xp_earned, amount)
+	assert_true(xp_earned > 0)
+
+func test_total_xp_delta_with_multiple_level_ups():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var start_total_xp := int(c.total_xp)
+	var amount := ProgressionSystem.xp_to_next_level(1) \
+		+ ProgressionSystem.xp_to_next_level(2) + 2
+	ProgressionSystem.add_xp(c, amount)
+	var xp_earned := int(c.total_xp) - start_total_xp
+	assert_eq(xp_earned, amount)
+
+func test_total_xp_delta_with_zero_xp_gained():
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	var start_total_xp := int(c.total_xp)
+	var xp_earned := int(c.total_xp) - start_total_xp
+	assert_eq(xp_earned, 0)

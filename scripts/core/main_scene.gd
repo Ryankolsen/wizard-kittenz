@@ -707,7 +707,7 @@ func _build_floor_summary() -> FloorRunSummary:
 func _snapshot_xp(gs) -> int:
 	if gs == null or gs.current_character == null:
 		return 0
-	return int(gs.current_character.xp)
+	return int(gs.current_character.total_xp)
 
 func _snapshot_gold(gs) -> int:
 	if gs == null or gs.currency_ledger == null:
