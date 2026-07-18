@@ -170,6 +170,7 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	c.appearance_index = slot.appearance_index
 	c.level = slot.level
 	c.xp = slot.xp
+	c.total_xp = slot.total_xp
 	c.hp = slot.hp
 	c.max_hp = slot.max_hp
 	c.attack = slot.attack

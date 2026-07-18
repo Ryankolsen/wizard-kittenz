@@ -12,6 +12,9 @@ var character_class: int = 0
 var appearance_index: int = 0
 var level: int = 1
 var xp: int = 0
+# Lifetime XP counter, never decreasing across level-ups (issue #413/#414).
+# Legacy saves predating this field default to 0.
+var total_xp: int = 0
 var hp: int = 0
 var max_hp: int = 0
 var attack: int = 0
@@ -125,6 +128,7 @@ static func from_character(c: CharacterData, tree: SkillTree = null, tracker: Me
 	s.appearance_index = c.appearance_index
 	s.level = c.level
 	s.xp = c.xp
+	s.total_xp = c.total_xp
 	s.hp = c.hp
 	s.max_hp = c.max_hp
 	s.attack = c.attack
@@ -185,6 +189,7 @@ func apply_to(c: CharacterData) -> void:
 	c.appearance_index = appearance_index
 	c.level = level
 	c.xp = xp
+	c.total_xp = total_xp
 	c.hp = hp
 	c.max_hp = max_hp
 	c.attack = attack
@@ -215,6 +220,7 @@ func to_dict() -> Dictionary:
 		"appearance_index": appearance_index,
 		"level": level,
 		"xp": xp,
+		"total_xp": total_xp,
 		"hp": hp,
 		"max_hp": max_hp,
 		"attack": attack,
@@ -260,6 +266,7 @@ static func from_dict(d: Dictionary) -> KittenSaveData:
 	s.appearance_index = int(d.get("appearance_index", 0))
 	s.level = int(d.get("level", 1))
 	s.xp = int(d.get("xp", 0))
+	s.total_xp = int(d.get("total_xp", 0))
 	s.hp = int(d.get("hp", 0))
 	s.max_hp = int(d.get("max_hp", 0))
 	s.attack = int(d.get("attack", 0))
@@ -445,6 +452,7 @@ static func from_bundle(bundle: SaveBundle) -> KittenSaveData:
 		s.appearance_index = slot.appearance_index
 		s.level = slot.level
 		s.xp = slot.xp
+		s.total_xp = slot.total_xp
 		s.hp = slot.hp
 		s.max_hp = slot.max_hp
 		s.attack = slot.attack
