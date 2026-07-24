@@ -37,7 +37,7 @@ func set_menu_open(menu_open: bool) -> void:
 # from walking onto the entrance doesn't keep driving movement in the new
 # context. No-op if the joystick node is absent (headless test scenes).
 func reset_joystick() -> void:
-	var joystick := get_node_or_null("Joystick") as VirtualJoystick
+	var joystick := get_node_or_null("Joystick") as KittenJoystick
 	if joystick != null:
 		joystick.reset()
 

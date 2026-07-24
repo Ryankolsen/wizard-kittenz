@@ -1,4 +1,4 @@
-class_name VirtualJoystick
+class_name KittenJoystick
 extends Control
 
 # Analog touch joystick that drives the move_left/right/up/down InputMap

@@ -38,8 +38,8 @@ func test_touch_controls_scene_can_load():
 	# Confirm the joystick child is present and bound to the right script.
 	var joystick: Node = inst.get_node_or_null("Joystick")
 	assert_not_null(joystick, "Joystick child must exist in the scene")
-	assert_true(joystick is VirtualJoystick,
-		"Joystick child must be bound to the VirtualJoystick script")
+	assert_true(joystick is KittenJoystick,
+		"Joystick child must be bound to the KittenJoystick script")
 	# Confirm both action buttons are present and bound to the right actions.
 	var attack: Node = inst.get_node_or_null("AttackButton")
 	assert_not_null(attack, "AttackButton must exist in the scene")

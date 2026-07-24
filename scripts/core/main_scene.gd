@@ -459,7 +459,7 @@ func _enter_bar_room() -> void:
 # hidden CanvasItem with no _process tick effectively drops both visuals and
 # tile collision shapes for the duration of the visit.
 func _release_move_input() -> void:
-	for action in VirtualJoystick.MOVE_ACTIONS:
+	for action in KittenJoystick.MOVE_ACTIONS:
 		Input.action_release(action)
 	# Releasing the InputMap actions alone leaves the virtual joystick's
 	# captured touch and displaced thumb intact — the overlay persists across

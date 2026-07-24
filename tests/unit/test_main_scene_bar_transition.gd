@@ -253,7 +253,7 @@ func test_virtual_joystick_state_reset_on_bar_entry():
 	add_child_autofree(inst)
 	await get_tree().process_frame
 
-	var joystick: VirtualJoystick = inst.get_node("TouchControls/Joystick")
+	var joystick: KittenJoystick = inst.get_node("TouchControls/Joystick")
 	# Simulate a finger held on the stick, driving a direction.
 	joystick._active_touch_index = 0
 	joystick._thumb_offset = Vector2(joystick.base_radius, 0)
