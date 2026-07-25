@@ -5,6 +5,10 @@ const _WIZARD_KITTEN_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const _BATTLE_KITTEN_PATH := "res://assets/sprites/battle_kitten_right.png"
 const _SLEEPY_KITTEN_PATH := "res://assets/sprites/sleepy_kitten_right.png"
 const _CHONK_KITTEN_PATH := "res://assets/sprites/chonk_kitten_right.png"
+const _BATTLE_CAT_PATH := "res://assets/sprites/battle_cat_right.png"
+const _WIZARD_CAT_PATH := "res://assets/sprites/wizard_cat_right.png"
+const _SLEEPY_CAT_PATH := "res://assets/sprites/sleepy_cat_right.png"
+const _CHONK_CAT_PATH := "res://assets/sprites/chonk_cat_right.png"
 
 # Returns true when the sprite asset faces LEFT visually (so flip_h must be
 # inverted by the caller). Most kitten *_right.png assets are misnamed —
@@ -15,13 +19,14 @@ static func faces_left(cc: CharacterData.CharacterClass) -> bool:
 	match cc:
 		CharacterData.CharacterClass.BATTLE_KITTEN, \
 		CharacterData.CharacterClass.CHONK_KITTEN, \
-		CharacterData.CharacterClass.WIZARD_KITTEN:
+		CharacterData.CharacterClass.WIZARD_KITTEN, \
+		CharacterData.CharacterClass.BATTLE_CAT, \
+		CharacterData.CharacterClass.CHONK_CAT, \
+		CharacterData.CharacterClass.WIZARD_CAT:
 			return true
 		_:
 			return false
 
-# Cat-tier classes have no art yet — fall back to wizard kitten so the renderer
-# still gets a valid texture instead of crashing on a missing asset.
 static func path_for_class(cc: CharacterData.CharacterClass) -> String:
 	match cc:
 		CharacterData.CharacterClass.BATTLE_KITTEN:
@@ -30,5 +35,13 @@ static func path_for_class(cc: CharacterData.CharacterClass) -> String:
 			return _SLEEPY_KITTEN_PATH
 		CharacterData.CharacterClass.CHONK_KITTEN:
 			return _CHONK_KITTEN_PATH
+		CharacterData.CharacterClass.BATTLE_CAT:
+			return _BATTLE_CAT_PATH
+		CharacterData.CharacterClass.WIZARD_CAT:
+			return _WIZARD_CAT_PATH
+		CharacterData.CharacterClass.SLEEPY_CAT:
+			return _SLEEPY_CAT_PATH
+		CharacterData.CharacterClass.CHONK_CAT:
+			return _CHONK_CAT_PATH
 		_:
 			return _WIZARD_KITTEN_PATH

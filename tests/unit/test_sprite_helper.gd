@@ -7,6 +7,10 @@ const WIZARD_PATH := "res://assets/sprites/wizard_kitten_right.png"
 const BATTLE_PATH := "res://assets/sprites/battle_kitten_right.png"
 const SLEEPY_PATH := "res://assets/sprites/sleepy_kitten_right.png"
 const CHONK_PATH := "res://assets/sprites/chonk_kitten_right.png"
+const BATTLE_CAT_PATH := "res://assets/sprites/battle_cat_right.png"
+const WIZARD_CAT_PATH := "res://assets/sprites/wizard_cat_right.png"
+const SLEEPY_CAT_PATH := "res://assets/sprites/sleepy_cat_right.png"
+const CHONK_CAT_PATH := "res://assets/sprites/chonk_cat_right.png"
 
 func test_battle_kitten_path():
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_KITTEN), BATTLE_PATH)
@@ -20,22 +24,33 @@ func test_sleepy_kitten_path():
 func test_chonk_kitten_path():
 	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_KITTEN), CHONK_PATH)
 
-func test_cat_tier_falls_back_to_wizard_kitten():
-	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_CAT), WIZARD_PATH)
-	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_CAT), WIZARD_PATH)
-	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_CAT), WIZARD_PATH)
-	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_CAT), WIZARD_PATH)
+func test_battle_cat_path():
+	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_CAT), BATTLE_CAT_PATH)
+
+func test_wizard_cat_path():
+	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_CAT), WIZARD_CAT_PATH)
+
+func test_sleepy_cat_path():
+	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_CAT), SLEEPY_CAT_PATH)
+
+func test_chonk_cat_path():
+	assert_eq(SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_CAT), CHONK_CAT_PATH)
 
 func test_faces_left_reflects_each_assets_true_visual_facing():
 	# Most kitten *_right.png assets are misnamed — the artwork actually faces
 	# LEFT. Sleepy is the exception: sleepy_kitten_right.png really does face
 	# right, so its flip must NOT be inverted. faces_left() reports the true
 	# visual facing so player.gd's XOR flip logic resolves correctly per asset.
+	# Cat-tier art mirrors its kitten counterpart's pose/orientation, so the
+	# same grouping applies.
 	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_KITTEN))
 	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.WIZARD_KITTEN))
 	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.BATTLE_KITTEN))
 	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.SLEEPY_KITTEN))
-	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_CAT))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.CHONK_CAT))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.WIZARD_CAT))
+	assert_true(SpriteHelper.faces_left(CharacterData.CharacterClass.BATTLE_CAT))
+	assert_false(SpriteHelper.faces_left(CharacterData.CharacterClass.SLEEPY_CAT))
 
 func test_returned_paths_load_as_textures():
 	for cc in [
@@ -44,6 +59,9 @@ func test_returned_paths_load_as_textures():
 		CharacterData.CharacterClass.SLEEPY_KITTEN,
 		CharacterData.CharacterClass.CHONK_KITTEN,
 		CharacterData.CharacterClass.BATTLE_CAT,
+		CharacterData.CharacterClass.WIZARD_CAT,
+		CharacterData.CharacterClass.SLEEPY_CAT,
+		CharacterData.CharacterClass.CHONK_CAT,
 	]:
 		var path := SpriteHelper.path_for_class(cc)
 		assert_ne(path, "", "non-empty path")
