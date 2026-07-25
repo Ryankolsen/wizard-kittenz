@@ -11,6 +11,8 @@ scripts/*.gd.uid
 /wizard-kittenz.pck
 /MoltenVK.xcframework/
 /PrivacyInfo.xcprivacy
+/libgodot_camera.visionos.debug.xcframework/
+/libgodot_camera.visionos.release.xcframework/
 /wizard-kittenz/
 
 # Build artifacts
