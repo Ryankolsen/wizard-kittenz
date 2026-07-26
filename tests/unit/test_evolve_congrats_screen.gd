@@ -130,3 +130,20 @@ func test_calling_populate_twice_does_not_stack_tweens():
 		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
 	await s.transformation_finished
 	assert_signal_emit_count(s, "transformation_finished", 1)
+
+# --- #443 procedural chime + haptic buzz at the flash beat ------------------
+
+class _VibrateSpyScreen:
+	extends EvolveCongratsScreen
+	var vibrate_count := 0
+	func _vibrate() -> void:
+		vibrate_count += 1
+
+func test_vibrate_called_once_during_transformation():
+	var s: _VibrateSpyScreen = _VibrateSpyScreen.new()
+	add_child_autofree(s)
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	await s.transformation_finished
+	assert_eq(s.vibrate_count, 1)

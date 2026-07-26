@@ -122,12 +122,22 @@ func _play_transformation() -> void:
 	_transformation_tween = create_tween()
 	_transformation_tween.tween_property(_old_sprite, "modulate:a", 0.0, _FADE_OUT_DURATION)
 	_transformation_tween.parallel().tween_property(_old_sprite, "scale", Vector2(0.6, 0.6), _FADE_OUT_DURATION)
+	_transformation_tween.tween_callback(_on_flash_beat)
 	_transformation_tween.tween_property(_flash_overlay, "color:a", 0.8, _FLASH_DURATION * 0.5)
 	_transformation_tween.tween_property(_flash_overlay, "color:a", 0.0, _FLASH_DURATION * 0.5)
 	_transformation_tween.tween_property(_new_sprite, "modulate:a", 1.0, _FADE_IN_DURATION)
 	_transformation_tween.parallel().tween_property(_new_sprite, "scale", Vector2(1.1, 1.1), _FADE_IN_DURATION * 0.5)
 	_transformation_tween.chain().tween_property(_new_sprite, "scale", Vector2.ONE, _FADE_IN_DURATION * 0.5)
 	_transformation_tween.chain().tween_callback(_on_transformation_finished)
+
+func _on_flash_beat() -> void:
+	TransformChime.play(self)
+	_vibrate()
+
+# Overridable seam so tests can spy on the haptic call without depending on
+# real device vibration.
+func _vibrate() -> void:
+	Input.vibrate_handheld(50)
 
 func _on_transformation_finished() -> void:
 	_continue_button.disabled = false
