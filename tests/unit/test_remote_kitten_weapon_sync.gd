@@ -66,9 +66,9 @@ func test_play_attack_requires_only_direction() -> void:
 # Edge — classes without a WeaponDefinition (e.g. cat-tier) no-op cleanly
 # rather than crashing. Mirrors player.gd's null-guard in _init_weapon_pivot.
 func test_play_attack_no_ops_for_class_without_weapon_definition() -> void:
-	# Use a non-kitten class that for_class returns null for. Any value
-	# outside the four kitten classes works; pick one explicitly.
-	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	# Use a class that for_class returns null for. All 8 kitten/cat classes
+	# have a WeaponDefinition as of issue #431, so use an unmapped int.
+	var inst := _instance_with_class(-1)
 	inst.play_attack(Vector2.RIGHT)
 	assert_null(inst.attack_choreographer,
 		"no choreographer is spawned for classes without a WeaponDefinition")

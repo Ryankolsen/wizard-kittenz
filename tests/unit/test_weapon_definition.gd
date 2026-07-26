@@ -2,7 +2,8 @@ extends GutTest
 
 # PRD #223 / issue #226 (slice 3 finished wiring sleepy + chonk). WeaponDefinition
 # is a pure Resource. All four kitten classes now return a preset from for_class;
-# other character classes (cat-tier etc.) still return null.
+# their Cat-tier upgrades fall back to the same preset as of issue #431. Other
+# character classes still return null.
 
 func test_battle_preset_uses_sword_sprite_with_swing_type() -> void:
 	var d := WeaponDefinition.battle()
@@ -61,6 +62,31 @@ func test_for_class_returns_chonk_preset_for_chonk_kitten() -> void:
 	var d := WeaponDefinition.for_class(CharacterData.CharacterClass.CHONK_KITTEN)
 	assert_not_null(d)
 	assert_eq(d.texture_path, "res://assets/sprites/weapon_mug_sprite.png")
+
+func test_for_class_returns_battle_preset_for_battle_cat() -> void:
+	var d := WeaponDefinition.for_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_not_null(d)
+	assert_eq(d.attack_type, WeaponDefinition.AttackType.SWING)
+
+func test_for_class_returns_wizard_preset_for_wizard_cat() -> void:
+	var d := WeaponDefinition.for_class(CharacterData.CharacterClass.WIZARD_CAT)
+	assert_not_null(d)
+	assert_eq(d.texture_path, "res://assets/sprites/weapon_wand_sprite.png")
+	assert_eq(d.attack_type, WeaponDefinition.AttackType.CAST)
+
+func test_for_class_returns_sleepy_preset_for_sleepy_cat() -> void:
+	var d := WeaponDefinition.for_class(CharacterData.CharacterClass.SLEEPY_CAT)
+	assert_not_null(d)
+	assert_eq(d.texture_path, "res://assets/sprites/weapon_staff_sprite.png")
+
+func test_for_class_returns_chonk_preset_for_chonk_cat() -> void:
+	var d := WeaponDefinition.for_class(CharacterData.CharacterClass.CHONK_CAT)
+	assert_not_null(d)
+	assert_eq(d.texture_path, "res://assets/sprites/weapon_mug_sprite.png")
+
+func test_for_class_still_returns_null_for_non_upgradeable_class() -> void:
+	var d := WeaponDefinition.for_class(-1)
+	assert_null(d)
 
 func test_total_duration_sums_phases() -> void:
 	var d := WeaponDefinition.new()

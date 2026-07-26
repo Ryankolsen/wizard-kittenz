@@ -3,7 +3,8 @@ extends Resource
 
 # Per-class weapon data driving WeaponPivot animation + AttackChoreographer
 # phase timings. All four kitten classes are wired in as of slice 3
-# (PRD #223 / issue #226).
+# (PRD #223 / issue #226); their Cat-tier upgrades reuse the same presets
+# as of issue #431.
 
 enum AttackType { SWING, THRUST, CAST }
 
@@ -113,15 +114,16 @@ static func chonk() -> WeaponDefinition:
 	return d
 
 # Lookup hook for SpriteHelper / player.gd. All four kitten classes return a
-# preset as of slice 3 — cat-tier and other classes still return null and
-# fall through any caller's null-guard.
+# preset as of slice 3; as of issue #431, their Cat-tier upgrades fall back to
+# the same preset (Cat-tier reuses the Kitten weapon art as-is). Any other
+# class still returns null and falls through any caller's null-guard.
 static func for_class(cc: int) -> WeaponDefinition:
-	if cc == CharacterData.CharacterClass.BATTLE_KITTEN:
+	if cc == CharacterData.CharacterClass.BATTLE_KITTEN or cc == CharacterData.CharacterClass.BATTLE_CAT:
 		return battle()
-	if cc == CharacterData.CharacterClass.WIZARD_KITTEN:
+	if cc == CharacterData.CharacterClass.WIZARD_KITTEN or cc == CharacterData.CharacterClass.WIZARD_CAT:
 		return wizard()
-	if cc == CharacterData.CharacterClass.SLEEPY_KITTEN:
+	if cc == CharacterData.CharacterClass.SLEEPY_KITTEN or cc == CharacterData.CharacterClass.SLEEPY_CAT:
 		return sleepy()
-	if cc == CharacterData.CharacterClass.CHONK_KITTEN:
+	if cc == CharacterData.CharacterClass.CHONK_KITTEN or cc == CharacterData.CharacterClass.CHONK_CAT:
 		return chonk()
 	return null

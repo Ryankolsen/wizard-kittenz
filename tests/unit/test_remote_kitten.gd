@@ -212,14 +212,15 @@ func test_apply_equipped_weapon_empty_falls_back_to_class_default_definition():
 
 
 func test_apply_equipped_weapon_no_ops_for_class_without_weapon_definition():
-	# Cat-tier classes have no WeaponDefinition, so _init_weapon_pivot
-	# never spawned a pivot. apply_equipped_weapon must not crash.
-	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	# A class with no WeaponDefinition (all 8 kitten/cat classes have one as
+	# of issue #431) never had _init_weapon_pivot spawn a pivot.
+	# apply_equipped_weapon must not crash.
+	var inst := _instance_with_class(-1)
 	assert_null(inst.weapon_pivot,
-		"precondition: cat-tier has no weapon_pivot")
+		"precondition: unmapped class has no weapon_pivot")
 	inst.apply_equipped_weapon("iron_sword")
 	assert_null(inst.weapon_pivot,
-		"apply_equipped_weapon must not spawn a pivot on cat-tier")
+		"apply_equipped_weapon must not spawn a pivot on an unmapped class")
 
 
 # ---- Slice 5 of PRD #328 (issue #333): play_spell_cast receive path. ----
@@ -248,10 +249,10 @@ func test_play_spell_cast_empty_spell_id_still_plays_pose():
 
 
 func test_play_spell_cast_no_op_for_class_without_choreographer():
-	# Cat-tier (no WeaponDefinition → no choreographer) must not crash.
-	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	# A class with no WeaponDefinition has no choreographer; must not crash.
+	var inst := _instance_with_class(-1)
 	assert_null(inst.attack_choreographer,
-		"precondition: cat-tier has no choreographer")
+		"precondition: unmapped class has no choreographer")
 	inst.play_spell_cast(Vector2.RIGHT, "fireball")
 	assert_true(true, "no-crash on missing choreographer")
 
