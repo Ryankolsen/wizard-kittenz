@@ -381,3 +381,104 @@ func test_fallback_handles_missing_or_corrupt_persisted_file():
 	assert_true(id_b.length() > 0, "a blank persisted file must not crash the fallback")
 	_clear_device_id_fallback_file()
 
+# Issue #437: _refresh_card_grid() must resolve each card's Portrait texture
+# dynamically from the slot's persisted class, via CharacterGrid.card_portrait_path().
+func _portrait_for(scene: Node, button_path: String) -> TextureRect:
+	var content_path := button_path + "/Content"
+	var content := scene.get_node(content_path) as Node
+	return content.find_child("Portrait", true, false) as TextureRect
+
+func test_battle_card_shows_cat_sprite_after_upgrade():
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
+	var seed_bundle := SaveBundle.new()
+	var battle_slot := CharacterSlotData.new()
+	battle_slot.character_name = "Brawler"
+	battle_slot.character_class = CharacterData.CharacterClass.BATTLE_CAT
+	battle_slot.level = 10
+	seed_bundle.set_slot(CharacterData.CharacterClass.BATTLE_CAT, battle_slot)
+	seed_bundle.active_slot = SaveBundle.SLOT_BATTLE
+	assert_eq(SaveManager.save_bundle(seed_bundle, SaveManager.DEFAULT_PATH), OK)
+
+	var scene := _instantiate_creation_scene()
+	var portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/BattleSlotButton")
+	assert_not_null(portrait)
+	assert_eq(portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_CAT))
+
+	# Unaffected slots must still show their existing Kitten portraits.
+	var wizard_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/WizardSlotButton")
+	assert_eq(wizard_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_KITTEN))
+	var sleepy_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/SleepySlotButton")
+	assert_eq(sleepy_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_KITTEN))
+	var chonk_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/ChonkSlotButton")
+	assert_eq(chonk_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_KITTEN))
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
+func test_empty_slot_card_shows_default_kitten_sprite():
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
+	var scene := _instantiate_creation_scene()
+	var battle_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/BattleSlotButton")
+	assert_eq(battle_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_KITTEN))
+	var wizard_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/WizardSlotButton")
+	assert_eq(wizard_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_KITTEN))
+	var sleepy_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/SleepySlotButton")
+	assert_eq(sleepy_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_KITTEN))
+	var chonk_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/ChonkSlotButton")
+	assert_eq(chonk_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_KITTEN))
+
+func test_all_four_cat_tier_classes_resolve_independently():
+	if FileAccess.file_exists(SaveManager.DEFAULT_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+
+	var seed_bundle := SaveBundle.new()
+
+	var wizard_slot := CharacterSlotData.new()
+	wizard_slot.character_name = "Sorcerer"
+	wizard_slot.character_class = CharacterData.CharacterClass.WIZARD_CAT
+	wizard_slot.level = 12
+	seed_bundle.set_slot(CharacterData.CharacterClass.WIZARD_CAT, wizard_slot)
+
+	var sleepy_slot := CharacterSlotData.new()
+	sleepy_slot.character_name = "Napper"
+	sleepy_slot.character_class = CharacterData.CharacterClass.SLEEPY_CAT
+	sleepy_slot.level = 14
+	seed_bundle.set_slot(CharacterData.CharacterClass.SLEEPY_CAT, sleepy_slot)
+
+	var chonk_slot := CharacterSlotData.new()
+	chonk_slot.character_name = "Bulk"
+	chonk_slot.character_class = CharacterData.CharacterClass.CHONK_CAT
+	chonk_slot.level = 16
+	seed_bundle.set_slot(CharacterData.CharacterClass.CHONK_CAT, chonk_slot)
+
+	seed_bundle.active_slot = SaveBundle.SLOT_WIZARD
+	assert_eq(SaveManager.save_bundle(seed_bundle, SaveManager.DEFAULT_PATH), OK)
+
+	var scene := _instantiate_creation_scene()
+	var wizard_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/WizardSlotButton")
+	assert_eq(wizard_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_CAT))
+	var sleepy_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/SleepySlotButton")
+	assert_eq(sleepy_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.SLEEPY_CAT))
+	var chonk_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/ChonkSlotButton")
+	assert_eq(chonk_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.CHONK_CAT))
+	var battle_portrait := _portrait_for(scene, "MainMenu/VBox/CharacterGrid/BattleSlotButton")
+	assert_eq(battle_portrait.texture.resource_path,
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_KITTEN),
+		"battle slot was never seeded, so it must still show the default Kitten sprite")
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
+

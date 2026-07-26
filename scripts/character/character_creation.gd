@@ -162,12 +162,15 @@ func _refresh_card_grid() -> void:
 		var name_label := card.find_child("NameLabel", true, false) as Label
 		var class_label := card.find_child("ClassLabel", true, false) as Label
 		var level_label := card.find_child("LevelLabel", true, false) as Label
+		var portrait := card.find_child("Portrait", true, false) as TextureRect
 		if name_label != null:
 			name_label.text = CharacterGridRef.card_name_text(entry)
 		if class_label != null:
 			class_label.text = CharacterGridRef.card_class_text(entry)
 		if level_label != null:
 			level_label.text = CharacterGridRef.card_level_text(entry)
+		if portrait != null:
+			portrait.texture = load(CharacterGridRef.card_portrait_path(entry))
 
 func _card_for(archetype: String) -> Button:
 	match archetype:
