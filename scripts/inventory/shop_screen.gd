@@ -322,6 +322,21 @@ func _on_buy_pressed(product_id: String) -> void:
 	# label — PRD calls for a silent / disabled affordance, not a popup).
 	if not ledger.debit(item.price, item.currency_type):
 		return
+	# Class-upgrade grants mutate the character in place (ClassTierUpgrade
+	# .upgrade), so the pre-upgrade class/stats must be snapshotted before
+	# PurchaseGrantHandler.handle runs (PRD #439 "Trigger point").
+	var is_class_upgrade := item.category == ShopCatalogItem.CATEGORY_CLASS_UPGRADE
+	var character := _character()
+	var old_class := -1
+	var old_stats := {}
+	if is_class_upgrade and character != null:
+		old_class = int(character.character_class)
+		old_stats = {
+			"max_hp": character.max_hp,
+			"attack": character.attack,
+			"defense": character.defense,
+			"speed": character.speed,
+		}
 	var granted := PurchaseGrantHandler.handle(
 		product_id, _character(), null,
 		_paid_unlocks(), ledger, _skill_inventory(), _item_inventory(),
@@ -330,11 +345,28 @@ func _on_buy_pressed(product_id: String) -> void:
 		_refresh_row(product_id)
 		if _rows_by_product.has(product_id):
 			_flash_row(_rows_by_product[product_id])
+		if is_class_upgrade and character != null:
+			_show_evolve_congrats(old_class, int(character.character_class), old_stats, {
+				"max_hp": character.max_hp,
+				"attack": character.attack,
+				"defense": character.defense,
+				"speed": character.speed,
+			})
 	else:
 		# Rare path — debit succeeded but the grant didn't land (e.g. a class
 		# upgrade product whose target tier isn't wired in ClassTierUpgrade
 		# yet). Refund so the player isn't out the currency for a no-op.
 		ledger.credit(item.price, item.currency_type)
+
+# Instances the tween-driven "Kitten grew into a Cat" overlay (#441/#442) as
+# a ShopScreen child, populated with the pre/post-upgrade snapshot. Additive
+# to the existing row-flash feedback — dismissed just tears the overlay down.
+func _show_evolve_congrats(old_class: int, new_class: int, old_stats: Dictionary,
+		new_stats: Dictionary) -> void:
+	var overlay := EvolveCongratsScreen.new()
+	add_child(overlay)
+	overlay.dismissed.connect(overlay.queue_free)
+	overlay.populate(old_class, new_class, old_stats, new_stats)
 
 func _start_bundle_purchase(product_id: String) -> void:
 	var billing = _billing()

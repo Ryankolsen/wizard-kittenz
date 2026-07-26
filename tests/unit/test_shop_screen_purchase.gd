@@ -155,3 +155,86 @@ func test_purchase_succeeded_replay_does_not_double_credit():
 	billing.purchase_succeeded.emit(PurchaseRegistry.GEM_BUNDLE_STARTER)
 	billing.purchase_succeeded.emit(PurchaseRegistry.GEM_BUNDLE_STARTER)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 100)
+
+# --- Issue #444: EvolveCongratsScreen overlay on class-upgrade purchase -----
+
+func _battle_kitten_character() -> CharacterData:
+	var c := CharacterData.new()
+	c.character_class = CharacterData.CharacterClass.BATTLE_KITTEN
+	return c
+
+func _find_evolve_congrats_screen(node: Node) -> Node:
+	for child in node.get_children():
+		if child is EvolveCongratsScreen:
+			return child
+		var found := _find_evolve_congrats_screen(child)
+		if found != null:
+			return found
+	return null
+
+func test_class_upgrade_purchase_adds_evolve_congrats_screen():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
+	assert_not_null(_find_evolve_congrats_screen(screen),
+		"expected an EvolveCongratsScreen child after a class-upgrade purchase")
+
+func test_evolve_congrats_screen_populated_with_correct_classes():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
+	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
+	assert_not_null(overlay)
+	var tier_name: Label = overlay.get_node("Backdrop/Center/Panel/VBox/TierName")
+	assert_eq(tier_name.text, CharacterGrid.class_display_name(CharacterData.CharacterClass.BATTLE_CAT))
+	var old_sprite: TextureRect = overlay.get_node("Backdrop/Center/Panel/VBox/SpriteRow/OldSprite")
+	var new_sprite: TextureRect = overlay.get_node("Backdrop/Center/Panel/VBox/SpriteRow/NewSprite")
+	assert_ne(old_sprite.texture, new_sprite.texture)
+
+func test_evolve_congrats_screen_populated_with_pre_upgrade_stats():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var character := _battle_kitten_character()
+	character.attack = 7
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), character)
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
+	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
+	assert_not_null(overlay)
+	var stat_delta_list: VBoxContainer = overlay.get_node("Backdrop/Center/Panel/VBox/StatDeltaList")
+	var saw_old_attack := false
+	for row in stat_delta_list.get_children():
+		if row is Label and row.text.find("Attack: 7") == 0:
+			saw_old_attack = true
+	assert_true(saw_old_attack, "expected the Attack row to show the pre-upgrade value of 7 as the old side")
+
+func test_non_class_upgrade_purchase_does_not_add_overlay():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1000, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing())
+	screen._on_buy_pressed(PurchaseRegistry.CLASS_UNLOCK_CHONK_KITTEN)
+	assert_null(_find_evolve_congrats_screen(screen))
+
+func test_insufficient_funds_does_not_add_overlay():
+	var ledger := CurrencyLedger.new()
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
+	assert_null(_find_evolve_congrats_screen(screen))
+
+func test_overlay_dismissed_signal_removes_it():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
+	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
+	assert_not_null(overlay)
+	overlay.dismissed.emit()
+	await get_tree().process_frame
+	assert_null(_find_evolve_congrats_screen(screen))
