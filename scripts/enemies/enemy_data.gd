@@ -211,3 +211,74 @@ func is_taunted() -> bool:
 	if taunt_remaining <= 0.0:
 		return false
 	return taunt_target != null or taunt_source_id != ""
+
+# Debuff/DOT status-effect tracker (PRD #418 / issue #421). Deliberately a
+# pure-data module isolated from Spell/SpellEffectResolver — later issues
+# (#426 DOT, #427 DEBUFF) wire spell casts into apply_dot/apply_debuff, but
+# this file has no knowledge of either. Mirrors CharacterData's tick-based
+# buff/regen shapes: DOT ticks damage once per accumulated second (same
+# cadence as CharacterData.BUFF_GROUP_REGEN's heal-over-time), and debuffs
+# apply a flat stat delta immediately and revert it on expiry (same shape as
+# CharacterData.add_buff). Both are tickable in sub-duration increments,
+# matching how tick_taunt(dt) is already called every physics frame.
+var _dots: Array = []
+var _debuffs: Array = []
+
+func apply_dot(amount_per_tick: int, duration: float) -> void:
+	if amount_per_tick <= 0 or duration <= 0.0:
+		return
+	_dots.append({"amount": amount_per_tick, "remaining": duration, "accum": 0.0})
+
+func tick_dots(dt: float) -> int:
+	if dt <= 0.0 or _dots.is_empty():
+		return 0
+	var total_dealt := 0
+	var expired: Array = []
+	for d in _dots:
+		# Effective delta is clamped to remaining seconds so a single large dt
+		# can't tick damage past the DOT's own duration.
+		var eff: float = minf(dt, d.remaining)
+		d.accum += eff
+		while d.accum >= 1.0:
+			d.accum -= 1.0
+			if is_alive():
+				total_dealt += take_damage(int(d.amount))
+		d.remaining -= dt
+		if d.remaining <= 0.0:
+			expired.append(d)
+	for d in expired:
+		_dots.erase(d)
+	return total_dealt
+
+func apply_debuff(stat: String, amount: int, duration: float) -> void:
+	if stat == "" or duration <= 0.0:
+		return
+	for d in _debuffs:
+		if d.stat == stat:
+			d.remaining = duration
+			return
+	_debuffs.append({"stat": stat, "amount": amount, "remaining": duration})
+	var cur: Variant = get(stat)
+	if cur == null:
+		return
+	if cur is int:
+		set(stat, cur - amount)
+	else:
+		set(stat, cur - float(amount))
+
+func tick_debuffs(dt: float) -> void:
+	if dt <= 0.0 or _debuffs.is_empty():
+		return
+	var expired: Array = []
+	for d in _debuffs:
+		d.remaining -= dt
+		if d.remaining <= 0.0:
+			expired.append(d)
+	for d in expired:
+		var cur: Variant = get(d.stat)
+		if cur != null:
+			if cur is int:
+				set(d.stat, cur + int(d.amount))
+			else:
+				set(d.stat, cur + float(d.amount))
+		_debuffs.erase(d)

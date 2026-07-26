@@ -204,3 +204,43 @@ func test_boss_kinds_default_is_boss_false():
 		var k: int = entry[0]
 		var e := EnemyData.make_new(k)
 		assert_false(e.is_boss, "kind %d should default is_boss=false" % k)
+
+# --- Issue #421: EnemyData debuff/DOT tracker (isolated status-effect module) ---
+
+func _fresh_enemy_20hp() -> EnemyData:
+	var e := EnemyData.new()
+	e.hp = 20
+	e.max_hp = 20
+	e.defense = 10
+	return e
+
+func test_dot_tick_deals_damage_per_second():
+	var e := _fresh_enemy_20hp()
+	e.apply_dot(4, 5.0)
+	e.tick_dots(1.0)
+	assert_eq(e.hp, 16, "one full second of a 4/tick DOT should deal 4 damage")
+
+func test_dot_stops_after_duration_and_total_matches_expected():
+	var e := _fresh_enemy_20hp()
+	e.apply_dot(4, 5.0)
+	for i in range(5):
+		e.tick_dots(1.0)
+	assert_eq(e.hp, 0, "4/tick over 5s should deal 20 total damage")
+	# One more tick past expiry must not deal further damage.
+	e.hp = 20
+	e.tick_dots(1.0)
+	assert_eq(e.hp, 20, "DOT must not apply damage once expired")
+
+func test_debuff_applies_immediately_and_reverts_at_duration_boundary():
+	var e := _fresh_enemy_20hp()
+	e.apply_debuff("defense", 4, 10.0)
+	assert_eq(e.defense, 6, "debuff should immediately subtract from the stat")
+	e.tick_debuffs(10.0)
+	assert_eq(e.defense, 10, "debuff must revert once its duration fully elapses")
+
+func test_debuff_stays_active_across_small_sub_duration_ticks():
+	var e := _fresh_enemy_20hp()
+	e.apply_debuff("defense", 4, 10.0)
+	for i in range(50):
+		e.tick_debuffs(0.1)
+	assert_eq(e.defense, 6, "50 x 0.1s ticks (5s total) must leave the 10s debuff still active")
