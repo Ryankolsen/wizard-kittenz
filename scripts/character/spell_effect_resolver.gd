@@ -42,6 +42,16 @@ const COZY_COCOON_DURATION := 12.0
 const NINE_LIVES_SHIELD_AMOUNT := 20
 const NINE_LIVES_DURATION := 8.0
 
+# Issue #426: DOT is dispatched by spell.id, same convention as BUFF above,
+# since Bloodclaw Rend (single target) and Arcane Wildfire (AoE burn) need
+# different target-scoping despite sharing one EffectKind. Tick amount uses
+# effective_power (spell.power + magic_attack, crit-eligible) so DOT scales
+# with caster stats the same way DAMAGE/AREA do; duration is a fixed
+# per-skill constant, matching how PARTY_SHIELD/GROUP_REGEN hardcode
+# duration rather than storing it on Spell.
+const BLOODCLAW_REND_DOT_DURATION := 5.0
+const ARCANE_WILDFIRE_DOT_DURATION := 6.0
+
 static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
@@ -164,6 +174,22 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 					t.add_shield(COZY_COCOON_SHIELD_AMOUNT, COZY_COCOON_DURATION)
 					if heal_broadcaster != null:
 						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "PARTY_SHIELD", COZY_COCOON_SHIELD_AMOUNT, COZY_COCOON_DURATION)
+		Spell.EffectKind.DOT:
+			# Unknown ids are a no-op, same safety net as BUFF's dispatch.
+			match spell.id:
+				"bloodclaw_rend":
+					# Single-target: first living, DOT-capable target only.
+					for t in targets:
+						var t_data = _data_of(t)
+						if t_data != null and t_data.is_alive() and t_data.has_method("apply_dot"):
+							t_data.apply_dot(effective_power, BLOODCLAW_REND_DOT_DURATION)
+							break
+				"arcane_wildfire":
+					# AREA + DOT: applies to every living target in range.
+					for t in targets:
+						var t_data = _data_of(t)
+						if t_data != null and t_data.is_alive() and t_data.has_method("apply_dot"):
+							t_data.apply_dot(effective_power, ARCANE_WILDFIRE_DOT_DURATION)
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.

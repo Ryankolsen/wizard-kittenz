@@ -175,6 +175,36 @@ func test_level_15_battle_cat_unlocks_claw_storm():
 	gs.set_character(c)
 	assert_true(gs.skill_tree.is_unlocked("claw_storm"))
 
+# ---- DOT rollout: Bloodclaw Rend / Arcane Wildfire (issue #426) ----------
+
+func test_level_17_battle_cat_does_not_unlock_bloodclaw_rend():
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_CAT)
+	c.level = 17
+	gs.set_character(c)
+	assert_false(gs.skill_tree.is_unlocked("bloodclaw_rend"))
+
+func test_level_18_battle_cat_unlocks_bloodclaw_rend():
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_CAT)
+	c.level = 18
+	gs.set_character(c)
+	assert_true(gs.skill_tree.is_unlocked("bloodclaw_rend"))
+
+func test_level_14_wizard_cat_does_not_unlock_arcane_wildfire():
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_CAT)
+	c.level = 14
+	gs.set_character(c)
+	assert_false(gs.skill_tree.is_unlocked("arcane_wildfire"))
+
+func test_level_15_wizard_cat_unlocks_arcane_wildfire():
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_CAT)
+	c.level = 15
+	gs.set_character(c)
+	assert_true(gs.skill_tree.is_unlocked("arcane_wildfire"))
+
 func _fresh_game_state():
 	return get_node("/root/GameState")
 
@@ -194,9 +224,11 @@ func _build_cat_tree(factory: String) -> SkillTree:
 
 # [tree_factory, node_id, level, effect_kind, power, cooldown, mp_cost, prereq_id]
 const CAT_ROSTER := [
-	["make_battle_cat_tree", "pounce", 18, Spell.EffectKind.DAMAGE, 14, 2.0, 0, "claw_storm"],
+	["make_battle_cat_tree", "bloodclaw_rend", 18, Spell.EffectKind.DOT, 4, 3.0, 0, "claw_storm"],
+	["make_battle_cat_tree", "pounce", 26, Spell.EffectKind.DAMAGE, 14, 2.0, 0, "bloodclaw_rend"],
 	["make_battle_cat_tree", "apex_predator", 30, Spell.EffectKind.AREA, 26, 7.0, 0, "pounce"],
-	["make_wizard_cat_tree", "supernova_swat", 22, Spell.EffectKind.DAMAGE, 22, 5.0, 14, "arcane_purr"],
+	["make_wizard_cat_tree", "arcane_wildfire", 15, Spell.EffectKind.DOT, 3, 4.0, 10, "arcane_purr"],
+	["make_wizard_cat_tree", "supernova_swat", 22, Spell.EffectKind.DAMAGE, 22, 5.0, 14, "arcane_wildfire"],
 	["make_wizard_cat_tree", "starfall", 26, Spell.EffectKind.AREA, 18, 6.0, 16, "supernova_swat"],
 	["make_wizard_cat_tree", "archmagus_ascension", 30, Spell.EffectKind.DAMAGE, 30, 8.0, 20, "starfall"],
 	["make_sleepy_cat_tree", "cozy_cocoon", 15, Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 10, "nap_of_the_gods"],

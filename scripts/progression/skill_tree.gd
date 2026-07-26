@@ -83,17 +83,26 @@ static func make_battle_kitten_tree() -> SkillTree:
 # tier-2 upgrade preserves the Kitten's unlocks) and adds the first live
 # Cat-tier node, Claw Storm, which requires Feral Frenzy (the Kitten
 # capstone) as a prerequisite and is gated to BATTLE_CAT so a Kitten that
-# never evolved can't unlock it by leveling alone. Pounce and the Apex
-# Predator capstone chain off Claw Storm in turn.
+# never evolved can't unlock it by leveling alone. Bloodclaw Rend, Pounce,
+# and the Apex Predator capstone chain off Claw Storm in turn.
 static func make_battle_cat_tree() -> SkillTree:
 	var t := make_battle_kitten_tree()
 	var claw_storm := Spell.make("claw_storm", "Claw Storm", Spell.EffectKind.DAMAGE, 16, 1.5)
 	t.add_node(SkillNode.make("claw_storm", "Claw Storm", claw_storm, ["feral_frenzy"], 1, 15,
 		"A ferocious flurry that tears through everything nearby.",
 		CharacterData.CharacterClass.BATTLE_CAT))
-	# Issue #422: rest of the Battle Cat branch, chained off Claw Storm.
+	# Issue #426: Bloodclaw Rend, a single-target bleed (DOT). Per the PRD
+	# #418 final roster this is Battle Cat node #2 (level 18) — takes the
+	# level slot Pounce previously held, pushing Pounce to level 26 (its
+	# roster position #4) to match. Warpath (roster #3, level 22, #425) will
+	# insert between this and Pounce once PARTY_BUFF is generalized.
+	var bloodclaw_rend := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	t.add_node(SkillNode.make("bloodclaw_rend", "Bloodclaw Rend", bloodclaw_rend, ["claw_storm"], 1, 18,
+		"A vicious rake that leaves a bleeding wound on one enemy.",
+		CharacterData.CharacterClass.BATTLE_CAT))
+	# Issue #422: rest of the Battle Cat branch, chained off Bloodclaw Rend.
 	var pounce := Spell.make("pounce", "Pounce", Spell.EffectKind.DAMAGE, 14, 2.0)
-	t.add_node(SkillNode.make("pounce", "Pounce", pounce, ["claw_storm"], 1, 18,
+	t.add_node(SkillNode.make("pounce", "Pounce", pounce, ["bloodclaw_rend"], 1, 26,
 		"A precise leaping strike on a single enemy.",
 		CharacterData.CharacterClass.BATTLE_CAT))
 	var apex_predator := Spell.make("apex_predator", "Apex Predator", Spell.EffectKind.AREA, 26, 7.0)
@@ -107,8 +116,17 @@ static func make_battle_cat_tree() -> SkillTree:
 # gating/prerequisite pattern proven by Claw Storm in #420.
 static func make_wizard_cat_tree() -> SkillTree:
 	var t := make_wizard_kitten_tree()
+	# Issue #426: Arcane Wildfire, an AREA+DOT burn — PRD #418 final roster
+	# lists this as Wizard Cat node #1 (level 15), so it becomes the new
+	# first node ahead of Supernova Swat, same insertion pattern as Cozy
+	# Cocoon in #424 (Supernova Swat's prereq re-chained, its own level
+	# unchanged).
+	var arcane_wildfire := Spell.make("arcane_wildfire", "Arcane Wildfire", Spell.EffectKind.DOT, 3, 4.0, 0, 10)
+	t.add_node(SkillNode.make("arcane_wildfire", "Arcane Wildfire", arcane_wildfire, ["arcane_purr"], 1, 15,
+		"Engulfs nearby enemies in an arcane fire that burns over time.",
+		CharacterData.CharacterClass.WIZARD_CAT))
 	var supernova_swat := Spell.make("supernova_swat", "Supernova Swat", Spell.EffectKind.DAMAGE, 22, 5.0, 0, 14)
-	t.add_node(SkillNode.make("supernova_swat", "Supernova Swat", supernova_swat, ["arcane_purr"], 1, 22,
+	t.add_node(SkillNode.make("supernova_swat", "Supernova Swat", supernova_swat, ["arcane_wildfire"], 1, 22,
 		"A concentrated arcane blast on one enemy.",
 		CharacterData.CharacterClass.WIZARD_CAT))
 	var starfall := Spell.make("starfall", "Starfall", Spell.EffectKind.AREA, 18, 6.0, 0, 16)

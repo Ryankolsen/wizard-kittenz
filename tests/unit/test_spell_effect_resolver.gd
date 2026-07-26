@@ -344,3 +344,69 @@ func test_taunt_ignores_non_taunt_targets_without_crash():
 	var spell := Spell.make("t", "Taunt", Spell.EffectKind.TAUNT, 0, 1.0)
 	SpellEffectResolver.apply(spell, caster, [other])
 	assert_true(true, "no crash applying TAUNT to a non-taunt-capable target")
+
+# ---- DOT / Bloodclaw Rend / Arcane Wildfire (issue #426) -----------------
+# Asserts via EnemyData's #421 tracker public state (_dots), not by manually
+# ticking time forward — tick behavior itself is covered by test_enemy_data.gd.
+
+func test_bloodclaw_rend_applies_dot_to_single_target():
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy._dots.size(), 1, "Bloodclaw Rend applies exactly one DOT stack")
+	assert_eq(enemy._dots[0].amount, 4, "tick amount matches spell.power (+ magic_attack)")
+	assert_almost_eq(enemy._dots[0].remaining, SpellEffectResolver.BLOODCLAW_REND_DOT_DURATION, 0.0001)
+
+func test_bloodclaw_rend_only_hits_first_living_target():
+	var caster := _caster(0)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spell := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [e1, e2])
+	assert_eq(e1._dots.size(), 1, "single-target DOT hits the first target")
+	assert_eq(e2._dots.size(), 0, "single-target DOT does not spread to a second target")
+
+func test_arcane_wildfire_applies_dot_to_every_target_in_range():
+	var caster := _caster(0)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spell := Spell.make("arcane_wildfire", "Arcane Wildfire", Spell.EffectKind.DOT, 3, 4.0, 0, 10)
+	SpellEffectResolver.apply(spell, caster, [e1, e2])
+	assert_eq(e1._dots.size(), 1, "Arcane Wildfire (AREA+DOT) hits the first target")
+	assert_eq(e1._dots[0].amount, 3)
+	assert_almost_eq(e1._dots[0].remaining, SpellEffectResolver.ARCANE_WILDFIRE_DOT_DURATION, 0.0001)
+	assert_eq(e2._dots.size(), 1, "Arcane Wildfire also hits a second target in range")
+	assert_eq(e2._dots[0].amount, 3)
+
+func test_dot_tick_amount_scales_with_magic_attack():
+	var caster := _caster(5)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy._dots[0].amount, 9, "spell.power 4 + magic_attack 5 = 9")
+
+func test_recasting_dot_on_same_target_stacks_rather_than_refreshes():
+	# Matches #421's apply_dot, which always appends a new tracked stack —
+	# confirmed consistent here rather than inventing new refresh semantics.
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy._dots.size(), 2, "re-casting DOT on an already-DOT'd target stacks a second entry")
+
+func test_dot_skips_dead_targets():
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	enemy.take_damage(999)
+	var spell := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy._dots.size(), 0, "a dead target does not receive a DOT")
+
+func test_unknown_dot_id_is_a_safe_no_op():
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("mystery_dot", "Mystery DOT", Spell.EffectKind.DOT, 4, 3.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(enemy._dots.size(), 0, "unrecognized DOT id does not mutate the target")
