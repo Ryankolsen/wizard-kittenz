@@ -45,17 +45,13 @@ static func card_level_text(summary: Dictionary) -> String:
 		return ""
 	return "Lv %d" % int(summary.get("level", 1))
 
-# res:// path to the portrait sprite for an archetype slot key. Reuses the
-# in-dungeon right-facing kitten sprites so the grid needs no new art. The
-# scene bakes these textures directly; this mapping keeps them documented and
-# testable in one place.
-static func sprite_path_for(archetype: String) -> String:
-	match archetype:
-		SaveBundle.SLOT_BATTLE: return "res://assets/sprites/battle_kitten_right.png"
-		SaveBundle.SLOT_WIZARD: return "res://assets/sprites/wizard_kitten_right.png"
-		SaveBundle.SLOT_SLEEPY: return "res://assets/sprites/sleepy_kitten_right.png"
-		SaveBundle.SLOT_CHONK: return "res://assets/sprites/chonk_kitten_right.png"
-	return ""
+# res:// path to the portrait sprite for a slot summary (SaveSlots.slot_summaries()
+# entry). Delegates to SpriteHelper.path_for_class(), the single canonical
+# class -> sprite resolver every other dynamic screen already uses, so a
+# slot's persisted class (Kitten or upgraded Cat tier) always renders the
+# right art here too.
+static func card_portrait_path(summary: Dictionary) -> String:
+	return SpriteHelper.path_for_class(int(summary.get("class", 0)))
 
 # Name-only customize result. Delegates to SaveSlots.create_slot, which spins
 # a level-1 character of the archetype's Kitten class — appearance_index

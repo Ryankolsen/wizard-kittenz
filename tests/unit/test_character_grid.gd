@@ -56,18 +56,38 @@ func test_card_lines_for_empty_slot():
 	assert_eq(CharacterGrid.card_level_text(battle), "",
 		"empty slot has no level line")
 
-func test_sprite_path_per_archetype():
-	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_BATTLE), "res://assets/sprites/battle_kitten_right.png")
-	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_WIZARD), "res://assets/sprites/wizard_kitten_right.png")
-	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_SLEEPY), "res://assets/sprites/sleepy_kitten_right.png")
-	assert_eq(CharacterGrid.sprite_path_for(SaveBundle.SLOT_CHONK), "res://assets/sprites/chonk_kitten_right.png")
-	for path in [
-		CharacterGrid.sprite_path_for(SaveBundle.SLOT_BATTLE),
-		CharacterGrid.sprite_path_for(SaveBundle.SLOT_WIZARD),
-		CharacterGrid.sprite_path_for(SaveBundle.SLOT_SLEEPY),
-		CharacterGrid.sprite_path_for(SaveBundle.SLOT_CHONK),
-	]:
+func test_card_portrait_path_returns_kitten_path_for_default_class():
+	var bundle := SaveBundle.new()
+	var summaries := SaveSlots.slot_summaries(bundle)
+	var by_arch := {}
+	for entry in summaries:
+		by_arch[entry["archetype"]] = entry
+	assert_eq(
+		CharacterGrid.card_portrait_path(by_arch[SaveBundle.SLOT_BATTLE]),
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.BATTLE_KITTEN)
+	)
+
+func test_card_portrait_path_per_class_value():
+	var expectations := {
+		CharacterData.CharacterClass.BATTLE_KITTEN: "res://assets/sprites/battle_kitten_right.png",
+		CharacterData.CharacterClass.WIZARD_KITTEN: "res://assets/sprites/wizard_kitten_right.png",
+		CharacterData.CharacterClass.SLEEPY_KITTEN: "res://assets/sprites/sleepy_kitten_right.png",
+		CharacterData.CharacterClass.CHONK_KITTEN: "res://assets/sprites/chonk_kitten_right.png",
+		CharacterData.CharacterClass.BATTLE_CAT: "res://assets/sprites/battle_cat_right.png",
+		CharacterData.CharacterClass.WIZARD_CAT: "res://assets/sprites/wizard_cat_right.png",
+		CharacterData.CharacterClass.SLEEPY_CAT: "res://assets/sprites/sleepy_cat_right.png",
+		CharacterData.CharacterClass.CHONK_CAT: "res://assets/sprites/chonk_cat_right.png",
+	}
+	for klass in expectations:
+		var path: String = CharacterGrid.card_portrait_path({"class": klass})
+		assert_eq(path, expectations[klass])
 		assert_true(ResourceLoader.exists(path), "sprite must exist: " + path)
+
+func test_card_portrait_path_falls_back_for_missing_class_field():
+	assert_eq(
+		CharacterGrid.card_portrait_path({}),
+		SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_KITTEN)
+	)
 
 func test_customize_produces_named_character_default_appearance():
 	var slot := CharacterGrid.customize_create_slot(SaveBundle.SLOT_BATTLE, "Whiskers")
