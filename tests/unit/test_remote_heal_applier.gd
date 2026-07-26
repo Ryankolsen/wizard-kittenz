@@ -105,6 +105,14 @@ func test_party_buff_magic_resistance_applies_buff():
 	assert_eq(p.data.magic_resistance, before + 3)
 	assert_true(p.data.has_active_buff("magic_resistance"))
 
+func test_party_buff_damage_mult_applies_damage_multiplier_buff():
+	# Issue #425 (Warpath): amount is wire-encoded as an integer percent by
+	# SpellEffectResolver (1.2x -> 120); the applier decodes it back to a
+	# float magnitude via add_damage_mult_buff.
+	var p := _make_player_in_tree("u1")
+	assert_true(RemoteHealApplier.apply(get_tree(), "u1", "PARTY_BUFF_DAMAGE_MULT", 120, 12.0))
+	assert_almost_eq(p.data.get_damage_multiplier(), 1.2, 0.0001)
+
 func test_apply_skips_player_with_null_data():
 	# Defensive: a Player node added to the group before _ready finished
 	# wiring up data. Skip it rather than crash on null .data access.

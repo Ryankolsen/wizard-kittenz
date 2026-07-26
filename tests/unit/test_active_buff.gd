@@ -8,7 +8,12 @@ func _target() -> CharacterData:
 	return CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)
 
 func _party_buff() -> Spell:
-	return Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0)
+	# Issue #425: PARTY_BUFF content now lives on the spell itself — mirrors
+	# what skill_tree.gd sets on the real cozy_aura spell.
+	var s := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0)
+	s.party_buff_stats = [{"stat": "defense", "amount": 3}, {"stat": "magic_resistance", "amount": 3}]
+	s.party_buff_duration = 15.0
+	return s
 
 func _group_regen() -> Spell:
 	return Spell.make("regen_snooze", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 0, 3.5)

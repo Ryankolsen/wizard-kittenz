@@ -157,22 +157,35 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 					if heal_broadcaster != null:
 						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "GROUP_REGEN", 2, 15.0)
 		Spell.EffectKind.PARTY_BUFF:
-			# Cozy Aura: +3 defense and +3 magic_resistance for 15s per
-			# target. add_buff mutates the stat field directly so the rest
-			# of the damage pipeline reads the boosted values transparently;
-			# tick_buffs reverts both on expiry (issue #144).
+			# Issue #425: generalized — the stat(s)/amount/duration, or a
+			# damage-multiplier magnitude, come from the spell's own data
+			# (set at construction in skill_tree.gd) rather than being
+			# hardcoded to Cozy Aura. add_buff mutates the stat field
+			# directly so the rest of the damage pipeline reads the boosted
+			# values transparently; tick_buffs reverts on expiry (#144).
 			for t in targets:
-				if t != null and t.has_method("add_buff"):
-					t.add_buff("defense", 3, 15.0)
-					t.add_buff("magic_resistance", 3, 15.0)
-					if heal_broadcaster != null:
-						# Two emissions per target keeps the wire packet 1:1
-						# with the local add_buff calls — the receiver can
-						# apply each stat delta independently without having
-						# to know that Cozy Aura bundles defense+MR.
-						var pid := _read_player_id(t)
-						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_DEFENSE", 3, 15.0)
-						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_MAGIC_RESISTANCE", 3, 15.0)
+				if t == null:
+					continue
+				if spell.party_buff_damage_mult > 0.0:
+					if t.has_method("add_damage_mult_buff"):
+						t.add_damage_mult_buff(spell.party_buff_damage_mult, spell.party_buff_duration)
+						if heal_broadcaster != null:
+							# Magnitude is wire-encoded as an integer percent
+							# (1.2 -> 120) since the heal_applied signal's
+							# amount field is int; RemoteHealApplier decodes
+							# it back to a float on the receiving side.
+							heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "PARTY_BUFF_DAMAGE_MULT",
+								roundi(spell.party_buff_damage_mult * 100.0), spell.party_buff_duration)
+				elif t.has_method("add_buff"):
+					for entry in spell.party_buff_stats:
+						t.add_buff(entry.stat, entry.amount, spell.party_buff_duration)
+						if heal_broadcaster != null:
+							# One emission per stat keeps the wire packet 1:1
+							# with the local add_buff calls — the receiver
+							# can apply each stat delta independently without
+							# knowing how many stats a given spell bundles.
+							heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "PARTY_BUFF_" + String(entry.stat).to_upper(),
+								entry.amount, spell.party_buff_duration)
 		Spell.EffectKind.PARTY_SHIELD:
 			# Cozy Cocoon: shields every entry in the targets array. Follows
 			# the same "loop targets, duck-type the method" convention as

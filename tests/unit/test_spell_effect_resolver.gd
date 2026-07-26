@@ -463,3 +463,63 @@ func test_unknown_debuff_id_is_a_safe_no_op():
 	var spell := Spell.make("mystery_debuff", "Mystery Debuff", Spell.EffectKind.DEBUFF, 4, 5.0)
 	SpellEffectResolver.apply(spell, caster, [enemy])
 	assert_eq(enemy._debuffs.size(), 0, "unrecognized DEBUFF id does not mutate the target")
+
+# ---- Generalized PARTY_BUFF / Warpath, Bulwark Purr, Guardian's Grace ----
+# (issue #425) — content (stat(s)/amount/duration or a damage-multiplier
+# magnitude) now lives on the spell itself rather than being hardcoded to
+# Cozy Aura, so these tests build spells directly with party_buff_* fields
+# set the same way skill_tree.gd does.
+
+func test_party_buff_damage_mult_variant_boosts_damage_not_flat_stats():
+	var caster := _caster(0)
+	var ally := _caster(0)
+	var base_defense := ally.defense
+	var spell := Spell.make("warpath", "Warpath", Spell.EffectKind.PARTY_BUFF, 0, 8.0)
+	spell.party_buff_damage_mult = 1.2
+	spell.party_buff_duration = 12.0
+	SpellEffectResolver.apply(spell, caster, [ally])
+	assert_almost_eq(ally.get_damage_multiplier(), 1.2, 0.0001,
+		"Warpath boosts the damage multiplier via the same read path DamageResolver already uses")
+	assert_eq(ally.defense, base_defense, "Warpath does not touch flat stats")
+
+func test_party_buff_single_stat_variant_applies_exact_amount_and_duration():
+	var caster := _caster(0)
+	var ally := _caster(0)
+	var base_defense := ally.defense
+	var spell := Spell.make("bulwark_purr", "Bulwark Purr", Spell.EffectKind.PARTY_BUFF, 0, 8.0)
+	spell.party_buff_stats = [{"stat": "defense", "amount": 8}]
+	spell.party_buff_duration = 15.0
+	SpellEffectResolver.apply(spell, caster, [ally])
+	assert_eq(ally.defense, base_defense + 8, "Bulwark Purr adds exactly +8 defense")
+	ally.tick_buffs(15.0)
+	assert_eq(ally.defense, base_defense, "defense reverts once the 15s duration expires")
+
+func test_party_buff_dual_stat_variant_applies_both_stats_from_one_cast():
+	var caster := _caster(0)
+	var ally := _caster(0)
+	var base_defense := ally.defense
+	var base_mr := ally.magic_resistance
+	var spell := Spell.make("guardians_grace", "Guardian's Grace", Spell.EffectKind.PARTY_BUFF, 0, 8.0, 0, 10)
+	spell.party_buff_stats = [{"stat": "defense", "amount": 6}, {"stat": "magic_resistance", "amount": 6}]
+	spell.party_buff_duration = 20.0
+	SpellEffectResolver.apply(spell, caster, [ally])
+	assert_eq(ally.defense, base_defense + 6, "Guardian's Grace adds +6 defense")
+	assert_eq(ally.magic_resistance, base_mr + 6, "Guardian's Grace adds +6 magic resistance")
+	ally.tick_buffs(20.0)
+	assert_eq(ally.defense, base_defense, "defense reverts once the 20s duration expires")
+	assert_eq(ally.magic_resistance, base_mr, "magic resistance reverts once the 20s duration expires")
+
+func test_party_buff_generalization_does_not_change_cozy_auras_existing_behavior():
+	# Regression: Cozy Aura is built by skill_tree.gd with party_buff_stats
+	# set to the same defense/magic_resistance +3/15s pair it always had.
+	var caster := _caster(0)
+	var ally := _caster(0)
+	var base_defense := ally.defense
+	var base_mr := ally.magic_resistance
+	var cozy_aura := SkillTree.make_sleepy_kitten_tree().find("cozy_aura").spell
+	SpellEffectResolver.apply(cozy_aura, caster, [ally])
+	assert_eq(ally.defense, base_defense + 3, "Cozy Aura still adds +3 defense")
+	assert_eq(ally.magic_resistance, base_mr + 3, "Cozy Aura still adds +3 magic_resistance")
+	ally.tick_buffs(15.0)
+	assert_eq(ally.defense, base_defense, "Cozy Aura's defense buff still reverts after 15s")
+	assert_eq(ally.magic_resistance, base_mr, "Cozy Aura's magic_resistance buff still reverts after 15s")

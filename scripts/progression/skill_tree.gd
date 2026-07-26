@@ -94,15 +94,24 @@ static func make_battle_cat_tree() -> SkillTree:
 	# Issue #426: Bloodclaw Rend, a single-target bleed (DOT). Per the PRD
 	# #418 final roster this is Battle Cat node #2 (level 18) — takes the
 	# level slot Pounce previously held, pushing Pounce to level 26 (its
-	# roster position #4) to match. Warpath (roster #3, level 22, #425) will
-	# insert between this and Pounce once PARTY_BUFF is generalized.
+	# roster position #4) to match.
 	var bloodclaw_rend := Spell.make("bloodclaw_rend", "Bloodclaw Rend", Spell.EffectKind.DOT, 4, 3.0)
 	t.add_node(SkillNode.make("bloodclaw_rend", "Bloodclaw Rend", bloodclaw_rend, ["claw_storm"], 1, 18,
 		"A vicious rake that leaves a bleeding wound on one enemy.",
 		CharacterData.CharacterClass.BATTLE_CAT))
-	# Issue #422: rest of the Battle Cat branch, chained off Bloodclaw Rend.
+	# Issue #425: Warpath, a PARTY_BUFF damage-multiplier variant — roster
+	# #3 (level 22), inserted between Bloodclaw Rend and Pounce (Pounce's
+	# prereq re-chained, its own level unchanged), same insertion pattern
+	# Arcane Wildfire used in #426.
+	var warpath := Spell.make("warpath", "Warpath", Spell.EffectKind.PARTY_BUFF, 0, 8.0)
+	warpath.party_buff_damage_mult = 1.2
+	warpath.party_buff_duration = 12.0
+	t.add_node(SkillNode.make("warpath", "Warpath", warpath, ["bloodclaw_rend"], 1, 22,
+		"Rallies nearby allies, boosting their damage output for a time.",
+		CharacterData.CharacterClass.BATTLE_CAT))
+	# Issue #422: rest of the Battle Cat branch, chained off Warpath.
 	var pounce := Spell.make("pounce", "Pounce", Spell.EffectKind.DAMAGE, 14, 2.0)
-	t.add_node(SkillNode.make("pounce", "Pounce", pounce, ["bloodclaw_rend"], 1, 26,
+	t.add_node(SkillNode.make("pounce", "Pounce", pounce, ["warpath"], 1, 26,
 		"A precise leaping strike on a single enemy.",
 		CharacterData.CharacterClass.BATTLE_CAT))
 	var apex_predator := Spell.make("apex_predator", "Apex Predator", Spell.EffectKind.AREA, 26, 7.0)
@@ -162,8 +171,17 @@ static func make_sleepy_cat_tree() -> SkillTree:
 	t.add_node(SkillNode.make("purrfect_remedy", "Purrfect Remedy", purrfect_remedy, ["cozy_cocoon"], 1, 18,
 		"A deep restorative purr that heals all nearby allies.",
 		CharacterData.CharacterClass.SLEEPY_CAT))
+	# Issue #425: Guardian's Grace, a PARTY_BUFF dual-stat variant — roster
+	# #3 (level 22), inserted between Purrfect Remedy and Dream Sanctuary
+	# (Dream Sanctuary's prereq re-chained, its own level unchanged).
+	var guardians_grace := Spell.make("guardians_grace", "Guardian's Grace", Spell.EffectKind.PARTY_BUFF, 0, 8.0, 0, 10)
+	guardians_grace.party_buff_stats = [{"stat": "defense", "amount": 6}, {"stat": "magic_resistance", "amount": 6}]
+	guardians_grace.party_buff_duration = 20.0
+	t.add_node(SkillNode.make("guardians_grace", "Guardian's Grace", guardians_grace, ["purrfect_remedy"], 1, 22,
+		"A protective blessing that shores up nearby allies' defenses.",
+		CharacterData.CharacterClass.SLEEPY_CAT))
 	var dream_sanctuary := Spell.make("dream_sanctuary", "Dream Sanctuary", Spell.EffectKind.GROUP_REGEN, 4, 6.0, 0, 14)
-	t.add_node(SkillNode.make("dream_sanctuary", "Dream Sanctuary", dream_sanctuary, ["purrfect_remedy"], 1, 26,
+	t.add_node(SkillNode.make("dream_sanctuary", "Dream Sanctuary", dream_sanctuary, ["guardians_grace"], 1, 26,
 		"Wraps the party in a dream that regenerates HP for 20 seconds.",
 		CharacterData.CharacterClass.SLEEPY_CAT))
 	var nine_lives := Spell.make("nine_lives", "Nine Lives", Spell.EffectKind.SMART_HEAL, 0, 10.0, 0, 20)
@@ -182,8 +200,17 @@ static func make_chonk_cat_tree() -> SkillTree:
 	t.add_node(SkillNode.make("gravity_well", "Gravity Well", gravity_well, ["maximum_chonk"], 1, 15,
 		"Crushes all nearby enemies under sudden, immense gravity.",
 		CharacterData.CharacterClass.CHONK_CAT))
+	# Issue #425: Bulwark Purr, a PARTY_BUFF flat-stat variant — roster #2
+	# (level 18), inserted between Gravity Well and Iron Hide (Iron Hide's
+	# prereq re-chained, its own level unchanged).
+	var bulwark_purr := Spell.make("bulwark_purr", "Bulwark Purr", Spell.EffectKind.PARTY_BUFF, 0, 8.0)
+	bulwark_purr.party_buff_stats = [{"stat": "defense", "amount": 8}]
+	bulwark_purr.party_buff_duration = 15.0
+	t.add_node(SkillNode.make("bulwark_purr", "Bulwark Purr", bulwark_purr, ["gravity_well"], 1, 18,
+		"A steadying purr that toughens nearby allies' defense.",
+		CharacterData.CharacterClass.CHONK_CAT))
 	var iron_hide := Spell.make("iron_hide", "Iron Hide", Spell.EffectKind.BUFF, 0, 10.0)
-	t.add_node(SkillNode.make("iron_hide", "Iron Hide", iron_hide, ["gravity_well"], 1, 22,
+	t.add_node(SkillNode.make("iron_hide", "Iron Hide", iron_hide, ["bulwark_purr"], 1, 22,
 		"Toughens your hide, boosting your defense and shielding you from harm.",
 		CharacterData.CharacterClass.CHONK_CAT))
 	var thunderous_belly_flop := Spell.make("thunderous_belly_flop", "Thunderous Belly Flop", Spell.EffectKind.AREA, 22, 5.0)
@@ -216,6 +243,10 @@ static func make_sleepy_kitten_tree() -> SkillTree:
 	# cast any unlocked spell from level 1 (within unlock gating).
 	var fuzzy_warmth := Spell.make("fuzzy_warmth", "Fuzzy Warmth", Spell.EffectKind.SMART_HEAL, 3, 1.5, 0, 2)
 	var cozy_aura := Spell.make("cozy_aura", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0, 0, 4)
+	# Issue #425: PARTY_BUFF content now lives on the spell itself so
+	# SpellEffectResolver applies it generically.
+	cozy_aura.party_buff_stats = [{"stat": "defense", "amount": 3}, {"stat": "magic_resistance", "amount": 3}]
+	cozy_aura.party_buff_duration = 15.0
 	var warm_blanket := Spell.make("warm_blanket", "Warm Blanket", Spell.EffectKind.AOE_HEAL, 5, 2.5, 0, 5)
 	var regen_snooze := Spell.make("regen_snooze", "Regen Snooze", Spell.EffectKind.GROUP_REGEN, 0, 3.5, 0, 6)
 	var nap_of_the_gods := Spell.make("nap_of_the_gods", "Nap of the Gods", Spell.EffectKind.AOE_HEAL, 12, 6.0, 0, 8)

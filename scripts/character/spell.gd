@@ -28,6 +28,17 @@ var hp_cost: int = 0
 # skill tree; physical-class spells leave it at 0 (no MP gating).
 var mp_cost: int = 0
 
+# PARTY_BUFF content (issue #425). Set post-construction by skill_tree.gd so
+# SpellEffectResolver can apply PARTY_BUFF generically instead of hardcoding
+# Cozy Aura's stat/amount/duration. Exactly one of the two shapes is used per
+# spell: party_buff_damage_mult > 0 selects the damage-multiplier variant
+# (Warpath); otherwise party_buff_stats (a flat per-stat amount list) is
+# applied, covering both the single-stat (Bulwark Purr) and dual-stat
+# (Guardian's Grace, Cozy Aura) cases with the same loop.
+var party_buff_stats: Array = []  # Array of {"stat": String, "amount": int}
+var party_buff_damage_mult: float = 0.0
+var party_buff_duration: float = 0.0
+
 static func make(s_id: String, name: String, kind: int, power_val: int, cd: float = 1.0, hp_cost_val: int = 0, mp_cost_val: int = 0) -> Spell:
 	var s := Spell.new()
 	s.id = s_id

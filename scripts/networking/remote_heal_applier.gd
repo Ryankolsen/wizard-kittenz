@@ -16,14 +16,20 @@ extends RefCounted
 #     clamped to max_hp by heal()'s own contract.
 #   - "GROUP_REGEN": data.add_buff(BUFF_GROUP_REGEN, amount, duration) —
 #     HP-over-time tick driven by tick_buffs.
-#   - "PARTY_BUFF_DEFENSE": data.add_buff("defense", amount, duration).
-#   - "PARTY_BUFF_MAGIC_RESISTANCE": data.add_buff("magic_resistance",
-#     amount, duration).
+#   - "PARTY_BUFF_<STAT>": data.add_buff(<stat>, amount, duration) — the
+#     stat name is embedded in the effect_kind string itself (e.g.
+#     "PARTY_BUFF_DEFENSE", "PARTY_BUFF_MAGIC_RESISTANCE"), so any
+#     generalized PARTY_BUFF stat (#425) works without adding a new case
+#     here as long as the stat field exists on CharacterData.
+#   - "PARTY_BUFF_DAMAGE_MULT": data.add_damage_mult_buff(amount / 100.0,
+#     duration) — amount is wire-encoded as an integer percent by
+#     SpellEffectResolver (1.2x -> 120) since the heal_applied signal's
+#     amount field is int.
 #
-# The two PARTY_BUFF_* variants mirror SpellEffectResolver's twin emissions
-# (defense + magic_resistance for Cozy Aura) so the wire stays 1:1 with
-# the local add_buff calls without forcing the receiver to know the
-# Cozy Aura bundle shape.
+# These PARTY_BUFF_* variants mirror SpellEffectResolver's per-stat
+# emissions (e.g. defense + magic_resistance for Cozy Aura / Guardian's
+# Grace) so the wire stays 1:1 with the local add_buff calls without
+# forcing the receiver to know how many stats a given spell bundles.
 #
 # AOE / party-wide sentinel: target_id == "" means "every player in the
 # 'players' group". The local-cast paths in SpellEffectResolver always
@@ -67,6 +73,8 @@ static func apply(
 					FloatingText.spawn(node, str(healed), Color(0.2, 1.0, 0.4))
 	return applied
 
+const _PARTY_BUFF_PREFIX := "PARTY_BUFF_"
+
 static func _apply_to(data: CharacterData, effect_kind: String, amount: int, duration: float) -> bool:
 	match effect_kind:
 		"SMART_HEAL", "AOE_HEAL":
@@ -79,14 +87,17 @@ static func _apply_to(data: CharacterData, effect_kind: String, amount: int, dur
 				return false
 			data.add_buff(CharacterData.BUFF_GROUP_REGEN, amount, duration)
 			return true
-		"PARTY_BUFF_DEFENSE":
+		"PARTY_BUFF_DAMAGE_MULT":
 			if amount <= 0 or duration <= 0.0:
 				return false
-			data.add_buff("defense", amount, duration)
+			data.add_damage_mult_buff(float(amount) / 100.0, duration)
 			return true
-		"PARTY_BUFF_MAGIC_RESISTANCE":
-			if amount <= 0 or duration <= 0.0:
-				return false
-			data.add_buff("magic_resistance", amount, duration)
-			return true
+	if effect_kind.begins_with(_PARTY_BUFF_PREFIX):
+		if amount <= 0 or duration <= 0.0:
+			return false
+		var stat := effect_kind.substr(_PARTY_BUFF_PREFIX.length()).to_lower()
+		if not (stat in data):
+			return false
+		data.add_buff(stat, amount, duration)
+		return true
 	return false

@@ -225,7 +225,8 @@ func _build_cat_tree(factory: String) -> SkillTree:
 # [tree_factory, node_id, level, effect_kind, power, cooldown, mp_cost, prereq_id]
 const CAT_ROSTER := [
 	["make_battle_cat_tree", "bloodclaw_rend", 18, Spell.EffectKind.DOT, 4, 3.0, 0, "claw_storm"],
-	["make_battle_cat_tree", "pounce", 26, Spell.EffectKind.DAMAGE, 14, 2.0, 0, "bloodclaw_rend"],
+	["make_battle_cat_tree", "warpath", 22, Spell.EffectKind.PARTY_BUFF, 0, 8.0, 0, "bloodclaw_rend"],
+	["make_battle_cat_tree", "pounce", 26, Spell.EffectKind.DAMAGE, 14, 2.0, 0, "warpath"],
 	["make_battle_cat_tree", "apex_predator", 30, Spell.EffectKind.AREA, 26, 7.0, 0, "pounce"],
 	["make_wizard_cat_tree", "arcane_wildfire", 15, Spell.EffectKind.DOT, 3, 4.0, 10, "arcane_purr"],
 	["make_wizard_cat_tree", "mind_sunder", 18, Spell.EffectKind.DEBUFF, 4, 5.0, 8, "arcane_wildfire"],
@@ -234,10 +235,12 @@ const CAT_ROSTER := [
 	["make_wizard_cat_tree", "archmagus_ascension", 30, Spell.EffectKind.DAMAGE, 30, 8.0, 20, "starfall"],
 	["make_sleepy_cat_tree", "cozy_cocoon", 15, Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 10, "nap_of_the_gods"],
 	["make_sleepy_cat_tree", "purrfect_remedy", 18, Spell.EffectKind.AOE_HEAL, 18, 4.0, 12, "cozy_cocoon"],
-	["make_sleepy_cat_tree", "dream_sanctuary", 26, Spell.EffectKind.GROUP_REGEN, 4, 6.0, 14, "purrfect_remedy"],
+	["make_sleepy_cat_tree", "guardians_grace", 22, Spell.EffectKind.PARTY_BUFF, 0, 8.0, 10, "purrfect_remedy"],
+	["make_sleepy_cat_tree", "dream_sanctuary", 26, Spell.EffectKind.GROUP_REGEN, 4, 6.0, 14, "guardians_grace"],
 	["make_sleepy_cat_tree", "nine_lives", 30, Spell.EffectKind.SMART_HEAL, 0, 10.0, 20, "dream_sanctuary"],
 	["make_chonk_cat_tree", "gravity_well", 15, Spell.EffectKind.AREA, 16, 4.0, 0, "maximum_chonk"],
-	["make_chonk_cat_tree", "iron_hide", 22, Spell.EffectKind.BUFF, 0, 10.0, 0, "gravity_well"],
+	["make_chonk_cat_tree", "bulwark_purr", 18, Spell.EffectKind.PARTY_BUFF, 0, 8.0, 0, "gravity_well"],
+	["make_chonk_cat_tree", "iron_hide", 22, Spell.EffectKind.BUFF, 0, 10.0, 0, "bulwark_purr"],
 	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "iron_hide"],
 ]
 

@@ -91,6 +91,8 @@ func test_resolver_emits_two_for_party_buff():
 	var bc := HealBroadcaster.new()
 	var captured := _capture(bc)
 	var spell := Spell.make("p", "Cozy Aura", Spell.EffectKind.PARTY_BUFF, 0, 4.0)
+	spell.party_buff_stats = [{"stat": "defense", "amount": 3}, {"stat": "magic_resistance", "amount": 3}]
+	spell.party_buff_duration = 15.0
 	SpellEffectResolver.apply(spell, caster, [ally], null, null, "u1", bc)
 	assert_eq(captured.size(), 2, "defense + magic_resistance = 2 emissions")
 	assert_eq(captured[0][2], "PARTY_BUFF_DEFENSE")
