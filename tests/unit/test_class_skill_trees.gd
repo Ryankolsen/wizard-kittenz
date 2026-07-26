@@ -202,7 +202,8 @@ const CAT_ROSTER := [
 	["make_sleepy_cat_tree", "purrfect_remedy", 18, Spell.EffectKind.AOE_HEAL, 18, 4.0, 12, "nap_of_the_gods"],
 	["make_sleepy_cat_tree", "dream_sanctuary", 26, Spell.EffectKind.GROUP_REGEN, 4, 6.0, 14, "purrfect_remedy"],
 	["make_chonk_cat_tree", "gravity_well", 15, Spell.EffectKind.AREA, 16, 4.0, 0, "maximum_chonk"],
-	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "gravity_well"],
+	["make_chonk_cat_tree", "iron_hide", 22, Spell.EffectKind.BUFF, 0, 10.0, 0, "gravity_well"],
+	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "iron_hide"],
 ]
 
 func test_cat_roster_node_wiring():

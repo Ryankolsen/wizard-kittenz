@@ -135,16 +135,22 @@ static func make_sleepy_cat_tree() -> SkillTree:
 		CharacterData.CharacterClass.SLEEPY_CAT))
 	return t
 
-# Issue #422: Chonk Cat branch, built on the Chonk Kitten roster and chained
-# off Maximum Chonk (the Chonk Kitten capstone).
+# Issue #422/#423: Chonk Cat branch, built on the Chonk Kitten roster and
+# chained off Maximum Chonk (the Chonk Kitten capstone, now a functional
+# self-buff via the #423 BUFF resolver fix). Iron Hide is the self BUFF that
+# retroactively exercises that same fix — see SpellEffectResolver.apply.
 static func make_chonk_cat_tree() -> SkillTree:
 	var t := make_chonk_kitten_tree()
 	var gravity_well := Spell.make("gravity_well", "Gravity Well", Spell.EffectKind.AREA, 16, 4.0)
 	t.add_node(SkillNode.make("gravity_well", "Gravity Well", gravity_well, ["maximum_chonk"], 1, 15,
 		"Crushes all nearby enemies under sudden, immense gravity.",
 		CharacterData.CharacterClass.CHONK_CAT))
+	var iron_hide := Spell.make("iron_hide", "Iron Hide", Spell.EffectKind.BUFF, 0, 10.0)
+	t.add_node(SkillNode.make("iron_hide", "Iron Hide", iron_hide, ["gravity_well"], 1, 22,
+		"Toughens your hide, boosting your defense and shielding you from harm.",
+		CharacterData.CharacterClass.CHONK_CAT))
 	var thunderous_belly_flop := Spell.make("thunderous_belly_flop", "Thunderous Belly Flop", Spell.EffectKind.AREA, 22, 5.0)
-	t.add_node(SkillNode.make("thunderous_belly_flop", "Thunderous Belly Flop", thunderous_belly_flop, ["gravity_well"], 1, 26,
+	t.add_node(SkillNode.make("thunderous_belly_flop", "Thunderous Belly Flop", thunderous_belly_flop, ["iron_hide"], 1, 26,
 		"An earth-shaking flop that pummels every enemy nearby.",
 		CharacterData.CharacterClass.CHONK_CAT))
 	return t

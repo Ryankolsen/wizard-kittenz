@@ -254,6 +254,53 @@ func test_party_buff_does_not_crash_and_returns_zero():
 	var healed := SpellEffectResolver.apply(spell, caster, [a])
 	assert_eq(healed, 0, "stub branch returns zero — no instant HP")
 
+# ---- BUFF resolver fix (issue #423) --------------------------------------
+
+func test_catnip_curse_boosts_damage_output_then_reverts():
+	var caster := _caster(0)
+	assert_almost_eq(caster.get_damage_multiplier(), 1.0, 0.0001, "no buff at baseline")
+	var spell := Spell.make("catnip_curse", "Catnip Curse", Spell.EffectKind.BUFF, 4, 3.0, 0, 4)
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_almost_eq(caster.get_damage_multiplier(), SpellEffectResolver.CATNIP_CURSE_MULT, 0.0001,
+		"Catnip Curse boosts the caster's damage multiplier")
+	caster.tick_buffs(SpellEffectResolver.CATNIP_CURSE_DURATION)
+	assert_almost_eq(caster.get_damage_multiplier(), 1.0, 0.0001,
+		"damage multiplier reverts once the buff expires")
+
+func test_maximum_chonk_boosts_stats_then_reverts():
+	var caster := _caster(0)
+	var base_attack := caster.attack
+	var base_defense := caster.defense
+	var base_mr := caster.magic_resistance
+	var spell := Spell.make("maximum_chonk", "Maximum Chonk", Spell.EffectKind.BUFF, 8, 6.0)
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_eq(caster.attack, base_attack + SpellEffectResolver.MAXIMUM_CHONK_STAT_AMOUNT)
+	assert_eq(caster.defense, base_defense + SpellEffectResolver.MAXIMUM_CHONK_STAT_AMOUNT)
+	assert_eq(caster.magic_resistance, base_mr + SpellEffectResolver.MAXIMUM_CHONK_STAT_AMOUNT)
+	caster.tick_buffs(SpellEffectResolver.MAXIMUM_CHONK_DURATION)
+	assert_eq(caster.attack, base_attack, "attack reverts after expiry")
+	assert_eq(caster.defense, base_defense, "defense reverts after expiry")
+	assert_eq(caster.magic_resistance, base_mr, "magic_resistance reverts after expiry")
+
+func test_iron_hide_applies_defense_buff_and_shield_in_one_cast():
+	var caster := _caster(0)
+	var base_defense := caster.defense
+	var spell := Spell.make("iron_hide", "Iron Hide", Spell.EffectKind.BUFF, 0, 10.0)
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_eq(caster.defense, base_defense + SpellEffectResolver.IRON_HIDE_DEFENSE_AMOUNT,
+		"Iron Hide boosts defense")
+	assert_eq(caster.shield_amount(), SpellEffectResolver.IRON_HIDE_SHIELD_AMOUNT,
+		"Iron Hide also grants a shield")
+	assert_almost_eq(caster.shield_remaining(), SpellEffectResolver.IRON_HIDE_DURATION, 0.0001)
+
+func test_unknown_buff_id_is_a_safe_no_op():
+	var caster := _caster(0)
+	var base_defense := caster.defense
+	var spell := Spell.make("mystery_buff", "Mystery Buff", Spell.EffectKind.BUFF, 5, 2.0)
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_eq(caster.defense, base_defense, "unrecognized BUFF id does not mutate the caster")
+	assert_almost_eq(caster.get_damage_multiplier(), 1.0, 0.0001)
+
 func test_taunt_ignores_non_taunt_targets_without_crash():
 	# CharacterData has no taunt_target field — TAUNT should skip it duck-type
 	# style without erroring.

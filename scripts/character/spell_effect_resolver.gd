@@ -19,6 +19,18 @@ const HealBroadcasterRef = preload("res://scripts/networking/heal_broadcaster.gd
 # Returns total HP removed across all targets so callers can drive popups /
 # kill-reward XP awards from a single number.
 
+# Issue #423: BUFF-kind skills are self-targeted and distinct enough in
+# shape (damage multiplier vs. flat stat buff vs. buff+shield combo) that
+# they're dispatched by spell.id rather than a single generic formula, the
+# same way PARTY_BUFF/GROUP_REGEN are currently one hardcoded skill each.
+const CATNIP_CURSE_MULT := 1.25
+const CATNIP_CURSE_DURATION := 10.0
+const MAXIMUM_CHONK_STAT_AMOUNT := 5
+const MAXIMUM_CHONK_DURATION := 12.0
+const IRON_HIDE_DEFENSE_AMOUNT := 10
+const IRON_HIDE_SHIELD_AMOUNT := 15
+const IRON_HIDE_DURATION := 20.0
+
 static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
@@ -40,10 +52,24 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				if t_data != null and t_data.is_alive():
 					total += _apply_magic_damage_to_target(t, effective_power)
 		Spell.EffectKind.BUFF:
-			# No-op for the tracer. Future: register an active buff on caster
-			# (+power attack for `cooldown` seconds, refresh on re-cast). The
-			# kind classification is enough to mark it as a distinct effect.
-			pass
+			# Self-targeted buff. Dispatched per skill id -- see constants above.
+			# Unknown ids are a no-op so a placeholder BUFF spell (tests, future
+			# content) doesn't crash.
+			match spell.id:
+				"catnip_curse":
+					if caster != null and caster.has_method("add_damage_mult_buff"):
+						caster.add_damage_mult_buff(CATNIP_CURSE_MULT, CATNIP_CURSE_DURATION)
+				"maximum_chonk":
+					if caster != null and caster.has_method("add_buff"):
+						caster.add_buff("attack", MAXIMUM_CHONK_STAT_AMOUNT, MAXIMUM_CHONK_DURATION)
+						caster.add_buff("defense", MAXIMUM_CHONK_STAT_AMOUNT, MAXIMUM_CHONK_DURATION)
+						caster.add_buff("magic_resistance", MAXIMUM_CHONK_STAT_AMOUNT, MAXIMUM_CHONK_DURATION)
+				"iron_hide":
+					if caster != null:
+						if caster.has_method("add_buff"):
+							caster.add_buff("defense", IRON_HIDE_DEFENSE_AMOUNT, IRON_HIDE_DURATION)
+						if caster.has_method("add_shield"):
+							caster.add_shield(IRON_HIDE_SHIELD_AMOUNT, IRON_HIDE_DURATION)
 		Spell.EffectKind.HEAL:
 			# Self-heal: amount = spell.power + caster.magic_attack, clamped
 			# at max_hp by CharacterData.heal(). Crit is intentionally NOT
