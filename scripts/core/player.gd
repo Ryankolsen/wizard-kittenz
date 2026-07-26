@@ -3,10 +3,10 @@ extends CharacterBody2D
 
 const _QuickbarScript = preload("res://scripts/character/quickbar.gd")
 const _QuickbarControllerScript = preload("res://scripts/character/quickbar_controller.gd")
-# PRD #223 weapon pivot system — all four kitten classes route attacks through
-# the WeaponPivot + AttackChoreographer stack (slice 3 / issue #226 finished
-# wiring sleepy and chonk). Cat-tier classes still null out of for_class and
-# get no animated weapon, but they have no playable path yet either.
+# PRD #223 weapon pivot system — all eight kitten/cat classes route attacks
+# through the WeaponPivot + AttackChoreographer stack (slice 3 / issue #226
+# finished wiring sleepy and chonk; issue #432 wired the Cat tier once #431
+# gave WeaponDefinition.for_class() a preset for each Cat class).
 const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
 
 signal died
@@ -55,10 +55,9 @@ var _spell_light: PointLight2D
 var _weapon_pivot: WeaponPivot = null
 var _attack_choreographer: AttackChoreographer = null
 # PRD #280 / issue #282: when unarmed, _try_attack routes here instead of
-# the weapon choreographer. Eagerly built alongside _weapon_pivot so live
-# unequip mid-dungeon doesn't have to allocate a controller on the first
-# attack. Class-default null for cat-tier (no _weapon_pivot, no pounce —
-# those classes have no playable path yet).
+# the weapon choreographer. Eagerly built for every class in _init_weapon_pivot
+# (issue #432) regardless of whether that class also gets a _weapon_pivot, so
+# a class with no WeaponDefinition preset still animates via unarmed pounce.
 var _unarmed_attack: UnarmedAttack = null
 # Tracks whether _hitbox is currently "live" per the choreographer's strike
 # window. Pre-#223 the hitbox was always-on and _try_attack just walked
@@ -148,15 +147,17 @@ func _ready() -> void:
 func _init_weapon_pivot() -> void:
 	if data == null:
 		return
-	if WeaponDefinition.for_class(data.character_class) == null:
-		# Cat-tier and other classes with no class weapon at all stay on the
-		# pre-#223 no-pivot path.
-		return
-	_weapon_pivot = _WeaponPivotScene.instantiate()
-	add_child(_weapon_pivot)
+	# The unarmed-pounce fallback is independent of whether this class has a
+	# WeaponDefinition preset — any class with no weapon pivot should still
+	# animate via UnarmedAttack rather than silently no-op'ing (issue #432).
 	_unarmed_attack = UnarmedAttack.new()
 	_unarmed_attack.hitbox_enable_requested.connect(_on_strike_window_open)
 	_unarmed_attack.hitbox_disable_requested.connect(_on_strike_window_close)
+	if WeaponDefinition.for_class(data.character_class) == null:
+		# Classes with no class weapon at all stay on the unarmed-only path.
+		return
+	_weapon_pivot = _WeaponPivotScene.instantiate()
+	add_child(_weapon_pivot)
 	_bind_inventory_loadout()
 	_refresh_combat_weapon()
 
@@ -565,11 +566,12 @@ func _try_attack() -> void:
 	# attack_type, not from a Spell lookup.
 	var attack_kind: String = NakamaLobby.ATTACK_KIND_SPELL_CAST if _is_cast_attack() else NakamaLobby.ATTACK_KIND_WEAPON_SWING
 	_broadcast_attack(attack_dir, attack_kind, "")
-	# PRD #223: all four kitten classes route through the choreographer so
-	# damage + VFX fire at the strike phase of a visible swing/cast. The
-	# choreographer is null for character classes without a WeaponDefinition
-	# (cat-tier etc.), in which case _try_attack falls through to a direct
-	# melee damage pulse with no animation.
+	# PRD #223: all eight kitten/cat classes route through the choreographer
+	# so damage + VFX fire at the strike phase of a visible swing/cast. The
+	# choreographer is null only for character classes without a
+	# WeaponDefinition, in which case _try_attack falls through to the
+	# unarmed-pounce controller below (or a direct melee damage pulse with no
+	# animation if that's also null).
 	if _attack_choreographer != null:
 		var dir: Vector2 = data.facing if data != null else Vector2.RIGHT
 		_attack_choreographer.start_attack(dir, _attack_choreographer.definition.attack_type)

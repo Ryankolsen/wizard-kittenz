@@ -133,3 +133,78 @@ func test_unequipping_weapon_triggers_player_info_broadcast_with_empty_id() -> v
 		"unequip must trigger exactly one PLAYER_INFO broadcast")
 	assert_eq(spy.sent[0].equipped_weapon_id, "",
 		"unequipped state broadcasts as empty id — the unarmed sentinel")
+
+
+# --- Issue #432: Cat-tier weapon pivot + unarmed fallback --------------------
+# With #431 landed, WeaponDefinition.for_class() resolves a preset for every
+# Cat class (reusing its Kitten counterpart's preset), so _init_weapon_pivot
+# must build the same _weapon_pivot/_attack_choreographer stack for Cat-tier
+# players that Kitten-tier already gets.
+
+func _make_player_with_class(character_class: int, weapon_id: String = "") -> Player:
+	var inv := ItemInventory.new()
+	if weapon_id != "":
+		inv.equip(ItemCatalog.find(weapon_id))
+	var fake := FakeGameState.new()
+	fake.item_inventory = inv
+	fake.current_character = CharacterData.make_new(character_class)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	p._inject_game_state(fake)
+	add_child_autofree(p)
+	return p
+
+func test_battle_cat_player_constructs_weapon_pivot():
+	var p := _make_player_with_class(CharacterData.CharacterClass.BATTLE_CAT, "iron_sword")
+	assert_not_null(p.find_child("WeaponPivot", true, false),
+		"Battle Cat must get the same weapon pivot as Battle Kitten")
+	var ws := _combat_weapon_sprite(p)
+	assert_not_null(ws)
+	assert_true(ws.visible)
+	assert_eq(ws.texture.resource_path, SwordTex,
+		"Battle Cat resolves the same equipped-weapon texture as Battle Kitten")
+
+func test_wizard_cat_player_constructs_weapon_pivot():
+	var p := _make_player_with_class(CharacterData.CharacterClass.WIZARD_CAT, "apprentice_wand")
+	assert_not_null(p.find_child("WeaponPivot", true, false),
+		"Wizard Cat must get the same weapon pivot as Wizard Kitten")
+	var ws := _combat_weapon_sprite(p)
+	assert_not_null(ws)
+	assert_true(ws.visible)
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_birthday_sparkler.png",
+		"Wizard Cat resolves the same equipped-weapon texture as Wizard Kitten")
+
+func test_sleepy_cat_player_constructs_weapon_pivot():
+	var p := _make_player_with_class(CharacterData.CharacterClass.SLEEPY_CAT, "healing_wand")
+	assert_not_null(p.find_child("WeaponPivot", true, false),
+		"Sleepy Cat must get the same weapon pivot as Sleepy Kitten")
+	var ws := _combat_weapon_sprite(p)
+	assert_not_null(ws)
+	assert_true(ws.visible)
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_staff_sprite.png",
+		"Sleepy Cat reuses Sleepy Kitten's class-default staff texture")
+
+func test_chonk_cat_player_constructs_weapon_pivot():
+	var p := _make_player_with_class(CharacterData.CharacterClass.CHONK_CAT, "heavy_club")
+	assert_not_null(p.find_child("WeaponPivot", true, false),
+		"Chonk Cat must get the same weapon pivot as Chonk Kitten")
+	var ws := _combat_weapon_sprite(p)
+	assert_not_null(ws)
+	assert_true(ws.visible)
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_mug_sprite.png",
+		"Chonk Cat reuses Chonk Kitten's class-default mug texture")
+
+func test_cat_tier_no_preset_still_gets_unarmed_fallback():
+	# Independent of weapon-preset presence, every class must still get the
+	# unarmed-pounce fallback (issue #432 decouples the two).
+	var p := _make_player_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_not_null(p._unarmed_attack,
+		"unarmed fallback must be built regardless of WeaponDefinition preset")
+
+func test_cat_tier_player_attack_choreographer_not_idle_after_try_attack():
+	var p := _make_player_with_class(CharacterData.CharacterClass.BATTLE_CAT, "iron_sword")
+	assert_not_null(p._attack_choreographer,
+		"Battle Cat must build a choreographer, not fall through to no-op melee")
+	p._try_attack()
+	assert_ne(p._attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"Cat-tier attacks must animate end-to-end, not silently no-op")
