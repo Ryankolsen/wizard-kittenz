@@ -76,3 +76,57 @@ func test_continue_pressed_does_not_free_screen():
 	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ContinueButton")
 	btn.pressed.emit()
 	assert_true(is_instance_valid(s))
+
+# --- #442 tween-based transformation + flash sequence ----------------------
+
+func test_populate_starts_transformation_sequence():
+	var s := _instantiate()
+	watch_signals(s)
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	await s.transformation_finished
+	assert_signal_emitted(s, "transformation_finished")
+
+func test_initial_state_after_populate_before_animation():
+	var s := _instantiate()
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	var old_sprite: TextureRect = s.get_node("Backdrop/Center/Panel/VBox/SpriteRow/OldSprite")
+	var new_sprite: TextureRect = s.get_node("Backdrop/Center/Panel/VBox/SpriteRow/NewSprite")
+	assert_eq(old_sprite.modulate.a, 1.0)
+	assert_eq(new_sprite.modulate.a, 0.0)
+
+func test_final_state_after_transformation_finished():
+	var s := _instantiate()
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	await s.transformation_finished
+	var new_sprite: TextureRect = s.get_node("Backdrop/Center/Panel/VBox/SpriteRow/NewSprite")
+	var flash_overlay: ColorRect = s.get_node("FlashOverlay")
+	assert_eq(new_sprite.modulate.a, 1.0)
+	assert_eq(flash_overlay.color.a, 0.0)
+
+func test_continue_button_disabled_until_transformation_finished():
+	var s := _instantiate()
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ContinueButton")
+	assert_true(btn.disabled)
+	await s.transformation_finished
+	assert_false(btn.disabled)
+
+func test_calling_populate_twice_does_not_stack_tweens():
+	var s := _instantiate()
+	watch_signals(s)
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	s.populate(CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT,
+		{"max_hp": 10, "attack": 7, "defense": 1, "speed": 70.0},
+		{"max_hp": 12, "attack": 9, "defense": 2, "speed": 75.0})
+	await s.transformation_finished
+	assert_signal_emit_count(s, "transformation_finished", 1)
