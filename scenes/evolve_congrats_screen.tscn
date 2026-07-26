@@ -31,45 +31,52 @@ anchor_bottom = 1.0
 color = Color(1, 1, 1, 0)
 mouse_filter = 2
 
-[node name="Center" type="CenterContainer" parent="Backdrop"]
+[node name="Center" type="ScrollContainer" parent="Backdrop"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+horizontal_scroll_mode = 0
 
-[node name="Panel" type="PanelContainer" parent="Backdrop/Center"]
+[node name="CenterH" type="CenterContainer" parent="Backdrop/Center"]
+
+[node name="Panel" type="PanelContainer" parent="Backdrop/Center/CenterH"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_evolve")
 
-[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel"]
+[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/CenterH/Panel"]
 theme_override_constants/separation = 10
 
-[node name="Headline" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="Headline" type="Label" parent="Backdrop/Center/CenterH/Panel/VBox"]
 horizontal_alignment = 1
 text = "Your kitten has grown into a cat!"
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 16
 autowrap_mode = 2
 
-[node name="TierName" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="TierName" type="Label" parent="Backdrop/Center/CenterH/Panel/VBox"]
 horizontal_alignment = 1
 text = ""
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(0.85, 0.75, 0.35, 1)
 
-[node name="SpriteRow" type="HBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="ContentRow" type="HBoxContainer" parent="Backdrop/Center/CenterH/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 24
+
+[node name="SpriteRow" type="HBoxContainer" parent="Backdrop/Center/CenterH/Panel/VBox/ContentRow"]
 alignment = 1
 theme_override_constants/separation = 16
 
-[node name="OldSprite" type="TextureRect" parent="Backdrop/Center/Panel/VBox/SpriteRow"]
+[node name="OldSprite" type="TextureRect" parent="Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow"]
 custom_minimum_size = Vector2(64, 64)
 expand_mode = 1
 stretch_mode = 5
 
-[node name="NewSprite" type="TextureRect" parent="Backdrop/Center/Panel/VBox/SpriteRow"]
+[node name="NewSprite" type="TextureRect" parent="Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow"]
 custom_minimum_size = Vector2(64, 64)
 expand_mode = 1
 stretch_mode = 5
 
-[node name="StatDeltaList" type="VBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="StatDeltaList" type="VBoxContainer" parent="Backdrop/Center/CenterH/Panel/VBox/ContentRow"]
 theme_override_constants/separation = 4
 
-[node name="ContinueButton" type="Button" parent="Backdrop/Center/Panel/VBox"]
+[node name="ContinueButton" type="Button" parent="Backdrop/Center/CenterH/Panel/VBox"]
 custom_minimum_size = Vector2(0, 30)
 text = "Continue"

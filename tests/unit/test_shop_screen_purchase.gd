@@ -189,10 +189,10 @@ func test_evolve_congrats_screen_populated_with_correct_classes():
 	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
 	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
 	assert_not_null(overlay)
-	var tier_name: Label = overlay.get_node("Backdrop/Center/Panel/VBox/TierName")
+	var tier_name: Label = overlay.get_node("Backdrop/Center/CenterH/Panel/VBox/TierName")
 	assert_eq(tier_name.text, CharacterGrid.class_display_name(CharacterData.CharacterClass.BATTLE_CAT))
-	var old_sprite: TextureRect = overlay.get_node("Backdrop/Center/Panel/VBox/SpriteRow/OldSprite")
-	var new_sprite: TextureRect = overlay.get_node("Backdrop/Center/Panel/VBox/SpriteRow/NewSprite")
+	var old_sprite: TextureRect = overlay.get_node("Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow/OldSprite")
+	var new_sprite: TextureRect = overlay.get_node("Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow/NewSprite")
 	assert_ne(old_sprite.texture, new_sprite.texture)
 
 func test_evolve_congrats_screen_populated_with_pre_upgrade_stats():
@@ -205,10 +205,10 @@ func test_evolve_congrats_screen_populated_with_pre_upgrade_stats():
 	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT)
 	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
 	assert_not_null(overlay)
-	var stat_delta_list: VBoxContainer = overlay.get_node("Backdrop/Center/Panel/VBox/StatDeltaList")
+	var stat_delta_list: VBoxContainer = overlay.get_node("Backdrop/Center/CenterH/Panel/VBox/ContentRow/StatDeltaList")
 	var saw_old_attack := false
 	for row in stat_delta_list.get_children():
-		if row is Label and row.text.find("Attack: 7") == 0:
+		if row is RichTextLabel and row.text.find("Attack: 7") == 0:
 			saw_old_attack = true
 	assert_true(saw_old_attack, "expected the Attack row to show the pre-upgrade value of 7 as the old side")
 

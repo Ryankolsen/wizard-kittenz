@@ -361,9 +361,14 @@ func _on_buy_pressed(product_id: String) -> void:
 # Instances the tween-driven "Kitten grew into a Cat" overlay (#441/#442) as
 # a ShopScreen child, populated with the pre/post-upgrade snapshot. Additive
 # to the existing row-flash feedback — dismissed just tears the overlay down.
+# Loads the authored .tscn (same pattern as MainScene's CongratulationsScreen)
+# rather than EvolveCongratsScreen.new(), since .new() skips the scene file's
+# anchors and falls back to _build_fallback_scene's unanchored node shape.
+const _EVOLVE_CONGRATS_SCENE_PATH := "res://scenes/evolve_congrats_screen.tscn"
+
 func _show_evolve_congrats(old_class: int, new_class: int, old_stats: Dictionary,
 		new_stats: Dictionary) -> void:
-	var overlay := EvolveCongratsScreen.new()
+	var overlay: EvolveCongratsScreen = load(_EVOLVE_CONGRATS_SCENE_PATH).instantiate()
 	add_child(overlay)
 	overlay.dismissed.connect(overlay.queue_free)
 	overlay.populate(old_class, new_class, old_stats, new_stats)

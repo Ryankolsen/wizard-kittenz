@@ -14,9 +14,9 @@ extends CanvasLayer
 signal dismissed
 signal transformation_finished
 
-const _FADE_OUT_DURATION := 0.25
-const _FLASH_DURATION := 0.15
-const _FADE_IN_DURATION := 0.3
+const _FADE_OUT_DURATION := 0.5
+const _FLASH_DURATION := 0.3
+const _FADE_IN_DURATION := 0.6
 
 var _headline: Label
 var _tier_name: Label
@@ -34,25 +34,32 @@ func _ready() -> void:
 		# evolve_congrats_screen.tscn (e.g. in tests) — build the same node
 		# shape in code so populate() has somewhere to write.
 		_build_fallback_scene()
-	_headline = $Backdrop/Center/Panel/VBox/Headline
-	_tier_name = $Backdrop/Center/Panel/VBox/TierName
-	_old_sprite = $Backdrop/Center/Panel/VBox/SpriteRow/OldSprite
-	_new_sprite = $Backdrop/Center/Panel/VBox/SpriteRow/NewSprite
-	_stat_delta_list = $Backdrop/Center/Panel/VBox/StatDeltaList
-	_continue_button = $Backdrop/Center/Panel/VBox/ContinueButton
+	_headline = $Backdrop/Center/CenterH/Panel/VBox/Headline
+	_tier_name = $Backdrop/Center/CenterH/Panel/VBox/TierName
+	_old_sprite = $Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow/OldSprite
+	_new_sprite = $Backdrop/Center/CenterH/Panel/VBox/ContentRow/SpriteRow/NewSprite
+	_stat_delta_list = $Backdrop/Center/CenterH/Panel/VBox/ContentRow/StatDeltaList
+	_continue_button = $Backdrop/Center/CenterH/Panel/VBox/ContinueButton
 	_flash_overlay = $FlashOverlay
 	_continue_button.pressed.connect(_on_continue_pressed)
 
 func _build_fallback_scene() -> void:
 	var backdrop := ColorRect.new()
 	backdrop.name = "Backdrop"
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.color = Color(0, 0, 0, 0.6)
 	add_child(backdrop)
-	var center := CenterContainer.new()
+	var center := ScrollContainer.new()
 	center.name = "Center"
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	backdrop.add_child(center)
+	var center_h := CenterContainer.new()
+	center_h.name = "CenterH"
+	center.add_child(center_h)
 	var panel := PanelContainer.new()
 	panel.name = "Panel"
-	center.add_child(panel)
+	center_h.add_child(panel)
 	var vbox := VBoxContainer.new()
 	vbox.name = "VBox"
 	panel.add_child(vbox)
@@ -62,9 +69,12 @@ func _build_fallback_scene() -> void:
 	var tier_name := Label.new()
 	tier_name.name = "TierName"
 	vbox.add_child(tier_name)
+	var content_row := HBoxContainer.new()
+	content_row.name = "ContentRow"
+	vbox.add_child(content_row)
 	var sprite_row := HBoxContainer.new()
 	sprite_row.name = "SpriteRow"
-	vbox.add_child(sprite_row)
+	content_row.add_child(sprite_row)
 	var old_sprite := TextureRect.new()
 	old_sprite.name = "OldSprite"
 	sprite_row.add_child(old_sprite)
@@ -73,12 +83,13 @@ func _build_fallback_scene() -> void:
 	sprite_row.add_child(new_sprite)
 	var stat_delta_list := VBoxContainer.new()
 	stat_delta_list.name = "StatDeltaList"
-	vbox.add_child(stat_delta_list)
+	content_row.add_child(stat_delta_list)
 	var continue_button := Button.new()
 	continue_button.name = "ContinueButton"
 	vbox.add_child(continue_button)
 	var flash_overlay := ColorRect.new()
 	flash_overlay.name = "FlashOverlay"
+	flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flash_overlay.color = Color(1, 1, 1, 0)
 	flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(flash_overlay)
@@ -96,14 +107,28 @@ func populate(old_class: int, new_class: int, old_stats: Dictionary, new_stats: 
 	_populate_stat_delta_list(old_stats, new_stats)
 	_play_transformation()
 
+const _STAT_INCREASE_COLOR := Color(0.4, 0.85, 0.4)
+const _STAT_DECREASE_COLOR := Color(0.9, 0.35, 0.35)
+
 func _populate_stat_delta_list(old_stats: Dictionary, new_stats: Dictionary) -> void:
 	for child in _stat_delta_list.get_children():
 		child.queue_free()
 	for entry in StatDelta.compute(old_stats, new_stats):
-		var row := Label.new()
+		var row := RichTextLabel.new()
+		row.bbcode_enabled = true
+		row.fit_content = true
+		row.scroll_active = false
+		row.autowrap_mode = TextServer.AUTOWRAP_OFF
+		row.custom_minimum_size = Vector2(260, 0)
 		var delta: float = entry["delta"]
 		var sign_str := "+" if delta >= 0 else ""
-		row.text = "%s: %s -> %s (%s%s)" % [entry["label"], entry["old_value"], entry["new_value"], sign_str, delta]
+		var left := "%s: %s -> " % [entry["label"], entry["old_value"]]
+		var right := "%s (%s%s)" % [entry["new_value"], sign_str, delta]
+		if delta > 0.0:
+			right = "[color=#%s]%s[/color]" % [_STAT_INCREASE_COLOR.to_html(false), right]
+		elif delta < 0.0:
+			right = "[color=#%s]%s[/color]" % [_STAT_DECREASE_COLOR.to_html(false), right]
+		row.text = left + right
 		_stat_delta_list.add_child(row)
 
 # Anime power-up reveal: old sprite fades/scales down -> flash beat ->
