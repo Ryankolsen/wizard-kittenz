@@ -44,7 +44,7 @@ static func add_xp(c: CharacterData, amount: int, ledger: CurrencyLedger = null,
 		# Run the unlock pass after each level so a multi-level XP dump
 		# (e.g. 1 -> 5) unlocks nodes at every threshold crossed, not just
 		# the final level. Idempotent — nodes already unlocked are skipped.
-		var newly_unlocked: Array = SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level)
+		var newly_unlocked: Array = SkillUnlockCheckerRef.auto_unlock_for_level(tree, c.level, c.character_class)
 		# Slice 5 of PRD #210: each newly-unlocked spell auto-fills the lowest
 		# empty Quickbar slot via on_spell_unlocked (no-op if all four full).
 		# Walking in the order returned by auto_unlock_for_level preserves

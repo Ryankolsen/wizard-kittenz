@@ -196,7 +196,7 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	current_character = c
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(slot.unlocked_skill_ids)
-	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level)
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level, current_character.character_class)
 	offline_xp_tracker = OfflineXPTracker.new()
 	offline_xp_tracker.pending_xp = slot.offline_xp_earned
 	item_inventory = ItemInventory.new()
@@ -274,7 +274,7 @@ func apply_merged_save(save_data: KittenSaveData) -> void:
 	skill_tree.apply_unlocked_ids(save_data.unlocked_skill_ids)
 	# Top up any level-gated unlocks the save predates (PRD #124 / issue #126).
 	# Idempotent against already-unlocked ids restored from the save.
-	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level)
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level, current_character.character_class)
 	meta_tracker = save_data.to_tracker()
 	offline_xp_tracker = save_data.to_offline_xp_tracker()
 	cosmetic_inventory = save_data.to_cosmetic_inventory()
@@ -361,7 +361,7 @@ func set_character(c: CharacterData) -> void:
 	# dungeon with the level_required == 1 node already unlocked. Runs for any
 	# level (tier-2 upgrade paths reuse this entry point) so a character handed
 	# in at level N has every node up through N unlocked.
-	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, c.level)
+	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, c.level, c.character_class)
 	# Brand-new character has no persisted quickbar — auto-fill the lowest
 	# empty slots from whatever spells just got unlocked by the level-gated
 	# pass above. Mirrors the slice-2 Player bootstrap so user story 16
@@ -562,13 +562,17 @@ func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int, ki
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
 # its own 5-node factory. Cat-tier classes share their Kitten counterpart's
-# tree so a tier-2 upgrade preserves unlocks. Unknown class falls through to
-# the Battle Kitten tree as a safe default — better than returning null and
-# forcing every call site to null-check.
+# tree so a tier-2 upgrade preserves unlocks — except Battle Cat, which
+# (PRD #418 / issue #420) gets its own factory adding the Claw Storm
+# Cat-tier node on top of the shared Battle Kitten roster. Unknown class
+# falls through to the Battle Kitten tree as a safe default — better than
+# returning null and forcing every call site to null-check.
 func _build_tree_for(c: CharacterData) -> SkillTree:
 	match c.character_class:
-		CharacterData.CharacterClass.BATTLE_KITTEN, CharacterData.CharacterClass.BATTLE_CAT:
+		CharacterData.CharacterClass.BATTLE_KITTEN:
 			return SkillTree.make_battle_kitten_tree()
+		CharacterData.CharacterClass.BATTLE_CAT:
+			return SkillTree.make_battle_cat_tree()
 		CharacterData.CharacterClass.WIZARD_KITTEN, CharacterData.CharacterClass.WIZARD_CAT:
 			return SkillTree.make_wizard_kitten_tree()
 		CharacterData.CharacterClass.SLEEPY_KITTEN, CharacterData.CharacterClass.SLEEPY_CAT:

@@ -284,6 +284,39 @@ func test_skill_unlock_checker_null_tree_is_safe_noop():
 	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(null, 5)
 	assert_eq(newly, [], "null tree returns empty list, does not crash")
 
+# ---- Cat-tier class-aware gating (PRD #418 / issue #420) -----------------
+
+func test_class_gated_node_stays_locked_for_wrong_class_even_at_level():
+	var tree := SkillTree.new()
+	tree.add_node(SkillNode.make("claw_storm", "Claw Storm", _make_dummy_spell("claw_storm"),
+		[], 1, 15, "", CharacterData.CharacterClass.BATTLE_CAT))
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(tree, 30, CharacterData.CharacterClass.BATTLE_KITTEN)
+	assert_false(tree.is_unlocked("claw_storm"), "level-30 Kitten does not unlock a Cat-tier node")
+	assert_eq(newly, [])
+
+func test_class_gated_node_unlocks_for_matching_class_and_level():
+	var tree := SkillTree.new()
+	tree.add_node(SkillNode.make("claw_storm", "Claw Storm", _make_dummy_spell("claw_storm"),
+		[], 1, 15, "", CharacterData.CharacterClass.BATTLE_CAT))
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(tree, 15, CharacterData.CharacterClass.BATTLE_CAT)
+	assert_true(tree.is_unlocked("claw_storm"), "level-15 Battle Cat unlocks Claw Storm")
+	assert_eq(newly, ["claw_storm"])
+
+func test_class_gated_node_stays_locked_below_level_even_for_matching_class():
+	var tree := SkillTree.new()
+	tree.add_node(SkillNode.make("claw_storm", "Claw Storm", _make_dummy_spell("claw_storm"),
+		[], 1, 15, "", CharacterData.CharacterClass.BATTLE_CAT))
+	SkillUnlockCheckerRef.auto_unlock_for_level(tree, 14, CharacterData.CharacterClass.BATTLE_CAT)
+	assert_false(tree.is_unlocked("claw_storm"), "Battle Cat at level 14 has not reached Claw Storm's requirement")
+
+func test_ungated_node_unlocks_regardless_of_character_class_argument():
+	# Legacy nodes (required_class == -1) must not regress when a class arg
+	# is now passed alongside level.
+	var tree := _make_tree_with_levels([1])
+	var newly := SkillUnlockCheckerRef.auto_unlock_for_level(tree, 1, CharacterData.CharacterClass.WIZARD_KITTEN)
+	assert_true(tree.is_unlocked("n_1"))
+	assert_eq(newly, ["n_1"])
+
 func test_killing_enemy_awards_xp_via_progression_system():
 	# Simulates the player.gd flow: damage until dead, then award xp_reward.
 	var player := CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN)

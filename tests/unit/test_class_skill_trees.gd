@@ -127,6 +127,54 @@ func test_chonk_cat_shares_kitten_tree():
 	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.CHONK_CAT))
 	assert_not_null(gs.skill_tree.find("chonk_taunt"))
 
+# ---- Cat-tier walking skeleton: Claw Storm (PRD #418 / issue #420) -------
+
+func test_battle_cat_tree_includes_claw_storm():
+	var t := SkillTree.make_battle_cat_tree()
+	var n := t.find("claw_storm")
+	assert_not_null(n, "Battle Cat tree should contain Claw Storm")
+	if n == null:
+		return
+	assert_eq(n.level_required, 15)
+	assert_eq(n.spell.effect_kind, Spell.EffectKind.DAMAGE)
+	assert_eq(n.spell.power, 16)
+	assert_almost_eq(n.spell.cooldown, 1.5, 0.001)
+	assert_eq(n.prerequisite_ids, ["feral_frenzy"],
+		"Claw Storm requires the Battle Kitten capstone as a prerequisite")
+
+func test_battle_kitten_tree_does_not_include_claw_storm():
+	assert_null(SkillTree.make_battle_kitten_tree().find("claw_storm"),
+		"Claw Storm is a Cat-tier-only node")
+
+func test_game_state_routes_battle_kitten_without_claw_storm():
+	var gs = _fresh_game_state()
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN))
+	assert_null(gs.skill_tree.find("claw_storm"),
+		"Battle Kitten tree does not contain the Cat-tier node")
+
+func test_game_state_routes_battle_cat_with_claw_storm():
+	var gs = _fresh_game_state()
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.BATTLE_CAT))
+	assert_not_null(gs.skill_tree.find("claw_storm"),
+		"Battle Cat tree contains the Cat-tier node")
+
+func test_level_30_battle_kitten_does_not_unlock_claw_storm():
+	# Acceptance criterion: a level-30 character still in Kitten form does
+	# NOT have Claw Storm unlocked (it isn't even in the Kitten's tree).
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.level = 30
+	gs.set_character(c)
+	assert_null(gs.skill_tree.find("claw_storm"))
+
+func test_level_15_battle_cat_unlocks_claw_storm():
+	# Acceptance criterion: a level-15 Battle Cat DOES have Claw Storm unlocked.
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_CAT)
+	c.level = 15
+	gs.set_character(c)
+	assert_true(gs.skill_tree.is_unlocked("claw_storm"))
+
 func _fresh_game_state():
 	return get_node("/root/GameState")
 

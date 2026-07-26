@@ -78,6 +78,19 @@ static func make_battle_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12, "Unleashes chaos on all surrounding enemies."))
 	return t
 
+# Cat-tier walking skeleton (PRD #418 / issue #420). Builds on the Battle
+# Kitten roster (a tier-2 upgrade preserves the Kitten's unlocks) and adds
+# the first live Cat-tier node, Claw Storm, which requires Feral Frenzy
+# (the Kitten capstone) as a prerequisite and is gated to BATTLE_CAT so a
+# Kitten that never evolved can't unlock it by leveling alone.
+static func make_battle_cat_tree() -> SkillTree:
+	var t := make_battle_kitten_tree()
+	var claw_storm := Spell.make("claw_storm", "Claw Storm", Spell.EffectKind.DAMAGE, 16, 1.5)
+	t.add_node(SkillNode.make("claw_storm", "Claw Storm", claw_storm, ["feral_frenzy"], 1, 15,
+		"A ferocious flurry that tears through everything nearby.",
+		CharacterData.CharacterClass.BATTLE_CAT))
+	return t
+
 static func make_wizard_kitten_tree() -> SkillTree:
 	var t := SkillTree.new()
 	# mp_cost tiers (issue #177): early 2-3 / mid 4-6 / powerful 7-10. All values
