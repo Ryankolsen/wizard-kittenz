@@ -125,8 +125,17 @@ static func make_wizard_cat_tree() -> SkillTree:
 	t.add_node(SkillNode.make("arcane_wildfire", "Arcane Wildfire", arcane_wildfire, ["arcane_purr"], 1, 15,
 		"Engulfs nearby enemies in an arcane fire that burns over time.",
 		CharacterData.CharacterClass.WIZARD_CAT))
+	# Issue #427: Mind Sunder, the first debuff skill in the game — PRD #418
+	# final roster lists this as Wizard Cat node #2 (level 18), inserted
+	# between Arcane Wildfire and Supernova Swat (Supernova Swat's prereq
+	# re-chained, its own level unchanged), same insertion pattern as
+	# Arcane Wildfire itself in #426.
+	var mind_sunder := Spell.make("mind_sunder", "Mind Sunder", Spell.EffectKind.DEBUFF, 4, 5.0, 0, 8)
+	t.add_node(SkillNode.make("mind_sunder", "Mind Sunder", mind_sunder, ["arcane_wildfire"], 1, 18,
+		"Shatters an enemy's focus, lowering its defense.",
+		CharacterData.CharacterClass.WIZARD_CAT))
 	var supernova_swat := Spell.make("supernova_swat", "Supernova Swat", Spell.EffectKind.DAMAGE, 22, 5.0, 0, 14)
-	t.add_node(SkillNode.make("supernova_swat", "Supernova Swat", supernova_swat, ["arcane_wildfire"], 1, 22,
+	t.add_node(SkillNode.make("supernova_swat", "Supernova Swat", supernova_swat, ["mind_sunder"], 1, 22,
 		"A concentrated arcane blast on one enemy.",
 		CharacterData.CharacterClass.WIZARD_CAT))
 	var starfall := Spell.make("starfall", "Starfall", Spell.EffectKind.AREA, 18, 6.0, 0, 16)

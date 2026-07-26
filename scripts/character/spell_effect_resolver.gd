@@ -52,6 +52,14 @@ const NINE_LIVES_DURATION := 8.0
 const BLOODCLAW_REND_DOT_DURATION := 5.0
 const ARCANE_WILDFIRE_DOT_DURATION := 6.0
 
+# Issue #427: DEBUFF is dispatched by spell.id, same convention as BUFF/DOT
+# above. Mind Sunder is a fixed -defense amount (not effective_power-scaled)
+# since it's a stat debuff on the target rather than damage — matches how
+# IRON_HIDE_DEFENSE_AMOUNT/COZY_COCOON_SHIELD_AMOUNT are fixed constants
+# rather than caster-stat-scaled formulas.
+const MIND_SUNDER_DEFENSE_AMOUNT := 4
+const MIND_SUNDER_DURATION := 10.0
+
 static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
@@ -190,6 +198,17 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 						var t_data = _data_of(t)
 						if t_data != null and t_data.is_alive() and t_data.has_method("apply_dot"):
 							t_data.apply_dot(effective_power, ARCANE_WILDFIRE_DOT_DURATION)
+		Spell.EffectKind.DEBUFF:
+			# Unknown ids are a no-op, same safety net as BUFF/DOT's dispatch.
+			match spell.id:
+				"mind_sunder":
+					# Single-target: first living, debuff-capable target only,
+					# same target-scoping as Bloodclaw Rend's single-target DOT.
+					for t in targets:
+						var t_data = _data_of(t)
+						if t_data != null and t_data.is_alive() and t_data.has_method("apply_debuff"):
+							t_data.apply_debuff("defense", MIND_SUNDER_DEFENSE_AMOUNT, MIND_SUNDER_DURATION)
+							break
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.
