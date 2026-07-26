@@ -223,6 +223,41 @@ func test_apply_equipped_weapon_no_ops_for_class_without_weapon_definition():
 		"apply_equipped_weapon must not spawn a pivot on an unmapped class")
 
 
+func test_apply_equipped_weapon_swaps_sprite_for_battle_cat():
+	# Issue #433: Cat-tier peers now resolve a WeaponDefinition (#431), so
+	# _init_weapon_pivot builds a real pivot for BATTLE_CAT — mirrors
+	# test_apply_equipped_weapon_swaps_sprite_to_resolved_texture above.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_not_null(inst.weapon_pivot,
+		"Cat-tier remote peers must build a weapon_pivot as of #431/#433")
+	inst.apply_equipped_weapon("iron_sword")
+	var ws := _weapon_sprite(inst)
+	assert_true(ws.visible, "armed Cat-tier remote must show the weapon sprite")
+	assert_not_null(ws.texture)
+	assert_eq(ws.texture.resource_path,
+		"res://assets/sprites/weapon_slippery_mackerel.png",
+		"weapon sprite uses the per-id texture from HeldWeaponResolver")
+
+
+func test_apply_equipped_weapon_empty_falls_back_to_class_default_definition_for_battle_cat():
+	# Same disarm/re-arm cycle as the Kitten-tier edge case above, proving
+	# it works identically for Cat-tier co-op peers.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	inst.apply_equipped_weapon("iron_sword")
+	var ws := _weapon_sprite(inst)
+	assert_true(ws.visible, "precondition: weapon visible")
+	inst.apply_equipped_weapon("")
+	var class_def := WeaponDefinition.for_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_eq(inst.weapon_pivot.definition.attack_type, class_def.attack_type,
+		"empty equipped_weapon_id reverts the pose to class-default "
+		+ "WeaponDefinition.for_class — same as the unarmed Player path")
+	assert_eq(inst.weapon_pivot.definition.anchor_offset, class_def.anchor_offset,
+		"class-default anchor restored on disarm")
+	assert_false(ws.visible,
+		"empty equipped_weapon_id hides the weapon sprite (matches "
+		+ "Player._refresh_combat_weapon's unarmed branch)")
+
+
 # ---- Slice 5 of PRD #328 (issue #333): play_spell_cast receive path. ----
 
 func test_play_spell_cast_drives_choreographer_off_idle():
@@ -255,6 +290,18 @@ func test_play_spell_cast_no_op_for_class_without_choreographer():
 		"precondition: unmapped class has no choreographer")
 	inst.play_spell_cast(Vector2.RIGHT, "fireball")
 	assert_true(true, "no-crash on missing choreographer")
+
+
+func test_play_spell_cast_drives_choreographer_for_battle_cat():
+	# Issue #433: Cat-tier peers now get a real AttackChoreographer — mirrors
+	# test_play_spell_cast_drives_choreographer_off_idle above for BATTLE_CAT.
+	var inst := _instance_with_class(CharacterData.CharacterClass.BATTLE_CAT)
+	assert_not_null(inst.attack_choreographer,
+		"Cat-tier remote peers must build a choreographer as of #431/#433")
+	assert_eq(inst.attack_choreographer.phase, AttackChoreographer.Phase.IDLE)
+	inst.play_spell_cast(Vector2.RIGHT, "fireball")
+	assert_ne(inst.attack_choreographer.phase, AttackChoreographer.Phase.IDLE,
+		"play_spell_cast must start the choreographer (cast pose) for Cat-tier")
 
 
 # ---- Slice 7 of PRD #328 (issue #335): apply_hit_reaction. ----

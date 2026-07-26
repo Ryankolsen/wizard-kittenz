@@ -76,9 +76,10 @@ func _process(delta: float) -> void:
 	position = network_sync.get_display_position_at(player_id, now)
 
 # Spawn a WeaponPivot + AttackChoreographer for the remote kitten's class.
-# Mirrors player.gd._init_weapon_pivot; no-ops for classes without a
-# WeaponDefinition (cat-tier etc.) so non-kitten remotes continue to render
-# with the legacy placeholder sprite only.
+# Mirrors player.gd._init_weapon_pivot. With #431, WeaponDefinition.for_class
+# resolves a preset for all 8 kitten/cat classes, so this builds the pivot +
+# choreographer for Cat-tier peers too; only an unmapped class (none in
+# practice) would still no-op.
 func _init_weapon_pivot() -> void:
 	var def := WeaponDefinition.for_class(character_class)
 	if def == null:
@@ -118,8 +119,9 @@ func apply_facing(facing_x: int) -> void:
 # Player's _refresh_combat_weapon unarmed branch (player.gd:194-199).
 # An unknown id (catalog miss) behaves the same as empty, defensively.
 #
-# No-op for classes whose _init_weapon_pivot returned early (cat-tier);
-# weapon_pivot is null in that case so the call falls through cleanly.
+# No-op for classes whose _init_weapon_pivot returned early (unmapped class,
+# none in practice as of #431); weapon_pivot is null in that case so the
+# call falls through cleanly.
 func apply_equipped_weapon(weapon_id: String) -> void:
 	if weapon_pivot == null:
 		return
