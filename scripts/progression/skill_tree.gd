@@ -78,17 +78,75 @@ static func make_battle_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12, "Unleashes chaos on all surrounding enemies."))
 	return t
 
-# Cat-tier walking skeleton (PRD #418 / issue #420). Builds on the Battle
-# Kitten roster (a tier-2 upgrade preserves the Kitten's unlocks) and adds
-# the first live Cat-tier node, Claw Storm, which requires Feral Frenzy
-# (the Kitten capstone) as a prerequisite and is gated to BATTLE_CAT so a
-# Kitten that never evolved can't unlock it by leveling alone.
+# Cat-tier walking skeleton (PRD #418 / issue #420), extended with the rest
+# of the Battle Cat branch in #422. Builds on the Battle Kitten roster (a
+# tier-2 upgrade preserves the Kitten's unlocks) and adds the first live
+# Cat-tier node, Claw Storm, which requires Feral Frenzy (the Kitten
+# capstone) as a prerequisite and is gated to BATTLE_CAT so a Kitten that
+# never evolved can't unlock it by leveling alone. Pounce and the Apex
+# Predator capstone chain off Claw Storm in turn.
 static func make_battle_cat_tree() -> SkillTree:
 	var t := make_battle_kitten_tree()
 	var claw_storm := Spell.make("claw_storm", "Claw Storm", Spell.EffectKind.DAMAGE, 16, 1.5)
 	t.add_node(SkillNode.make("claw_storm", "Claw Storm", claw_storm, ["feral_frenzy"], 1, 15,
 		"A ferocious flurry that tears through everything nearby.",
 		CharacterData.CharacterClass.BATTLE_CAT))
+	# Issue #422: rest of the Battle Cat branch, chained off Claw Storm.
+	var pounce := Spell.make("pounce", "Pounce", Spell.EffectKind.DAMAGE, 14, 2.0)
+	t.add_node(SkillNode.make("pounce", "Pounce", pounce, ["claw_storm"], 1, 18,
+		"A precise leaping strike on a single enemy.",
+		CharacterData.CharacterClass.BATTLE_CAT))
+	var apex_predator := Spell.make("apex_predator", "Apex Predator", Spell.EffectKind.AREA, 26, 7.0)
+	t.add_node(SkillNode.make("apex_predator", "Apex Predator", apex_predator, ["pounce"], 1, 30,
+		"The Battle Cat capstone: a devastating assault on every nearby enemy.",
+		CharacterData.CharacterClass.BATTLE_CAT))
+	return t
+
+# Issue #422: Wizard Cat branch, built on the Wizard Kitten roster and
+# chained off Arcane Purr (the Wizard Kitten capstone), following the same
+# gating/prerequisite pattern proven by Claw Storm in #420.
+static func make_wizard_cat_tree() -> SkillTree:
+	var t := make_wizard_kitten_tree()
+	var supernova_swat := Spell.make("supernova_swat", "Supernova Swat", Spell.EffectKind.DAMAGE, 22, 5.0, 0, 14)
+	t.add_node(SkillNode.make("supernova_swat", "Supernova Swat", supernova_swat, ["arcane_purr"], 1, 22,
+		"A concentrated arcane blast on one enemy.",
+		CharacterData.CharacterClass.WIZARD_CAT))
+	var starfall := Spell.make("starfall", "Starfall", Spell.EffectKind.AREA, 18, 6.0, 0, 16)
+	t.add_node(SkillNode.make("starfall", "Starfall", starfall, ["supernova_swat"], 1, 26,
+		"Calls down arcane meteors on all nearby enemies.",
+		CharacterData.CharacterClass.WIZARD_CAT))
+	var archmagus_ascension := Spell.make("archmagus_ascension", "Archmagus Ascension", Spell.EffectKind.DAMAGE, 30, 8.0, 0, 20)
+	t.add_node(SkillNode.make("archmagus_ascension", "Archmagus Ascension", archmagus_ascension, ["starfall"], 1, 30,
+		"The Wizard Cat capstone: channels overwhelming arcane power into one devastating blast.",
+		CharacterData.CharacterClass.WIZARD_CAT))
+	return t
+
+# Issue #422: Sleepy Cat branch, built on the Sleepy Kitten roster and
+# chained off Nap of the Gods (the Sleepy Kitten capstone).
+static func make_sleepy_cat_tree() -> SkillTree:
+	var t := make_sleepy_kitten_tree()
+	var purrfect_remedy := Spell.make("purrfect_remedy", "Purrfect Remedy", Spell.EffectKind.AOE_HEAL, 18, 4.0, 0, 12)
+	t.add_node(SkillNode.make("purrfect_remedy", "Purrfect Remedy", purrfect_remedy, ["nap_of_the_gods"], 1, 18,
+		"A deep restorative purr that heals all nearby allies.",
+		CharacterData.CharacterClass.SLEEPY_CAT))
+	var dream_sanctuary := Spell.make("dream_sanctuary", "Dream Sanctuary", Spell.EffectKind.GROUP_REGEN, 4, 6.0, 0, 14)
+	t.add_node(SkillNode.make("dream_sanctuary", "Dream Sanctuary", dream_sanctuary, ["purrfect_remedy"], 1, 26,
+		"Wraps the party in a dream that regenerates HP for 20 seconds.",
+		CharacterData.CharacterClass.SLEEPY_CAT))
+	return t
+
+# Issue #422: Chonk Cat branch, built on the Chonk Kitten roster and chained
+# off Maximum Chonk (the Chonk Kitten capstone).
+static func make_chonk_cat_tree() -> SkillTree:
+	var t := make_chonk_kitten_tree()
+	var gravity_well := Spell.make("gravity_well", "Gravity Well", Spell.EffectKind.AREA, 16, 4.0)
+	t.add_node(SkillNode.make("gravity_well", "Gravity Well", gravity_well, ["maximum_chonk"], 1, 15,
+		"Crushes all nearby enemies under sudden, immense gravity.",
+		CharacterData.CharacterClass.CHONK_CAT))
+	var thunderous_belly_flop := Spell.make("thunderous_belly_flop", "Thunderous Belly Flop", Spell.EffectKind.AREA, 22, 5.0)
+	t.add_node(SkillNode.make("thunderous_belly_flop", "Thunderous Belly Flop", thunderous_belly_flop, ["gravity_well"], 1, 26,
+		"An earth-shaking flop that pummels every enemy nearby.",
+		CharacterData.CharacterClass.CHONK_CAT))
 	return t
 
 static func make_wizard_kitten_tree() -> SkillTree:

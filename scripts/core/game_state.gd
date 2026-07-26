@@ -561,22 +561,28 @@ func _on_damage_received(_attacker_id: String, enemy_id: String, damage: int, ki
 	print("[coop-enemy] DMG recv id=%s dmg=%d matched_local_enemy=%s" % [enemy_id, damage, str(_hit)])
 
 # Per-class tree builder (PRD #124 / issue #127). Each Kitten archetype has
-# its own 5-node factory. Cat-tier classes share their Kitten counterpart's
-# tree so a tier-2 upgrade preserves unlocks — except Battle Cat, which
-# (PRD #418 / issue #420) gets its own factory adding the Claw Storm
-# Cat-tier node on top of the shared Battle Kitten roster. Unknown class
-# falls through to the Battle Kitten tree as a safe default — better than
-# returning null and forcing every call site to null-check.
+# its own 5-node factory. Every Cat-tier class (PRD #418) now gets its own
+# factory adding its Cat-tier branch on top of the shared Kitten roster
+# (issue #420 for Battle Cat, issue #422 for the other three) so a tier-2
+# upgrade preserves the Kitten's unlocks and adds the new nodes. Unknown
+# class falls through to the Battle Kitten tree as a safe default — better
+# than returning null and forcing every call site to null-check.
 func _build_tree_for(c: CharacterData) -> SkillTree:
 	match c.character_class:
 		CharacterData.CharacterClass.BATTLE_KITTEN:
 			return SkillTree.make_battle_kitten_tree()
 		CharacterData.CharacterClass.BATTLE_CAT:
 			return SkillTree.make_battle_cat_tree()
-		CharacterData.CharacterClass.WIZARD_KITTEN, CharacterData.CharacterClass.WIZARD_CAT:
+		CharacterData.CharacterClass.WIZARD_KITTEN:
 			return SkillTree.make_wizard_kitten_tree()
-		CharacterData.CharacterClass.SLEEPY_KITTEN, CharacterData.CharacterClass.SLEEPY_CAT:
+		CharacterData.CharacterClass.WIZARD_CAT:
+			return SkillTree.make_wizard_cat_tree()
+		CharacterData.CharacterClass.SLEEPY_KITTEN:
 			return SkillTree.make_sleepy_kitten_tree()
-		CharacterData.CharacterClass.CHONK_KITTEN, CharacterData.CharacterClass.CHONK_CAT:
+		CharacterData.CharacterClass.SLEEPY_CAT:
+			return SkillTree.make_sleepy_cat_tree()
+		CharacterData.CharacterClass.CHONK_KITTEN:
 			return SkillTree.make_chonk_kitten_tree()
+		CharacterData.CharacterClass.CHONK_CAT:
+			return SkillTree.make_chonk_cat_tree()
 	return SkillTree.make_battle_kitten_tree()

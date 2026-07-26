@@ -178,6 +178,126 @@ func test_level_15_battle_cat_unlocks_claw_storm():
 func _fresh_game_state():
 	return get_node("/root/GameState")
 
+func _build_cat_tree(factory: String) -> SkillTree:
+	match factory:
+		"make_battle_cat_tree":
+			return SkillTree.make_battle_cat_tree()
+		"make_wizard_cat_tree":
+			return SkillTree.make_wizard_cat_tree()
+		"make_sleepy_cat_tree":
+			return SkillTree.make_sleepy_cat_tree()
+		"make_chonk_cat_tree":
+			return SkillTree.make_chonk_cat_tree()
+	return null
+
+# ---- Cat-tier roster rollout: remaining 9 nodes (PRD #418 / issue #422) --
+
+# [tree_factory, node_id, level, effect_kind, power, cooldown, mp_cost, prereq_id]
+const CAT_ROSTER := [
+	["make_battle_cat_tree", "pounce", 18, Spell.EffectKind.DAMAGE, 14, 2.0, 0, "claw_storm"],
+	["make_battle_cat_tree", "apex_predator", 30, Spell.EffectKind.AREA, 26, 7.0, 0, "pounce"],
+	["make_wizard_cat_tree", "supernova_swat", 22, Spell.EffectKind.DAMAGE, 22, 5.0, 14, "arcane_purr"],
+	["make_wizard_cat_tree", "starfall", 26, Spell.EffectKind.AREA, 18, 6.0, 16, "supernova_swat"],
+	["make_wizard_cat_tree", "archmagus_ascension", 30, Spell.EffectKind.DAMAGE, 30, 8.0, 20, "starfall"],
+	["make_sleepy_cat_tree", "purrfect_remedy", 18, Spell.EffectKind.AOE_HEAL, 18, 4.0, 12, "nap_of_the_gods"],
+	["make_sleepy_cat_tree", "dream_sanctuary", 26, Spell.EffectKind.GROUP_REGEN, 4, 6.0, 14, "purrfect_remedy"],
+	["make_chonk_cat_tree", "gravity_well", 15, Spell.EffectKind.AREA, 16, 4.0, 0, "maximum_chonk"],
+	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "gravity_well"],
+]
+
+func test_cat_roster_node_wiring():
+	for entry in CAT_ROSTER:
+		var factory: String = entry[0]
+		var node_id: String = entry[1]
+		var lvl: int = entry[2]
+		var kind: int = entry[3]
+		var power: int = entry[4]
+		var cd: float = entry[5]
+		var mp: int = entry[6]
+		var prereq: String = entry[7]
+		var t: SkillTree = _build_cat_tree(factory)
+		var n := t.find(node_id)
+		assert_not_null(n, "%s: node %s should exist" % [factory, node_id])
+		if n == null:
+			continue
+		assert_eq(n.level_required, lvl, "%s level_required" % node_id)
+		assert_not_null(n.spell, "%s spell" % node_id)
+		assert_eq(n.spell.effect_kind, kind, "%s effect_kind" % node_id)
+		assert_eq(n.spell.power, power, "%s power" % node_id)
+		assert_almost_eq(n.spell.cooldown, cd, 0.001, "%s cooldown" % node_id)
+		assert_eq(n.spell.mp_cost, mp, "%s mp_cost" % node_id)
+		assert_eq(n.prerequisite_ids, [prereq], "%s prerequisite" % node_id)
+
+func test_capstones_at_level_30():
+	assert_eq(SkillTree.make_battle_cat_tree().find("apex_predator").level_required, 30)
+	assert_eq(SkillTree.make_wizard_cat_tree().find("archmagus_ascension").level_required, 30)
+
+func test_cat_roster_gated_to_matching_cat_class():
+	for entry in CAT_ROSTER:
+		var t: SkillTree = _build_cat_tree(entry[0])
+		var n := t.find(entry[1])
+		if n == null:
+			continue
+		assert_ne(n.required_class, -1, "%s must be class-gated" % entry[1])
+
+func test_new_nodes_absent_from_kitten_trees():
+	var kitten_trees := {
+		"battle": SkillTree.make_battle_kitten_tree(),
+		"wizard": SkillTree.make_wizard_kitten_tree(),
+		"sleepy": SkillTree.make_sleepy_kitten_tree(),
+		"chonk": SkillTree.make_chonk_kitten_tree(),
+	}
+	for entry in CAT_ROSTER:
+		var node_id: String = entry[1]
+		for label in kitten_trees:
+			assert_null(kitten_trees[label].find(node_id), "%s should not be on the %s Kitten tree" % [node_id, label])
+
+func test_cat_roster_one_level_below_gate_stays_locked():
+	for entry in CAT_ROSTER:
+		var factory: String = entry[0]
+		var node_id: String = entry[1]
+		var lvl: int = entry[2]
+		var t: SkillTree = _build_cat_tree(factory)
+		var required_class: int = t.find(node_id).required_class
+		var newly := SkillUnlockChecker.auto_unlock_for_level(t, lvl - 1, required_class)
+		assert_false(newly.has(node_id), "%s should stay locked one level below its gate" % node_id)
+
+func test_cat_roster_unlocks_at_gate_for_matching_class():
+	for entry in CAT_ROSTER:
+		var factory: String = entry[0]
+		var node_id: String = entry[1]
+		var lvl: int = entry[2]
+		var t: SkillTree = _build_cat_tree(factory)
+		var required_class: int = t.find(node_id).required_class
+		var newly := SkillUnlockChecker.auto_unlock_for_level(t, lvl, required_class)
+		assert_true(newly.has(node_id), "%s should unlock at its gate for the matching class" % node_id)
+
+func test_cat_roster_stays_locked_for_kitten_variant_even_above_level():
+	# Regression on #420's class-aware gating: the Kitten variant's own tree
+	# doesn't even contain these nodes, so a Kitten at/above the gate level
+	# never has them — covered structurally by
+	# test_new_nodes_absent_from_kitten_trees, plus a direct GameState check.
+	var gs = _fresh_game_state()
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	c.level = 30
+	gs.set_character(c)
+	assert_null(gs.skill_tree.find("archmagus_ascension"))
+
+func test_game_state_routes_wizard_cat_with_new_nodes():
+	var gs = _fresh_game_state()
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.WIZARD_CAT))
+	assert_not_null(gs.skill_tree.find("supernova_swat"))
+
+func test_game_state_routes_sleepy_cat_with_new_nodes():
+	var gs = _fresh_game_state()
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_CAT))
+	assert_not_null(gs.skill_tree.find("purrfect_remedy"))
+
+func test_game_state_routes_chonk_cat_with_new_nodes():
+	var gs = _fresh_game_state()
+	gs.set_character(CharacterData.make_new(CharacterData.CharacterClass.CHONK_CAT))
+	assert_not_null(gs.skill_tree.find("gravity_well"))
+
 # Issue #177: mp_cost on mage skill trees.
 
 func test_wizard_kitten_spells_all_have_mp_cost():
