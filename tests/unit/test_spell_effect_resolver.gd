@@ -293,6 +293,41 @@ func test_iron_hide_applies_defense_buff_and_shield_in_one_cast():
 		"Iron Hide also grants a shield")
 	assert_almost_eq(caster.shield_remaining(), SpellEffectResolver.IRON_HIDE_DURATION, 0.0001)
 
+# ---- PARTY_SHIELD / Nine Lives (issue #424) ------------------------------
+
+func test_party_shield_applies_shield_to_all_targets():
+	var caster := _caster(0)
+	var a := _caster(0)
+	var b := _caster(0)
+	var spell := Spell.make("cozy_cocoon", "Cozy Cocoon", Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 0, 10)
+	var total := SpellEffectResolver.apply(spell, caster, [a, b])
+	assert_eq(total, 0, "PARTY_SHIELD deals no instant HP")
+	assert_eq(a.shield_amount(), SpellEffectResolver.COZY_COCOON_SHIELD_AMOUNT)
+	assert_almost_eq(a.shield_remaining(), SpellEffectResolver.COZY_COCOON_DURATION, 0.0001)
+	assert_eq(b.shield_amount(), SpellEffectResolver.COZY_COCOON_SHIELD_AMOUNT)
+	assert_almost_eq(b.shield_remaining(), SpellEffectResolver.COZY_COCOON_DURATION, 0.0001)
+
+func test_party_shield_ignores_caster_when_not_in_targets():
+	var caster := _caster(0)
+	var spell := Spell.make("cozy_cocoon", "Cozy Cocoon", Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 0, 10)
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_eq(caster.shield_amount(), 0, "caster is untouched when not in the targets array")
+
+func test_nine_lives_fully_heals_and_shields_lowest_hp_ally():
+	var caster := _caster(0)
+	var low := _caster(0)
+	low.hp = 1
+	var high := _caster(0)
+	high.hp = high.max_hp - 1
+	var spell := Spell.make("nine_lives", "Nine Lives", Spell.EffectKind.SMART_HEAL, 0, 10.0, 0, 20)
+	var healed := SpellEffectResolver.apply(spell, caster, [low, high])
+	assert_eq(low.hp, low.max_hp, "Nine Lives fully heals the lowest-HP ally")
+	assert_eq(healed, low.max_hp - 1, "return value is the HP actually restored")
+	assert_eq(low.shield_amount(), SpellEffectResolver.NINE_LIVES_SHIELD_AMOUNT)
+	assert_almost_eq(low.shield_remaining(), SpellEffectResolver.NINE_LIVES_DURATION, 0.0001)
+	assert_eq(high.hp, high.max_hp - 1, "the higher-HP ally is untouched")
+	assert_eq(high.shield_amount(), 0)
+
 func test_unknown_buff_id_is_a_safe_no_op():
 	var caster := _caster(0)
 	var base_defense := caster.defense

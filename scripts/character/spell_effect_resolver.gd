@@ -31,6 +31,17 @@ const IRON_HIDE_DEFENSE_AMOUNT := 10
 const IRON_HIDE_SHIELD_AMOUNT := 15
 const IRON_HIDE_DURATION := 20.0
 
+# Issue #424: PARTY_SHIELD is dispatched generically (unlike BUFF above) since
+# Cozy Cocoon is its only consumer so far — same shape as GROUP_REGEN/
+# PARTY_BUFF's "one hardcoded skill" precedent, just shield instead of buff.
+# Nine Lives extends SMART_HEAL by id: a full heal plus a shield on the same
+# lowest-HP pick, so it stays inside the SMART_HEAL branch rather than
+# introducing a new EffectKind.
+const COZY_COCOON_SHIELD_AMOUNT := 10
+const COZY_COCOON_DURATION := 12.0
+const NINE_LIVES_SHIELD_AMOUNT := 20
+const NINE_LIVES_DURATION := 8.0
+
 static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
@@ -85,15 +96,27 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 			# amount uses spell.power + magic_attack, same formula as HEAL;
 			# crit is intentionally NOT rolled (matches HEAL's deterministic
 			# tuning).
-			var smart_amount := spell.power + _read_int(caster, "magic_attack", 0)
 			var pick = _lowest_hp_pct_target(targets)
 			if pick == null:
 				pick = caster
-			if pick != null and pick.has_method("heal"):
-				var smart_dealt := int(pick.heal(smart_amount))
-				total += smart_dealt
-				if heal_broadcaster != null:
-					heal_broadcaster.on_heal_applied(caster_id, _read_player_id(pick), "SMART_HEAL", smart_dealt, 0.0)
+			if spell.id == "nine_lives":
+				# Capstone (#424): full heal (to max_hp) plus a shield on
+				# the same lowest-HP pick, in one cast.
+				if pick != null and pick.has_method("heal") and "max_hp" in pick:
+					var full_amount := int(pick.get("max_hp"))
+					var full_dealt := int(pick.heal(full_amount))
+					total += full_dealt
+					if pick.has_method("add_shield"):
+						pick.add_shield(NINE_LIVES_SHIELD_AMOUNT, NINE_LIVES_DURATION)
+					if heal_broadcaster != null:
+						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(pick), "NINE_LIVES", full_dealt, 0.0)
+			else:
+				var smart_amount := spell.power + _read_int(caster, "magic_attack", 0)
+				if pick != null and pick.has_method("heal"):
+					var smart_dealt := int(pick.heal(smart_amount))
+					total += smart_dealt
+					if heal_broadcaster != null:
+						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(pick), "SMART_HEAL", smart_dealt, 0.0)
 		Spell.EffectKind.AOE_HEAL:
 			# Issue #141: heals every entry in the targets array. Caster is
 			# included only if the caller put it in the array. Returns the sum
@@ -132,6 +155,15 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 						var pid := _read_player_id(t)
 						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_DEFENSE", 3, 15.0)
 						heal_broadcaster.on_heal_applied(caster_id, pid, "PARTY_BUFF_MAGIC_RESISTANCE", 3, 15.0)
+		Spell.EffectKind.PARTY_SHIELD:
+			# Cozy Cocoon: shields every entry in the targets array. Follows
+			# the same "loop targets, duck-type the method" convention as
+			# GROUP_REGEN/PARTY_BUFF above (issue #424).
+			for t in targets:
+				if t != null and t.has_method("add_shield"):
+					t.add_shield(COZY_COCOON_SHIELD_AMOUNT, COZY_COCOON_DURATION)
+					if heal_broadcaster != null:
+						heal_broadcaster.on_heal_applied(caster_id, _read_player_id(t), "PARTY_SHIELD", COZY_COCOON_SHIELD_AMOUNT, COZY_COCOON_DURATION)
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
 			# spell.cooldown seconds. Targets without the taunt fields (e.g.

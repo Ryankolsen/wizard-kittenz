@@ -199,8 +199,10 @@ const CAT_ROSTER := [
 	["make_wizard_cat_tree", "supernova_swat", 22, Spell.EffectKind.DAMAGE, 22, 5.0, 14, "arcane_purr"],
 	["make_wizard_cat_tree", "starfall", 26, Spell.EffectKind.AREA, 18, 6.0, 16, "supernova_swat"],
 	["make_wizard_cat_tree", "archmagus_ascension", 30, Spell.EffectKind.DAMAGE, 30, 8.0, 20, "starfall"],
-	["make_sleepy_cat_tree", "purrfect_remedy", 18, Spell.EffectKind.AOE_HEAL, 18, 4.0, 12, "nap_of_the_gods"],
+	["make_sleepy_cat_tree", "cozy_cocoon", 15, Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 10, "nap_of_the_gods"],
+	["make_sleepy_cat_tree", "purrfect_remedy", 18, Spell.EffectKind.AOE_HEAL, 18, 4.0, 12, "cozy_cocoon"],
 	["make_sleepy_cat_tree", "dream_sanctuary", 26, Spell.EffectKind.GROUP_REGEN, 4, 6.0, 14, "purrfect_remedy"],
+	["make_sleepy_cat_tree", "nine_lives", 30, Spell.EffectKind.SMART_HEAL, 0, 10.0, 20, "dream_sanctuary"],
 	["make_chonk_cat_tree", "gravity_well", 15, Spell.EffectKind.AREA, 16, 4.0, 0, "maximum_chonk"],
 	["make_chonk_cat_tree", "iron_hide", 22, Spell.EffectKind.BUFF, 0, 10.0, 0, "gravity_well"],
 	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "iron_hide"],
@@ -232,6 +234,7 @@ func test_cat_roster_node_wiring():
 func test_capstones_at_level_30():
 	assert_eq(SkillTree.make_battle_cat_tree().find("apex_predator").level_required, 30)
 	assert_eq(SkillTree.make_wizard_cat_tree().find("archmagus_ascension").level_required, 30)
+	assert_eq(SkillTree.make_sleepy_cat_tree().find("nine_lives").level_required, 30)
 
 func test_cat_roster_gated_to_matching_cat_class():
 	for entry in CAT_ROSTER:

@@ -122,16 +122,26 @@ static func make_wizard_cat_tree() -> SkillTree:
 	return t
 
 # Issue #422: Sleepy Cat branch, built on the Sleepy Kitten roster and
-# chained off Nap of the Gods (the Sleepy Kitten capstone).
+# chained off Nap of the Gods (the Sleepy Kitten capstone). Issue #424 adds
+# Cozy Cocoon (a new first node, ahead of Purrfect Remedy in the chain) and
+# the Nine Lives capstone.
 static func make_sleepy_cat_tree() -> SkillTree:
 	var t := make_sleepy_kitten_tree()
+	var cozy_cocoon := Spell.make("cozy_cocoon", "Cozy Cocoon", Spell.EffectKind.PARTY_SHIELD, 10, 5.0, 0, 10)
+	t.add_node(SkillNode.make("cozy_cocoon", "Cozy Cocoon", cozy_cocoon, ["nap_of_the_gods"], 1, 15,
+		"Wraps nearby allies in a protective shield.",
+		CharacterData.CharacterClass.SLEEPY_CAT))
 	var purrfect_remedy := Spell.make("purrfect_remedy", "Purrfect Remedy", Spell.EffectKind.AOE_HEAL, 18, 4.0, 0, 12)
-	t.add_node(SkillNode.make("purrfect_remedy", "Purrfect Remedy", purrfect_remedy, ["nap_of_the_gods"], 1, 18,
+	t.add_node(SkillNode.make("purrfect_remedy", "Purrfect Remedy", purrfect_remedy, ["cozy_cocoon"], 1, 18,
 		"A deep restorative purr that heals all nearby allies.",
 		CharacterData.CharacterClass.SLEEPY_CAT))
 	var dream_sanctuary := Spell.make("dream_sanctuary", "Dream Sanctuary", Spell.EffectKind.GROUP_REGEN, 4, 6.0, 0, 14)
 	t.add_node(SkillNode.make("dream_sanctuary", "Dream Sanctuary", dream_sanctuary, ["purrfect_remedy"], 1, 26,
 		"Wraps the party in a dream that regenerates HP for 20 seconds.",
+		CharacterData.CharacterClass.SLEEPY_CAT))
+	var nine_lives := Spell.make("nine_lives", "Nine Lives", Spell.EffectKind.SMART_HEAL, 0, 10.0, 0, 20)
+	t.add_node(SkillNode.make("nine_lives", "Nine Lives", nine_lives, ["dream_sanctuary"], 1, 30,
+		"The Sleepy Cat capstone: fully heals and shields the ally in the most danger.",
 		CharacterData.CharacterClass.SLEEPY_CAT))
 	return t
 
