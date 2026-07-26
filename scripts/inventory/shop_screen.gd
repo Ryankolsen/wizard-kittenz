@@ -54,6 +54,10 @@ var _billing_override = null
 var _character_override: CharacterData = null
 var _item_inventory_override: ItemInventory = null
 var _consumable_inventory_override: ConsumableInventory = null
+# Non-null only when setup() has run (i.e. always in tests — production never
+# calls setup(), see _ready()). Backs _bundle() so tests never touch the real
+# save file: production falls through to SaveManager.load_bundle() instead.
+var _bundle_override: SaveBundle = null
 
 # product_id -> HBoxContainer row. Lets _refresh_row mutate a single row
 # (Buy → Owned) after a successful grant without rebuilding the whole list.
@@ -91,7 +95,8 @@ func _connect_dependency_signals() -> void:
 func setup(ledger: CurrencyLedger, skill_inventory, paid_unlocks: PaidUnlockInventory,
 		billing = null, character: CharacterData = null,
 		item_inventory: ItemInventory = null,
-		consumable_inventory: ConsumableInventory = null) -> void:
+		consumable_inventory: ConsumableInventory = null,
+		bundle: SaveBundle = SaveBundle.new()) -> void:
 	_ledger_override = ledger
 	_skill_inventory_override = skill_inventory
 	_paid_unlocks_override = paid_unlocks
@@ -99,6 +104,7 @@ func setup(ledger: CurrencyLedger, skill_inventory, paid_unlocks: PaidUnlockInve
 	_character_override = character
 	_item_inventory_override = item_inventory
 	_consumable_inventory_override = consumable_inventory
+	_bundle_override = bundle
 	if is_inside_tree():
 		_refresh_currency()
 		_rebuild_item_list()
@@ -156,6 +162,11 @@ func _consumable_inventory() -> ConsumableInventory:
 	if gs == null:
 		return null
 	return gs.consumable_inventory
+
+func _bundle() -> SaveBundle:
+	if _bundle_override != null:
+		return _bundle_override
+	return SaveManager.load_bundle()
 
 func _character_class() -> int:
 	var c := _character()
@@ -282,9 +293,39 @@ func _apply_button_state(row: HBoxContainer, item: ShopCatalogItem) -> void:
 	if _is_owned(item):
 		btn.text = "Owned"
 		btn.disabled = true
+	elif item.category == ShopCatalogItem.CATEGORY_CLASS_UPGRADE and not _class_upgrade_available(item):
+		# Every class-tier upgrade row is always listed (PRD #439). Upgrading
+		# is a save-slot mutation, not a live-character one, so any archetype
+		# whose saved slot still holds the un-upgraded Kitten class can be
+		# bought regardless of which character is currently active — you just
+		# can't play as them until you switch. Disable only when that
+		# archetype's slot doesn't exist yet or is already upgraded.
+		btn.text = "Buy"
+		btn.disabled = true
 	else:
 		btn.text = "Buy"
 		btn.disabled = not _can_afford(item)
+
+# Current class of the save slot for `item`'s source archetype — the active
+# character's live class if that's the matching archetype (its on-disk slot
+# may be stale mid-session), else whatever _bundle() has saved for it. -1 if
+# that archetype has no slot at all.
+func _class_for_archetype(archetype: String) -> int:
+	var character := _character()
+	if character != null and SaveBundle.slot_key_for_class(int(character.character_class)) == archetype:
+		return int(character.character_class)
+	var bundle := _bundle()
+	if bundle == null:
+		return -1
+	var slot := bundle.get_slot(archetype)
+	return int(slot.character_class) if slot != null else -1
+
+func _class_upgrade_available(item: ShopCatalogItem) -> bool:
+	var source_class := PurchaseRegistry.class_for_product(item.product_id)
+	if source_class < 0:
+		return false
+	var archetype := SaveBundle.slot_key_for_class(source_class)
+	return _class_for_archetype(archetype) == source_class
 
 # Gem bundles are paid via the billing platform, not the in-game ledger, so
 # they're always "affordable" from the shop's perspective.
@@ -322,11 +363,52 @@ func _on_buy_pressed(product_id: String) -> void:
 	# label — PRD calls for a silent / disabled affordance, not a popup).
 	if not ledger.debit(item.price, item.currency_type):
 		return
+	var is_class_upgrade := item.category == ShopCatalogItem.CATEGORY_CLASS_UPGRADE
+	var character := _character()
+	var source_class := PurchaseRegistry.class_for_product(product_id) if is_class_upgrade else -1
+	var upgrading_active := is_class_upgrade and character != null \
+		and int(character.character_class) == source_class
+
+	if is_class_upgrade and not upgrading_active:
+		# Upgrading an archetype other than the one currently loaded (the
+		# player can be playing Wizard Kitten in a dungeon and still buy the
+		# Chonk Cat upgrade for their saved Chonk Kitten — they just can't
+		# play as Chonk Cat until they switch to that slot). There's no live
+		# CharacterData for it, so the grant mutates the save slot directly.
+		# Still worth the evolve-congrats payoff, so snapshot the slot's
+		# pre/post stats the same way the active-character path does.
+		var bundle := _bundle()
+		var slot := bundle.get_slot(source_class) if source_class >= 0 else null
+		var old_class := -1
+		var old_stats := {}
+		if slot != null:
+			old_class = int(slot.character_class)
+			old_stats = {
+				"max_hp": slot.max_hp,
+				"attack": slot.attack,
+				"defense": slot.defense,
+				"speed": slot.speed,
+			}
+		var granted := PurchaseGrantHandler.handle_offline_class_upgrade(product_id, bundle)
+		if granted:
+			_persist_bundle(bundle)
+			_refresh_row(product_id)
+			if _rows_by_product.has(product_id):
+				_flash_row(_rows_by_product[product_id])
+			if slot != null:
+				_show_evolve_congrats(old_class, int(slot.character_class), old_stats, {
+					"max_hp": slot.max_hp,
+					"attack": slot.attack,
+					"defense": slot.defense,
+					"speed": slot.speed,
+				})
+		else:
+			ledger.credit(item.price, item.currency_type)
+		return
+
 	# Class-upgrade grants mutate the character in place (ClassTierUpgrade
 	# .upgrade), so the pre-upgrade class/stats must be snapshotted before
 	# PurchaseGrantHandler.handle runs (PRD #439 "Trigger point").
-	var is_class_upgrade := item.category == ShopCatalogItem.CATEGORY_CLASS_UPGRADE
-	var character := _character()
 	var old_class := -1
 	var old_stats := {}
 	if is_class_upgrade and character != null:
@@ -357,6 +439,15 @@ func _on_buy_pressed(product_id: String) -> void:
 		# upgrade product whose target tier isn't wired in ClassTierUpgrade
 		# yet). Refund so the player isn't out the currency for a no-op.
 		ledger.credit(item.price, item.currency_type)
+
+# Flushes an offline-slot upgrade to disk. Tests always run with a
+# _bundle_override (setup() defaults it to a fresh SaveBundle) so the mutated
+# object is directly inspectable without touching the filesystem; production
+# never overrides it, so this is the one path that actually persists.
+func _persist_bundle(bundle: SaveBundle) -> void:
+	if _bundle_override != null:
+		return
+	SaveManager.save_bundle(bundle)
 
 # Instances the tween-driven "Kitten grew into a Cat" overlay (#441/#442) as
 # a ShopScreen child, populated with the pre/post-upgrade snapshot. Additive
@@ -437,17 +528,15 @@ func _refresh_row(product_id: String) -> void:
 	_apply_button_state(row, item)
 
 func _is_owned(item: ShopCatalogItem) -> bool:
-	var character := _character()
 	var paid_unlocks := _paid_unlocks()
 	var skill_inventory = _skill_inventory()
 	match item.category:
 		ShopCatalogItem.CATEGORY_CLASS_UPGRADE:
-			if character == null:
-				return false
 			var source_class := PurchaseRegistry.class_for_product(item.product_id)
 			if source_class < 0:
 				return false
-			return int(character.character_class) == ClassTierUpgrade.target_for(source_class)
+			var archetype := SaveBundle.slot_key_for_class(source_class)
+			return _class_for_archetype(archetype) == ClassTierUpgrade.target_for(source_class)
 		ShopCatalogItem.CATEGORY_CLASS_UNLOCK:
 			if paid_unlocks == null:
 				return false

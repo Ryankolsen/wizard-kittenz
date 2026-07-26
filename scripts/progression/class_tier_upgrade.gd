@@ -57,3 +57,27 @@ static func upgrade(c: CharacterData) -> bool:
 	c.level = preserved_level
 	c.skill_points = preserved_skill_points
 	return true
+
+# Slot-data twin of upgrade() above, for upgrading an archetype that isn't
+# the currently loaded character (PRD #439 follow-up: buying e.g. a Chonk
+# Cat upgrade while playing Wizard Kitten). GameState only hydrates the
+# *active* slot into a CharacterData, so a purchase targeting any other
+# archetype has to mutate its CharacterSlotData directly. Field-for-field
+# mirror of upgrade(): same preserved/recomputed split, same heal-by-delta.
+static func upgrade_slot(s: CharacterSlotData) -> bool:
+	if s == null:
+		return false
+	if not has_upgrade(s.character_class):
+		return false
+	var target_class: int = TIER_MAP[s.character_class]
+	var hp_before := s.hp
+	var max_before := s.max_hp
+
+	s.character_class = target_class
+	s.max_hp = CharacterData.base_max_hp_for(target_class, s.level)
+	s.attack = CharacterData.base_attack_for(target_class, s.level)
+	s.defense = CharacterData.base_defense_for(target_class, s.level)
+	s.speed = CharacterData.base_speed_for(target_class, s.level)
+	var hp_delta: int = s.max_hp - max_before
+	s.hp = mini(hp_before + maxi(0, hp_delta), s.max_hp)
+	return true

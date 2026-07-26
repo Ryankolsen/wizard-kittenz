@@ -181,6 +181,112 @@ func test_class_upgrade_purchase_adds_evolve_congrats_screen():
 	assert_not_null(_find_evolve_congrats_screen(screen),
 		"expected an EvolveCongratsScreen child after a class-upgrade purchase")
 
+func _buy_button(row: HBoxContainer) -> Button:
+	for c in row.get_children():
+		if c is Button:
+			return c
+	return null
+
+# Regression guard: every class-tier upgrade row is always listed (PRD #439),
+# but a row is only clickable if its archetype actually has a saved slot at
+# the un-upgraded Kitten tier. A Battle Kitten player with no Wizard slot at
+# all can't buy the Wizard Cat upgrade — there's no Wizard Kitten to upgrade.
+func test_class_upgrade_button_disabled_when_archetype_has_no_slot():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	var row: HBoxContainer = screen._rows_by_product[PurchaseRegistry.UPGRADE_WIZARD_KITTEN_WIZARD_CAT]
+	var btn := _buy_button(row)
+	assert_not_null(btn)
+	assert_true(btn.disabled, "expected the Wizard Cat row to be disabled with no Wizard slot")
+
+func test_matching_class_upgrade_button_is_enabled():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _battle_kitten_character())
+	var row: HBoxContainer = screen._rows_by_product[PurchaseRegistry.UPGRADE_BATTLE_KITTEN_BATTLE_CAT]
+	var btn := _buy_button(row)
+	assert_not_null(btn)
+	assert_false(btn.disabled, "expected the Battle Cat row to stay enabled for a Battle Kitten character")
+
+# A saved-but-inactive archetype's upgrade row should still be buyable — the
+# player is playing Wizard Kitten but has a Chonk Kitten slot saved, and
+# should be able to upgrade Chonk without switching to it first.
+func _bundle_with_chonk_kitten_slot() -> SaveBundle:
+	var bundle := SaveBundle.new()
+	var slot := CharacterSlotData.new()
+	slot.character_class = CharacterData.CharacterClass.CHONK_KITTEN
+	slot.character_name = "Chonker"
+	slot.level = 5
+	slot.max_hp = 40
+	slot.hp = 40
+	slot.attack = 6
+	slot.defense = 8
+	slot.speed = 4.0
+	bundle.slots[SaveBundle.SLOT_CHONK] = slot
+	return bundle
+
+func test_inactive_archetype_with_saved_slot_button_is_enabled():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), _wizard_character())
+	screen.setup(ledger, SkillInventory.new(), PaidUnlockInventory.new(),
+		_new_billing(), _wizard_character(), null, null, _bundle_with_chonk_kitten_slot())
+	var row: HBoxContainer = screen._rows_by_product[PurchaseRegistry.UPGRADE_CHONK_KITTEN_CHONK_CAT]
+	var btn := _buy_button(row)
+	assert_not_null(btn)
+	assert_false(btn.disabled,
+		"expected the Chonk Cat row to be enabled for a saved-but-inactive Chonk Kitten slot")
+
+# Buying an inactive archetype's upgrade should mutate that slot in the
+# save bundle (preserving level/name) without touching the active character.
+func test_buy_inactive_archetype_upgrade_mutates_slot_not_active_character():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var wizard := _wizard_character()
+	var bundle := _bundle_with_chonk_kitten_slot()
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), wizard)
+	screen.setup(ledger, SkillInventory.new(), PaidUnlockInventory.new(),
+		_new_billing(), wizard, null, null, bundle)
+
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_CHONK_KITTEN_CHONK_CAT)
+
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GEM), 0)
+	assert_eq(wizard.character_class, CharacterData.CharacterClass.WIZARD_KITTEN,
+		"active Wizard character must be untouched by an offline-archetype upgrade")
+	var chonk_slot: CharacterSlotData = bundle.get_slot(SaveBundle.SLOT_CHONK)
+	assert_eq(chonk_slot.character_class, CharacterData.CharacterClass.CHONK_CAT)
+	assert_eq(chonk_slot.level, 5, "level must be preserved through the upgrade")
+	var row: HBoxContainer = screen._rows_by_product[PurchaseRegistry.UPGRADE_CHONK_KITTEN_CHONK_CAT]
+	var btn := _buy_button(row)
+	assert_eq(btn.text, "Owned")
+	assert_true(btn.disabled)
+
+# The evolve-congrats payoff shouldn't be limited to the character you're
+# currently playing — buying Chonk Cat while active is Wizard Kitten should
+# still show the transformation overlay, driven off the slot's stats.
+func test_inactive_archetype_upgrade_shows_evolve_congrats_screen():
+	var ledger := CurrencyLedger.new()
+	ledger.credit(1500, CurrencyLedger.Currency.GEM)
+	var wizard := _wizard_character()
+	var bundle := _bundle_with_chonk_kitten_slot()
+	var screen := _make_screen(ledger, SkillInventory.new(),
+		PaidUnlockInventory.new(), _new_billing(), wizard)
+	screen.setup(ledger, SkillInventory.new(), PaidUnlockInventory.new(),
+		_new_billing(), wizard, null, null, bundle)
+
+	screen._on_buy_pressed(PurchaseRegistry.UPGRADE_CHONK_KITTEN_CHONK_CAT)
+
+	var overlay: EvolveCongratsScreen = _find_evolve_congrats_screen(screen)
+	assert_not_null(overlay,
+		"expected an EvolveCongratsScreen child after an inactive-archetype upgrade")
+	var tier_name: Label = overlay.get_node("Backdrop/Center/CenterH/Panel/VBox/TierName")
+	assert_eq(tier_name.text, CharacterGrid.class_display_name(CharacterData.CharacterClass.CHONK_CAT))
+
 func test_evolve_congrats_screen_populated_with_correct_classes():
 	var ledger := CurrencyLedger.new()
 	ledger.credit(1500, CurrencyLedger.Currency.GEM)

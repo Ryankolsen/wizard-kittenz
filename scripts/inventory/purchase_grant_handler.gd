@@ -136,3 +136,22 @@ static func _handle_class_upgrade(product_id: String, character: CharacterData) 
 		# "coming soon" affordance instead of mutating state.
 		return false
 	return ClassTierUpgrade.upgrade(character)
+
+# Class-tier upgrade for an archetype that isn't the active character (the
+# player is playing Wizard Kitten but is buying the Chonk Cat upgrade for
+# their saved Chonk Kitten). Mutates the matching slot inside `bundle`
+# in place rather than a live CharacterData — ShopScreen is responsible for
+# routing to this vs. _handle_class_upgrade based on whether the product's
+# source class is the active character's class.
+static func handle_offline_class_upgrade(product_id: String, bundle: SaveBundle) -> bool:
+	if bundle == null:
+		return false
+	var source_class := PurchaseRegistry.class_for_product(product_id)
+	if source_class < 0:
+		return false
+	var slot := bundle.get_slot(source_class)
+	if slot == null or int(slot.character_class) != source_class:
+		return false
+	if not ClassTierUpgrade.has_upgrade(slot.character_class):
+		return false
+	return ClassTierUpgrade.upgrade_slot(slot)
