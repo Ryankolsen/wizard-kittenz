@@ -523,3 +523,47 @@ func test_party_buff_generalization_does_not_change_cozy_auras_existing_behavior
 	ally.tick_buffs(15.0)
 	assert_eq(ally.defense, base_defense, "Cozy Aura's defense buff still reverts after 15s")
 	assert_eq(ally.magic_resistance, base_mr, "Cozy Aura's magic_resistance buff still reverts after 15s")
+
+# ---- Unstoppable Chonk (issue #428) ---------------------------------------
+
+func test_unstoppable_chonk_taunts_all_nearby_enemies():
+	var caster := _caster(0)
+	var e1 := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var e2 := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spell := Spell.make("unstoppable_chonk", "Unstoppable Chonk", Spell.EffectKind.TAUNT, 0, 12.0)
+	SpellEffectResolver.apply(spell, caster, [e1, e2])
+	assert_eq(e1.taunt_target, caster, "Unstoppable Chonk taunts the first enemy")
+	assert_eq(e2.taunt_target, caster, "Unstoppable Chonk taunts the second enemy")
+	assert_almost_eq(e1.taunt_remaining, SpellEffectResolver.UNSTOPPABLE_CHONK_TAUNT_DURATION, 0.0001)
+
+func test_unstoppable_chonk_applies_shield_and_defense_buff_to_caster_in_one_cast():
+	var caster := _caster(0)
+	var base_defense := caster.defense
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("unstoppable_chonk", "Unstoppable Chonk", Spell.EffectKind.TAUNT, 0, 12.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_eq(caster.defense, base_defense + SpellEffectResolver.UNSTOPPABLE_CHONK_DEFENSE_AMOUNT,
+		"Unstoppable Chonk boosts the caster's defense")
+	assert_eq(caster.shield_amount(), SpellEffectResolver.UNSTOPPABLE_CHONK_SHIELD_AMOUNT,
+		"Unstoppable Chonk also shields the caster")
+	assert_almost_eq(caster.shield_remaining(), SpellEffectResolver.UNSTOPPABLE_CHONK_DURATION, 0.0001)
+
+func test_unstoppable_chonk_taunt_duration_differs_from_cooldown():
+	# The 12s cooldown gates re-casting; the 8s taunt duration is shorter and
+	# comes from its own constant, not spell.cooldown (unlike plain TAUNT).
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("unstoppable_chonk", "Unstoppable Chonk", Spell.EffectKind.TAUNT, 0, 12.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_almost_eq(enemy.taunt_remaining, 8.0, 0.0001, "taunt duration is 8s, not the 12s cooldown")
+
+func test_unstoppable_chonk_shares_a_single_cooldown_across_all_three_effects():
+	# All three effects (taunt, shield, buff) come from one cast() call
+	# gated by one cooldown_remaining, not three independent timers.
+	var spell := Spell.make("unstoppable_chonk", "Unstoppable Chonk", Spell.EffectKind.TAUNT, 0, 12.0)
+	assert_true(spell.is_ready(), "ready before first cast")
+	assert_true(spell.cast(), "first cast succeeds")
+	assert_false(spell.is_ready(), "on cooldown immediately after cast")
+	assert_false(spell.cast(), "recast during cooldown is blocked")
+	spell.tick(12.0)
+	assert_true(spell.is_ready(), "ready again after the full 12s cooldown elapses")

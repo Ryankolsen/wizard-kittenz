@@ -242,6 +242,7 @@ const CAT_ROSTER := [
 	["make_chonk_cat_tree", "bulwark_purr", 18, Spell.EffectKind.PARTY_BUFF, 0, 8.0, 0, "gravity_well"],
 	["make_chonk_cat_tree", "iron_hide", 22, Spell.EffectKind.BUFF, 0, 10.0, 0, "bulwark_purr"],
 	["make_chonk_cat_tree", "thunderous_belly_flop", 26, Spell.EffectKind.AREA, 22, 5.0, 0, "iron_hide"],
+	["make_chonk_cat_tree", "unstoppable_chonk", 30, Spell.EffectKind.TAUNT, 0, 12.0, 0, "thunderous_belly_flop"],
 ]
 
 func test_cat_roster_node_wiring():
@@ -271,6 +272,7 @@ func test_capstones_at_level_30():
 	assert_eq(SkillTree.make_battle_cat_tree().find("apex_predator").level_required, 30)
 	assert_eq(SkillTree.make_wizard_cat_tree().find("archmagus_ascension").level_required, 30)
 	assert_eq(SkillTree.make_sleepy_cat_tree().find("nine_lives").level_required, 30)
+	assert_eq(SkillTree.make_chonk_cat_tree().find("unstoppable_chonk").level_required, 30)
 
 func test_cat_roster_gated_to_matching_cat_class():
 	for entry in CAT_ROSTER:

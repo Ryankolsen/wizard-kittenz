@@ -217,6 +217,14 @@ static func make_chonk_cat_tree() -> SkillTree:
 	t.add_node(SkillNode.make("thunderous_belly_flop", "Thunderous Belly Flop", thunderous_belly_flop, ["iron_hide"], 1, 26,
 		"An earth-shaking flop that pummels every enemy nearby.",
 		CharacterData.CharacterClass.CHONK_CAT))
+	# Issue #428: Unstoppable Chonk, the Chonk Cat capstone. TAUNT-kind spell
+	# whose SpellEffectResolver dispatch (id == "unstoppable_chonk") also
+	# self-shields and self-buffs the caster in the same cast — see
+	# SpellEffectResolver.apply's TAUNT case.
+	var unstoppable_chonk := Spell.make("unstoppable_chonk", "Unstoppable Chonk", Spell.EffectKind.TAUNT, 0, 12.0)
+	t.add_node(SkillNode.make("unstoppable_chonk", "Unstoppable Chonk", unstoppable_chonk, ["thunderous_belly_flop"], 1, 30,
+		"The Chonk Cat capstone: taunts every nearby enemy while shielding and toughening yourself.",
+		CharacterData.CharacterClass.CHONK_CAT))
 	return t
 
 static func make_wizard_kitten_tree() -> SkillTree:

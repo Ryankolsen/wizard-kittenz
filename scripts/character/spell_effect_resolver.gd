@@ -60,6 +60,19 @@ const ARCANE_WILDFIRE_DOT_DURATION := 6.0
 const MIND_SUNDER_DEFENSE_AMOUNT := 4
 const MIND_SUNDER_DURATION := 10.0
 
+# Issue #428: Unstoppable Chonk composes TAUNT (existing per-target dispatch)
+# with a self-shield and a self-defense-buff in one cast/cooldown, rather than
+# being three separate spells. Taunt duration (8s) is intentionally its own
+# constant distinct from the spell's 12s cooldown — unlike the plain TAUNT
+# case above (which reuses spell.cooldown as duration since Chonk Taunt's
+# only consumer has no separate cooldown/duration split). Shield and defense
+# share a 10s duration, matching Iron Hide's (#423) precedent of a buff+shield
+# combo using one duration for both parts.
+const UNSTOPPABLE_CHONK_TAUNT_DURATION := 8.0
+const UNSTOPPABLE_CHONK_SHIELD_AMOUNT := 25
+const UNSTOPPABLE_CHONK_DEFENSE_AMOUNT := 10
+const UNSTOPPABLE_CHONK_DURATION := 10.0
+
 static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerator = null, taunt_broadcaster: TauntBroadcaster = null, caster_id: String = "", heal_broadcaster: HealBroadcasterRef = null) -> int:
 	if spell == null:
 		return 0
@@ -224,14 +237,23 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 							break
 		Spell.EffectKind.TAUNT:
 			# Redirects each target enemy's AI to fixate on the caster for
-			# spell.cooldown seconds. Targets without the taunt fields (e.g.
-			# CharacterData) are skipped duck-type style.
+			# spell.cooldown seconds (or UNSTOPPABLE_CHONK_TAUNT_DURATION, which
+			# is shorter than that capstone's 12s cooldown). Targets without the
+			# taunt fields (e.g. CharacterData) are skipped duck-type style.
+			var taunt_duration := spell.cooldown
+			if spell.id == "unstoppable_chonk":
+				taunt_duration = UNSTOPPABLE_CHONK_TAUNT_DURATION
+				if caster != null:
+					if caster.has_method("add_shield"):
+						caster.add_shield(UNSTOPPABLE_CHONK_SHIELD_AMOUNT, UNSTOPPABLE_CHONK_DURATION)
+					if caster.has_method("add_buff"):
+						caster.add_buff("defense", UNSTOPPABLE_CHONK_DEFENSE_AMOUNT, UNSTOPPABLE_CHONK_DURATION)
 			for t in targets:
 				if t == null:
 					continue
 				if "taunt_target" in t and "taunt_remaining" in t:
 					t.taunt_target = caster
-					t.taunt_remaining = spell.cooldown
+					t.taunt_remaining = taunt_duration
 					# Cross-client identity: stamp taunt_source_id so the
 					# receiving client (which has no caster CharacterData
 					# reference) can resolve the taunting player by id.
