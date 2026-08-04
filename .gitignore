@@ -14,6 +14,10 @@ scripts/*.gd.uid
 /libgodot_camera.visionos.debug.xcframework/
 /libgodot_camera.visionos.release.xcframework/
 /wizard-kittenz/
+/wizard-kittenz.xcodeproj-debug.xcodeproj/
+/wizard-kittenz.xcodeproj-debug.xcframework/
+/wizard-kittenz.xcodeproj-debug.pck
+/wizard-kittenz.xcodeproj-debug/
 
 # Build artifacts
 *.aab
