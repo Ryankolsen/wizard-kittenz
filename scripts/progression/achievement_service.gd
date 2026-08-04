@@ -41,3 +41,40 @@ func record_event(event_key: String) -> void:
 			"earned_by_slot": active_slot,
 		}
 		achievement_unlocked.emit(definition.id)
+
+# Grants an unlocked-but-unclaimed achievement's fixed reward and marks it
+# claimed (issue #448). Gold routes account-wide via currency_ledger. Potions
+# route to the ConsumableInventory belonging to the entry's earned_by_slot —
+# consumable_inventory when that slot is the currently active one, otherwise
+# directly into bundle's matching CharacterSlotData.consumable_inventory_data
+# (an inactive slot has no live ConsumableInventory to hydrate). Returns the
+# claimed AchievementDefinition (for UI reward/flavor display), or null on any
+# safe no-op: unknown id, never unlocked, or already claimed.
+func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_inventory: ConsumableInventory = null, bundle: SaveBundle = null) -> AchievementDefinition:
+	if account == null:
+		return null
+	var entry = account.achievement_state.get(id)
+	if not (entry is Dictionary) or bool(entry.get("claimed", false)):
+		return null
+	var definition: AchievementDefinition = null
+	for d in catalog:
+		if d.id == id:
+			definition = d
+			break
+	if definition == null:
+		return null
+	if definition.reward_type == AchievementDefinition.RewardType.GOLD:
+		if currency_ledger != null:
+			currency_ledger.credit(definition.reward_amount, CurrencyLedger.Currency.GOLD)
+	else:
+		var earned_slot := String(entry.get("earned_by_slot", ""))
+		if earned_slot == active_slot and consumable_inventory != null:
+			consumable_inventory.add(definition.reward_potion_id, definition.reward_amount)
+		elif bundle != null:
+			var slot: CharacterSlotData = bundle.get_slot(earned_slot)
+			if slot != null:
+				var current := int(slot.consumable_inventory_data.get(definition.reward_potion_id, 0))
+				slot.consumable_inventory_data[definition.reward_potion_id] = mini(current + definition.reward_amount, ConsumableInventory.STACK_CAP)
+	entry["claimed"] = true
+	account.achievement_state[id] = entry
+	return definition

@@ -93,3 +93,89 @@ func test_achievement_state_round_trips_through_dict():
 	assert_true(loaded.achievement_state.has(def.id))
 	assert_eq(loaded.achievement_state[def.id]["earned_by_slot"], "chonk_kitten")
 	assert_false(loaded.achievement_state[def.id]["claimed"])
+
+# --- claim() (issue #448) -----------------------------------------------------
+
+func _make_potion_definition(id: String, trigger_event: String, potion_id: String, quantity: int = 1) -> AchievementDefinition:
+	return AchievementDefinition.make_potion(id, trigger_event, "Title", "Flavor text.", potion_id, quantity)
+
+func test_claim_gold_credits_account_balance():
+	var def := _make_definition("gold_ach", "test_event")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.record_event("test_event")
+	var ledger := CurrencyLedger.new()
+	var claimed := service.claim("gold_ach", ledger, null, null)
+	assert_not_null(claimed)
+	assert_eq(claimed.id, "gold_ach")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), def.reward_amount)
+	assert_true(account.achievement_state["gold_ach"]["claimed"])
+
+func test_claim_potion_active_slot_credits_live_inventory():
+	var def := _make_potion_definition("potion_ach", "test_event", "health_potion", 2)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var inv := ConsumableInventory.new()
+	var claimed := service.claim("potion_ach", null, inv, null)
+	assert_not_null(claimed)
+	assert_eq(inv.count_of("health_potion"), 2)
+
+func test_claim_potion_inactive_slot_mutates_bundle_slot_only():
+	var def := _make_potion_definition("potion_ach", "test_event", "health_potion", 2)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	# Earn while active on "wizard", then switch active_slot before claiming —
+	# reward must land on the earning slot ("wizard"), not the now-active one.
+	service.active_slot = "battle"
+	var bundle := SaveBundle.new()
+	var wizard_slot := CharacterSlotData.new()
+	bundle.slots[SaveBundle.SLOT_WIZARD] = wizard_slot
+	var active_inv := ConsumableInventory.new()
+	var claimed := service.claim("potion_ach", null, active_inv, bundle)
+	assert_not_null(claimed)
+	assert_eq(wizard_slot.consumable_inventory_data.get("health_potion", 0), 2)
+	assert_eq(active_inv.count_of("health_potion"), 0,
+		"the currently-active slot's live inventory must not be touched")
+
+func test_claim_returns_definition_for_ui():
+	var def := _make_definition("gold_ach", "test_event")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.record_event("test_event")
+	var claimed := service.claim("gold_ach", CurrencyLedger.new(), null, null)
+	assert_same(claimed, def)
+
+func test_claim_twice_only_grants_reward_once():
+	var def := _make_definition("gold_ach", "test_event")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.record_event("test_event")
+	var ledger := CurrencyLedger.new()
+	service.claim("gold_ach", ledger, null, null)
+	var second := service.claim("gold_ach", ledger, null, null)
+	assert_null(second, "second claim on an already-claimed id is a no-op")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), def.reward_amount,
+		"balance only increased once")
+	assert_true(account.achievement_state["gold_ach"]["claimed"])
+
+func test_claim_nonexistent_id_is_safe_no_op():
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [])
+	var ledger := CurrencyLedger.new()
+	var claimed := service.claim("nonexistent_id", ledger, null, null)
+	assert_null(claimed)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
+
+func test_claim_never_unlocked_is_safe_no_op():
+	var def := _make_definition("gold_ach", "test_event")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	# Note: record_event was never called, so achievement_state has no entry.
+	var ledger := CurrencyLedger.new()
+	var claimed := service.claim("gold_ach", ledger, null, null)
+	assert_null(claimed)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
