@@ -16,6 +16,10 @@ var dungeons_completed: int = 0
 var cleared_dungeons: Array = []
 var streak_day: int = 0
 var last_login_date: String = ""
+# Achievement id -> {unlocked_at: float, claimed: bool, earned_by_slot: String}
+# (PRD #446). Account-wide like skill_unlocks/cleared_dungeons — earning an
+# achievement on one character slot locks it out for the other 3.
+var achievement_state: Dictionary = {}
 
 # Snapshot live account-wide state. Used by SaveManager.save_from_state to
 # assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
@@ -52,6 +56,7 @@ func to_dict() -> Dictionary:
 		"cleared_dungeons": cleared_dungeons.duplicate(),
 		"streak_day": streak_day,
 		"last_login_date": last_login_date,
+		"achievement_state": achievement_state.duplicate(true),
 	}
 
 static func from_dict(d: Dictionary) -> AccountSaveData:
@@ -86,4 +91,14 @@ static func from_dict(d: Dictionary) -> AccountSaveData:
 				a.cleared_dungeons.append(id)
 	a.streak_day = int(d.get("streak_day", 0))
 	a.last_login_date = String(d.get("last_login_date", ""))
+	var achievements = d.get("achievement_state", {})
+	if achievements is Dictionary:
+		for k in achievements.keys():
+			var entry = achievements[k]
+			if entry is Dictionary:
+				a.achievement_state[String(k)] = {
+					"unlocked_at": float(entry.get("unlocked_at", 0.0)),
+					"claimed": bool(entry.get("claimed", false)),
+					"earned_by_slot": String(entry.get("earned_by_slot", "")),
+				}
 	return a

@@ -1,0 +1,38 @@
+class_name AchievementDefinition
+extends RefCounted
+
+# Pure data (PRD #446 / issue #447). One entry describes a single achievement:
+# the event key that unlocks it, its display copy, and its fixed reward.
+# Rewards are never randomized — either a flat gold amount or a potion id +
+# quantity, routed by AchievementService.claim() (issue #448).
+
+enum RewardType { GOLD, POTION }
+
+var id: String = ""
+var trigger_event: String = ""
+var title: String = ""
+var flavor_text: String = ""
+var reward_type: int = RewardType.GOLD
+var reward_potion_id: String = ""
+var reward_amount: int = 0
+
+static func make_gold(p_id: String, p_trigger_event: String, p_title: String, p_flavor_text: String, p_gold_amount: int) -> AchievementDefinition:
+	var d := AchievementDefinition.new()
+	d.id = p_id
+	d.trigger_event = p_trigger_event
+	d.title = p_title
+	d.flavor_text = p_flavor_text
+	d.reward_type = RewardType.GOLD
+	d.reward_amount = p_gold_amount
+	return d
+
+static func make_potion(p_id: String, p_trigger_event: String, p_title: String, p_flavor_text: String, p_potion_id: String, p_quantity: int = 1) -> AchievementDefinition:
+	var d := AchievementDefinition.new()
+	d.id = p_id
+	d.trigger_event = p_trigger_event
+	d.title = p_title
+	d.flavor_text = p_flavor_text
+	d.reward_type = RewardType.POTION
+	d.reward_potion_id = p_potion_id
+	d.reward_amount = p_quantity
+	return d
