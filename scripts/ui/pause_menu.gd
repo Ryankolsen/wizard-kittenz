@@ -54,6 +54,12 @@ var _quickbar = null
 var _potion_belt: PotionBelt = null
 var _consumable_inventory: ConsumableInventory = null
 
+# Issue #451. The Achievements tab lists unlocked entries from
+# AchievementService.account.achievement_state and routes claim taps through
+# AchievementService.claim(). Resolved off GameState by default; tests inject
+# directly via bind_achievement_service.
+var _achievement_service: AchievementService = null
+
 # PRD #353 slice 3 (#356). Tap-to-reveal color key for the Skills tab,
 # mirroring the stat-tier legend in StatsTabPanel: a flat toggle button
 # whose body (the 3-entry category grid) is hidden by default and shown
@@ -103,6 +109,9 @@ func _ready() -> void:
 	var items_tab := find_child("ItemsTabButton", true, false) as Button
 	if items_tab != null:
 		items_tab.pressed.connect(_on_items_tab_pressed)
+	var achievements_tab := find_child("AchievementsTabButton", true, false) as Button
+	if achievements_tab != null:
+		achievements_tab.pressed.connect(_on_achievements_tab_pressed)
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)
@@ -561,24 +570,35 @@ func _show_stats_tab() -> void:
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
+	_set_tab_visible("AchievementsPanel", false)
 
 func _show_skills_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", true)
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
+	_set_tab_visible("AchievementsPanel", false)
 
 func _show_inventory_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", true)
 	_set_tab_visible("ItemsPanel", false)
+	_set_tab_visible("AchievementsPanel", false)
 
 func _show_items_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", true)
+	_set_tab_visible("AchievementsPanel", false)
+
+func _show_achievements_tab() -> void:
+	_set_tab_visible("StatsPanel", false)
+	_set_tab_visible("SkillsPanel", false)
+	_set_tab_visible("InventoryTab", false)
+	_set_tab_visible("ItemsPanel", false)
+	_set_tab_visible("AchievementsPanel", true)
 
 func _set_tab_visible(node_name: String, vis: bool) -> void:
 	var n := find_child(node_name, true, false) as Control
@@ -750,6 +770,10 @@ func bind_potion_belt(belt: PotionBelt) -> void:
 func bind_consumable_inventory(inv: ConsumableInventory) -> void:
 	_consumable_inventory = inv
 
+# Achievements-tab injection seam parallel to bind_potion_belt (issue #451).
+func bind_achievement_service(service: AchievementService) -> void:
+	_achievement_service = service
+
 # Pure helper — true iff slot_n of belt holds potion_id. Mirrors
 # _slot_holds_spell but takes the belt explicitly so the Items-tab tests don't
 # need a scene instance to assert the toggle-state contract (issue #366).
@@ -783,6 +807,30 @@ static func _owned_potion_rows(inventory: ConsumableInventory) -> Array:
 			continue
 		out.append({"id": def.id, "def": def, "count": count})
 	return out
+
+# Pure helper (issue #451) — list of {id, def, claimed} for every achievement
+# present in achievement_state, iterated in catalog order (so a new catalog
+# entry lands in a stable position). Locked/never-unlocked achievements (no
+# entry in achievement_state) are never included, matching the PRD's "don't
+# spoil unearned achievements" requirement.
+static func _achievement_rows(achievement_state: Dictionary, catalog: Array = AchievementCatalog.all()) -> Array:
+	var out: Array = []
+	for definition in catalog:
+		var entry = achievement_state.get(definition.id)
+		if not (entry is Dictionary):
+			continue
+		out.append({"id": definition.id, "def": definition, "claimed": bool(entry.get("claimed", false))})
+	return out
+
+# Pure helper (issue #451) — the reward-preview text for a row, e.g.
+# "+50 Gold" or "+1 Health Potion". Falls back to the raw potion id if the
+# catalog entry has been removed since the reward was authored.
+static func _achievement_reward_text(def: AchievementDefinition) -> String:
+	if def.reward_type == AchievementDefinition.RewardType.GOLD:
+		return "+%d Gold" % def.reward_amount
+	var potion := PotionCatalog.find(def.reward_potion_id)
+	var potion_name := potion.display_name if potion != null else def.reward_potion_id
+	return "+%d %s" % [def.reward_amount, potion_name]
 
 func _resolve_quickbar():
 	if _quickbar != null:
@@ -819,6 +867,10 @@ func _on_inventory_tab_pressed() -> void:
 func _on_items_tab_pressed() -> void:
 	_show_items_tab()
 	_refresh_items_panel()
+
+func _on_achievements_tab_pressed() -> void:
+	_show_achievements_tab()
+	_refresh_achievements_panel()
 
 # Rebuilds the Items tab from GameState (or the test-injected belt / inventory).
 # One row per owned potion; each row carries a 3-button assignment cluster
@@ -924,6 +976,103 @@ func _resolve_consumable_inventory() -> ConsumableInventory:
 	if gs == null:
 		return null
 	return gs.consumable_inventory
+
+func _resolve_achievement_service() -> AchievementService:
+	if _achievement_service != null:
+		return _achievement_service
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return null
+	return gs.achievement_service
+
+# Rebuilds the Achievements tab from AchievementService.account.achievement_state
+# (or the test-injected service). One row per unlocked achievement — locked
+# ones are never listed, per the PRD. Empty-state message mirrors the Items
+# tab's "no potions" affordance.
+func _refresh_achievements_panel() -> void:
+	var list := find_child("AchievementsList", true, false) as VBoxContainer
+	if list == null:
+		return
+	for child in list.get_children():
+		list.remove_child(child)
+		child.free()
+	var service := _resolve_achievement_service()
+	var state: Dictionary = {}
+	if service != null and service.account != null:
+		state = service.account.achievement_state
+	var rows := _achievement_rows(state)
+	var empty_label := find_child("AchievementsEmpty", true, false) as Label
+	if empty_label != null:
+		empty_label.visible = rows.is_empty()
+	for row_data in rows:
+		list.add_child(_make_achievement_row(row_data))
+
+func _make_achievement_row(row_data: Dictionary) -> HBoxContainer:
+	var id: String = row_data["id"]
+	var def: AchievementDefinition = row_data["def"]
+	var claimed: bool = row_data["claimed"]
+	var row := HBoxContainer.new()
+	row.name = "AchievementRow_%s" % id
+	row.add_theme_constant_override("separation", 8)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title_label := Label.new()
+	title_label.name = "AchievementRowTitle_%s" % id
+	title_label.text = def.title
+	if claimed:
+		title_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1.0))
+	col.add_child(title_label)
+	var flavor_label := Label.new()
+	flavor_label.name = "AchievementRowFlavor_%s" % id
+	flavor_label.text = def.flavor_text
+	flavor_label.add_theme_font_size_override("font_size", 10)
+	flavor_label.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 1.0))
+	flavor_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(flavor_label)
+	var reward_label := Label.new()
+	reward_label.name = "AchievementRowReward_%s" % id
+	reward_label.text = _achievement_reward_text(def)
+	reward_label.add_theme_font_size_override("font_size", 10)
+	col.add_child(reward_label)
+	row.add_child(col)
+	if claimed:
+		var claimed_label := Label.new()
+		claimed_label.name = "AchievementRowClaimed_%s" % id
+		claimed_label.text = String.chr(0x2713) + " Claimed"
+		claimed_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1.0))
+		row.add_child(claimed_label)
+	else:
+		var claim_btn := Button.new()
+		claim_btn.name = "AchievementRowClaim_%s" % id
+		claim_btn.text = "Claim"
+		var claim_id := id
+		claim_btn.pressed.connect(func() -> void: _on_achievement_claim_pressed(claim_id))
+		row.add_child(claim_btn)
+	return row
+
+# Routes a claim tap through AchievementService.claim() (issue #448), then
+# persists. claim() only ever mutates in-memory state (the service's own
+# account.achievement_state, the live consumable_inventory when the reward
+# lands on the active slot, or the passed-in bundle when it lands on an
+# inactive slot) — it never touches disk. So the bundle used for the claim
+# call is loaded fresh, live GameState is synced into it via
+# SaveManager.apply_live_state (which covers both the active-slot and
+# account-wide changes), and the result is written back as one bundle, so an
+# inactive-slot potion credit and an active-slot claim persist the same way.
+func _on_achievement_claim_pressed(id: String) -> void:
+	var service := _resolve_achievement_service()
+	if service == null:
+		return
+	var gs := get_node_or_null("/root/GameState")
+	var currency_ledger: CurrencyLedger = gs.currency_ledger if gs != null else null
+	var consumable_inventory := _resolve_consumable_inventory()
+	var bundle := SaveManager.load_bundle()
+	var definition := service.claim(id, currency_ledger, consumable_inventory, bundle)
+	if definition == null:
+		return
+	if SaveManager.apply_live_state(bundle):
+		SaveManager.save_bundle(bundle)
+	_refresh_achievements_panel()
 
 # Pushes GameState.item_inventory + current_character into the
 # EquipmentTabPanel script attached to the InventoryTab node (#82).

@@ -23,13 +23,26 @@ static func save(c: CharacterData, path: String = DEFAULT_PATH, tree: SkillTree 
 # through. The existing parametric `save()` is retained for the character-
 # creation entry point that intentionally writes a minimal snapshot.
 static func save_from_state(path: String = DEFAULT_PATH) -> Error:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
-	if gs == null or gs.current_character == null:
-		return ERR_INVALID_PARAMETER
 	# Slice 2 (PRD #250): writes a SaveBundle, not a flat KittenSaveData.
 	# Load the existing bundle first so other archetype slots survive — only
 	# the active slot + account fields are overwritten from live state.
 	var bundle := load_bundle(path)
+	if not apply_live_state(bundle):
+		return ERR_INVALID_PARAMETER
+	return save_bundle(bundle, path)
+
+# Overwrites bundle's account fields + the active character's slot with live
+# GameState, in place — the guts of save_from_state, factored out so callers
+# that already hold a bundle (e.g. AchievementService.claim()'s issue #448
+# inactive-slot potion routing, wired up in the pause menu's Achievements tab
+# per issue #451) can sync live state into that same bundle before writing it,
+# rather than re-loading a fresh one and losing the mutation already made to
+# theirs. Other archetype slots are left untouched. Returns false (no-op) when
+# there's no active character to sync.
+static func apply_live_state(bundle: SaveBundle) -> bool:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs == null or gs.current_character == null:
+		return false
 	bundle.account = AccountSaveData.from_state(
 		gs.currency_ledger, gs.cosmetic_inventory, gs.paid_unlocks,
 		gs.skill_inventory, gs.meta_tracker,
@@ -46,7 +59,7 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 	)
 	bundle.set_slot(gs.current_character.character_class, slot)
 	bundle.active_slot = SaveBundle.slot_key_for_class(gs.current_character.character_class)
-	return save_bundle(bundle, path)
+	return true
 
 # Bundle persistence (PRD #250 / Slice 1). Writes a SaveBundle as a single
 # combined JSON document. The bundle owns its own version + slot layout, so we

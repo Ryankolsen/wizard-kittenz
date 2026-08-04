@@ -92,6 +92,9 @@ text = "Inventory"
 [node name="ItemsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Items"
 
+[node name="AchievementsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
+text = "Achievements"
+
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
 custom_minimum_size = Vector2(0, 130)
 size_flags_vertical = 0
@@ -140,6 +143,24 @@ theme_override_constants/separation = 2
 visible = false
 horizontal_alignment = 1
 text = "No potions. Buy some in the shop."
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
+
+[node name="AchievementsPanel" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent"]
+visible = false
+theme_override_constants/separation = 4
+
+[node name="AchievementsHeader" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/AchievementsPanel"]
+horizontal_alignment = 1
+text = "Achievements"
+
+[node name="AchievementsList" type="VBoxContainer" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/AchievementsPanel"]
+theme_override_constants/separation = 2
+
+[node name="AchievementsEmpty" type="Label" parent="Center/CharacterSubmenu/VBox/TabScroll/TabPadding/TabContent/AchievementsPanel"]
+visible = false
+horizontal_alignment = 1
+text = "No achievements unlocked yet."
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
 
