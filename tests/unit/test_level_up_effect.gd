@@ -113,6 +113,35 @@ func test_play_emits_triggered_signal_with_new_level():
 	effect.play(7)
 	assert_eq(capture.captured, 7)
 
+func test_play_default_label_text_is_level_up():
+	# Content detail: with no text_override, the spawned label still reads
+	# "LEVEL N!" — pinning the pre-#450 default so the new override param
+	# doesn't change existing level-up behavior.
+	var effect := LevelUpEffect.new()
+	add_child_autofree(effect)
+	await get_tree().process_frame
+	effect.play(4)
+	var lbl := _find_label(effect)
+	assert_not_null(lbl, "play() spawns a Label child")
+	assert_eq(lbl.text, "LEVEL 4!")
+
+func test_play_text_override_replaces_label_text():
+	# Achievement unlocks (#450) reuse this same VFX with swapped text
+	# instead of "LEVEL UP!"/"LEVEL N!" — text_override wins outright.
+	var effect := LevelUpEffect.new()
+	add_child_autofree(effect)
+	await get_tree().process_frame
+	effect.play(0, "NEW ACHIEVEMENT!")
+	var lbl := _find_label(effect)
+	assert_not_null(lbl, "play() spawns a Label child")
+	assert_eq(lbl.text, "NEW ACHIEVEMENT!")
+
+func _find_label(effect: LevelUpEffect) -> Label:
+	for child in effect.get_children():
+		if child is Label:
+			return child
+	return null
+
 func test_play_is_safe_before_ready():
 	# Defensive: a caller that constructs a LevelUpEffect and calls play()
 	# before _ready (no scene attach) shouldn't crash. The particle/audio

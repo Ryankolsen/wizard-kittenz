@@ -65,6 +65,12 @@ var _unarmed_attack: UnarmedAttack = null
 # strike phase so hits land when the swing is visibly mid-arc.
 var _hitbox_strike_active: bool = false
 var _coop_level_up_bound: bool = false
+# Achievements are a single account-wide, per-client GameState.achievement_service
+# instance (no co-op broadcast) — record_event only ever fires locally for the
+# events this client itself triggers, so binding directly here already satisfies
+# the "only the unlocking player's cat, not broadcast" requirement (issue #450)
+# with no networking plumbing needed, unlike the co-op XP level-up path above.
+var _achievement_unlock_bound: bool = false
 # Per-player phasing capability (issue #264). When true the player ignores
 # the dedicated walls physics bit (EnemyBehavior.WALL_COLLISION_MASK from
 # #263) and walks through dungeon wall tiles; when false that bit is added
@@ -137,6 +143,7 @@ func _ready() -> void:
 	_init_weapon_pivot()
 	_init_quickbar()
 	_bind_coop_level_up()
+	_bind_achievement_unlock()
 
 # PRD #280 / issue #281: the combat weapon is now driven by the player's
 # actually equipped weapon (HeldWeaponResolver), not the class default. The
@@ -785,6 +792,28 @@ func _trigger_level_up_effect(new_level: int) -> void:
 	if _level_up_effect == null:
 		return
 	_level_up_effect.play(new_level)
+
+const ACHIEVEMENT_UNLOCK_TEXT: String = "NEW ACHIEVEMENT!"
+
+func _bind_achievement_unlock() -> void:
+	if _achievement_unlock_bound:
+		return
+	if _game_state == null:
+		return
+	# Test doubles for _game_state (see tests/unit/test_player*.gd) commonly
+	# don't declare an achievement_service field — Object.get() returns null
+	# for a missing property instead of erroring, unlike direct dot access.
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service == null:
+		return
+	if not service.achievement_unlocked.is_connected(_on_achievement_unlocked):
+		service.achievement_unlocked.connect(_on_achievement_unlocked)
+	_achievement_unlock_bound = true
+
+func _on_achievement_unlocked(_id: String) -> void:
+	if _level_up_effect == null:
+		return
+	_level_up_effect.play(0, ACHIEVEMENT_UNLOCK_TEXT)
 
 func _taunt_broadcaster() -> TauntBroadcaster:
 	var session := _coop_session()

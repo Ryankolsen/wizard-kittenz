@@ -75,11 +75,14 @@ func _spawn_ring() -> void:
 	tw.tween_property(ring, "modulate:a", 0.0, RING_DURATION).from(1.0)
 	tw.chain().tween_callback(ring.queue_free)
 
-func _spawn_label(new_level: int) -> void:
+func _spawn_label(new_level: int, text_override: String = "") -> void:
 	if not is_inside_tree():
 		return
 	var lbl := Label.new()
-	lbl.text = "LEVEL UP!" if new_level <= 0 else "LEVEL %d!" % new_level
+	if text_override != "":
+		lbl.text = text_override
+	else:
+		lbl.text = "LEVEL UP!" if new_level <= 0 else "LEVEL %d!" % new_level
 	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.modulate = Color(1.0, 0.9, 0.1)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -91,14 +94,14 @@ func _spawn_label(new_level: int) -> void:
 	tw.tween_property(lbl, "modulate:a", 0.0, LABEL_DURATION).from(1.0)
 	tw.chain().tween_callback(lbl.queue_free)
 
-func play(new_level: int = 0) -> void:
+func play(new_level: int = 0, text_override: String = "") -> void:
 	for p: CPUParticles2D in _confetti:
 		if p != null:
 			p.emitting = false
 			p.restart()
 			p.emitting = true
 	_spawn_ring()
-	_spawn_label(new_level)
+	_spawn_label(new_level, text_override)
 	if _audio != null and _audio.stream != null:
 		_audio.play()
 	triggered.emit(new_level)
