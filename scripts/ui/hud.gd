@@ -25,6 +25,7 @@ var _revive_btn: Button
 var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
+var _achievement_badge: Label
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
@@ -43,6 +44,7 @@ func _ready() -> void:
 	_pause_btn = $PauseButton
 	_pause_btn.pressed.connect(_on_pause_pressed)
 	_stat_points_badge = $StatPointsBadge
+	_achievement_badge = $PauseButton/AchievementBadge
 	_player = _find_player()
 	_bind_player_item_drop()
 	# Slice 3 of PRD #210: HUD hosts the QuickbarHUD on desktop; on touch
@@ -79,6 +81,7 @@ func _process(_dt: float) -> void:
 	_update_mp_bar()
 	_update_xp_bar()
 	_update_stat_points_badge()
+	_update_achievement_badge()
 	_check_player_dead()
 
 # Polls player.data.skill_points each frame and toggles the badge. Same
@@ -95,6 +98,21 @@ func _update_stat_points_badge() -> void:
 	_stat_points_badge.visible = StatBadge.should_show(pts)
 	if _stat_points_badge.visible:
 		_stat_points_badge.text = "+%d stat pts" % pts
+
+# Polls GameState.achievement_service.account.achievement_state each frame
+# and toggles the pause-button badge (#450). Same polling shape as
+# _update_stat_points_badge — the badge updates within one frame of an
+# unlock (achievement_service.gd's record_event) or a claim (pause_menu.gd's
+# claim handler).
+func _update_achievement_badge() -> void:
+	if _achievement_badge == null:
+		return
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.achievement_service == null:
+		_achievement_badge.visible = false
+		return
+	_achievement_badge.visible = AchievementBadge.should_show(
+		gs.achievement_service.account.achievement_state)
 
 func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:

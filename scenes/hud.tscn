@@ -27,6 +27,16 @@ offset_right = 476.0
 offset_bottom = 24.0
 text = "Pause"
 
+[node name="AchievementBadge" type="Label" parent="PauseButton"]
+visible = false
+offset_left = 52.0
+offset_top = -6.0
+offset_right = 66.0
+offset_bottom = 10.0
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 14
+text = "●"
+
 [node name="StatsPanel" type="PanelContainer" parent="."]
 offset_left = 4.0
 offset_top = 4.0
