@@ -82,6 +82,12 @@ On macOS the Godot binary is typically at `/Applications/Godot.app/Contents/MacO
   --headless --path . -s tools/dev_preload_save.gd
 ```
 
+**Reset local save** (`tools/reset_local_save.sh`): deletes `user://save.json` so the next launch starts from a fresh account — no purchases, no progression. Useful for confirming whether a bug is present on a fresh save or only after certain purchases/upgrades.
+
+```bash
+./tools/reset_local_save.sh
+```
+
 ## Deploying to production
 
 ### First-time setup (run once)
