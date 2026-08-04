@@ -149,7 +149,12 @@ func _hydrate_account(account: AccountSaveData) -> void:
 	currency_ledger = CurrencyLedger.new()
 	if account.gold_balance > 0:
 		currency_ledger.credit(account.gold_balance, CurrencyLedger.Currency.GOLD)
-	if account.gem_balance > 0:
+	if OS.is_debug_build():
+		# Local/editor testing only: always start with a fat Gem balance so
+		# IAP and shop flows can be exercised without grinding. Never runs in
+		# release exports (OS.is_debug_build() is false there).
+		currency_ledger.credit(5000, CurrencyLedger.Currency.GEM)
+	elif account.gem_balance > 0:
 		currency_ledger.credit(account.gem_balance, CurrencyLedger.Currency.GEM)
 	skill_inventory = SkillInventoryRef.new()
 	skill_inventory.owned_skill_ids = account.skill_unlocks.duplicate()
