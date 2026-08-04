@@ -297,6 +297,7 @@ func _on_customize_save() -> void:
 	# Preserves xp / level / skills via apply_identity_edit.
 	if _customize_is_rename and GameState.current_character != null:
 		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
+		GameState.achievement_service.record_event("cat_renamed")
 		SaveManager.save_from_state()
 		_refresh_card_grid()
 		_show_main_menu()
@@ -307,6 +308,7 @@ func _on_customize_save() -> void:
 	# Mirror the prior in-place-rename behavior so existing tests pass.
 	if _customize_is_rename == false and _selected_archetype == "" and GameState.current_character != null:
 		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
+		GameState.achievement_service.record_event("cat_renamed")
 		SaveManager.save_from_state()
 		_show_main_menu()
 		return

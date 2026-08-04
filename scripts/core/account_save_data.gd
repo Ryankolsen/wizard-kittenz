@@ -25,8 +25,9 @@ var achievement_state: Dictionary = {}
 # assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
 # meta_tracker carries the cleared_dungeons / dungeons_completed / max_level
 # fields that previously rode on KittenSaveData.
-static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "") -> AccountSaveData:
+static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "", achievement_state: Dictionary = {}) -> AccountSaveData:
 	var a := AccountSaveData.new()
+	a.achievement_state = achievement_state.duplicate(true)
 	if currency_ledger != null:
 		a.gold_balance = currency_ledger.balance(CurrencyLedger.Currency.GOLD)
 		a.gem_balance = currency_ledger.balance(CurrencyLedger.Currency.GEM)

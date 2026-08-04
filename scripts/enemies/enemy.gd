@@ -168,6 +168,12 @@ func apply_state_update(distance: float) -> void:
 			(_behavior as DogKnightBehavior).on_enemy_died(self)
 			_observe_dog_knight()
 		died.emit()
+		# Achievements (PRD #446 / issue #449): "kill mob" trigger. First
+		# occurrence dedup is handled by AchievementService.record_event
+		# itself (issue #447) — no local "already fired" flag needed here.
+		var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+		if gs != null:
+			gs.achievement_service.record_event("enemy_killed")
 
 func _chase(target: Node2D) -> void:
 	if target == null:

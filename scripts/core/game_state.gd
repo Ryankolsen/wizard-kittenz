@@ -97,6 +97,12 @@ var dungeon_run_controller: DungeonRunController = null
 # from KittenSaveData in apply_merged_save; reset in clear().
 var streak_day: int = 0
 var last_login_date: String = ""
+# Achievements engine (PRD #446 / issue #449). Bound to a live AccountSaveData
+# whose achievement_state is the account-wide unlock ledger — rebuilt in
+# _hydrate_account so unlocks recorded in a prior session carry forward.
+# active_slot is kept in sync by _hydrate_active_character / set_character /
+# switch_to_slot so a newly-unlocked achievement records which slot earned it.
+var achievement_service: AchievementService = AchievementService.new(AccountSaveData.new())
 
 func _ready() -> void:
 	# Applied here (first autoload) so saved BGM/SFX volume takes effect
@@ -167,6 +173,9 @@ func _hydrate_account(account: AccountSaveData) -> void:
 			meta_tracker.cleared_dungeons.append(s_id)
 	streak_day = account.streak_day
 	last_login_date = account.last_login_date
+	var achievement_account := AccountSaveData.new()
+	achievement_account.achievement_state = account.achievement_state.duplicate(true)
+	achievement_service = AchievementService.new(achievement_account)
 
 func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	var c := CharacterData.new()
@@ -199,6 +208,7 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	# once the slot's schema_version is at SkillPointRespec.CURRENT_VERSION.
 	SkillPointRespec.migrate(c)
 	current_character = c
+	achievement_service.active_slot = SaveBundle.slot_key_for_class(c.character_class)
 	skill_tree = _build_tree_for(c)
 	skill_tree.apply_unlocked_ids(slot.unlocked_skill_ids)
 	SkillUnlockCheckerRef.auto_unlock_for_level(skill_tree, current_character.level, current_character.character_class)
@@ -350,6 +360,7 @@ func build_coop_chars_map() -> Dictionary:
 
 func set_character(c: CharacterData) -> void:
 	current_character = c
+	achievement_service.active_slot = SaveBundle.slot_key_for_class(c.character_class)
 	# item_inventory is a persistent autoload field. Reset it for a brand-new
 	# character so it doesn't inherit the previous character's equipped gear
 	# (a fresh Wizard would otherwise show up holding the prior Battle kitten's
@@ -388,6 +399,7 @@ func clear() -> void:
 	consumable_inventory = ConsumableInventory.new()
 	potion_belt = PotionBelt.new()
 	current_quickbar = null
+	achievement_service = AchievementService.new(AccountSaveData.new())
 	# Tear down any live co-op session before dropping the reference so
 	# the per-run managers unbind cleanly and don't keep handing XP to
 	# a member.real_stats that's about to be replaced.

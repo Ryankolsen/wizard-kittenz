@@ -93,6 +93,13 @@ func start(d: Dungeon) -> bool:
 	_cleared = {}
 	_transition_requested = false
 	floor_map_state = FloorMapState.with_start_revealed(d.start_id)
+	# Achievements (PRD #446 / issue #449): "enter dungeon" trigger. Controller
+	# is pure RefCounted with no scene tree, so reach the autoload the same
+	# way save_manager.gd / quit_dungeon_handler.gd do; a headless GUT
+	# instance that never boots the autoload tree is a safe no-op.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.record_event("dungeon_entered")
 	return true
 
 func current_room() -> Room:

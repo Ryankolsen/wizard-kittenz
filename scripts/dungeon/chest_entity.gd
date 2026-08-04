@@ -202,6 +202,10 @@ func open(player_id: String, character: CharacterData = null, rng: RandomNumberG
 	_opened_set[player_id] = true
 	_drops_by_player[player_id] = per_chest.last_item_drop
 	opened_by.emit(player_id, per_chest.last_item_drop)
+	# Achievements (PRD #446 / issue #449): "open chest" trigger.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.record_event("chest_opened")
 	if _all_present_players_have_opened():
 		state = State.OPENED_LINGERING
 		_linger_remaining = LINGER_SECONDS

@@ -33,7 +33,8 @@ static func save_from_state(path: String = DEFAULT_PATH) -> Error:
 	bundle.account = AccountSaveData.from_state(
 		gs.currency_ledger, gs.cosmetic_inventory, gs.paid_unlocks,
 		gs.skill_inventory, gs.meta_tracker,
-		gs.streak_day, gs.last_login_date
+		gs.streak_day, gs.last_login_date,
+		gs.achievement_service.account.achievement_state
 	)
 	var run_state: Dictionary = {}
 	if gs.dungeon_run_controller != null:
