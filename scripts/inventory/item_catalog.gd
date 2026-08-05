@@ -166,6 +166,16 @@ static func all_items() -> Array[ItemData]:
 	# explicit "too blissed out to get hit" reasoning over a caster-only
 	# stat. Same EPIC-tier evasion magnitude as Shadow Amulet (0.08).
 	items.append(ItemData.make("catnip_crown", "Catnip Crown", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "evasion", 0.08, _GENERIC))
+	# Issue #470: Fungal Cap -- class-unrestricted armor, plain max_hp/max_mp
+	# multi-stat item (no new passive-effect machinery), per the PRD's
+	# explicit "usable by every class regardless of build" reasoning. Same
+	# EPIC-tier magnitude convention as the other unrestricted max_hp
+	# rewards (Guardian's Locket/Nine Lives Collar use 10.0), split across
+	# both HP and MP so it stays useful for casters too.
+	items.append(ItemData.make_multi("fungal_cap", "Fungal Cap", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, [
+		StatBonus.make("max_hp", 10.0),
+		StatBonus.make("max_mp", 10.0),
+	], _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

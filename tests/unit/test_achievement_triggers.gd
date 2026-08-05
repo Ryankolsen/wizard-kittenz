@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 34)
+	assert_eq(defs.size(), 37)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -756,3 +756,75 @@ func test_catnip_snarfed_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("catnip_crown"), "Certified Space Cat must grant Catnip Crown to the earning cat's bag")
+
+# --- Core wiring: mushrooms_consumed ----------------------------------------
+
+func test_mushroom_pickup_increments_mushrooms_consumed_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_MUSHROOMS
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("mushrooms_consumed", 0)), 1,
+		"picking up a mushroom power-up must increment the mushrooms_consumed counter")
+
+func test_non_mushroom_pickup_does_not_increment_mushrooms_consumed_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_ALE
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("mushrooms_consumed", 0)), 0,
+		"picking up a non-mushroom power-up must not increment the mushrooms_consumed counter")
+
+# --- Content details: mushrooms_consumed tier thresholds --------------------------------------
+
+func test_mushrooms_consumed_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("mushrooms_consumed", 4)
+	assert_false(service.account.achievement_state.has("curious_nibble"), "4 mushroom pickups must not unlock Curious Nibble")
+	service.increment_counter("mushrooms_consumed", 1)
+	assert_true(service.account.achievement_state.has("curious_nibble"), "5 mushroom pickups unlocks Curious Nibble")
+	assert_false(service.account.achievement_state.has("fungal_frequent_flyer"))
+	service.increment_counter("mushrooms_consumed", 20)
+	assert_true(service.account.achievement_state.has("fungal_frequent_flyer"), "25 mushroom pickups unlocks Fungal Frequent Flyer")
+	assert_false(service.account.achievement_state.has("one_with_the_spores"))
+	service.increment_counter("mushrooms_consumed", 75)
+	assert_true(service.account.achievement_state.has("one_with_the_spores"), "100 mushroom pickups unlocks One with the Spores")
+
+func test_mushrooms_consumed_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["curious_nibble"].threshold, 5)
+	assert_eq(by_id["curious_nibble"].counter_key, "mushrooms_consumed")
+	assert_eq(by_id["curious_nibble"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["fungal_frequent_flyer"].threshold, 25)
+	assert_eq(by_id["fungal_frequent_flyer"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["one_with_the_spores"].threshold, 100)
+	assert_eq(by_id["one_with_the_spores"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["one_with_the_spores"].reward_item_id, "fungal_cap")
+
+func test_mushrooms_consumed_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("mushrooms_consumed", 100)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("curious_nibble", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("fungal_frequent_flyer", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("one_with_the_spores", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("fungal_cap"), "One with the Spores must grant Fungal Cap to the earning cat's bag")

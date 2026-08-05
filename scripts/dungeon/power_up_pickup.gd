@@ -32,6 +32,14 @@ func _on_body_entered(body: Node) -> void:
 			var gs2 := get_node_or_null("/root/GameState")
 			if gs2 != null:
 				gs2.achievement_service.increment_counter("catnip_snarfed", 1)
+		# Issue #470: mushroom pickups feed the `mushrooms_consumed` counter
+		# for the tiered Curious Nibble/Fungal Frequent Flyer/One with the
+		# Spores achievements. Other power-up types (ale, catnip) never
+		# touch this counter.
+		if power_up_type == PowerUpEffect.TYPE_MUSHROOMS:
+			var gs3 := get_node_or_null("/root/GameState")
+			if gs3 != null:
+				gs3.achievement_service.increment_counter("mushrooms_consumed", 1)
 		queue_free()
 
 static func _texture_for(t: String) -> Texture2D:
@@ -40,4 +48,3 @@ static func _texture_for(t: String) -> Texture2D:
 		PowerUpEffect.TYPE_ALE: return load("res://assets/sprites/ale_sprite.png")
 		PowerUpEffect.TYPE_MUSHROOMS: return load("res://assets/sprites/mushroom_sprite.png")
 	return null
-

@@ -148,6 +148,18 @@ static func all() -> Array:
 		"Certified Space Cat",
 		"Snarfed catnip 100 times. You've seen things. Mostly imaginary things.",
 		"catnip_crown"))
+	out.append(_tiered_gold("curious_nibble", "mushrooms_consumed", 5,
+		"Curious Nibble",
+		"Consumed 5 mushrooms. What's the worst that could happen?",
+		25))
+	out.append(_tiered_potion("fungal_frequent_flyer", "mushrooms_consumed", 25,
+		"Fungal Frequent Flyer",
+		"Consumed 25 mushrooms. The spores know you by name now.",
+		"health_potion", 2))
+	out.append(_tiered_item("one_with_the_spores", "mushrooms_consumed", 100,
+		"One with the Spores",
+		"Consumed 100 mushrooms. You and the fungal network are basically the same organism now.",
+		"fungal_cap"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
