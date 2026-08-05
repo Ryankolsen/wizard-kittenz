@@ -40,6 +40,18 @@ static func all() -> Array:
 		"Apex Predator (Probably)",
 		"1,000 kills. Somewhere, a mouse union is filing a complaint.",
 		"phase_tome_iii", "phase_tome_iii"))
+	out.append(_tiered_gold("basic_tune_up", "self_heal_total", 100,
+		"Basic Tune-Up",
+		"100 HP self-healed. You patched yourself up like a real professional.",
+		25))
+	out.append(_tiered_potion("field_medic", "self_heal_total", 1000,
+		"Field Medic",
+		"1,000 HP self-healed. You could run your own clinic at this point.",
+		"health_potion", 2))
+	out.append(_tiered_item("immortal_ish", "self_heal_total", 10000,
+		"Immortal-ish",
+		"10,000 HP self-healed. Death has your number on speed dial and still can't reach you.",
+		"guardians_locket"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
@@ -47,6 +59,26 @@ static func all() -> Array:
 # "empty trigger_event" pattern used for tiered GOLD/POTION entries elsewhere.
 static func _tiered_tome(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_node_id: String, p_spell_id: String) -> AchievementDefinition:
 	var d := AchievementDefinition.make_tome(p_id, "", p_title, p_flavor_text, p_node_id, p_spell_id)
+	d.counter_key = p_counter_key
+	d.threshold = p_threshold
+	return d
+
+# Tiered GOLD/POTION/ITEM entries (issue #461) share the same "empty
+# trigger_event + counter_key/threshold" shape as _tiered_tome above.
+static func _tiered_gold(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_gold_amount: int) -> AchievementDefinition:
+	var d := AchievementDefinition.make_gold(p_id, "", p_title, p_flavor_text, p_gold_amount)
+	d.counter_key = p_counter_key
+	d.threshold = p_threshold
+	return d
+
+static func _tiered_potion(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_potion_id: String, p_quantity: int) -> AchievementDefinition:
+	var d := AchievementDefinition.make_potion(p_id, "", p_title, p_flavor_text, p_potion_id, p_quantity)
+	d.counter_key = p_counter_key
+	d.threshold = p_threshold
+	return d
+
+static func _tiered_item(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_item_id: String) -> AchievementDefinition:
+	var d := AchievementDefinition.make_item(p_id, "", p_title, p_flavor_text, p_item_id)
 	d.counter_key = p_counter_key
 	d.threshold = p_threshold
 	return d

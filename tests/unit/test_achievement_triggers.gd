@@ -17,9 +17,9 @@ func after_each() -> void:
 
 # --- Content details ---------------------------------------------------------
 
-func test_catalog_has_seven_entries_with_valid_content():
+func test_catalog_has_ten_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 7)
+	assert_eq(defs.size(), 10)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -28,6 +28,9 @@ func test_catalog_has_seven_entries_with_valid_content():
 		elif d.reward_type == AchievementDefinition.RewardType.POTION:
 			assert_not_null(PotionCatalog.find(d.reward_potion_id),
 				"%s potion reward '%s' must resolve in PotionCatalog" % [d.id, d.reward_potion_id])
+		elif d.reward_type == AchievementDefinition.RewardType.ITEM:
+			assert_not_null(ItemCatalog.find(d.reward_item_id),
+				"%s item reward '%s' must resolve in ItemCatalog" % [d.id, d.reward_item_id])
 		elif d.reward_type == AchievementDefinition.RewardType.TOME:
 			var tree := SkillTree.make_battle_kitten_tree()
 			var node := tree.find(d.reward_node_id)
@@ -60,6 +63,54 @@ func test_enemies_killed_tiers_have_correct_thresholds_and_ids():
 	assert_eq(by_id["mouse_patrol"].counter_key, "enemies_killed")
 	assert_eq(by_id["certified_menace"].threshold, 100)
 	assert_eq(by_id["apex_predator_probably"].threshold, 1000)
+
+# --- Content details: self-heal tier thresholds --------------------------------
+
+func test_self_heal_tiers_unlock_at_correct_totals_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("self_heal_total", 99)
+	assert_false(service.account.achievement_state.has("basic_tune_up"), "99 HP self-healed must not unlock Basic Tune-Up")
+	service.increment_counter("self_heal_total", 1)
+	assert_true(service.account.achievement_state.has("basic_tune_up"), "100 HP self-healed unlocks Basic Tune-Up")
+	assert_false(service.account.achievement_state.has("field_medic"))
+	service.increment_counter("self_heal_total", 900)
+	assert_true(service.account.achievement_state.has("field_medic"), "1,000 HP self-healed unlocks Field Medic")
+	assert_false(service.account.achievement_state.has("immortal_ish"))
+	service.increment_counter("self_heal_total", 9000)
+	assert_true(service.account.achievement_state.has("immortal_ish"), "10,000 HP self-healed unlocks Immortal-ish")
+
+func test_self_heal_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["basic_tune_up"].threshold, 100)
+	assert_eq(by_id["basic_tune_up"].counter_key, "self_heal_total")
+	assert_eq(by_id["basic_tune_up"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["field_medic"].threshold, 1000)
+	assert_eq(by_id["field_medic"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["immortal_ish"].threshold, 10000)
+	assert_eq(by_id["immortal_ish"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["immortal_ish"].reward_item_id, "guardians_locket")
+
+func test_self_heal_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("self_heal_total", 10000)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("basic_tune_up", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("field_medic", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("immortal_ish", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("guardians_locket"), "Immortal-ish must grant Guardian's Locket to the earning cat's bag")
 
 # --- Core wiring: rename cat --------------------------------------------------
 

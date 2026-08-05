@@ -64,6 +64,7 @@ class FakeGameState:
 	var meta_tracker = null
 	var current_character = null
 	var skill_tree = null
+	var achievement_service = null
 
 func test_inject_game_state_provides_local_player_id_without_autoload():
 	# Demonstrates testability without a running GameState autoload: inject a
@@ -124,6 +125,39 @@ func test_player_casts_through_quickbar_on_cast_slot_1():
 		"casting via Quickbar must deduct MP")
 	assert_gt(hairball.cooldown_remaining, 0.0,
 		"casting via Quickbar must start the spell cooldown")
+
+# --- Self-heal counter wiring (PRD #453 / issue #461) ---
+
+func _add_spell_hitbox(p: Player) -> void:
+	var hitbox := Area2D.new()
+	hitbox.name = "SpellHitbox"
+	p.add_child(hitbox)
+	p._spell_hitbox = hitbox
+
+func test_self_heal_increments_counter_by_actual_amount_healed():
+	var p := _make_player_with_wizard_tree()
+	_add_spell_hitbox(p)
+	p.data.hp = 1
+	p.data.max_hp = 100
+	p.data.magic_attack = 0
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var heal_spell := Spell.make("test_heal", "Test Heal", Spell.EffectKind.HEAL, 30, 1.0)
+	p._apply_spell_effect(heal_spell)
+	assert_eq(int(service.account.achievement_counters.get("self_heal_total", 0)), 30,
+		"self_heal_total must increment by the actual HP healed, not a flat 1")
+
+func test_self_heal_at_max_hp_does_not_increment_counter():
+	var p := _make_player_with_wizard_tree()
+	_add_spell_hitbox(p)
+	p.data.max_hp = 100
+	p.data.hp = 100
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var heal_spell := Spell.make("test_heal", "Test Heal", Spell.EffectKind.HEAL, 30, 1.0)
+	p._apply_spell_effect(heal_spell)
+	assert_eq(int(service.account.achievement_counters.get("self_heal_total", 0)), 0,
+		"a heal that raises no HP (already at max) must not increment self_heal_total")
 
 func test_player_does_not_cast_unassigned_unlocked_spell():
 	# Pin the old "first ready unlocked spell wins" behavior is gone: a spell

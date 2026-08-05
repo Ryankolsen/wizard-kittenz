@@ -693,6 +693,16 @@ func _apply_spell_effect(spell: Spell) -> void:
 		var self_healed := data.hp - hp_self_before
 		if self_healed > 0:
 			FloatingText.spawn(self, str(self_healed), Color(0.2, 1.0, 0.4))
+			# Tiered achievements (PRD #453 / issue #461): feeds the cumulative
+			# "self_heal_total" counter for Basic Tune-Up/Field Medic/
+			# Immortal-ish. Only fires when this cast actually raised the
+			# caster's own HP — a SMART_HEAL/GROUP_REGEN cast that picked a
+			# different lowest-HP target leaves hp_self_before unchanged, so
+			# cross-player heals are excluded for free.
+			if _game_state != null:
+				var service := _game_state.get("achievement_service") as AchievementService
+				if service != null:
+					service.increment_counter("self_heal_total", self_healed)
 	var any_killed := false
 	for i in range(enemy_nodes.size()):
 		var n: Enemy = enemy_nodes[i]
