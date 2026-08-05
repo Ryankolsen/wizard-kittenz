@@ -17,9 +17,9 @@ func after_each() -> void:
 
 # --- Content details ---------------------------------------------------------
 
-func test_catalog_has_ten_entries_with_valid_content():
+func test_catalog_has_thirteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 10)
+	assert_eq(defs.size(), 13)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -111,6 +111,54 @@ func test_self_heal_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("guardians_locket"), "Immortal-ish must grant Guardian's Locket to the earning cat's bag")
+
+# --- Content details: damage-dealt tier thresholds ------------------------------
+
+func test_damage_dealt_tiers_unlock_at_correct_totals_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("damage_dealt", 999)
+	assert_false(service.account.achievement_state.has("warming_up"), "999 damage dealt must not unlock Warming Up")
+	service.increment_counter("damage_dealt", 1)
+	assert_true(service.account.achievement_state.has("warming_up"), "1,000 damage dealt unlocks Warming Up")
+	assert_false(service.account.achievement_state.has("certified_wrecking_ball"))
+	service.increment_counter("damage_dealt", 9000)
+	assert_true(service.account.achievement_state.has("certified_wrecking_ball"), "10,000 damage dealt unlocks Certified Wrecking Ball")
+	assert_false(service.account.achievement_state.has("one_cat_apocalypse"))
+	service.increment_counter("damage_dealt", 90000)
+	assert_true(service.account.achievement_state.has("one_cat_apocalypse"), "100,000 damage dealt unlocks One-Cat Apocalypse")
+
+func test_damage_dealt_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["warming_up"].threshold, 1000)
+	assert_eq(by_id["warming_up"].counter_key, "damage_dealt")
+	assert_eq(by_id["warming_up"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["certified_wrecking_ball"].threshold, 10000)
+	assert_eq(by_id["certified_wrecking_ball"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["one_cat_apocalypse"].threshold, 100000)
+	assert_eq(by_id["one_cat_apocalypse"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["one_cat_apocalypse"].reward_item_id, "executioners_signet")
+
+func test_damage_dealt_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("damage_dealt", 100000)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("warming_up", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("certified_wrecking_ball", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("one_cat_apocalypse", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("executioners_signet"), "One-Cat Apocalypse must grant Executioner's Signet to the earning cat's bag")
 
 # --- Core wiring: rename cat --------------------------------------------------
 

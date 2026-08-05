@@ -22,3 +22,38 @@ func test_resolve_unrecognized_item_id_is_no_op():
 	caster.max_hp = 100
 	ItemPassiveEffectResolver.resolve("not_a_real_item", caster, 100)
 	assert_eq(caster.hp, 1, "unrecognized item id is a no-op, not an error")
+
+# --- Crit Echo (issue #462) ---
+
+func _rng_seeded_to_roll_below(threshold: float) -> RandomNumberGenerator:
+	# CRIT_ECHO_CHANCE is 0.3; seed 13's first randf() (~0.062) is well below
+	# that, giving a deterministic "cooldown preserved" roll for tests.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 13
+	assert_lt(rng.randf(), threshold, "test setup: seed 13's first roll must land under CRIT_ECHO_CHANCE")
+	rng.seed = 13
+	return rng
+
+func test_crit_echo_triggers_on_crit_when_equipped():
+	var spell := Spell.make("test_spell", "Test Spell", Spell.EffectKind.DAMAGE, 10, 5.0)
+	spell.cooldown_remaining = 5.0
+	var rng := _rng_seeded_to_roll_below(ItemPassiveEffectResolver.CRIT_ECHO_CHANCE)
+	var preserved := ItemPassiveEffectResolver.resolve_on_crit("executioners_signet", spell, true, rng)
+	assert_true(preserved, "a successful Crit Echo roll must report the cooldown was preserved")
+	assert_eq(spell.cooldown_remaining, 0.0, "a successful Crit Echo roll must refund the cooldown")
+
+func test_crit_echo_no_op_on_non_crit():
+	var spell := Spell.make("test_spell", "Test Spell", Spell.EffectKind.DAMAGE, 10, 5.0)
+	spell.cooldown_remaining = 5.0
+	var rng := _rng_seeded_to_roll_below(ItemPassiveEffectResolver.CRIT_ECHO_CHANCE)
+	var preserved := ItemPassiveEffectResolver.resolve_on_crit("executioners_signet", spell, false, rng)
+	assert_false(preserved, "a non-crit must never trigger Crit Echo, even on a roll that would otherwise succeed")
+	assert_eq(spell.cooldown_remaining, 5.0, "a non-crit must leave the cooldown consumed normally")
+
+func test_crit_echo_unequipped_never_preserves_cooldown():
+	var spell := Spell.make("test_spell", "Test Spell", Spell.EffectKind.DAMAGE, 10, 5.0)
+	spell.cooldown_remaining = 5.0
+	var rng := _rng_seeded_to_roll_below(ItemPassiveEffectResolver.CRIT_ECHO_CHANCE)
+	var preserved := ItemPassiveEffectResolver.resolve_on_crit("not_equipped", spell, true, rng)
+	assert_false(preserved, "an item id with no Crit Echo passive must never preserve the cooldown")
+	assert_eq(spell.cooldown_remaining, 5.0, "without Crit Echo the cooldown always consumes normally")

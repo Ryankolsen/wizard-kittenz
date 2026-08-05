@@ -159,6 +159,27 @@ func test_self_heal_at_max_hp_does_not_increment_counter():
 	assert_eq(int(service.account.achievement_counters.get("self_heal_total", 0)), 0,
 		"a heal that raises no HP (already at max) must not increment self_heal_total")
 
+# --- Damage-dealt counter wiring (PRD #453 / issue #462) ---
+
+func test_record_damage_dealt_increments_counter_by_actual_amount():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	p._record_damage_dealt(42)
+	assert_eq(int(service.account.achievement_counters.get("damage_dealt", 0)), 42,
+		"damage_dealt must increment by the actual damage dealt, not a flat 1")
+	p._record_damage_dealt(8)
+	assert_eq(int(service.account.achievement_counters.get("damage_dealt", 0)), 50,
+		"damage_dealt must accumulate across multiple hits")
+
+func test_record_damage_dealt_zero_amount_does_not_increment_counter():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	p._record_damage_dealt(0)
+	assert_eq(int(service.account.achievement_counters.get("damage_dealt", 0)), 0,
+		"a zero-damage hit (miss/evade) must not increment damage_dealt")
+
 func test_player_does_not_cast_unassigned_unlocked_spell():
 	# Pin the old "first ready unlocked spell wins" behavior is gone: a spell
 	# that is unlocked but explicitly removed from every slot must NOT fire

@@ -123,6 +123,11 @@ static func all_items() -> Array[ItemData]:
 	# unrestricted items use class-neutral effects rather than a caster-only
 	# stat like magic_attack.
 	items.append(ItemData.make("guardians_locket", "Guardian's Locket", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
+	# Issue #462: Executioner's Signet — class-unrestricted accessory with the
+	# Crit Echo passive (ItemPassiveEffectResolver). Same "class-neutral stat,
+	# not a caster-only one" convention as Guardian's Locket for unrestricted
+	# accessories.
+	items.append(ItemData.make("executioners_signet", "Executioner's Signet", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

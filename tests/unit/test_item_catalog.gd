@@ -1,9 +1,9 @@
 extends GutTest
 
-func test_all_items_returns_eighty_five():
+func test_all_items_returns_eighty_six():
 	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201 + Guardian's
-	# Locket (issue #459).
-	assert_eq(ItemCatalog.all_items().size(), 85)
+	# Locket (issue #459) + Executioner's Signet (issue #462).
+	assert_eq(ItemCatalog.all_items().size(), 86)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -51,9 +51,9 @@ func test_items_for_slot_armor():
 
 func test_items_for_rarity_epic():
 	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6 + Guardian's
-	# Locket (issue #459).
+	# Locket (issue #459) + Executioner's Signet (issue #462).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 29)
+	assert_eq(epics.size(), 30)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -157,3 +157,21 @@ func test_guardians_locket_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "guardians_locket must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_LIFESTEAL)
+
+func test_executioners_signet_is_generic_and_class_neutral():
+	# Issue #462: Executioner's Signet carries the Crit Echo passive and must
+	# be usable by every class, with a stat bonus that isn't caster-biased,
+	# same convention as Guardian's Locket above.
+	var item := ItemCatalog.find("executioners_signet")
+	assert_not_null(item)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "executioners_signet missing class %d" % klass)
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "executioners_signet must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_CRIT_ECHO)

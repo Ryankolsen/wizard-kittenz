@@ -612,6 +612,7 @@ func _apply_melee_damage() -> void:
 				_broadcast_damage(node.data.enemy_id, dealt, DamageKind.Kind.PHYSICAL)
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
+				_record_damage_dealt(dealt)
 			if not node.data.is_alive():
 				_handle_enemy_killed(node, dealt)
 				_record_meta_progress()
@@ -665,6 +666,7 @@ func _apply_spell_basic_damage() -> void:
 				FloatingText.spawn_at(node, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 				_broadcast_damage(node.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
 				(node as Enemy).flash_hit()
+				_record_damage_dealt(dealt)
 			if not node.data.is_alive():
 				_handle_enemy_killed(node, dealt)
 				_record_meta_progress()
@@ -712,6 +714,7 @@ func _apply_spell_effect(spell: Spell) -> void:
 		if dealt > 0:
 			FloatingText.spawn_at(n, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 			_broadcast_damage(n.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
+			_record_damage_dealt(dealt)
 		if not n.data.is_alive():
 			_handle_enemy_killed(n, dealt)
 			any_killed = true
@@ -722,6 +725,18 @@ func _apply_spell_effect(spell: Spell) -> void:
 func _handle_enemy_killed(node: Enemy, killing_blow_damage: int = 0) -> void:
 	_award_kill_xp(node.data, killing_blow_damage)
 	node.queue_free()
+
+# Tiered achievements (PRD #453 / issue #462): feeds the cumulative
+# "damage_dealt" counter for Warming Up/Certified Wrecking Ball/One-Cat
+# Apocalypse. Called from every outgoing-damage call site (melee, spell
+# basic attack, spell effect AoE) with the actual amount dealt, same
+# "increment by the real value, not a flat 1" convention as self_heal_total.
+func _record_damage_dealt(amount: int) -> void:
+	if amount <= 0 or _game_state == null:
+		return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service != null:
+		service.increment_counter("damage_dealt", amount)
 
 func _overlapping_enemy_nodes(hitbox: Area2D = null) -> Array:
 	var box := hitbox if hitbox != null else _hitbox

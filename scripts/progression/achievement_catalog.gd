@@ -52,6 +52,18 @@ static func all() -> Array:
 		"Immortal-ish",
 		"10,000 HP self-healed. Death has your number on speed dial and still can't reach you.",
 		"guardians_locket"))
+	out.append(_tiered_gold("warming_up", "damage_dealt", 1000,
+		"Warming Up",
+		"1,000 total damage dealt. The mice are starting to take notes.",
+		25))
+	out.append(_tiered_potion("certified_wrecking_ball", "damage_dealt", 10000,
+		"Certified Wrecking Ball",
+		"10,000 total damage dealt. Subtlety was never really your thing.",
+		"health_potion", 2))
+	out.append(_tiered_item("one_cat_apocalypse", "damage_dealt", 100000,
+		"One-Cat Apocalypse",
+		"100,000 total damage dealt. The dungeon files a formal ceasefire request.",
+		"executioners_signet"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
