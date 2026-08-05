@@ -160,6 +160,42 @@ static func all() -> Array:
 		"One with the Spores",
 		"Consumed 100 mushrooms. You and the fungal network are basically the same organism now.",
 		"fungal_cap"))
+	# One-off achievements (issue #471): gameplay-moment triggers, same
+	# "empty counter_key/threshold" one-shot shape as the original 4
+	# (cat_renamed/dungeon_entered/chest_opened/enemy_killed). No new reward
+	# machinery -- GOLD/POTION only, per PRD's "Gold + potions" one-offs
+	# each collapsed to a single reward type since AchievementDefinition
+	# only carries one reward per entry.
+	out.append(AchievementDefinition.make_gold(
+		"big_mouse_energy", "boss_killed",
+		"Big Mouse Energy",
+		"You defeated something bigger than a mouse. Allegedly.",
+		100))
+	out.append(AchievementDefinition.make_gold(
+		"wait_theres_a_bar", "bar_entered",
+		"Wait, There's a Bar?",
+		"You found the dungeon's bar. Priorities: sorted.",
+		50))
+	out.append(AchievementDefinition.make_gold(
+		"herding_cats", "coop_hosted",
+		"Herding Cats",
+		"You opened a lobby and invited others in. Bold, considering you can barely take care of yourself.",
+		50))
+	out.append(AchievementDefinition.make_gold(
+		"home_invasion_consensual", "coop_joined",
+		"Home Invasion (Consensual)",
+		"You joined someone else's game. They said yes. Mostly.",
+		50))
+	out.append(AchievementDefinition.make_potion(
+		"emotional_support_kitten", "cross_player_heal",
+		"Emotional Support Kitten",
+		"You healed a teammate instead of yourself. Suspiciously generous.",
+		"health_potion", 1))
+	out.append(AchievementDefinition.make_potion(
+		"by_a_whisker", "clutch_potion_use",
+		"By a Whisker",
+		"You survived at 1 HP. By a whisker. Literally.",
+		"health_potion", 2))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

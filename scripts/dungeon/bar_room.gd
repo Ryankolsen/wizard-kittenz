@@ -58,6 +58,12 @@ func _ready() -> void:
 	if bartender != null and bartender.has_signal("shop_requested") \
 			and not bartender.shop_requested.is_connected(_on_shop_requested):
 		bartender.shop_requested.connect(_on_shop_requested)
+	# One-off achievement (issue #471): Wait, There's a Bar? fires on every
+	# BarRoom instantiation, but record_event's own idempotency (issue #447)
+	# means only the true first entry actually unlocks it.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.record_event("bar_entered")
 
 
 # Returns the ExitZone children in the order they appear in the scene

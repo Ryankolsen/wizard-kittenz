@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 37)
+	assert_eq(defs.size(), 43)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -828,3 +828,119 @@ func test_mushrooms_consumed_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("fungal_cap"), "One with the Spores must grant Fungal Cap to the earning cat's bag")
+
+# --- Core wiring: one-off gameplay moments (issue #471) -------------------------
+
+func test_boss_kill_triggers_big_mouse_energy():
+	var e := Enemy.new()
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	e.data.is_boss = true
+	e.apply_state_update(1000.0)
+	e.data.hp = 0
+	e.apply_state_update(10.0)
+	assert_true(GameState.achievement_service.account.achievement_state.has("big_mouse_energy"),
+		"killing a boss-flagged enemy must record the boss_killed event")
+	e.free()
+
+func test_regular_kill_does_not_trigger_big_mouse_energy():
+	var e := _make_enemy()
+	assert_false(e.data.is_boss)
+	e.apply_state_update(1000.0)
+	e.data.hp = 0
+	e.apply_state_update(10.0)
+	assert_false(GameState.achievement_service.account.achievement_state.has("big_mouse_energy"),
+		"a non-boss kill must not record the boss_killed event")
+	e.free()
+
+func test_bar_room_entry_triggers_wait_theres_a_bar():
+	var bar: BarRoom = load("res://scenes/bar_room.tscn").instantiate()
+	add_child_autofree(bar)
+	assert_true(GameState.achievement_service.account.achievement_state.has("wait_theres_a_bar"),
+		"entering the bar room must record the bar_entered event")
+
+func test_second_bar_room_entry_does_not_reunlock():
+	var bar1: BarRoom = load("res://scenes/bar_room.tscn").instantiate()
+	add_child_autofree(bar1)
+	watch_signals(GameState.achievement_service)
+	var bar2: BarRoom = load("res://scenes/bar_room.tscn").instantiate()
+	add_child_autofree(bar2)
+	assert_signal_not_emitted(GameState.achievement_service, "achievement_unlocked",
+		"a second bar-room instantiation must not re-unlock wait_theres_a_bar (record_event's own dedup)")
+
+class _CrossHealStubPlayer:
+	extends Node
+	var data: CharacterData = null
+	var player_id: String = ""
+
+func _make_cross_heal_player_in_tree(pid: String) -> _CrossHealStubPlayer:
+	var p := _CrossHealStubPlayer.new()
+	p.player_id = pid
+	p.data = CharacterData.make_new(CharacterData.CharacterClass.SLEEPY_KITTEN, "k")
+	p.data.player_id = pid
+	p.data.hp = p.data.max_hp - 5
+	p.add_to_group("players")
+	add_child_autofree(p)
+	return p
+
+func test_remote_heal_applier_triggers_emotional_support_kitten():
+	# Self-echoes are dropped upstream by NakamaLobby._route_heal, so any
+	# heal reaching RemoteHealApplier.apply is by construction cast by
+	# another player -- this is the cross-player-heal trigger surface.
+	_make_cross_heal_player_in_tree("u1")
+	assert_true(RemoteHealApplier.apply(get_tree(), "u1", "SMART_HEAL", 5, 0.0))
+	assert_true(GameState.achievement_service.account.achievement_state.has("emotional_support_kitten"),
+		"a heal landing on another player via RemoteHealApplier must record the cross_player_heal event")
+
+func test_remote_heal_applier_zero_heal_does_not_trigger_emotional_support_kitten():
+	# Already at max HP: heal() clamps to 0 actual HP restored, so apply()
+	# still returns true (the effect dispatched), but no FloatingText/
+	# achievement fires since healed == 0.
+	var p := _make_cross_heal_player_in_tree("u1")
+	p.data.hp = p.data.max_hp
+	assert_true(RemoteHealApplier.apply(get_tree(), "u1", "SMART_HEAL", 5, 0.0))
+	assert_false(GameState.achievement_service.account.achievement_state.has("emotional_support_kitten"),
+		"a no-op heal (already full HP) must not record the cross_player_heal event")
+
+func test_potion_at_one_hp_survives_triggers_by_a_whisker():
+	var belt := PotionBelt.new()
+	var inv := ConsumableInventory.new()
+	inv.add("health_potion", 1)
+	belt.assign(1, "health_potion")
+	var ok := belt.use_slot(1, _potion_caster(), inv)
+	assert_true(ok)
+	assert_true(GameState.achievement_service.account.achievement_state.has("by_a_whisker"),
+		"consuming a potion at 1 HP and surviving must record the clutch_potion_use event")
+
+func test_potion_at_full_hp_does_not_trigger_by_a_whisker():
+	var belt := PotionBelt.new()
+	var inv := ConsumableInventory.new()
+	inv.add("health_potion", 1)
+	belt.assign(1, "health_potion")
+	var caster := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Test")
+	caster.magic_points = 0
+	var ok := belt.use_slot(1, caster, inv)
+	assert_true(ok)
+	assert_false(GameState.achievement_service.account.achievement_state.has("by_a_whisker"),
+		"consuming a potion at full HP must not record the clutch_potion_use event")
+
+# --- Content details: one-off gameplay moments -----------------------------------
+
+func test_one_off_gameplay_moment_entries_have_correct_content():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["big_mouse_energy"].trigger_event, "boss_killed")
+	assert_eq(by_id["big_mouse_energy"].title, "Big Mouse Energy")
+	assert_eq(by_id["big_mouse_energy"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["wait_theres_a_bar"].trigger_event, "bar_entered")
+	assert_eq(by_id["wait_theres_a_bar"].title, "Wait, There's a Bar?")
+	assert_eq(by_id["herding_cats"].trigger_event, "coop_hosted")
+	assert_eq(by_id["herding_cats"].title, "Herding Cats")
+	assert_eq(by_id["home_invasion_consensual"].trigger_event, "coop_joined")
+	assert_eq(by_id["home_invasion_consensual"].title, "Home Invasion (Consensual)")
+	assert_eq(by_id["emotional_support_kitten"].trigger_event, "cross_player_heal")
+	assert_eq(by_id["emotional_support_kitten"].title, "Emotional Support Kitten")
+	assert_eq(by_id["emotional_support_kitten"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["by_a_whisker"].trigger_event, "clutch_potion_use")
+	assert_eq(by_id["by_a_whisker"].title, "By a Whisker")
+	assert_eq(by_id["by_a_whisker"].reward_type, AchievementDefinition.RewardType.POTION)

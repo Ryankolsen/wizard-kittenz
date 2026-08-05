@@ -178,6 +178,10 @@ func apply_state_update(distance: float) -> void:
 			# feeds the cumulative "enemies_killed" counter for Mouse Patrol/
 			# Certified Menace/Apex Predator (Probably).
 			gs.achievement_service.increment_counter("enemies_killed", 1)
+			# One-off (issue #471): Big Mouse Energy fires only on boss kills;
+			# record_event's own idempotency handles "first boss kill only".
+			if data.is_boss:
+				gs.achievement_service.record_event("boss_killed")
 
 func _chase(target: Node2D) -> void:
 	if target == null:

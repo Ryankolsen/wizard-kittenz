@@ -77,6 +77,13 @@ func use_slot(n: int, caster, inventory: ConsumableInventory) -> bool:
 		return false
 	if not inventory.consume(potion_id):
 		return false
+	# Issue #471: snapshot HP immediately before the effect so "By a Whisker"
+	# can tell a 1-HP clutch save apart from any other-HP consumption. Only
+	# CharacterData-shaped casters carry "hp"; duck-typed the same way
+	# SpellEffectResolver.apply reads its caster.
+	var hp_before: int = -1
+	if "hp" in caster:
+		hp_before = caster.hp
 	PotionEffectResolver.apply(definition, caster)
 	_cooldown_remaining = COOLDOWN_SECONDS
 	slot_used.emit(n)
@@ -87,6 +94,9 @@ func use_slot(n: int, caster, inventory: ConsumableInventory) -> bool:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 	if gs != null:
 		gs.achievement_service.increment_counter("potions_consumed", 1)
+		# One-off (issue #471): By a Whisker -- consumed at 1 HP and survived.
+		if hp_before == 1 and "hp" in caster and caster.hp > 0:
+			gs.achievement_service.record_event("clutch_potion_use")
 	return true
 
 func serialize() -> Dictionary:

@@ -263,6 +263,11 @@ func create_async(room_code: String, local_player: LobbyPlayer) -> bool:
 	# Broadcast our info to any late-joiners watching this match
 	await send_player_info_async(local_player)
 	lobby_updated.emit(lobby_state)
+	# One-off achievement (issue #471): Herding Cats fires only on a
+	# successful room create, not on any of the join_failed branches above.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.record_event("coop_hosted")
 	return true
 
 func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
@@ -295,6 +300,11 @@ func join_async(room_code: String, local_player: LobbyPlayer) -> bool:
 	# Announce ourselves to the existing players
 	await send_player_info_async(local_player)
 	lobby_updated.emit(lobby_state)
+	# One-off achievement (issue #471): Home Invasion (Consensual) fires only
+	# on a successful join, not on any of the join_failed branches above.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.record_event("coop_joined")
 	return true
 
 # Seeds lobby_state with the local player and pins the lobby's notion of

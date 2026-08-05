@@ -71,6 +71,14 @@ static func apply(
 				var healed: int = node.data.hp - hp_before
 				if healed > 0:
 					FloatingText.spawn(node, str(healed), Color(0.2, 1.0, 0.4))
+					# One-off achievement (issue #471): Emotional Support
+					# Kitten. Self-echoes are already dropped upstream by
+					# NakamaLobby._route_heal, so any heal reaching this
+					# applier is by construction cast by another player on
+					# this target -- a genuine cross-player heal.
+					var gs = tree.root.get_node_or_null("GameState")
+					if gs != null:
+						gs.achievement_service.record_event("cross_player_heal")
 	return applied
 
 const _PARTY_BUFF_PREFIX := "PARTY_BUFF_"
