@@ -47,3 +47,33 @@ func test_set_invulnerable_rejects_nonpositive_duration():
 	var c := _caster()
 	c.set_invulnerable(0.0)
 	assert_false(c.is_invulnerable(), "zero duration is a no-op")
+
+# --- Pending bonus strike (PRD #453 / issue #460, Phase Tome III) -------------
+
+func test_queued_bonus_strike_fires_only_once_invulnerable_window_expires():
+	var c := _caster()
+	var target := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.set_invulnerable(2.0)
+	c.queue_bonus_strike([target], 5)
+	c.tick_invulnerable(1.0)
+	assert_eq(target.hp, target.max_hp, "bonus strike has not fired before the window ends")
+	c.tick_invulnerable(1.0)
+	assert_eq(target.hp, target.max_hp - 5, "bonus strike fires exactly when the window expires")
+
+func test_queued_bonus_strike_skips_already_dead_target():
+	var c := _caster()
+	var target := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	target.hp = 0
+	c.set_invulnerable(2.0)
+	c.queue_bonus_strike([target], 5)
+	c.tick_invulnerable(2.0)
+	assert_eq(target.hp, 0, "dead target takes no bonus strike damage")
+
+func test_queue_bonus_strike_rejects_empty_targets_and_nonpositive_amount():
+	var c := _caster()
+	var target := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	c.set_invulnerable(2.0)
+	c.queue_bonus_strike([], 5)
+	c.queue_bonus_strike([target], 0)
+	c.tick_invulnerable(2.0)
+	assert_eq(target.hp, target.max_hp, "no strike queued when targets empty or amount non-positive")

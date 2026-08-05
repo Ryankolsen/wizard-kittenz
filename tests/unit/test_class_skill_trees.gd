@@ -31,18 +31,20 @@ const CHONK_NODES := [
 	["maximum_chonk", 12, Spell.EffectKind.BUFF],
 ]
 
-func test_battle_kitten_tree_has_5_nodes():
+# 5 class spells + 3 Phase Tome nodes (issue #460), the enemies-killed tiered
+# achievement reward line added to every Kitten-tier tree.
+func test_battle_kitten_tree_has_8_nodes():
 	var t := SkillTree.make_battle_kitten_tree()
-	assert_eq(t.nodes.size(), 5)
+	assert_eq(t.nodes.size(), 8)
 
-func test_wizard_kitten_tree_has_5_nodes():
-	assert_eq(SkillTree.make_wizard_kitten_tree().nodes.size(), 5)
+func test_wizard_kitten_tree_has_8_nodes():
+	assert_eq(SkillTree.make_wizard_kitten_tree().nodes.size(), 8)
 
-func test_sleepy_kitten_tree_has_5_nodes():
-	assert_eq(SkillTree.make_sleepy_kitten_tree().nodes.size(), 5)
+func test_sleepy_kitten_tree_has_8_nodes():
+	assert_eq(SkillTree.make_sleepy_kitten_tree().nodes.size(), 8)
 
-func test_chonk_kitten_tree_has_5_nodes():
-	assert_eq(SkillTree.make_chonk_kitten_tree().nodes.size(), 5)
+func test_chonk_kitten_tree_has_8_nodes():
+	assert_eq(SkillTree.make_chonk_kitten_tree().nodes.size(), 8)
 
 func _assert_roster(tree: SkillTree, roster: Array, label: String) -> void:
 	for entry in roster:

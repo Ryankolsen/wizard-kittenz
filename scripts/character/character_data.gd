@@ -323,6 +323,33 @@ func tick_invulnerable(delta: float) -> void:
 	_invulnerable_remaining -= delta
 	if _invulnerable_remaining <= 0.0:
 		_invulnerable_remaining = 0.0
+		_fire_pending_bonus_strike()
+
+# Phase Tome III (PRD #453 / issue #460): a bonus melee strike queued at cast
+# time and fired only once the invulnerability window it was cast alongside
+# actually expires ("bonus strike at the end of the window"), rather than
+# immediately on cast. Targets are pre-resolved target-data objects (already
+# unwrapped from any Enemy scene node by SpellEffectResolver._data_of) so
+# this stays a pure duck-typed data operation, no scene-tree knowledge here.
+var _pending_bonus_strike_targets: Array = []
+var _pending_bonus_strike_amount: int = 0
+
+func queue_bonus_strike(targets: Array, amount: int) -> void:
+	if amount <= 0 or targets.is_empty():
+		return
+	_pending_bonus_strike_targets = targets.duplicate()
+	_pending_bonus_strike_amount = amount
+
+func _fire_pending_bonus_strike() -> void:
+	if _pending_bonus_strike_targets.is_empty():
+		return
+	var targets := _pending_bonus_strike_targets
+	var amount := _pending_bonus_strike_amount
+	_pending_bonus_strike_targets = []
+	_pending_bonus_strike_amount = 0
+	for t in targets:
+		if t != null and t.has_method("is_alive") and t.is_alive() and t.has_method("take_damage"):
+			t.take_damage(amount)
 
 func take_damage(amount: int) -> int:
 	if amount <= 0:

@@ -37,6 +37,14 @@ const IRON_HIDE_DURATION := 20.0
 # for a fixed duration rather than a stat/shield combo.
 const PHASE_TOME_I_INVULNERABLE_DURATION := 2.0
 
+# Issue #460: Phase Tome II/III escalate the same invulnerability window
+# rather than replacing it — each tier's cast grants the identical window
+# (PHASE_TOME_I_INVULNERABLE_DURATION) plus its own additional effect, so
+# "Apex Predator (Probably)" casting Phase Tome III still gets the base
+# invuln, the tier-2 aura, and the tier-3 bonus strike all from one cast.
+const PHASE_TOME_II_AURA_DOT_AMOUNT := 4
+const PHASE_TOME_III_BONUS_STRIKE_AMOUNT := 5
+
 # Issue #424: PARTY_SHIELD is dispatched generically (unlike BUFF above) since
 # Cozy Cocoon is its only consumer so far — same shape as GROUP_REGEN/
 # PARTY_BUFF's "one hardcoded skill" precedent, just shield instead of buff.
@@ -121,6 +129,25 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 				"phase_tome_i":
 					if caster != null and caster.has_method("set_invulnerable"):
 						caster.set_invulnerable(PHASE_TOME_I_INVULNERABLE_DURATION)
+				"phase_tome_ii":
+					if caster != null and caster.has_method("set_invulnerable"):
+						caster.set_invulnerable(PHASE_TOME_I_INVULNERABLE_DURATION)
+					for t in targets:
+						var t_data = _data_of(t)
+						if t_data != null and t_data.is_alive() and t_data.has_method("apply_dot"):
+							t_data.apply_dot(PHASE_TOME_II_AURA_DOT_AMOUNT, PHASE_TOME_I_INVULNERABLE_DURATION)
+				"phase_tome_iii":
+					if caster != null and caster.has_method("set_invulnerable"):
+						caster.set_invulnerable(PHASE_TOME_I_INVULNERABLE_DURATION)
+					var alive_targets: Array = []
+					for t in targets:
+						var t_data = _data_of(t)
+						if t_data != null and t_data.is_alive():
+							if t_data.has_method("apply_dot"):
+								t_data.apply_dot(PHASE_TOME_II_AURA_DOT_AMOUNT, PHASE_TOME_I_INVULNERABLE_DURATION)
+							alive_targets.append(t_data)
+					if caster != null and caster.has_method("queue_bonus_strike") and not alive_targets.is_empty():
+						caster.queue_bonus_strike(alive_targets, PHASE_TOME_III_BONUS_STRIKE_AMOUNT)
 		Spell.EffectKind.HEAL:
 			# Self-heal: amount = spell.power + caster.magic_attack, clamped
 			# at max_hp by CharacterData.heal(). Crit is intentionally NOT

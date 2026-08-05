@@ -174,6 +174,10 @@ func apply_state_update(distance: float) -> void:
 		var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 		if gs != null:
 			gs.achievement_service.record_event("enemy_killed")
+			# Tiered achievements (PRD #453 / issue #460): same call site also
+			# feeds the cumulative "enemies_killed" counter for Mouse Patrol/
+			# Certified Menace/Apex Predator (Probably).
+			gs.achievement_service.increment_counter("enemies_killed", 1)
 
 func _chase(target: Node2D) -> void:
 	if target == null:

@@ -303,6 +303,40 @@ func test_phase_tome_i_grants_self_invulnerability_and_consumes_cooldown():
 	caster.tick_invulnerable(SpellEffectResolver.PHASE_TOME_I_INVULNERABLE_DURATION)
 	assert_false(caster.is_invulnerable(), "invulnerability reverts after its duration")
 
+# ---- Phase Tome II/III (issue #460) ---------------------------------------
+
+func test_phase_tome_ii_grants_invulnerability_and_aura_dot_to_nearby_enemies():
+	var caster := _caster(0)
+	var near := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var far := EnemyData.make_new(EnemyData.EnemyKind.ROGUE_ROOMBA)
+	var spell := Spell.make("phase_tome_ii", "Phase Tome II", Spell.EffectKind.BUFF, 0, 15.0)
+	SpellEffectResolver.apply(spell, caster, [near, far])
+	assert_true(caster.is_invulnerable(), "Phase Tome II still grants the base invulnerability window")
+	assert_eq(near._dots.size(), 1, "aura pulse ticks every target the caller passed in as nearby")
+	assert_eq(near._dots[0].amount, SpellEffectResolver.PHASE_TOME_II_AURA_DOT_AMOUNT)
+	assert_almost_eq(near._dots[0].remaining, SpellEffectResolver.PHASE_TOME_I_INVULNERABLE_DURATION, 0.0001)
+	assert_eq(far._dots.size(), 1, "every target passed in is treated as in range")
+
+func test_phase_tome_ii_ignores_dead_targets():
+	var caster := _caster(0)
+	var dead := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	dead.hp = 0
+	var spell := Spell.make("phase_tome_ii", "Phase Tome II", Spell.EffectKind.BUFF, 0, 15.0)
+	SpellEffectResolver.apply(spell, caster, [dead])
+	assert_eq(dead._dots.size(), 0, "a dead target takes no aura tick")
+
+func test_phase_tome_iii_includes_invuln_and_aura_plus_queues_bonus_strike():
+	var caster := _caster(0)
+	var enemy := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var spell := Spell.make("phase_tome_iii", "Phase Tome III", Spell.EffectKind.BUFF, 0, 15.0)
+	SpellEffectResolver.apply(spell, caster, [enemy])
+	assert_true(caster.is_invulnerable(), "Phase Tome III still grants the base invulnerability window")
+	assert_eq(enemy._dots.size(), 1, "Phase Tome III still applies the tier-2 aura pulse")
+	assert_eq(enemy.hp, enemy.max_hp, "the bonus strike has not landed yet — it fires at window end")
+	caster.tick_invulnerable(SpellEffectResolver.PHASE_TOME_I_INVULNERABLE_DURATION)
+	assert_eq(enemy.hp, enemy.max_hp - SpellEffectResolver.PHASE_TOME_III_BONUS_STRIKE_AMOUNT,
+		"bonus melee strike lands once the invulnerability window ends")
+
 # ---- PARTY_SHIELD / Nine Lives (issue #424) ------------------------------
 
 func test_party_shield_applies_shield_to_all_targets():

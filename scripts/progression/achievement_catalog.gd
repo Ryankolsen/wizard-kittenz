@@ -28,7 +28,28 @@ static func all() -> Array:
 		"First Blood (Mouse Blood)",
 		"You defeated an enemy. Somewhere, a tiny mouse skeleton salutes you.",
 		"mana_potion", 1))
+	out.append(_tiered_tome("mouse_patrol", "enemies_killed", 10,
+		"Mouse Patrol",
+		"10 kills. The dungeon HR department has noticed.",
+		"phase_tome_i", "phase_tome_i"))
+	out.append(_tiered_tome("certified_menace", "enemies_killed", 100,
+		"Certified Menace",
+		"100 kills. You've stopped counting the guilt.",
+		"phase_tome_ii", "phase_tome_ii"))
+	out.append(_tiered_tome("apex_predator_probably", "enemies_killed", 1000,
+		"Apex Predator (Probably)",
+		"1,000 kills. Somewhere, a mouse union is filing a complaint.",
+		"phase_tome_iii", "phase_tome_iii"))
 	return out
+
+# Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
+# shape but bind to a counter_key/threshold instead of a trigger_event, same
+# "empty trigger_event" pattern used for tiered GOLD/POTION entries elsewhere.
+static func _tiered_tome(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_node_id: String, p_spell_id: String) -> AchievementDefinition:
+	var d := AchievementDefinition.make_tome(p_id, "", p_title, p_flavor_text, p_node_id, p_spell_id)
+	d.counter_key = p_counter_key
+	d.threshold = p_threshold
+	return d
 
 static func find(id: String) -> AchievementDefinition:
 	for d in all():

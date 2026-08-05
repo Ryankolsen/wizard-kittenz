@@ -261,6 +261,20 @@ func test_claim_tome_twice_does_not_duplicate_quickbar_assignment():
 	assert_eq(qb.get_slot(1).id, "phase_tome_i")
 	assert_null(qb.get_slot(2), "no duplicate assignment into a second slot")
 
+# --- Enemies Killed tiers, real catalog + real class tree (issue #460) -------
+
+func test_claim_mouse_patrol_against_real_catalog_and_battle_kitten_tree():
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, AchievementCatalog.all())
+	service.active_slot = "wizard"
+	service.increment_counter("enemies_killed", 10)
+	var tree := SkillTree.make_battle_kitten_tree()
+	var qb := Quickbar.new()
+	var claimed := service.claim("mouse_patrol", null, null, null, null, tree, qb)
+	assert_not_null(claimed, "Mouse Patrol claims against the real catalog and a real class tree")
+	assert_true(tree.is_unlocked("phase_tome_i"), "claiming unlocks the real phase_tome_i node")
+	assert_eq(qb.get_slot(1).id, "phase_tome_i", "the taught spell auto-fills the quickbar")
+
 func test_claim_tome_inactive_slot_mutates_bundle_slot_only():
 	var def := _make_tome_definition("tome_ach", "test_event", "phase_tome_i", "phase_tome_i")
 	var account := AccountSaveData.new()
