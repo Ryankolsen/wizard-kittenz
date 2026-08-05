@@ -67,13 +67,14 @@ func increment_counter(counter_key: String, amount: int) -> void:
 
 # Grants an unlocked-but-unclaimed achievement's fixed reward and marks it
 # claimed (issue #448). Gold routes account-wide via currency_ledger. Potions
-# route to the ConsumableInventory belonging to the entry's earned_by_slot —
-# consumable_inventory when that slot is the currently active one, otherwise
-# directly into bundle's matching CharacterSlotData.consumable_inventory_data
-# (an inactive slot has no live ConsumableInventory to hydrate). Returns the
-# claimed AchievementDefinition (for UI reward/flavor display), or null on any
-# safe no-op: unknown id, never unlocked, or already claimed.
-func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_inventory: ConsumableInventory = null, bundle: SaveBundle = null) -> AchievementDefinition:
+# and items both route to the earning entry's earned_by_slot — the live
+# consumable_inventory/item_inventory when that slot is the currently active
+# one, otherwise directly into bundle's matching CharacterSlotData
+# (consumable_inventory_data / item_bag; an inactive slot has no live
+# inventory to hydrate). Returns the claimed AchievementDefinition (for UI
+# reward/flavor display), or null on any safe no-op: unknown id, never
+# unlocked, or already claimed.
+func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_inventory: ConsumableInventory = null, bundle: SaveBundle = null, item_inventory: ItemInventory = null) -> AchievementDefinition:
 	if account == null:
 		return null
 	var entry = account.achievement_state.get(id)
@@ -89,6 +90,14 @@ func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_invent
 	if definition.reward_type == AchievementDefinition.RewardType.GOLD:
 		if currency_ledger != null:
 			currency_ledger.credit(definition.reward_amount, CurrencyLedger.Currency.GOLD)
+	elif definition.reward_type == AchievementDefinition.RewardType.ITEM:
+		var earned_slot := String(entry.get("earned_by_slot", ""))
+		if earned_slot == active_slot and item_inventory != null:
+			item_inventory.add_to_bag(ItemCatalog.find(definition.reward_item_id))
+		elif bundle != null:
+			var slot: CharacterSlotData = bundle.get_slot(earned_slot)
+			if slot != null:
+				slot.item_bag.append(definition.reward_item_id)
 	else:
 		var earned_slot := String(entry.get("earned_by_slot", ""))
 		if earned_slot == active_slot and consumable_inventory != null:

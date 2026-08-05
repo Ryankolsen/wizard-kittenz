@@ -168,6 +168,50 @@ func test_claim_twice_only_grants_reward_once():
 		"balance only increased once")
 	assert_true(account.achievement_state["gold_ach"]["claimed"])
 
+func _make_item_definition(id: String, trigger_event: String, item_id: String) -> AchievementDefinition:
+	return AchievementDefinition.make_item(id, trigger_event, "Title", "Flavor text.", item_id)
+
+func test_claim_item_active_slot_adds_to_live_bag():
+	var def := _make_item_definition("item_ach", "test_event", "lucky_charm")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var inv := ItemInventory.new()
+	var claimed := service.claim("item_ach", null, null, null, inv)
+	assert_not_null(claimed)
+	assert_eq(inv.bag_items().size(), 1)
+	assert_eq(inv.bag_items()[0].id, "lucky_charm")
+
+func test_claim_item_inactive_slot_mutates_bundle_slot_only():
+	var def := _make_item_definition("item_ach", "test_event", "lucky_charm")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	service.active_slot = "battle"
+	var bundle := SaveBundle.new()
+	var wizard_slot := CharacterSlotData.new()
+	bundle.slots[SaveBundle.SLOT_WIZARD] = wizard_slot
+	var active_inv := ItemInventory.new()
+	var claimed := service.claim("item_ach", null, null, bundle, active_inv)
+	assert_not_null(claimed)
+	assert_true(wizard_slot.item_bag.has("lucky_charm"))
+	assert_eq(active_inv.bag_items().size(), 0,
+		"the currently-active slot's live inventory must not be touched")
+
+func test_claim_item_twice_does_not_duplicate_in_bag():
+	var def := _make_item_definition("item_ach", "test_event", "lucky_charm")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var inv := ItemInventory.new()
+	service.claim("item_ach", null, null, null, inv)
+	var second := service.claim("item_ach", null, null, null, inv)
+	assert_null(second, "second claim on an already-claimed id is a no-op")
+	assert_eq(inv.bag_items().size(), 1, "item is not duplicated in the bag")
+
 func test_claim_nonexistent_id_is_safe_no_op():
 	var account := AccountSaveData.new()
 	var service := AchievementService.new(account, [])
