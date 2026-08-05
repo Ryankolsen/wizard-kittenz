@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 22)
+	assert_eq(defs.size(), 25)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -450,3 +450,50 @@ func test_gold_earned_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("fat_cat_coin_purse"), "Fat Cat must grant Fat Cat Coin Purse to the earning cat's bag")
+
+# --- Content details: deaths tier thresholds -----------------------------------
+
+func test_deaths_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("deaths", 1)
+	assert_true(service.account.achievement_state.has("well_that_happened"), "1 death unlocks Well, That Happened")
+	assert_false(service.account.achievement_state.has("frequent_flier_respawn_edition"))
+	service.increment_counter("deaths", 9)
+	assert_true(service.account.achievement_state.has("frequent_flier_respawn_edition"),
+		"10 deaths unlocks Frequent Flier (Respawn Edition)")
+	assert_false(service.account.achievement_state.has("professional_corpse"))
+	service.increment_counter("deaths", 90)
+	assert_true(service.account.achievement_state.has("professional_corpse"), "100 deaths unlocks Professional Corpse")
+
+func test_deaths_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["well_that_happened"].threshold, 1)
+	assert_eq(by_id["well_that_happened"].counter_key, "deaths")
+	assert_eq(by_id["well_that_happened"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["frequent_flier_respawn_edition"].threshold, 10)
+	assert_eq(by_id["frequent_flier_respawn_edition"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["professional_corpse"].threshold, 100)
+	assert_eq(by_id["professional_corpse"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["professional_corpse"].reward_item_id, "nine_lives_collar")
+
+func test_deaths_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("deaths", 100)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("well_that_happened", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("frequent_flier_respawn_edition", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("professional_corpse", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("nine_lives_collar"), "Professional Corpse must grant Nine Lives Collar to the earning cat's bag")

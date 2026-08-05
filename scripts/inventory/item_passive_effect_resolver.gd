@@ -10,6 +10,7 @@ extends RefCounted
 const PASSIVE_LIFESTEAL := "lifesteal"
 const PASSIVE_CRIT_ECHO := "crit_echo"
 const PASSIVE_THORNS := "thorns"
+const PASSIVE_SECOND_WIND := "second_wind"
 
 # Issue #459: Lifesteal-on-kill heals the caster by a percentage of the
 # killing blow's damage. Fixed percentage (not stat-scaled), matching how
@@ -33,6 +34,8 @@ static func passive_id_for(item_id: String) -> String:
 			return PASSIVE_CRIT_ECHO
 		"bramble_plate":
 			return PASSIVE_THORNS
+		"nine_lives_collar":
+			return PASSIVE_SECOND_WIND
 		_:
 			return ""
 
@@ -102,3 +105,20 @@ static func _apply_thorns(attacker, damage_taken: int) -> int:
 	if attacker == null or damage_taken <= 0 or not attacker.has_method("take_damage"):
 		return 0
 	return attacker.take_damage(int(ceil(damage_taken * THORNS_PCT)))
+
+# Called when the wearer would otherwise die, keyed by item id. `already_used`
+# is the caller-owned once-per-run flag — unlike Lifesteal/Crit Echo/Thorns,
+# Second Wind's "already triggered this run" state can't be derived from the
+# hit alone, so Player owns it (reset for free each run by the scene reload
+# on floor advance) and passes it in, keeping this resolver stateless like
+# every other passive here. Returns true when Second Wind should save the
+# wearer from this hit.
+static func resolve_on_lethal_hit(item_id: String, already_used: bool) -> bool:
+	return resolve_passive_on_lethal_hit(passive_id_for(item_id), already_used)
+
+static func resolve_passive_on_lethal_hit(passive_id: String, already_used: bool) -> bool:
+	match passive_id:
+		PASSIVE_SECOND_WIND:
+			return not already_used
+		_:
+			return false

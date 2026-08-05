@@ -50,6 +50,11 @@ var _wobble_time: float = 0.0
 var _regen_accum: float = 0.0
 var _mp_regen_accum: float = 0.0
 var _died_emitted: bool = false
+# Issue #466: Second Wind (Nine Lives Collar) once-per-run gate. Plain
+# instance flag — main_scene._start_new_dungeon reloads the whole scene
+# (and therefore rebuilds Player) on every floor advance, so "resets at the
+# start of each new dungeon run" falls out for free with no separate hook.
+var _second_wind_used: bool = false
 var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
 var _weapon_pivot: WeaponPivot = null
@@ -417,9 +422,43 @@ func _physics_process(delta: float) -> void:
 func _check_died() -> void:
 	if _died_emitted:
 		return
+	if _try_second_wind():
+		return
 	_died_emitted = true
+	_record_death()
 	_broadcast_player_died()
 	died.emit()
+
+# Issue #466: Second Wind (Nine Lives Collar) converts one lethal hit per
+# dungeon run into a 1-HP survival instead of death. Reads/writes the same
+# routed CharacterData block CoopRouter.is_local_alive checked (the co-op
+# effective_stats view, or data directly when solo) so the save lands on
+# whichever block actually hit zero. Returns true when the hit was survived.
+func _try_second_wind() -> bool:
+	var inv := _item_inventory()
+	if inv == null:
+		return false
+	var target := CoopRouter.target_for(_coop_session(), data, _local_player_id())
+	if target == null:
+		return false
+	for passive_id in inv.active_passive_ids():
+		if ItemPassiveEffectResolver.resolve_passive_on_lethal_hit(passive_id, _second_wind_used):
+			_second_wind_used = true
+			target.hp = 1
+			return true
+	return false
+
+# Tiered achievements (PRD #453 / issue #466): feeds the cumulative "deaths"
+# counter for Well That Happened/Frequent Flier (Respawn Edition)/
+# Professional Corpse. Gated behind Second Wind above, so a saved hit never
+# increments this — same "the counter tracks what actually happened, not
+# every lethal hit" shape as self_heal_total excluding cross-player heals.
+func _record_death() -> void:
+	if _game_state == null:
+		return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service != null:
+		service.increment_counter("deaths", 1)
 
 # Slice 8 of PRD #328 (issue #336). Co-op fan-out for the local death.
 # Fires exactly once per death (gated by _died_emitted) so a successful

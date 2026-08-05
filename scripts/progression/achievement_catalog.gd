@@ -100,6 +100,18 @@ static func all() -> Array:
 		"Fat Cat",
 		"Earned 10,000 lifetime gold. You are, canonically, the fat cat now.",
 		"fat_cat_coin_purse"))
+	out.append(_tiered_gold("well_that_happened", "deaths", 1,
+		"Well, That Happened",
+		"You died. It happens to the best of us. Mostly to you, though.",
+		25))
+	out.append(_tiered_potion("frequent_flier_respawn_edition", "deaths", 10,
+		"Frequent Flier (Respawn Edition)",
+		"Died 10 times. You've got the respawn screen memorized by now.",
+		"health_potion", 2))
+	out.append(_tiered_item("professional_corpse", "deaths", 100,
+		"Professional Corpse",
+		"Died 100 times. At this point it's less a death count and more a resume.",
+		"nine_lives_collar"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

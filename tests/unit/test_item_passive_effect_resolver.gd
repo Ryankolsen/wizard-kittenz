@@ -84,3 +84,17 @@ func test_thorns_no_reflection_on_zero_damage():
 	var reflected := ItemPassiveEffectResolver.resolve_on_hit_taken("bramble_plate", attacker, 0)
 	assert_eq(reflected, 0, "zero incoming damage must never produce a reflection")
 	assert_eq(attacker.hp, 100, "zero incoming damage must leave the attacker untouched")
+
+# --- Second Wind (issue #466) ---
+
+func test_second_wind_saves_when_equipped_and_not_yet_used():
+	var saved := ItemPassiveEffectResolver.resolve_on_lethal_hit("nine_lives_collar", false)
+	assert_true(saved, "an unused Second Wind must save the wearer from a lethal hit")
+
+func test_second_wind_does_not_stack_within_a_run():
+	var saved := ItemPassiveEffectResolver.resolve_on_lethal_hit("nine_lives_collar", true)
+	assert_false(saved, "an already-used Second Wind must not save the wearer a second time")
+
+func test_second_wind_no_save_when_unequipped():
+	var saved := ItemPassiveEffectResolver.resolve_on_lethal_hit("not_a_real_item", false)
+	assert_false(saved, "an item id with no Second Wind passive must never save the wearer")

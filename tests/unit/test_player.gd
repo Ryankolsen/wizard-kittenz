@@ -65,6 +65,7 @@ class FakeGameState:
 	var current_character = null
 	var skill_tree = null
 	var achievement_service = null
+	var item_inventory = null
 
 func test_inject_game_state_provides_local_player_id_without_autoload():
 	# Demonstrates testability without a running GameState autoload: inject a
@@ -179,6 +180,74 @@ func test_record_damage_dealt_zero_amount_does_not_increment_counter():
 	p._record_damage_dealt(0)
 	assert_eq(int(service.account.achievement_counters.get("damage_dealt", 0)), 0,
 		"a zero-damage hit (miss/evade) must not increment damage_dealt")
+
+# --- Deaths counter + Second Wind wiring (PRD #453 / issue #466) ---
+
+func test_death_increments_deaths_counter_and_fires_died_once():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var died_count := [0]
+	p.died.connect(func(): died_count[0] += 1)
+	p.data.hp = 0
+	p._check_died()
+	assert_eq(int(service.account.achievement_counters.get("deaths", 0)), 1,
+		"a real death must increment the deaths counter by 1")
+	assert_eq(died_count[0], 1, "died must fire exactly once")
+	p._check_died()
+	assert_eq(int(service.account.achievement_counters.get("deaths", 0)), 1,
+		"a second _check_died call on the same death must not double-increment")
+	assert_eq(died_count[0], 1, "died must not re-fire once already emitted")
+
+func test_second_wind_saves_at_one_hp_and_does_not_increment_deaths_when_equipped():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("nine_lives_collar"))
+	p._game_state.item_inventory = inv
+	var died_count := [0]
+	p.died.connect(func(): died_count[0] += 1)
+	p.data.hp = 0
+	p._check_died()
+	assert_eq(p.data.hp, 1, "Second Wind must set HP to 1 instead of letting the wearer die")
+	assert_eq(died_count[0], 0, "Second Wind must prevent died from firing on the saved hit")
+	assert_eq(int(service.account.achievement_counters.get("deaths", 0)), 0,
+		"a hit saved by Second Wind must not increment the deaths counter")
+
+func test_second_wind_does_not_stack_within_a_run():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("nine_lives_collar"))
+	p._game_state.item_inventory = inv
+	p.data.hp = 0
+	p._check_died()
+	var died_count := [0]
+	p.died.connect(func(): died_count[0] += 1)
+	p.data.hp = 0
+	p._check_died()
+	assert_eq(died_count[0], 1, "a second lethal hit in the same run must fire died normally")
+	assert_eq(int(service.account.achievement_counters.get("deaths", 0)), 1,
+		"the second lethal hit in the same run must increment the deaths counter")
+
+func test_second_wind_resets_on_new_run():
+	# A fresh Player (as produced by the scene reload on floor advance) must
+	# be able to trigger Second Wind again even though a prior Player already
+	# consumed it, since _second_wind_used lives on the instance.
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("nine_lives_collar"))
+	var used_p := _make_player_with_wizard_tree()
+	used_p._game_state.item_inventory = inv
+	used_p.data.hp = 0
+	used_p._check_died()
+	assert_eq(used_p.data.hp, 1, "sanity: Second Wind consumed on the first Player")
+	var new_p := _make_player_with_wizard_tree()
+	new_p._game_state.item_inventory = inv
+	new_p.data.hp = 0
+	new_p._check_died()
+	assert_eq(new_p.data.hp, 1, "a new Player instance (new dungeon run) must be able to trigger Second Wind again")
 
 func test_player_does_not_cast_unassigned_unlocked_spell():
 	# Pin the old "first ready unlocked spell wins" behavior is gone: a spell

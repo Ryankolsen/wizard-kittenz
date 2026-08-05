@@ -141,6 +141,11 @@ static func all_items() -> Array[ItemData]:
 	# luck-stat item (no new passive-effect machinery), same shape and EPIC-
 	# tier magnitude as Chest Goblin Gloves.
 	items.append(ItemData.make("fat_cat_coin_purse", "Fat Cat Coin Purse", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "luck", 10.0, _GENERIC))
+	# Issue #466: Nine Lives Collar -- class-unrestricted accessory with the
+	# Second Wind passive (ItemPassiveEffectResolver). Same "class-neutral
+	# stat, not a caster-only one" convention as Guardian's Locket/
+	# Executioner's Signet/Bramble Plate for unrestricted items.
+	items.append(ItemData.make("nine_lives_collar", "Nine Lives Collar", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:
