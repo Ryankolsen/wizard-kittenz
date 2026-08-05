@@ -212,6 +212,76 @@ func test_claim_item_twice_does_not_duplicate_in_bag():
 	assert_null(second, "second claim on an already-claimed id is a no-op")
 	assert_eq(inv.bag_items().size(), 1, "item is not duplicated in the bag")
 
+func _make_tome_definition(id: String, trigger_event: String, node_id: String, spell_id: String) -> AchievementDefinition:
+	return AchievementDefinition.make_tome(id, trigger_event, "Title", "Flavor text.", node_id, spell_id)
+
+func _make_tome_tree() -> SkillTree:
+	var t := SkillTree.new()
+	var spell := Spell.make("phase_tome_i", "Phase Tome I", Spell.EffectKind.BUFF, 0, 15.0)
+	t.add_node(SkillNode.make("phase_tome_i", "Phase Tome I", spell, [], 1, 1))
+	return t
+
+func test_claim_tome_active_slot_unlocks_node_and_fills_quickbar():
+	var def := _make_tome_definition("tome_ach", "test_event", "phase_tome_i", "phase_tome_i")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var tree := _make_tome_tree()
+	var qb := Quickbar.new()
+	var claimed := service.claim("tome_ach", null, null, null, null, tree, qb)
+	assert_not_null(claimed)
+	assert_true(tree.is_unlocked("phase_tome_i"))
+	assert_eq(qb.get_slot(1).id, "phase_tome_i", "spell auto-fills the lowest empty slot")
+
+func test_claim_tome_fills_lowest_empty_slot_when_others_occupied():
+	var def := _make_tome_definition("tome_ach", "test_event", "phase_tome_i", "phase_tome_i")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var tree := _make_tome_tree()
+	var qb := Quickbar.new()
+	qb.assign(1, Spell.make("filler_a", "Filler A", Spell.EffectKind.DAMAGE, 1))
+	qb.assign(2, Spell.make("filler_b", "Filler B", Spell.EffectKind.DAMAGE, 1))
+	service.claim("tome_ach", null, null, null, null, tree, qb)
+	assert_eq(qb.get_slot(3).id, "phase_tome_i", "lands in slot 3, the lowest empty one")
+
+func test_claim_tome_twice_does_not_duplicate_quickbar_assignment():
+	var def := _make_tome_definition("tome_ach", "test_event", "phase_tome_i", "phase_tome_i")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	var tree := _make_tome_tree()
+	var qb := Quickbar.new()
+	service.claim("tome_ach", null, null, null, null, tree, qb)
+	var second := service.claim("tome_ach", null, null, null, null, tree, qb)
+	assert_null(second, "second claim on an already-claimed id is a no-op")
+	assert_eq(qb.get_slot(1).id, "phase_tome_i")
+	assert_null(qb.get_slot(2), "no duplicate assignment into a second slot")
+
+func test_claim_tome_inactive_slot_mutates_bundle_slot_only():
+	var def := _make_tome_definition("tome_ach", "test_event", "phase_tome_i", "phase_tome_i")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard"
+	service.record_event("test_event")
+	service.active_slot = "battle"
+	var bundle := SaveBundle.new()
+	var wizard_slot := CharacterSlotData.new()
+	bundle.slots[SaveBundle.SLOT_WIZARD] = wizard_slot
+	var active_tree := _make_tome_tree()
+	var active_qb := Quickbar.new()
+	var claimed := service.claim("tome_ach", null, null, bundle, null, active_tree, active_qb)
+	assert_not_null(claimed)
+	assert_true(wizard_slot.unlocked_skill_ids.has("phase_tome_i"))
+	assert_true(wizard_slot.quickbar_slots.has("phase_tome_i"))
+	assert_false(active_tree.is_unlocked("phase_tome_i"),
+		"the currently-active slot's live skill tree must not be touched")
+	assert_null(active_qb.get_slot(1),
+		"the currently-active slot's live quickbar must not be touched")
+
 func test_claim_nonexistent_id_is_safe_no_op():
 	var account := AccountSaveData.new()
 	var service := AchievementService.new(account, [])

@@ -302,8 +302,32 @@ func tick_shield(delta: float) -> void:
 		_shield_remaining = 0.0
 		_shield_amount = 0
 
+# Invulnerability (PRD #453 / issue #457). Unlike the shield's finite pool,
+# this fully negates incoming damage for its duration — the primitive Phase
+# Tome I's self-cast relies on. Refresh semantics mirror add_shield: the
+# longer of the current/incoming duration wins rather than the newest call
+# always overwriting.
+var _invulnerable_remaining: float = 0.0
+
+func set_invulnerable(duration: float) -> void:
+	if duration <= 0.0:
+		return
+	_invulnerable_remaining = maxf(_invulnerable_remaining, duration)
+
+func is_invulnerable() -> bool:
+	return _invulnerable_remaining > 0.0
+
+func tick_invulnerable(delta: float) -> void:
+	if delta <= 0.0 or _invulnerable_remaining <= 0.0:
+		return
+	_invulnerable_remaining -= delta
+	if _invulnerable_remaining <= 0.0:
+		_invulnerable_remaining = 0.0
+
 func take_damage(amount: int) -> int:
 	if amount <= 0:
+		return 0
+	if is_invulnerable():
 		return 0
 	var remaining := amount
 	if _shield_amount > 0:

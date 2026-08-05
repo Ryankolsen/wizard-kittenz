@@ -293,6 +293,16 @@ func test_iron_hide_applies_defense_buff_and_shield_in_one_cast():
 		"Iron Hide also grants a shield")
 	assert_almost_eq(caster.shield_remaining(), SpellEffectResolver.IRON_HIDE_DURATION, 0.0001)
 
+func test_phase_tome_i_grants_self_invulnerability_and_consumes_cooldown():
+	var caster := _caster(0)
+	var spell := Spell.make("phase_tome_i", "Phase Tome I", Spell.EffectKind.BUFF, 0, 15.0)
+	assert_true(spell.cast(caster), "normal cast/cooldown gating still applies")
+	SpellEffectResolver.apply(spell, caster, [])
+	assert_true(caster.is_invulnerable(), "Phase Tome I grants invulnerability")
+	assert_false(spell.is_ready(), "cast consumed the spell's cooldown")
+	caster.tick_invulnerable(SpellEffectResolver.PHASE_TOME_I_INVULNERABLE_DURATION)
+	assert_false(caster.is_invulnerable(), "invulnerability reverts after its duration")
+
 # ---- PARTY_SHIELD / Nine Lives (issue #424) ------------------------------
 
 func test_party_shield_applies_shield_to_all_targets():

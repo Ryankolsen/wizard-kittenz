@@ -395,6 +395,7 @@ func _physics_process(delta: float) -> void:
 		if regen_healed > 0:
 			FloatingText.spawn(self, str(regen_healed), Color(0.2, 1.0, 0.4))
 		data.tick_shield(delta)
+		data.tick_invulnerable(delta)
 	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)

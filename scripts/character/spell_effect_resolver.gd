@@ -31,6 +31,12 @@ const IRON_HIDE_DEFENSE_AMOUNT := 10
 const IRON_HIDE_SHIELD_AMOUNT := 15
 const IRON_HIDE_DURATION := 20.0
 
+# Issue #457: Phase Tome I, the first Tome-reward spell (PRD #453). A normal
+# cast/cooldown self-buff, same dispatch shape as Catnip Curse/Iron Hide
+# above — sets the caster's invulnerable flag (CharacterData.set_invulnerable)
+# for a fixed duration rather than a stat/shield combo.
+const PHASE_TOME_I_INVULNERABLE_DURATION := 2.0
+
 # Issue #424: PARTY_SHIELD is dispatched generically (unlike BUFF above) since
 # Cozy Cocoon is its only consumer so far — same shape as GROUP_REGEN/
 # PARTY_BUFF's "one hardcoded skill" precedent, just shield instead of buff.
@@ -112,6 +118,9 @@ static func apply(spell: Spell, caster, targets: Array, rng: RandomNumberGenerat
 							caster.add_buff("defense", IRON_HIDE_DEFENSE_AMOUNT, IRON_HIDE_DURATION)
 						if caster.has_method("add_shield"):
 							caster.add_shield(IRON_HIDE_SHIELD_AMOUNT, IRON_HIDE_DURATION)
+				"phase_tome_i":
+					if caster != null and caster.has_method("set_invulnerable"):
+						caster.set_invulnerable(PHASE_TOME_I_INVULNERABLE_DURATION)
 		Spell.EffectKind.HEAL:
 			# Self-heal: amount = spell.power + caster.magic_attack, clamped
 			# at max_hp by CharacterData.heal(). Crit is intentionally NOT

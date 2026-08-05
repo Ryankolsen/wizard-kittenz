@@ -4,10 +4,11 @@ extends RefCounted
 # Pure data (PRD #446 / issue #447). One entry describes a single achievement:
 # the event key that unlocks it, its display copy, and its fixed reward.
 # Rewards are never randomized — a flat gold amount, a potion id + quantity,
-# or an item catalog id, routed by AchievementService.claim() (issue #448,
-# item routing added in #458).
+# an item catalog id, or a skill-tree node id + spell id pair (TOME, issue
+# #457), routed by AchievementService.claim() (issue #448, item routing
+# added in #458).
 
-enum RewardType { GOLD, POTION, ITEM }
+enum RewardType { GOLD, POTION, ITEM, TOME }
 
 var id: String = ""
 var trigger_event: String = ""
@@ -22,6 +23,8 @@ var reward_type: int = RewardType.GOLD
 var reward_potion_id: String = ""
 var reward_amount: int = 0
 var reward_item_id: String = ""
+var reward_node_id: String = ""
+var reward_spell_id: String = ""
 
 static func make_gold(p_id: String, p_trigger_event: String, p_title: String, p_flavor_text: String, p_gold_amount: int) -> AchievementDefinition:
 	var d := AchievementDefinition.new()
@@ -52,4 +55,15 @@ static func make_item(p_id: String, p_trigger_event: String, p_title: String, p_
 	d.flavor_text = p_flavor_text
 	d.reward_type = RewardType.ITEM
 	d.reward_item_id = p_item_id
+	return d
+
+static func make_tome(p_id: String, p_trigger_event: String, p_title: String, p_flavor_text: String, p_node_id: String, p_spell_id: String) -> AchievementDefinition:
+	var d := AchievementDefinition.new()
+	d.id = p_id
+	d.trigger_event = p_trigger_event
+	d.title = p_title
+	d.flavor_text = p_flavor_text
+	d.reward_type = RewardType.TOME
+	d.reward_node_id = p_node_id
+	d.reward_spell_id = p_spell_id
 	return d

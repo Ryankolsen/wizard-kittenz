@@ -66,15 +66,16 @@ func increment_counter(counter_key: String, amount: int) -> void:
 		achievement_unlocked.emit(definition.id)
 
 # Grants an unlocked-but-unclaimed achievement's fixed reward and marks it
-# claimed (issue #448). Gold routes account-wide via currency_ledger. Potions
-# and items both route to the earning entry's earned_by_slot — the live
-# consumable_inventory/item_inventory when that slot is the currently active
-# one, otherwise directly into bundle's matching CharacterSlotData
-# (consumable_inventory_data / item_bag; an inactive slot has no live
-# inventory to hydrate). Returns the claimed AchievementDefinition (for UI
-# reward/flavor display), or null on any safe no-op: unknown id, never
-# unlocked, or already claimed.
-func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_inventory: ConsumableInventory = null, bundle: SaveBundle = null, item_inventory: ItemInventory = null) -> AchievementDefinition:
+# claimed (issue #448). Gold routes account-wide via currency_ledger. Potions,
+# items, and tomes all route to the earning entry's earned_by_slot — the live
+# consumable_inventory/item_inventory/skill_tree+quickbar when that slot is
+# the currently active one, otherwise directly into bundle's matching
+# CharacterSlotData (consumable_inventory_data / item_bag /
+# unlocked_skill_ids+quickbar_slots; an inactive slot has no live
+# inventory/skill tree to hydrate). Returns the claimed AchievementDefinition
+# (for UI reward/flavor display), or null on any safe no-op: unknown id,
+# never unlocked, or already claimed.
+func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_inventory: ConsumableInventory = null, bundle: SaveBundle = null, item_inventory: ItemInventory = null, skill_tree: SkillTree = null, quickbar: Quickbar = null) -> AchievementDefinition:
 	if account == null:
 		return null
 	var entry = account.achievement_state.get(id)
@@ -98,6 +99,17 @@ func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_invent
 			var slot: CharacterSlotData = bundle.get_slot(earned_slot)
 			if slot != null:
 				slot.item_bag.append(definition.reward_item_id)
+	elif definition.reward_type == AchievementDefinition.RewardType.TOME:
+		var earned_slot := String(entry.get("earned_by_slot", ""))
+		if earned_slot == active_slot and skill_tree != null and quickbar != null:
+			skill_tree.unlock(definition.reward_node_id)
+			var node := skill_tree.find(definition.reward_node_id)
+			if node != null and node.spell != null:
+				quickbar.on_spell_unlocked(node.spell)
+		elif bundle != null:
+			var slot: CharacterSlotData = bundle.get_slot(earned_slot)
+			if slot != null:
+				_grant_tome_to_slot_data(slot, definition.reward_node_id, definition.reward_spell_id)
 	else:
 		var earned_slot := String(entry.get("earned_by_slot", ""))
 		if earned_slot == active_slot and consumable_inventory != null:
@@ -110,3 +122,23 @@ func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_invent
 	entry["claimed"] = true
 	account.achievement_state[id] = entry
 	return definition
+
+# TOME's inactive-slot path: no live SkillTree/Quickbar exists to hydrate, so
+# the unlock/assignment is mirrored directly onto the raw CharacterSlotData
+# fields those two would otherwise have written on save (see
+# CharacterSlotData.from_state). unlocked_skill_ids is an unordered set, same
+# as item_bag's append; quickbar_slots is positional, so this reproduces
+# Quickbar.on_spell_unlocked's "lowest empty slot, no-op if already assigned"
+# behavior against the raw id array instead of live Spell objects.
+func _grant_tome_to_slot_data(slot: CharacterSlotData, node_id: String, spell_id: String) -> void:
+	if not slot.unlocked_skill_ids.has(node_id):
+		slot.unlocked_skill_ids.append(node_id)
+	if slot.quickbar_slots.has(spell_id):
+		return
+	for i in range(Quickbar.SLOT_COUNT):
+		if i >= slot.quickbar_slots.size():
+			slot.quickbar_slots.append(spell_id)
+			return
+		if slot.quickbar_slots[i] == "":
+			slot.quickbar_slots[i] = spell_id
+			return
