@@ -50,5 +50,21 @@ func remove_from_bag(item_id: String) -> void:
 func equipped_in(slot: int) -> ItemData:
 	return _equipped[slot]
 
+# Issue #459: passives are derived from the currently-equipped items on
+# every call rather than tracked as separate mutable state, so equip()/
+# unequip() "register"/"unregister" a passive for free — there is no
+# extra state to keep in sync. ItemPassiveEffectResolver.passive_id_for
+# is the single source of truth for which item ids carry a passive.
+func active_passive_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for slot in _equipped:
+		var item: ItemData = _equipped[slot]
+		if item == null:
+			continue
+		var passive_id := ItemPassiveEffectResolver.passive_id_for(item.id)
+		if passive_id != "":
+			ids.append(passive_id)
+	return ids
+
 func bag_items() -> Array[ItemData]:
 	return _bag

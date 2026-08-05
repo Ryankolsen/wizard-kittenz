@@ -676,3 +676,24 @@ func test_route_kill_null_tree_legacy_behavior():
 	var enemy := _make_enemy(xp_needed)
 	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null)
 	assert_eq(c.level, 3, "level still advances without a tree")
+
+# --- route_kill: item passive effects (issue #459) --------------------------
+
+func test_route_kill_applies_lifesteal_when_locket_equipped():
+	var c := _make_character(1)
+	c.hp = 1
+	c.max_hp = 100
+	var enemy := _make_enemy(0)
+	var inv := ItemInventory.new()
+	inv.equip(ItemCatalog.find("guardians_locket"))
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null, null, 100, inv)
+	assert_true(c.hp > 1, "equipped Guardian's Locket heals the caster on kill")
+
+func test_route_kill_no_lifesteal_without_locket():
+	var c := _make_character(1)
+	c.hp = 1
+	c.max_hp = 100
+	var enemy := _make_enemy(0)
+	var inv := ItemInventory.new()
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null, null, 100, inv)
+	assert_eq(c.hp, 1, "no passive equipped means no HP change from the kill path")

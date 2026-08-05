@@ -117,6 +117,12 @@ static func all_items() -> Array[ItemData]:
 	items.append(ItemData.make("shop_oak_mallet", "Oak Mallet", ItemData.Slot.WEAPON, ItemData.Rarity.COMMON, "attack", 3.0, _CHONK, ItemData.Source.SHOP))
 	items.append(ItemData.make("shop_iron_brigandine", "Iron Brigandine", ItemData.Slot.ARMOR, ItemData.Rarity.RARE, "defense", 5.0, _CHONK, ItemData.Source.SHOP))
 	items.append(ItemData.make("shop_boulder_pendant", "Boulder Pendant", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 50.0, _CHONK, ItemData.Source.SHOP))
+	# Issue #459: Guardian's Locket — class-unrestricted accessory with the
+	# Lifesteal-on-kill passive (ItemPassiveEffectResolver). Stat bonus is a
+	# small class-neutral max_hp bump, per the audited convention that
+	# unrestricted items use class-neutral effects rather than a caster-only
+	# stat like magic_attack.
+	items.append(ItemData.make("guardians_locket", "Guardian's Locket", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

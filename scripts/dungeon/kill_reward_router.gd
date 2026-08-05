@@ -41,10 +41,20 @@ static func route_kill(
 	ledger: CurrencyLedger = null,
 	rng: RandomNumberGenerator = null,
 	tree: SkillTree = null,
-	quickbar: Quickbar = null
+	quickbar: Quickbar = null,
+	killing_blow_damage: int = 0,
+	item_inventory: ItemInventory = null
 ) -> ItemData:
 	if data == null or enemy_data == null:
 		return null
+	# Issue #459: passive item effects (Lifesteal, etc.) fire on every kill
+	# regardless of solo/co-op branch below, since the killing blow's damage
+	# is dealt locally in both paths — only the XP/gold routing differs
+	# between solo and co-op. Null inventory (pre-wiring callers / tests
+	# that don't care about item passives) is a silent no-op.
+	if item_inventory != null and killing_blow_damage > 0:
+		for passive_id in item_inventory.active_passive_ids():
+			ItemPassiveEffectResolver.resolve_passive(passive_id, data, killing_blow_damage)
 	# Gold drop (PRD #53). Credit the local CurrencyLedger by the enemy's
 	# gold_reward on every kill — full amount in both solo and co-op (Gold
 	# is per-character, not party-split). Null ledger (pre-wiring callers /

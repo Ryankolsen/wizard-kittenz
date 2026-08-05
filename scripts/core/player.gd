@@ -613,7 +613,7 @@ func _apply_melee_damage() -> void:
 				(node as Enemy).flash_hit()
 				SlashEffect.spawn(node, data.facing if data != null else Vector2.RIGHT)
 			if not node.data.is_alive():
-				_handle_enemy_killed(node)
+				_handle_enemy_killed(node, dealt)
 				_record_meta_progress()
 				SaveManager.save_from_state()
 
@@ -666,7 +666,7 @@ func _apply_spell_basic_damage() -> void:
 				_broadcast_damage(node.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
 				(node as Enemy).flash_hit()
 			if not node.data.is_alive():
-				_handle_enemy_killed(node)
+				_handle_enemy_killed(node, dealt)
 				_record_meta_progress()
 				SaveManager.save_from_state()
 
@@ -693,6 +693,7 @@ func _apply_spell_effect(spell: Spell) -> void:
 		var self_healed := data.hp - hp_self_before
 		if self_healed > 0:
 			FloatingText.spawn(self, str(self_healed), Color(0.2, 1.0, 0.4))
+	var any_killed := false
 	for i in range(enemy_nodes.size()):
 		var n: Enemy = enemy_nodes[i]
 		if n.data == null:
@@ -701,17 +702,15 @@ func _apply_spell_effect(spell: Spell) -> void:
 		if dealt > 0:
 			FloatingText.spawn_at(n, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 			_broadcast_damage(n.data.enemy_id, dealt, DamageKind.Kind.MAGIC)
-	var any_killed := false
-	for n in enemy_nodes:
-		if n.data != null and not n.data.is_alive():
-			_handle_enemy_killed(n)
+		if not n.data.is_alive():
+			_handle_enemy_killed(n, dealt)
 			any_killed = true
 	if any_killed:
 		_record_meta_progress()
 		SaveManager.save_from_state()
 
-func _handle_enemy_killed(node: Enemy) -> void:
-	_award_kill_xp(node.data)
+func _handle_enemy_killed(node: Enemy, killing_blow_damage: int = 0) -> void:
+	_award_kill_xp(node.data, killing_blow_damage)
 	node.queue_free()
 
 func _overlapping_enemy_nodes(hitbox: Area2D = null) -> Array:
@@ -745,7 +744,7 @@ func _meta_tracker() -> MetaProgressionTracker:
 # be tested without booting a Player scene. Null enemy_data degrades to
 # a no-op (defensive for a future kill source that doesn't pass the
 # data, e.g. DoT spells).
-func _award_kill_xp(enemy_data: EnemyData) -> void:
+func _award_kill_xp(enemy_data: EnemyData, killing_blow_damage: int = 0) -> void:
 	if data == null or enemy_data == null:
 		return
 	# Bind before route_kill so the co-op level_up signal (which fires
@@ -765,7 +764,9 @@ func _award_kill_xp(enemy_data: EnemyData) -> void:
 		_currency_ledger(),
 		null,
 		_spell_tree,
-		_quickbar
+		_quickbar,
+		killing_blow_damage,
+		_item_inventory()
 	)
 	if item_drop != null:
 		item_dropped.emit(item_drop)

@@ -76,3 +76,18 @@ func test_bag_is_unbounded():
 	for i in 20:
 		inv.add_to_bag(iron)
 	assert_eq(inv.bag_items().size(), 20)
+
+func test_equip_registers_passive():
+	# Issue #459: equipping an item with a passive (Guardian's Locket ->
+	# Lifesteal) makes that passive active/registered for this inventory.
+	var inv := ItemInventory.new()
+	var locket := ItemCatalog.find("guardians_locket")
+	inv.equip(locket)
+	assert_true(inv.active_passive_ids().has(ItemPassiveEffectResolver.PASSIVE_LIFESTEAL))
+
+func test_unequip_unregisters_passive():
+	var inv := ItemInventory.new()
+	var locket := ItemCatalog.find("guardians_locket")
+	inv.equip(locket)
+	inv.unequip(ItemData.Slot.ACCESSORY)
+	assert_false(inv.active_passive_ids().has(ItemPassiveEffectResolver.PASSIVE_LIFESTEAL))

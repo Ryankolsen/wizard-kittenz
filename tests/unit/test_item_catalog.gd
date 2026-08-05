@@ -1,8 +1,9 @@
 extends GutTest
 
-func test_all_items_returns_eighty_four():
-	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201.
-	assert_eq(ItemCatalog.all_items().size(), 84)
+func test_all_items_returns_eighty_five():
+	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201 + Guardian's
+	# Locket (issue #459).
+	assert_eq(ItemCatalog.all_items().size(), 85)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -49,9 +50,10 @@ func test_items_for_slot_armor():
 		assert_eq(item.slot, ItemData.Slot.ARMOR)
 
 func test_items_for_rarity_epic():
-	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6.
+	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6 + Guardian's
+	# Locket (issue #459).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 28)
+	assert_eq(epics.size(), 29)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -137,3 +139,21 @@ func test_enchanted_blade_is_dual_stat():
 	assert_true(stats.has("magic_attack"), "Enchanted Blade carries magic_attack bonus")
 	assert_eq(stats["attack"], 4.0)
 	assert_eq(stats["magic_attack"], 4.0)
+
+func test_guardians_locket_is_generic_and_class_neutral():
+	# Issue #459: Guardian's Locket carries the Lifesteal passive and must
+	# be usable by every class, with a stat bonus that isn't caster-biased
+	# (no magic_attack-style stat), same convention audited for lucky_charm.
+	var item := ItemCatalog.find("guardians_locket")
+	assert_not_null(item)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "guardians_locket missing class %d" % klass)
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "guardians_locket must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_LIFESTEAL)
