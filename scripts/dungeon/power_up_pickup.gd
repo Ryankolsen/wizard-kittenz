@@ -25,6 +25,13 @@ func _on_body_entered(body: Node) -> void:
 			var gs := get_node_or_null("/root/GameState")
 			if gs != null:
 				gs.achievement_service.increment_counter("drinks", 1)
+		# Issue #469: catnip pickups feed the `catnip_snarfed` counter for the
+		# tiered Sniff Test/Catnip Enthusiast/Certified Space Cat achievements.
+		# Other power-up types (ale, mushrooms) never touch this counter.
+		if power_up_type == PowerUpEffect.TYPE_CATNIP:
+			var gs2 := get_node_or_null("/root/GameState")
+			if gs2 != null:
+				gs2.achievement_service.increment_counter("catnip_snarfed", 1)
 		queue_free()
 
 static func _texture_for(t: String) -> Texture2D:

@@ -161,6 +161,11 @@ static func all_items() -> Array[ItemData]:
 	# right universal choice for a flavor-text damage buff. Magnitude matches
 	# the existing EPIC crit_chance convention (Eye of Insight).
 	items.append(ItemData.make("bar_regulars_mug", "Bar Regular's Mug", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "crit_chance", 0.20, _GENERIC))
+	# Issue #469: Catnip Crown -- class-unrestricted accessory, plain
+	# evasion-stat item (no new passive-effect machinery), per the PRD's
+	# explicit "too blissed out to get hit" reasoning over a caster-only
+	# stat. Same EPIC-tier evasion magnitude as Shadow Amulet (0.08).
+	items.append(ItemData.make("catnip_crown", "Catnip Crown", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "evasion", 0.08, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 31)
+	assert_eq(defs.size(), 34)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -684,3 +684,75 @@ func test_drinks_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("bar_regulars_mug"), "Liver of Steel must grant Bar Regular's Mug to the earning cat's bag")
+
+# --- Core wiring: catnip_snarfed -------------------------------------------
+
+func test_catnip_pickup_increments_catnip_snarfed_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_CATNIP
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("catnip_snarfed", 0)), 1,
+		"picking up a catnip power-up must increment the catnip_snarfed counter")
+
+func test_non_catnip_pickup_does_not_increment_catnip_snarfed_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_ALE
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("catnip_snarfed", 0)), 0,
+		"picking up a non-catnip power-up must not increment the catnip_snarfed counter")
+
+# --- Content details: catnip_snarfed tier thresholds --------------------------------------
+
+func test_catnip_snarfed_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("catnip_snarfed", 4)
+	assert_false(service.account.achievement_state.has("sniff_test"), "4 catnip pickups must not unlock Sniff Test")
+	service.increment_counter("catnip_snarfed", 1)
+	assert_true(service.account.achievement_state.has("sniff_test"), "5 catnip pickups unlocks Sniff Test")
+	assert_false(service.account.achievement_state.has("catnip_enthusiast"))
+	service.increment_counter("catnip_snarfed", 20)
+	assert_true(service.account.achievement_state.has("catnip_enthusiast"), "25 catnip pickups unlocks Catnip Enthusiast")
+	assert_false(service.account.achievement_state.has("certified_space_cat"))
+	service.increment_counter("catnip_snarfed", 75)
+	assert_true(service.account.achievement_state.has("certified_space_cat"), "100 catnip pickups unlocks Certified Space Cat")
+
+func test_catnip_snarfed_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["sniff_test"].threshold, 5)
+	assert_eq(by_id["sniff_test"].counter_key, "catnip_snarfed")
+	assert_eq(by_id["sniff_test"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["catnip_enthusiast"].threshold, 25)
+	assert_eq(by_id["catnip_enthusiast"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["certified_space_cat"].threshold, 100)
+	assert_eq(by_id["certified_space_cat"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["certified_space_cat"].reward_item_id, "catnip_crown")
+
+func test_catnip_snarfed_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("catnip_snarfed", 100)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("sniff_test", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("catnip_enthusiast", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("certified_space_cat", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("catnip_crown"), "Certified Space Cat must grant Catnip Crown to the earning cat's bag")

@@ -70,6 +70,30 @@ func test_mushroom_pickup_does_not_increment_drinks_counter():
 		"a mushroom pickup must not touch the drinks counter")
 
 
+func test_catnip_pickup_increments_catnip_snarfed_counter():
+	var pickup := _make_pickup(PowerUpEffect.TYPE_CATNIP)
+	var p := _make_player()
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("catnip_snarfed", 0)), 1,
+		"picking up a catnip power-up must increment the catnip_snarfed counter")
+
+
+func test_ale_pickup_does_not_increment_catnip_snarfed_counter():
+	var pickup := _make_pickup(PowerUpEffect.TYPE_ALE)
+	var p := _make_player()
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("catnip_snarfed", 0)), 0,
+		"an ale pickup must not touch the catnip_snarfed counter")
+
+
+func test_mushroom_pickup_does_not_increment_catnip_snarfed_counter():
+	var pickup := _make_pickup(PowerUpEffect.TYPE_MUSHROOMS)
+	var p := _make_player()
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("catnip_snarfed", 0)), 0,
+		"a mushroom pickup must not touch the catnip_snarfed counter")
+
+
 func test_ale_and_beer_share_the_same_counter():
 	# Buy 2 beers, then pick up 3 ale power-ups: combined total is 5, which
 	# unlocks Happy Hour.

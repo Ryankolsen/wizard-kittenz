@@ -5,8 +5,9 @@ func test_all_items_returns_ninety():
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
-	# (issue #467) + Bar Regular's Mug (issue #468).
-	assert_eq(ItemCatalog.all_items().size(), 92)
+	# (issue #467) + Bar Regular's Mug (issue #468) + Catnip Crown
+	# (issue #469).
+	assert_eq(ItemCatalog.all_items().size(), 93)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -58,9 +59,10 @@ func test_items_for_rarity_epic():
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
-	# (issue #467) + Bar Regular's Mug (issue #468).
+	# (issue #467) + Bar Regular's Mug (issue #468) + Catnip Crown
+	# (issue #469).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 36)
+	assert_eq(epics.size(), 37)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -308,3 +310,25 @@ func test_bar_regulars_mug_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "bar_regulars_mug must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "bar_regulars_mug has no passive effect")
+
+func test_catnip_crown_is_generic_and_class_neutral():
+	# Issue #469: Catnip Crown is a plain evasion-stat item (no passive
+	# effect), chosen per the PRD's explicit "too blissed out to get hit"
+	# reasoning over a caster-only stat, and must be usable by every class,
+	# same class-unrestricted convention as the other tiered-reward items.
+	var item := ItemCatalog.find("catnip_crown")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ACCESSORY)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "catnip_crown missing class %d" % klass)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "evasion")
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "catnip_crown must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "catnip_crown has no passive effect")

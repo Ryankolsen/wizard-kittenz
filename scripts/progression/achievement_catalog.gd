@@ -136,6 +136,18 @@ static func all() -> Array:
 		"Liver of Steel",
 		"Had 100 drinks. Science has no explanation for how you're still standing.",
 		"bar_regulars_mug"))
+	out.append(_tiered_gold("sniff_test", "catnip_snarfed", 5,
+		"Sniff Test",
+		"Snarfed catnip 5 times. Just a little taste.",
+		25))
+	out.append(_tiered_potion("catnip_enthusiast", "catnip_snarfed", 25,
+		"Catnip Enthusiast",
+		"Snarfed catnip 25 times. Your pupils haven't been normal size in weeks.",
+		"health_potion", 2))
+	out.append(_tiered_item("certified_space_cat", "catnip_snarfed", 100,
+		"Certified Space Cat",
+		"Snarfed catnip 100 times. You've seen things. Mostly imaginary things.",
+		"catnip_crown"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
