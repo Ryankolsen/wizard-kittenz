@@ -64,6 +64,18 @@ static func all() -> Array:
 		"One-Cat Apocalypse",
 		"100,000 total damage dealt. The dungeon files a formal ceasefire request.",
 		"executioners_signet"))
+	out.append(_tiered_gold("frequent_flyer", "dungeons_entered", 10,
+		"Frequent Flyer",
+		"Entered 10 dungeons. You know the drill by now.",
+		25))
+	out.append(_tiered_potion("dungeon_regular", "dungeons_entered", 50,
+		"Dungeon Regular",
+		"Entered 50 dungeons. The monsters know you by name. It's not a compliment.",
+		"health_potion", 2))
+	out.append(_tiered_item("dungeon_landlord", "dungeons_entered", 200,
+		"Dungeon Landlord",
+		"Entered 200 dungeons. At this point you should be collecting rent.",
+		"bramble_plate"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

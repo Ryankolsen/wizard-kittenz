@@ -17,9 +17,9 @@ func after_each() -> void:
 
 # --- Content details ---------------------------------------------------------
 
-func test_catalog_has_thirteen_entries_with_valid_content():
+func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 13)
+	assert_eq(defs.size(), 16)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -205,12 +205,69 @@ func test_dungeon_entered_triggers_achievement():
 	assert_true(GameState.achievement_service.account.achievement_state.has("first_dungeon"),
 		"starting a dungeon run must record the dungeon_entered event")
 
+func test_dungeon_entered_also_increments_dungeons_entered_counter():
+	var controller := DungeonRunController.new()
+	var dungeon := DungeonGenerator.generate(12345)
+	controller.start(dungeon)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("dungeons_entered", 0)), 1,
+		"starting a dungeon run must also increment the dungeons_entered counter")
+
 func test_dungeon_entered_failed_start_does_not_trigger():
 	var controller := DungeonRunController.new()
 	var ok := controller.start(null)
 	assert_false(ok)
 	assert_false(GameState.achievement_service.account.achievement_state.has("first_dungeon"),
 		"a failed start() must not record the dungeon_entered event")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("dungeons_entered", 0)), 0,
+		"a failed start() must not increment the dungeons_entered counter")
+
+# --- Content details: dungeons-entered tier thresholds --------------------------
+
+func test_dungeons_entered_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("dungeons_entered", 9)
+	assert_false(service.account.achievement_state.has("frequent_flyer"), "9 dungeons must not unlock Frequent Flyer")
+	service.increment_counter("dungeons_entered", 1)
+	assert_true(service.account.achievement_state.has("frequent_flyer"), "10 dungeons unlocks Frequent Flyer")
+	assert_false(service.account.achievement_state.has("dungeon_regular"))
+	service.increment_counter("dungeons_entered", 40)
+	assert_true(service.account.achievement_state.has("dungeon_regular"), "50 dungeons unlocks Dungeon Regular")
+	assert_false(service.account.achievement_state.has("dungeon_landlord"))
+	service.increment_counter("dungeons_entered", 150)
+	assert_true(service.account.achievement_state.has("dungeon_landlord"), "200 dungeons unlocks Dungeon Landlord")
+
+func test_dungeons_entered_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["frequent_flyer"].threshold, 10)
+	assert_eq(by_id["frequent_flyer"].counter_key, "dungeons_entered")
+	assert_eq(by_id["frequent_flyer"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["dungeon_regular"].threshold, 50)
+	assert_eq(by_id["dungeon_regular"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["dungeon_landlord"].threshold, 200)
+	assert_eq(by_id["dungeon_landlord"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["dungeon_landlord"].reward_item_id, "bramble_plate")
+
+func test_dungeons_entered_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("dungeons_entered", 200)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("frequent_flyer", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("dungeon_regular", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("dungeon_landlord", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("bramble_plate"), "Dungeon Landlord must grant Bramble Plate to the earning cat's bag")
 
 # --- Core wiring: open chest --------------------------------------------------
 

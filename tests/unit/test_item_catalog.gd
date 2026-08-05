@@ -1,9 +1,10 @@
 extends GutTest
 
-func test_all_items_returns_eighty_six():
+func test_all_items_returns_eighty_seven():
 	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201 + Guardian's
-	# Locket (issue #459) + Executioner's Signet (issue #462).
-	assert_eq(ItemCatalog.all_items().size(), 86)
+	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
+	# (issue #463).
+	assert_eq(ItemCatalog.all_items().size(), 87)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -43,17 +44,19 @@ func test_wizard_weapon_new_names():
 	assert_eq(aw.bonuses[0].stat_bonus, 3.0)
 
 func test_items_for_slot_armor():
-	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6.
+	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6 + Bramble
+	# Plate (issue #463).
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
-	assert_eq(armor.size(), 28)
+	assert_eq(armor.size(), 29)
 	for item in armor:
 		assert_eq(item.slot, ItemData.Slot.ARMOR)
 
 func test_items_for_rarity_epic():
 	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6 + Guardian's
-	# Locket (issue #459) + Executioner's Signet (issue #462).
+	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
+	# (issue #463).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 30)
+	assert_eq(epics.size(), 31)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -175,3 +178,22 @@ func test_executioners_signet_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "executioners_signet must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_CRIT_ECHO)
+
+func test_bramble_plate_is_generic_and_class_neutral():
+	# Issue #463: Bramble Plate carries the Thorns passive and must be usable
+	# by every class, with a stat bonus that isn't caster-biased, same
+	# convention as Guardian's Locket/Executioner's Signet above.
+	var item := ItemCatalog.find("bramble_plate")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ARMOR)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "bramble_plate missing class %d" % klass)
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "bramble_plate must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_THORNS)

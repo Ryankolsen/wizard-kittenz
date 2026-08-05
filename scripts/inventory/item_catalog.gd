@@ -128,6 +128,10 @@ static func all_items() -> Array[ItemData]:
 	# not a caster-only one" convention as Guardian's Locket for unrestricted
 	# accessories.
 	items.append(ItemData.make("executioners_signet", "Executioner's Signet", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
+	# Issue #463: Bramble Plate — class-unrestricted armor with the Thorns
+	# passive (ItemPassiveEffectResolver). Same "class-neutral stat, not a
+	# caster-only one" convention as Guardian's Locket/Executioner's Signet.
+	items.append(ItemData.make("bramble_plate", "Bramble Plate", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

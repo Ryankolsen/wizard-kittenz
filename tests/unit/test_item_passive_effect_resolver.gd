@@ -57,3 +57,30 @@ func test_crit_echo_unequipped_never_preserves_cooldown():
 	var preserved := ItemPassiveEffectResolver.resolve_on_crit("not_equipped", spell, true, rng)
 	assert_false(preserved, "an item id with no Crit Echo passive must never preserve the cooldown")
 	assert_eq(spell.cooldown_remaining, 5.0, "without Crit Echo the cooldown always consumes normally")
+
+# --- Thorns (issue #463) ---
+
+func test_thorns_reflects_damage_when_equipped():
+	var attacker := _caster()
+	attacker.hp = 100
+	attacker.max_hp = 100
+	var reflected := ItemPassiveEffectResolver.resolve_on_hit_taken("bramble_plate", attacker, 100)
+	var expected := int(ceil(100 * ItemPassiveEffectResolver.THORNS_PCT))
+	assert_eq(reflected, expected, "Thorns must reflect THORNS_PCT of the incoming damage")
+	assert_eq(attacker.hp, 100 - expected, "the reflected damage must actually be dealt to the attacker")
+
+func test_thorns_no_reflection_when_unequipped():
+	var attacker := _caster()
+	attacker.hp = 100
+	attacker.max_hp = 100
+	var reflected := ItemPassiveEffectResolver.resolve_on_hit_taken("not_a_real_item", attacker, 100)
+	assert_eq(reflected, 0, "no Thorns passive means no reflected damage")
+	assert_eq(attacker.hp, 100, "an unequipped wearer must never reflect damage back")
+
+func test_thorns_no_reflection_on_zero_damage():
+	var attacker := _caster()
+	attacker.hp = 100
+	attacker.max_hp = 100
+	var reflected := ItemPassiveEffectResolver.resolve_on_hit_taken("bramble_plate", attacker, 0)
+	assert_eq(reflected, 0, "zero incoming damage must never produce a reflection")
+	assert_eq(attacker.hp, 100, "zero incoming damage must leave the attacker untouched")

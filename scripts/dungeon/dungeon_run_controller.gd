@@ -100,6 +100,7 @@ func start(d: Dungeon) -> bool:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 	if gs != null:
 		gs.achievement_service.record_event("dungeon_entered")
+		gs.achievement_service.increment_counter("dungeons_entered", 1)
 	return true
 
 func current_room() -> Room:
