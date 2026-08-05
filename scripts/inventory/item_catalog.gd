@@ -137,6 +137,10 @@ static func all_items() -> Array[ItemData]:
 	# class-neutral bonus magnitude as the other unrestricted rewards, on
 	# the "luck" stat already established by Lucky Charm (COMMON, 3.0).
 	items.append(ItemData.make("chest_goblin_gloves", "Chest Goblin Gloves", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "luck", 10.0, _GENERIC))
+	# Issue #465: Fat Cat Coin Purse -- class-unrestricted accessory, plain
+	# luck-stat item (no new passive-effect machinery), same shape and EPIC-
+	# tier magnitude as Chest Goblin Gloves.
+	items.append(ItemData.make("fat_cat_coin_purse", "Fat Cat Coin Purse", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "luck", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

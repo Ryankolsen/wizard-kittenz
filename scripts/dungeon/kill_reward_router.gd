@@ -63,6 +63,16 @@ static func route_kill(
 		var gold := gold_for_kill(data, enemy_data)
 		if gold > 0:
 			ledger.credit(gold, CurrencyLedger.Currency.GOLD)
+			# Issue #465: lifetime gold-earned counter, tracked at the credit
+			# call site (mirrors the enemies_killed/dungeons_entered/
+			# chests_opened pattern) rather than inside CurrencyLedger itself,
+			# since CurrencyLedger is a plain RefCounted with no achievement_
+			# service reference. Only this credit call site is wired; other
+			# gold sources (room clear, chest rewards, daily reward) are out
+			# of scope for this issue.
+			var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+			if gs != null:
+				gs.achievement_service.increment_counter("gold_earned", gold)
 	# Item drop (PRD #73 / issue #79). Resolve via the rarity-gated drop
 	# table. Boss kills always produce an item; regular kills ~10%. The
 	# router does not mutate ItemInventory — it returns the ItemData so

@@ -1,10 +1,11 @@
 extends GutTest
 
-func test_all_items_returns_eighty_eight():
+func test_all_items_returns_eighty_nine():
 	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201 + Guardian's
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
-	# (issue #463) + Chest Goblin Gloves (issue #464).
-	assert_eq(ItemCatalog.all_items().size(), 88)
+	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
+	# (issue #465).
+	assert_eq(ItemCatalog.all_items().size(), 89)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -54,9 +55,10 @@ func test_items_for_slot_armor():
 func test_items_for_rarity_epic():
 	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6 + Guardian's
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
-	# (issue #463) + Chest Goblin Gloves (issue #464).
+	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
+	# (issue #465).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 32)
+	assert_eq(epics.size(), 33)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -218,3 +220,24 @@ func test_chest_goblin_gloves_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "chest_goblin_gloves must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "chest_goblin_gloves has no passive effect")
+
+func test_fat_cat_coin_purse_is_generic_and_class_neutral():
+	# Issue #465: Fat Cat Coin Purse is a plain luck-stat item (no passive
+	# effect) and must be usable by every class, same class-unrestricted
+	# convention as Chest Goblin Gloves above.
+	var item := ItemCatalog.find("fat_cat_coin_purse")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ACCESSORY)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "fat_cat_coin_purse missing class %d" % klass)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "luck")
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "fat_cat_coin_purse must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "fat_cat_coin_purse has no passive effect")

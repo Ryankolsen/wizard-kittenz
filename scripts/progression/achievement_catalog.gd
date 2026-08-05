@@ -88,6 +88,18 @@ static func all() -> Array:
 		"Hoarder-in-Training",
 		"Opened 500 chests. Your hoard rivals a dragon's, minus the dragon part.",
 		"chest_goblin_gloves"))
+	out.append(_tiered_gold("spare_change", "gold_earned", 100,
+		"Spare Change",
+		"Earned 100 lifetime gold. Every fortune starts with a few loose coins.",
+		25))
+	out.append(_tiered_potion("comfortably_well_off", "gold_earned", 1000,
+		"Comfortably Well-Off",
+		"Earned 1,000 lifetime gold. You've upgraded from ramen to premium kibble.",
+		"health_potion", 2))
+	out.append(_tiered_item("fat_cat", "gold_earned", 10000,
+		"Fat Cat",
+		"Earned 10,000 lifetime gold. You are, canonically, the fat cat now.",
+		"fat_cat_coin_purse"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

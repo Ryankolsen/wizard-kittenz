@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 19)
+	assert_eq(defs.size(), 22)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -370,3 +370,83 @@ func test_enemy_killed_twice_does_not_reunlock():
 		"a second enemy death must not re-unlock first_kill (record_event's own dedup)")
 	e1.free()
 	e2.free()
+
+# --- Core wiring: gold earned --------------------------------------------------
+
+func test_gold_credited_via_kill_reward_router_increments_gold_earned_counter():
+	var data := CharacterFactory.create_default("Mage")
+	data.luck = 0
+	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var ledger := CurrencyLedger.new()
+	var expected_gold := KillRewardRouter.gold_for_kill(data, enemy_data)
+	KillRewardRouter.route_kill(data, enemy_data, null, "", null, null, ledger)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("gold_earned", 0)), expected_gold,
+		"crediting gold via KillRewardRouter must increment gold_earned by the exact credited amount")
+
+func test_gold_earned_counter_not_decremented_by_debit():
+	var service := AchievementService.new(AccountSaveData.new())
+	var ledger := CurrencyLedger.new()
+	ledger.credit(500, CurrencyLedger.Currency.GOLD)
+	service.increment_counter("gold_earned", 500)
+	ledger.debit(300, CurrencyLedger.Currency.GOLD)
+	assert_eq(int(service.account.achievement_counters.get("gold_earned", 0)), 500,
+		"spending gold must not decrement the lifetime gold_earned counter")
+
+func test_gold_earned_counter_excludes_non_gold_currency():
+	var data := CharacterFactory.create_default("Mage")
+	data.luck = 0
+	var enemy_data := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	var ledger := CurrencyLedger.new()
+	ledger.credit(500, CurrencyLedger.Currency.GEM)
+	var expected_gold := KillRewardRouter.gold_for_kill(data, enemy_data)
+	KillRewardRouter.route_kill(data, enemy_data, null, "", null, null, ledger)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("gold_earned", 0)), expected_gold,
+		"crediting a non-GOLD currency must not inflate the gold_earned counter")
+
+# --- Content details: gold-earned tier thresholds ------------------------------
+
+func test_gold_earned_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("gold_earned", 99)
+	assert_false(service.account.achievement_state.has("spare_change"), "99 gold must not unlock Spare Change")
+	service.increment_counter("gold_earned", 1)
+	assert_true(service.account.achievement_state.has("spare_change"), "100 gold unlocks Spare Change")
+	assert_false(service.account.achievement_state.has("comfortably_well_off"))
+	service.increment_counter("gold_earned", 900)
+	assert_true(service.account.achievement_state.has("comfortably_well_off"), "1,000 gold unlocks Comfortably Well-Off")
+	assert_false(service.account.achievement_state.has("fat_cat"))
+	service.increment_counter("gold_earned", 9000)
+	assert_true(service.account.achievement_state.has("fat_cat"), "10,000 gold unlocks Fat Cat")
+
+func test_gold_earned_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["spare_change"].threshold, 100)
+	assert_eq(by_id["spare_change"].counter_key, "gold_earned")
+	assert_eq(by_id["spare_change"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["comfortably_well_off"].threshold, 1000)
+	assert_eq(by_id["comfortably_well_off"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["fat_cat"].threshold, 10000)
+	assert_eq(by_id["fat_cat"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["fat_cat"].reward_item_id, "fat_cat_coin_purse")
+
+func test_gold_earned_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("gold_earned", 10000)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("spare_change", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("comfortably_well_off", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("fat_cat", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("fat_cat_coin_purse"), "Fat Cat must grant Fat Cat Coin Purse to the earning cat's bag")
