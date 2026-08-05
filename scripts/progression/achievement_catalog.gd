@@ -76,6 +76,18 @@ static func all() -> Array:
 		"Dungeon Landlord",
 		"Entered 200 dungeons. At this point you should be collecting rent.",
 		"bramble_plate"))
+	out.append(_tiered_gold("curious_cat", "chests_opened", 10,
+		"Curious Cat",
+		"Opened 10 chests. Curiosity hasn't killed this cat yet.",
+		25))
+	out.append(_tiered_potion("chest_goblin", "chests_opened", 100,
+		"Chest Goblin",
+		"Opened 100 chests. You've developed a healthy respect for hinges.",
+		"health_potion", 2))
+	out.append(_tiered_item("hoarder_in_training", "chests_opened", 500,
+		"Hoarder-in-Training",
+		"Opened 500 chests. Your hoard rivals a dragon's, minus the dragon part.",
+		"chest_goblin_gloves"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

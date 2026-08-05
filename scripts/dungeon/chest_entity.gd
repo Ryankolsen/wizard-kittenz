@@ -203,9 +203,12 @@ func open(player_id: String, character: CharacterData = null, rng: RandomNumberG
 	_drops_by_player[player_id] = per_chest.last_item_drop
 	opened_by.emit(player_id, per_chest.last_item_drop)
 	# Achievements (PRD #446 / issue #449): "open chest" trigger.
+	# Issue #464: also drives the cumulative chests_opened counter for the
+	# tiered Curious Cat/Chest Goblin/Hoarder-in-Training achievements.
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 	if gs != null:
 		gs.achievement_service.record_event("chest_opened")
+		gs.achievement_service.increment_counter("chests_opened", 1)
 	if _all_present_players_have_opened():
 		state = State.OPENED_LINGERING
 		_linger_remaining = LINGER_SECONDS

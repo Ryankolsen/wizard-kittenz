@@ -132,6 +132,11 @@ static func all_items() -> Array[ItemData]:
 	# passive (ItemPassiveEffectResolver). Same "class-neutral stat, not a
 	# caster-only one" convention as Guardian's Locket/Executioner's Signet.
 	items.append(ItemData.make("bramble_plate", "Bramble Plate", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
+	# Issue #464: Chest Goblin Gloves -- class-unrestricted accessory, plain
+	# luck-stat item (no new passive-effect machinery). Same EPIC-tier
+	# class-neutral bonus magnitude as the other unrestricted rewards, on
+	# the "luck" stat already established by Lucky Charm (COMMON, 3.0).
+	items.append(ItemData.make("chest_goblin_gloves", "Chest Goblin Gloves", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "luck", 10.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

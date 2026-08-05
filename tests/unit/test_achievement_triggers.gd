@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 16)
+	assert_eq(defs.size(), 19)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -281,7 +281,57 @@ func test_chest_opened_triggers_achievement():
 	assert_true(ok)
 	assert_true(GameState.achievement_service.account.achievement_state.has("first_chest"),
 		"opening a chest must record the chest_opened event")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("chests_opened", 0)), 1,
+		"opening a chest must also increment the chests_opened counter")
 	entity.free()
+
+# --- Content details: chests-opened tier thresholds ------------------------------
+
+func test_chests_opened_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("chests_opened", 9)
+	assert_false(service.account.achievement_state.has("curious_cat"), "9 chests must not unlock Curious Cat")
+	service.increment_counter("chests_opened", 1)
+	assert_true(service.account.achievement_state.has("curious_cat"), "10 chests unlocks Curious Cat")
+	assert_false(service.account.achievement_state.has("chest_goblin"))
+	service.increment_counter("chests_opened", 90)
+	assert_true(service.account.achievement_state.has("chest_goblin"), "100 chests unlocks Chest Goblin")
+	assert_false(service.account.achievement_state.has("hoarder_in_training"))
+	service.increment_counter("chests_opened", 400)
+	assert_true(service.account.achievement_state.has("hoarder_in_training"), "500 chests unlocks Hoarder-in-Training")
+
+func test_chests_opened_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["curious_cat"].threshold, 10)
+	assert_eq(by_id["curious_cat"].counter_key, "chests_opened")
+	assert_eq(by_id["curious_cat"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["chest_goblin"].threshold, 100)
+	assert_eq(by_id["chest_goblin"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["hoarder_in_training"].threshold, 500)
+	assert_eq(by_id["hoarder_in_training"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["hoarder_in_training"].reward_item_id, "chest_goblin_gloves")
+
+func test_chests_opened_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("chests_opened", 500)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("curious_cat", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("chest_goblin", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("hoarder_in_training", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("chest_goblin_gloves"), "Hoarder-in-Training must grant Chest Goblin Gloves to the earning cat's bag")
 
 # --- Core wiring: kill mob ----------------------------------------------------
 
