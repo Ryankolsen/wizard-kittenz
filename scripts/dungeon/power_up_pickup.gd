@@ -17,6 +17,14 @@ func _ready() -> void:
 func _on_body_entered(body: Node) -> void:
 	if body is Player:
 		body.collect_power_up(power_up_type)
+		# Issue #468: ale pickups feed the same shared `drinks` counter as
+		# the bartender's beer purchase, so both sources count toward the
+		# tiered Happy Hour/Bar Regular/Liver of Steel achievements. Other
+		# power-up types (catnip, mushrooms) never touch this counter.
+		if power_up_type == PowerUpEffect.TYPE_ALE:
+			var gs := get_node_or_null("/root/GameState")
+			if gs != null:
+				gs.achievement_service.increment_counter("drinks", 1)
 		queue_free()
 
 static func _texture_for(t: String) -> Texture2D:

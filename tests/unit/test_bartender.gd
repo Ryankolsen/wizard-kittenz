@@ -208,6 +208,32 @@ func test_beer_enabled_at_exactly_25_gold():
 		"Beer enabled at exactly 25 gold")
 
 
+# --- Issue #468: shared drinks counter --------------------------------------
+
+func test_buying_beer_increments_drinks_counter():
+	GameState.achievement_service = AchievementService.new(AccountSaveData.new())
+	var trio := _make_bartender_with_economy(100)
+	var bartender: Bartender = trio[0]
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	bubble.move_next()  # Shop (0) -> Beer (1)
+	bubble.confirm()
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 1,
+		"buying a beer must increment the shared drinks counter")
+	GameState.achievement_service = AchievementService.new(AccountSaveData.new())
+
+
+func test_unaffordable_beer_does_not_increment_drinks_counter():
+	GameState.achievement_service = AchievementService.new(AccountSaveData.new())
+	var trio := _make_bartender_with_economy(10)
+	var bartender: Bartender = trio[0]
+	bartender._handle_effect("buy_beer")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 0,
+		"an unaffordable beer must not increment the drinks counter")
+	GameState.achievement_service = AchievementService.new(AccountSaveData.new())
+
+
 # --- #191: sprite asset ----------------------------------------------------
 
 func test_bartender_sprite_uses_bartender_png():

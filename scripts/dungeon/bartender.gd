@@ -111,4 +111,10 @@ func _buy_beer() -> void:
 		return
 	character.add_damage_mult_buff(BEER_BUFF_MAGNITUDE, BEER_BUFF_DURATION)
 	FloatingText.spawn(self, BEER_FLOATING_TEXT, Color(1.0, 0.9, 0.2))
+	# Issue #468: drives the shared drinks counter for the tiered Happy Hour/
+	# Bar Regular/Liver of Steel achievements. Only reached after the debit
+	# succeeds, so an unaffordable beer never increments it.
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.achievement_service.increment_counter("drinks", 1)
 	_close_bubble()

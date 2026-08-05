@@ -124,6 +124,18 @@ static func all() -> Array:
 		"Potion Sommelier",
 		"Consumed 200 potions. You could rate the finish on a mana potion by now.",
 		"alchemists_flask"))
+	out.append(_tiered_gold("happy_hour", "drinks", 5,
+		"Happy Hour",
+		"Had 5 drinks. Someone's buying the next round, right?",
+		25))
+	out.append(_tiered_potion("bar_regular", "drinks", 25,
+		"Bar Regular",
+		"Had 25 drinks. The bartender pours yours before you even ask.",
+		"health_potion", 2))
+	out.append(_tiered_item("liver_of_steel", "drinks", 100,
+		"Liver of Steel",
+		"Had 100 drinks. Science has no explanation for how you're still standing.",
+		"bar_regulars_mug"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

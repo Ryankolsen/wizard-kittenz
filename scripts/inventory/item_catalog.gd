@@ -153,6 +153,14 @@ static func all_items() -> Array[ItemData]:
 	# Shroud/Starcloud Mantle (3.0) rather than the 10.0 used by the
 	# max_hp/luck unrestricted rewards, since regeneration scales per-second.
 	items.append(ItemData.make("alchemists_flask", "Alchemist's Flask", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "regeneration", 3.0, _GENERIC))
+	# Issue #468: Bar Regular's Mug -- class-unrestricted accessory, plain
+	# crit_chance-stat item (no new passive-effect machinery). crit_chance is
+	# the "damage buff" stat that already reads uniformly across both the
+	# melee (DamageResolver) and spell (SpellEffectResolver) paths, unlike
+	# "attack"/"magic_attack" which only help one archetype -- so it's the
+	# right universal choice for a flavor-text damage buff. Magnitude matches
+	# the existing EPIC crit_chance convention (Eye of Insight).
+	items.append(ItemData.make("bar_regulars_mug", "Bar Regular's Mug", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "crit_chance", 0.20, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

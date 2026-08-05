@@ -5,8 +5,8 @@ func test_all_items_returns_ninety():
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
-	# (issue #467).
-	assert_eq(ItemCatalog.all_items().size(), 91)
+	# (issue #467) + Bar Regular's Mug (issue #468).
+	assert_eq(ItemCatalog.all_items().size(), 92)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -58,9 +58,9 @@ func test_items_for_rarity_epic():
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
-	# (issue #467).
+	# (issue #467) + Bar Regular's Mug (issue #468).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 35)
+	assert_eq(epics.size(), 36)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -284,3 +284,27 @@ func test_alchemists_flask_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "alchemists_flask must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "alchemists_flask has no passive effect")
+
+func test_bar_regulars_mug_is_generic_and_class_neutral():
+	# Issue #468: Bar Regular's Mug is a plain crit_chance-stat item (no
+	# passive effect) and must be usable by every class, same class-
+	# unrestricted convention as Chest Goblin Gloves/Fat Cat Coin Purse/
+	# Alchemist's Flask above. crit_chance is used as the "damage buff" stat
+	# because it applies uniformly whether the wearer deals physical or
+	# magic damage, unlike attack/magic_attack.
+	var item := ItemCatalog.find("bar_regulars_mug")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ACCESSORY)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "bar_regulars_mug missing class %d" % klass)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "crit_chance")
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "bar_regulars_mug must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "bar_regulars_mug has no passive effect")

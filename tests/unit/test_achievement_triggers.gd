@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 28)
+	assert_eq(defs.size(), 31)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -571,3 +571,116 @@ func test_potions_consumed_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("alchemists_flask"), "Potion Sommelier must grant Alchemist's Flask to the earning cat's bag")
+
+# --- Core wiring: drinks (beer + ale) -------------------------------------------
+
+func test_buying_beer_increments_drinks_counter():
+	var bartender: Bartender = load("res://scenes/bartender.tscn").instantiate()
+	add_child_autofree(bartender)
+	var ledger := CurrencyLedger.new()
+	ledger.credit(100, CurrencyLedger.Currency.GOLD)
+	var character := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	bartender.setup_economy(ledger, character)
+	bartender._handle_effect("buy_beer")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 1,
+		"buying a beer must increment the shared drinks counter")
+
+func test_unaffordable_beer_does_not_increment_drinks_counter():
+	var bartender: Bartender = load("res://scenes/bartender.tscn").instantiate()
+	add_child_autofree(bartender)
+	var ledger := CurrencyLedger.new()
+	var character := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	bartender.setup_economy(ledger, character)
+	bartender._handle_effect("buy_beer")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 0,
+		"an unaffordable beer must not increment the drinks counter")
+
+func test_ale_pickup_increments_drinks_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_ALE
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 1,
+		"picking up an ale power-up must increment the shared drinks counter")
+
+func test_non_ale_pickup_does_not_increment_drinks_counter():
+	var pickup := PowerUpPickup.new()
+	pickup.power_up_type = PowerUpEffect.TYPE_CATNIP
+	add_child_autofree(pickup)
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 0,
+		"picking up a non-ale power-up must not increment the drinks counter")
+
+func test_beer_and_ale_share_the_same_drinks_counter():
+	var bartender: Bartender = load("res://scenes/bartender.tscn").instantiate()
+	add_child_autofree(bartender)
+	var ledger := CurrencyLedger.new()
+	ledger.credit(100, CurrencyLedger.Currency.GOLD)
+	var character := CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN)
+	bartender.setup_economy(ledger, character)
+	bartender._handle_effect("buy_beer")
+	bartender._handle_effect("buy_beer")
+	var scene := load("res://scenes/player.tscn") as PackedScene
+	var p := scene.instantiate() as Player
+	add_child_autofree(p)
+	for i in range(3):
+		var pickup := PowerUpPickup.new()
+		pickup.power_up_type = PowerUpEffect.TYPE_ALE
+		add_child_autofree(pickup)
+		pickup._on_body_entered(p)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("drinks", 0)), 5,
+		"2 beers + 3 ale pickups must combine into one 5-drink total")
+
+# --- Content details: drinks tier thresholds --------------------------------------
+
+func test_drinks_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("drinks", 4)
+	assert_false(service.account.achievement_state.has("happy_hour"), "4 drinks must not unlock Happy Hour")
+	service.increment_counter("drinks", 1)
+	assert_true(service.account.achievement_state.has("happy_hour"), "5 drinks unlocks Happy Hour")
+	assert_false(service.account.achievement_state.has("bar_regular"))
+	service.increment_counter("drinks", 20)
+	assert_true(service.account.achievement_state.has("bar_regular"), "25 drinks unlocks Bar Regular")
+	assert_false(service.account.achievement_state.has("liver_of_steel"))
+	service.increment_counter("drinks", 75)
+	assert_true(service.account.achievement_state.has("liver_of_steel"), "100 drinks unlocks Liver of Steel")
+
+func test_drinks_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["happy_hour"].threshold, 5)
+	assert_eq(by_id["happy_hour"].counter_key, "drinks")
+	assert_eq(by_id["happy_hour"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["bar_regular"].threshold, 25)
+	assert_eq(by_id["bar_regular"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["liver_of_steel"].threshold, 100)
+	assert_eq(by_id["liver_of_steel"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["liver_of_steel"].reward_item_id, "bar_regulars_mug")
+
+func test_drinks_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("drinks", 100)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("happy_hour", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("bar_regular", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("liver_of_steel", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("bar_regulars_mug"), "Liver of Steel must grant Bar Regular's Mug to the earning cat's bag")
