@@ -249,6 +249,66 @@ func test_second_wind_resets_on_new_run():
 	new_p._check_died()
 	assert_eq(new_p.data.hp, 1, "a new Player instance (new dungeon run) must be able to trigger Second Wind again")
 
+# --- Idle/late-night/full-Epic-loadout one-offs (PRD #453 / issue #472) ---
+
+func test_idle_tracker_firing_triggers_nap_time_via_player():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var inv := ItemInventory.new()
+	p._game_state.item_inventory = inv
+	assert_true(p._idle_tracker.advance(IdleTracker.IDLE_THRESHOLD_SECONDS, false),
+		"sanity: the idle tracker itself must report the threshold crossed")
+	p._record_idle_nap()
+	assert_true(service.account.achievement_state.has("nap_time"),
+		"the idle-timer firing must record the idle_5min event and unlock Nap Time")
+	var claimed := service.claim("nap_time", null, null, null, inv)
+	assert_not_null(claimed)
+	var bag_ids: Array = []
+	for item in inv.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("cozy_blanket"), "Nap Time must grant Cozy Blanket to the earning cat's bag")
+
+func test_record_late_night_triggers_three_am_kitten():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	p._record_late_night()
+	assert_true(service.account.achievement_state.has("three_am_kitten"),
+		"a late-night detection must record the late_night_play event")
+
+func test_maximum_zoomies_requires_all_three_slots_epic():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var inv := ItemInventory.new()
+	p._game_state.item_inventory = inv
+	inv.equip(ItemCatalog.find("fungal_cap"))
+	inv.equip(ItemCatalog.find("alchemists_flask"))
+	p._check_maximum_zoomies()
+	assert_false(service.account.achievement_state.has("maximum_zoomies"),
+		"an empty weapon slot must not unlock Maximum Zoomies")
+
+func test_maximum_zoomies_unlocks_once_all_three_slots_are_epic():
+	var p := _make_player_with_wizard_tree()
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	p._game_state.achievement_service = service
+	var inv := ItemInventory.new()
+	p._game_state.item_inventory = inv
+	inv.equip(ItemCatalog.find("fungal_cap"))
+	inv.equip(ItemCatalog.find("alchemists_flask"))
+	p._check_maximum_zoomies()
+	assert_false(service.account.achievement_state.has("maximum_zoomies"))
+	var epic_weapon := ItemData.make("test_epic_weapon", "Test Epic Weapon", ItemData.Slot.WEAPON, ItemData.Rarity.EPIC, "attack", 10.0, [])
+	inv.equip(epic_weapon)
+	p._check_maximum_zoomies()
+	assert_true(service.account.achievement_state.has("maximum_zoomies"),
+		"equipping the third Epic slot must unlock Maximum Zoomies")
+	watch_signals(service)
+	p._check_maximum_zoomies()
+	assert_signal_not_emitted(service, "achievement_unlocked",
+		"re-checking an already-full Epic loadout must not re-unlock Maximum Zoomies")
+
 func test_player_does_not_cast_unassigned_unlocked_spell():
 	# Pin the old "first ready unlocked spell wins" behavior is gone: a spell
 	# that is unlocked but explicitly removed from every slot must NOT fire

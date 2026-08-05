@@ -6,8 +6,8 @@ func test_all_items_returns_ninety():
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
 	# (issue #467) + Bar Regular's Mug (issue #468) + Catnip Crown
-	# (issue #469).
-	assert_eq(ItemCatalog.all_items().size(), 94)
+	# (issue #469) + Fungal Cap (issue #470) + Cozy Blanket (issue #472).
+	assert_eq(ItemCatalog.all_items().size(), 95)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -48,9 +48,10 @@ func test_wizard_weapon_new_names():
 
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6 + Bramble
-	# Plate (issue #463) + Fungal Cap (issue #470).
+	# Plate (issue #463) + Fungal Cap (issue #470) + Cozy Blanket
+	# (issue #472).
 	var armor := ItemCatalog.items_for_slot(ItemData.Slot.ARMOR)
-	assert_eq(armor.size(), 30)
+	assert_eq(armor.size(), 31)
 	for item in armor:
 		assert_eq(item.slot, ItemData.Slot.ARMOR)
 
@@ -60,9 +61,9 @@ func test_items_for_rarity_epic():
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
 	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
 	# (issue #467) + Bar Regular's Mug (issue #468) + Catnip Crown
-	# (issue #469).
+	# (issue #469) + Fungal Cap (issue #470) + Cozy Blanket (issue #472).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 38)
+	assert_eq(epics.size(), 39)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -358,3 +359,26 @@ func test_fungal_cap_is_generic_and_class_neutral():
 	assert_true(stat_names.has("max_hp"), "fungal_cap must include a max_hp bonus")
 	assert_true(stat_names.has("max_mp"), "fungal_cap must include a max_mp bonus")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "fungal_cap has no passive effect")
+
+func test_cozy_blanket_is_generic_and_class_neutral():
+	# Issue #472: Cozy Blanket is a plain regeneration-stat armor item (no
+	# passive effect), the Nap Time one-off's reward, same class-unrestricted
+	# convention as Alchemist's Flask but on the ARMOR slot per the PRD's
+	# "resting" theme.
+	var item := ItemCatalog.find("cozy_blanket")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ARMOR)
+	assert_eq(item.rarity, ItemData.Rarity.EPIC)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "cozy_blanket missing class %d" % klass)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "regeneration")
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "cozy_blanket must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "cozy_blanket has no passive effect")

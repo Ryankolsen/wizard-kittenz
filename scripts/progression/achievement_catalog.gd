@@ -196,6 +196,25 @@ static func all() -> Array:
 		"By a Whisker",
 		"You survived at 1 HP. By a whisker. Literally.",
 		"health_potion", 2))
+	# One-off achievements (issue #472): idle/time-based triggers, same
+	# one-shot shape as #471's gameplay-moment triggers. late_night_play and
+	# idle_5min fire from Player._physics_process (ClockHour/IdleTracker);
+	# all_epic_equipped fires from Player._on_loadout_changed.
+	out.append(AchievementDefinition.make_gold(
+		"three_am_kitten", "late_night_play",
+		"3 AM Kitten",
+		"It's 3 AM and you're still playing. Cats are nocturnal. Apparently so are you.",
+		50))
+	out.append(AchievementDefinition.make_item(
+		"nap_time", "idle_5min",
+		"Nap Time",
+		"You stood still for 5 minutes. You are, at your core, a cat.",
+		"cozy_blanket"))
+	out.append(AchievementDefinition.make_gold(
+		"maximum_zoomies", "all_epic_equipped",
+		"Maximum Zoomies",
+		"All Epic gear equipped. You're basically radioactive with main-character energy.",
+		250))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

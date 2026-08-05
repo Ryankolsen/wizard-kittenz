@@ -76,6 +76,12 @@ var _coop_level_up_bound: bool = false
 # the "only the unlocking player's cat, not broadcast" requirement (issue #450)
 # with no networking plumbing needed, unlike the co-op XP level-up path above.
 var _achievement_unlock_bound: bool = false
+# Issue #472: "Nap Time"/"3 AM Kitten" one-offs. IdleTracker is pure/scene-
+# tree-free (see idle_tracker.gd); _late_night_check_accum throttles the
+# ClockHour.current_hour() syscall to roughly once a second instead of every
+# physics frame, since record_event already dedupes the actual unlock.
+var _idle_tracker: IdleTracker = IdleTracker.new()
+var _late_night_check_accum: float = 0.0
 # Per-player phasing capability (issue #264). When true the player ignores
 # the dedicated walls physics bit (EnemyBehavior.WALL_COLLISION_MASK from
 # #263) and walks through dungeon wall tiles; when false that bit is added
@@ -185,6 +191,25 @@ func _bind_inventory_loadout() -> void:
 func _on_loadout_changed() -> void:
 	_refresh_combat_weapon()
 	_broadcast_player_info_for_equip_change()
+	_check_maximum_zoomies()
+
+# One-off achievement (PRD #453 / issue #472): "Maximum Zoomies" unlocks
+# when weapon/armor/accessory are all Epic rarity simultaneously. Checked on
+# every loadout_changed ping rather than only on equip, so unequipping the
+# item that broke a full-Epic loadout can't leave a stale unlock pending --
+# record_event's own dedup makes re-checking on every change a no-op once
+# already unlocked.
+func _check_maximum_zoomies() -> void:
+	var inv := _item_inventory()
+	if inv == null or _game_state == null:
+		return
+	for slot in [ItemData.Slot.WEAPON, ItemData.Slot.ARMOR, ItemData.Slot.ACCESSORY]:
+		var item := inv.equipped_in(slot)
+		if item == null or item.rarity != ItemData.Rarity.EPIC:
+			return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service != null:
+		service.record_event("all_epic_equipped")
 
 # Slice 3 of PRD #328 (issue #331). Equip/unequip changes drive a fresh
 # PLAYER_INFO broadcast so every peer's RemoteKitten can resolve the new
@@ -383,6 +408,14 @@ func _physics_process(delta: float) -> void:
 	# / Slowness) propagate without needing a Player.gd hook.
 	if data != null and data.speed > 0.0:
 		speed = data.speed
+	var input_active := input_dir != Vector2.ZERO or Input.is_anything_pressed()
+	if _idle_tracker.advance(delta, input_active):
+		_record_idle_nap()
+	_late_night_check_accum += delta
+	if _late_night_check_accum >= 1.0:
+		_late_night_check_accum = 0.0
+		if ClockHour.is_late_night(ClockHour.current_hour()):
+			_record_late_night()
 	velocity = compute_velocity(input_dir, speed)
 	# Track facing only when actually moving so a stationary kitten keeps its
 	# last-known direction (relevant for backstab targeting).
@@ -459,6 +492,25 @@ func _record_death() -> void:
 	var service := _game_state.get("achievement_service") as AchievementService
 	if service != null:
 		service.increment_counter("deaths", 1)
+
+# One-off achievements (PRD #453 / issue #472): idle-timer and late-night
+# clock detection, both driven from _physics_process above. record_event's
+# own idempotent dedup (see achievement_service.gd) means neither helper
+# needs a local "already fired" flag beyond IdleTracker's own one-shot-per-
+# idle-period gate.
+func _record_idle_nap() -> void:
+	if _game_state == null:
+		return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service != null:
+		service.record_event("idle_5min")
+
+func _record_late_night() -> void:
+	if _game_state == null:
+		return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service != null:
+		service.record_event("late_night_play")
 
 # Slice 8 of PRD #328 (issue #336). Co-op fan-out for the local death.
 # Fires exactly once per death (gated by _died_emitted) so a successful

@@ -176,6 +176,12 @@ static func all_items() -> Array[ItemData]:
 		StatBonus.make("max_hp", 10.0),
 		StatBonus.make("max_mp", 10.0),
 	], _GENERIC))
+	# Issue #472: Cozy Blanket -- class-unrestricted armor, plain
+	# regeneration-stat item (no new passive-effect machinery). Same
+	# "regeneration" stat and EPIC-tier magnitude (3.0) as Alchemist's
+	# Flask, just on the ARMOR slot instead of ACCESSORY -- Nap Time's
+	# "resting" theme per the PRD.
+	items.append(ItemData.make("cozy_blanket", "Cozy Blanket", ItemData.Slot.ARMOR, ItemData.Rarity.EPIC, "regeneration", 3.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

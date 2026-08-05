@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 43)
+	assert_eq(defs.size(), 46)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -944,3 +944,13 @@ func test_one_off_gameplay_moment_entries_have_correct_content():
 	assert_eq(by_id["by_a_whisker"].trigger_event, "clutch_potion_use")
 	assert_eq(by_id["by_a_whisker"].title, "By a Whisker")
 	assert_eq(by_id["by_a_whisker"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["three_am_kitten"].trigger_event, "late_night_play")
+	assert_eq(by_id["three_am_kitten"].title, "3 AM Kitten")
+	assert_eq(by_id["three_am_kitten"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["nap_time"].trigger_event, "idle_5min")
+	assert_eq(by_id["nap_time"].title, "Nap Time")
+	assert_eq(by_id["nap_time"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["nap_time"].reward_item_id, "cozy_blanket")
+	assert_eq(by_id["maximum_zoomies"].trigger_event, "all_epic_equipped")
+	assert_eq(by_id["maximum_zoomies"].title, "Maximum Zoomies")
+	assert_eq(by_id["maximum_zoomies"].reward_type, AchievementDefinition.RewardType.GOLD)
