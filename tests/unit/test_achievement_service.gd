@@ -9,6 +9,12 @@ extends GutTest
 func _make_definition(id: String, trigger_event: String) -> AchievementDefinition:
 	return AchievementDefinition.make_gold(id, trigger_event, "Title", "Flavor text.", 10)
 
+func _make_tiered_definition(id: String, counter_key: String, threshold: int) -> AchievementDefinition:
+	var d := AchievementDefinition.make_gold(id, "", "Title", "Flavor text.", 10)
+	d.counter_key = counter_key
+	d.threshold = threshold
+	return d
+
 # --- Core wiring -------------------------------------------------------------
 
 func test_record_event_unlocks_matching_definition():
@@ -179,3 +185,56 @@ func test_claim_never_unlocked_is_safe_no_op():
 	var claimed := service.claim("gold_ach", ledger, null, null)
 	assert_null(claimed)
 	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
+
+# --- increment_counter (tiered achievements, issue #455) -----------------------
+
+func test_increment_counter_below_threshold_does_not_unlock():
+	var def := _make_tiered_definition("tier_ach", "test_counter", 10)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.increment_counter("test_counter", 5)
+	assert_false(account.achievement_state.has("tier_ach"))
+
+func test_increment_counter_crossing_threshold_unlocks_once():
+	var def := _make_tiered_definition("tier_ach", "test_counter", 10)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard_kitten"
+	watch_signals(service)
+	service.increment_counter("test_counter", 5)
+	service.increment_counter("test_counter", 5)
+	assert_true(account.achievement_state.has("tier_ach"))
+	var entry: Dictionary = account.achievement_state["tier_ach"]
+	assert_false(entry["claimed"])
+	assert_eq(entry["earned_by_slot"], "wizard_kitten")
+	assert_signal_emit_count(service, "achievement_unlocked", 1)
+
+func test_increment_counter_past_threshold_is_idempotent():
+	var def := _make_tiered_definition("tier_ach", "test_counter", 10)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.increment_counter("test_counter", 10)
+	watch_signals(service)
+	var entry_before: Dictionary = account.achievement_state["tier_ach"].duplicate()
+	service.increment_counter("test_counter", 100)
+	assert_signal_not_emitted(service, "achievement_unlocked")
+	assert_eq(account.achievement_state["tier_ach"], entry_before)
+
+func test_achievement_counters_round_trip_through_dict():
+	var def := _make_tiered_definition("tier_ach", "test_counter", 10)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.increment_counter("test_counter", 4)
+	var loaded := AccountSaveData.from_dict(account.to_dict())
+	assert_eq(loaded.achievement_counters["test_counter"], 4)
+
+func test_increment_counter_is_shared_across_slots():
+	var def := _make_tiered_definition("tier_ach", "test_counter", 10)
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("test_counter", 4)
+	service.active_slot = "chonk_kitten"
+	service.increment_counter("test_counter", 4)
+	assert_eq(account.achievement_counters["test_counter"], 8)
+	assert_false(account.achievement_state.has("tier_ach"))

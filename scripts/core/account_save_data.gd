@@ -20,6 +20,9 @@ var last_login_date: String = ""
 # (PRD #446). Account-wide like skill_unlocks/cleared_dungeons — earning an
 # achievement on one character slot locks it out for the other 3.
 var achievement_state: Dictionary = {}
+# Counter key -> cumulative count (issue #455), account-wide like
+# achievement_state, for tiered achievements ("the 47th kill").
+var achievement_counters: Dictionary = {}
 
 # Snapshot live account-wide state. Used by SaveManager.save_from_state to
 # assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
@@ -58,6 +61,7 @@ func to_dict() -> Dictionary:
 		"streak_day": streak_day,
 		"last_login_date": last_login_date,
 		"achievement_state": achievement_state.duplicate(true),
+		"achievement_counters": achievement_counters.duplicate(true),
 	}
 
 static func from_dict(d: Dictionary) -> AccountSaveData:
@@ -102,4 +106,8 @@ static func from_dict(d: Dictionary) -> AccountSaveData:
 					"claimed": bool(entry.get("claimed", false)),
 					"earned_by_slot": String(entry.get("earned_by_slot", "")),
 				}
+	var counters = d.get("achievement_counters", {})
+	if counters is Dictionary:
+		for k in counters.keys():
+			a.achievement_counters[String(k)] = int(counters[k])
 	return a

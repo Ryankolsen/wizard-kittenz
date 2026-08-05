@@ -42,6 +42,29 @@ func record_event(event_key: String) -> void:
 		}
 		achievement_unlocked.emit(definition.id)
 
+# Adds amount to account.achievement_counters[counter_key] (account-wide,
+# shared across all slots), then unlocks any tiered catalog definition bound
+# to that counter_key whose threshold is newly met. Same idempotency/dedup
+# and earned_by_slot capture as record_event.
+func increment_counter(counter_key: String, amount: int) -> void:
+	if account == null or counter_key == "":
+		return
+	var total := int(account.achievement_counters.get(counter_key, 0)) + amount
+	account.achievement_counters[counter_key] = total
+	for definition in catalog:
+		if definition.counter_key != counter_key:
+			continue
+		if total < definition.threshold:
+			continue
+		if account.achievement_state.has(definition.id):
+			continue
+		account.achievement_state[definition.id] = {
+			"unlocked_at": Time.get_unix_time_from_system(),
+			"claimed": false,
+			"earned_by_slot": active_slot,
+		}
+		achievement_unlocked.emit(definition.id)
+
 # Grants an unlocked-but-unclaimed achievement's fixed reward and marks it
 # claimed (issue #448). Gold routes account-wide via currency_ledger. Potions
 # route to the ConsumableInventory belonging to the entry's earned_by_slot —

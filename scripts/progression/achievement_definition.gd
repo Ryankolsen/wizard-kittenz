@@ -10,6 +10,11 @@ enum RewardType { GOLD, POTION }
 
 var id: String = ""
 var trigger_event: String = ""
+# Tiered achievements (issue #455): counter_key/threshold coexist with
+# trigger_event and are used by AchievementService.increment_counter instead
+# of record_event. Empty counter_key means "not a tiered achievement".
+var counter_key: String = ""
+var threshold: int = 0
 var title: String = ""
 var flavor_text: String = ""
 var reward_type: int = RewardType.GOLD
