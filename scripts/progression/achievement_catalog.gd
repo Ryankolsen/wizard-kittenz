@@ -112,6 +112,18 @@ static func all() -> Array:
 		"Professional Corpse",
 		"Died 100 times. At this point it's less a death count and more a resume.",
 		"nine_lives_collar"))
+	out.append(_tiered_gold("just_in_case", "potions_consumed", 10,
+		"Just in Case",
+		"Consumed 10 potions. You never know when you'll need a backup plan.",
+		25))
+	out.append(_tiered_potion("bottoms_up", "potions_consumed", 50,
+		"Bottoms Up",
+		"Consumed 50 potions. Your belt is basically a tiny pharmacy at this point.",
+		"health_potion", 2))
+	out.append(_tiered_item("potion_sommelier", "potions_consumed", 200,
+		"Potion Sommelier",
+		"Consumed 200 potions. You could rate the finish on a mana potion by now.",
+		"alchemists_flask"))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

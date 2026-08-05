@@ -80,6 +80,13 @@ func use_slot(n: int, caster, inventory: ConsumableInventory) -> bool:
 	PotionEffectResolver.apply(definition, caster)
 	_cooldown_remaining = COOLDOWN_SECONDS
 	slot_used.emit(n)
+	# Issue #467: drives the cumulative potions_consumed counter for the
+	# tiered Just in Case/Bottoms Up/Potion Sommelier achievements. Only
+	# reached after every no-op guard above, so failed/empty/on-cooldown
+	# uses never increment it.
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.increment_counter("potions_consumed", 1)
 	return true
 
 func serialize() -> Dictionary:

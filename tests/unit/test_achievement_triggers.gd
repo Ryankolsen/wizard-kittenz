@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 25)
+	assert_eq(defs.size(), 28)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -497,3 +497,77 @@ func test_deaths_tier_rewards_are_claimable():
 	for item in items.bag_items():
 		bag_ids.append(item.id)
 	assert_true(bag_ids.has("nine_lives_collar"), "Professional Corpse must grant Nine Lives Collar to the earning cat's bag")
+
+# --- Core wiring: potion consumed via belt --------------------------------------
+
+func _potion_caster() -> CharacterData:
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "Test")
+	c.hp = 1
+	c.magic_points = 0
+	return c
+
+func test_potion_used_via_belt_increments_potions_consumed_counter():
+	var belt := PotionBelt.new()
+	var inv := ConsumableInventory.new()
+	inv.add("health_potion", 1)
+	belt.assign(1, "health_potion")
+	var ok := belt.use_slot(1, _potion_caster(), inv)
+	assert_true(ok)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("potions_consumed", 0)), 1,
+		"using a potion via PotionBelt.use_slot must increment the potions_consumed counter")
+
+func test_potion_belt_failed_use_does_not_increment_potions_consumed_counter():
+	var belt := PotionBelt.new()
+	var inv := ConsumableInventory.new()
+	var ok := belt.use_slot(1, _potion_caster(), inv)
+	assert_false(ok, "an empty slot must be a no-op")
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("potions_consumed", 0)), 0,
+		"a failed potion use (empty slot) must not increment potions_consumed")
+
+# --- Content details: potions-consumed tier thresholds --------------------------
+
+func test_potions_consumed_tiers_unlock_at_correct_counts_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("potions_consumed", 9)
+	assert_false(service.account.achievement_state.has("just_in_case"), "9 potions must not unlock Just in Case")
+	service.increment_counter("potions_consumed", 1)
+	assert_true(service.account.achievement_state.has("just_in_case"), "10 potions unlocks Just in Case")
+	assert_false(service.account.achievement_state.has("bottoms_up"))
+	service.increment_counter("potions_consumed", 40)
+	assert_true(service.account.achievement_state.has("bottoms_up"), "50 potions unlocks Bottoms Up")
+	assert_false(service.account.achievement_state.has("potion_sommelier"))
+	service.increment_counter("potions_consumed", 150)
+	assert_true(service.account.achievement_state.has("potion_sommelier"), "200 potions unlocks Potion Sommelier")
+
+func test_potions_consumed_tiers_have_correct_thresholds_and_rewards():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["just_in_case"].threshold, 10)
+	assert_eq(by_id["just_in_case"].counter_key, "potions_consumed")
+	assert_eq(by_id["just_in_case"].reward_type, AchievementDefinition.RewardType.GOLD)
+	assert_eq(by_id["bottoms_up"].threshold, 50)
+	assert_eq(by_id["bottoms_up"].reward_type, AchievementDefinition.RewardType.POTION)
+	assert_eq(by_id["potion_sommelier"].threshold, 200)
+	assert_eq(by_id["potion_sommelier"].reward_type, AchievementDefinition.RewardType.ITEM)
+	assert_eq(by_id["potion_sommelier"].reward_item_id, "alchemists_flask")
+
+func test_potions_consumed_tier_rewards_are_claimable():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.active_slot = "wizard_kitten"
+	service.increment_counter("potions_consumed", 200)
+	var ledger := CurrencyLedger.new()
+	var claimed_gold := service.claim("just_in_case", ledger)
+	assert_not_null(claimed_gold)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), claimed_gold.reward_amount)
+	var potions := ConsumableInventory.new()
+	var claimed_potion := service.claim("bottoms_up", null, potions)
+	assert_not_null(claimed_potion)
+	assert_eq(potions.count_of(claimed_potion.reward_potion_id), claimed_potion.reward_amount)
+	var items := ItemInventory.new()
+	var claimed_item := service.claim("potion_sommelier", null, null, null, items)
+	assert_not_null(claimed_item)
+	var bag_ids: Array = []
+	for item in items.bag_items():
+		bag_ids.append(item.id)
+	assert_true(bag_ids.has("alchemists_flask"), "Potion Sommelier must grant Alchemist's Flask to the earning cat's bag")

@@ -146,6 +146,13 @@ static func all_items() -> Array[ItemData]:
 	# stat, not a caster-only one" convention as Guardian's Locket/
 	# Executioner's Signet/Bramble Plate for unrestricted items.
 	items.append(ItemData.make("nine_lives_collar", "Nine Lives Collar", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "max_hp", 10.0, _GENERIC))
+	# Issue #467: Alchemist's Flask -- class-unrestricted accessory, plain
+	# regeneration-stat item (no new passive-effect machinery). Uses the
+	# "regeneration" stat already established by Cozy Scarf/Star Pendant/
+	# Dreamweaver Shroud, at the same EPIC-tier magnitude as Dreamweaver
+	# Shroud/Starcloud Mantle (3.0) rather than the 10.0 used by the
+	# max_hp/luck unrestricted rewards, since regeneration scales per-second.
+	items.append(ItemData.make("alchemists_flask", "Alchemist's Flask", ItemData.Slot.ACCESSORY, ItemData.Rarity.EPIC, "regeneration", 3.0, _GENERIC))
 	return items
 
 static func items_for_slot(slot: ItemData.Slot) -> Array[ItemData]:

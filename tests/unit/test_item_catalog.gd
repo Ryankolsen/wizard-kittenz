@@ -4,8 +4,9 @@ func test_all_items_returns_ninety():
 	# 72 DROP items + 12 SHOP items added in Slice 6 of PRD #201 + Guardian's
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
-	# (issue #465) + Nine Lives Collar (issue #466).
-	assert_eq(ItemCatalog.all_items().size(), 90)
+	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
+	# (issue #467).
+	assert_eq(ItemCatalog.all_items().size(), 91)
 
 func test_iron_sword_content():
 	var item := ItemCatalog.find("iron_sword")
@@ -56,9 +57,10 @@ func test_items_for_rarity_epic():
 	# 24 DROP epics + 4 SHOP epics (one per class) from Slice 6 + Guardian's
 	# Locket (issue #459) + Executioner's Signet (issue #462) + Bramble Plate
 	# (issue #463) + Chest Goblin Gloves (issue #464) + Fat Cat Coin Purse
-	# (issue #465) + Nine Lives Collar (issue #466).
+	# (issue #465) + Nine Lives Collar (issue #466) + Alchemist's Flask
+	# (issue #467).
 	var epics := ItemCatalog.items_for_rarity(ItemData.Rarity.EPIC)
-	assert_eq(epics.size(), 34)
+	assert_eq(epics.size(), 35)
 	for item in epics:
 		assert_eq(item.rarity, ItemData.Rarity.EPIC)
 
@@ -261,3 +263,24 @@ func test_nine_lives_collar_is_generic_and_class_neutral():
 	for b in item.bonuses:
 		assert_ne(b.stat_name, "magic_attack", "nine_lives_collar must not use a caster-only stat")
 	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), ItemPassiveEffectResolver.PASSIVE_SECOND_WIND)
+
+func test_alchemists_flask_is_generic_and_class_neutral():
+	# Issue #467: Alchemist's Flask is a plain regeneration-stat item (no
+	# passive effect) and must be usable by every class, same class-
+	# unrestricted convention as Chest Goblin Gloves/Fat Cat Coin Purse above.
+	var item := ItemCatalog.find("alchemists_flask")
+	assert_not_null(item)
+	assert_eq(item.slot, ItemData.Slot.ACCESSORY)
+	var expected := [
+		CharacterData.CharacterClass.BATTLE_KITTEN,
+		CharacterData.CharacterClass.WIZARD_KITTEN,
+		CharacterData.CharacterClass.SLEEPY_KITTEN,
+		CharacterData.CharacterClass.CHONK_KITTEN,
+	]
+	for klass in expected:
+		assert_true(item.allowed_classes.has(klass), "alchemists_flask missing class %d" % klass)
+	assert_eq(item.bonuses.size(), 1)
+	assert_eq(item.bonuses[0].stat_name, "regeneration")
+	for b in item.bonuses:
+		assert_ne(b.stat_name, "magic_attack", "alchemists_flask must not use a caster-only stat")
+	assert_eq(ItemPassiveEffectResolver.passive_id_for(item.id), "", "alchemists_flask has no passive effect")
