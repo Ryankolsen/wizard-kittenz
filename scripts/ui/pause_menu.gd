@@ -828,6 +828,12 @@ static func _achievement_rows(achievement_state: Dictionary, catalog: Array = Ac
 static func _achievement_reward_text(def: AchievementDefinition) -> String:
 	if def.reward_type == AchievementDefinition.RewardType.GOLD:
 		return "+%d Gold" % def.reward_amount
+	if def.reward_type == AchievementDefinition.RewardType.ITEM:
+		var item := ItemCatalog.find(def.reward_item_id)
+		return item.display_name if item != null else def.reward_item_id
+	if def.reward_type == AchievementDefinition.RewardType.TOME:
+		var node := SkillTree.make_battle_kitten_tree().find(def.reward_node_id)
+		return node.display_name if node != null else def.reward_node_id
 	var potion := PotionCatalog.find(def.reward_potion_id)
 	var potion_name := potion.display_name if potion != null else def.reward_potion_id
 	return "+%d %s" % [def.reward_amount, potion_name]
@@ -1067,7 +1073,8 @@ func _on_achievement_claim_pressed(id: String) -> void:
 	var currency_ledger: CurrencyLedger = gs.currency_ledger if gs != null else null
 	var consumable_inventory := _resolve_consumable_inventory()
 	var bundle := SaveManager.load_bundle()
-	var definition := service.claim(id, currency_ledger, consumable_inventory, bundle)
+	var item_inventory: ItemInventory = gs.item_inventory if gs != null else null
+	var definition := service.claim(id, currency_ledger, consumable_inventory, bundle, item_inventory, _current_skill_tree(), _resolve_quickbar())
 	if definition == null:
 		return
 	if SaveManager.apply_live_state(bundle):

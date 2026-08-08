@@ -51,3 +51,20 @@ func test_achievement_reward_text_potion_uses_catalog_display_name():
 func test_achievement_reward_text_unknown_potion_falls_back_to_id():
 	var def := AchievementDefinition.make_potion("p", "evt", "T", "F", "not_a_real_potion", 1)
 	assert_eq(PauseMenuScript._achievement_reward_text(def), "+1 not_a_real_potion")
+
+func test_achievement_reward_text_item_uses_catalog_display_name():
+	var def := AchievementDefinition.make_item("i", "evt", "T", "F", "guardians_locket")
+	var expected := ItemCatalog.find("guardians_locket").display_name
+	assert_eq(PauseMenuScript._achievement_reward_text(def), expected)
+
+func test_achievement_reward_text_unknown_item_falls_back_to_id():
+	var def := AchievementDefinition.make_item("i", "evt", "T", "F", "not_a_real_item")
+	assert_eq(PauseMenuScript._achievement_reward_text(def), "not_a_real_item")
+
+func test_achievement_reward_text_tome_uses_node_display_name():
+	var def := AchievementDefinition.make_tome("m", "", "T", "F", "phase_tome_i", "phase_tome_i")
+	assert_eq(PauseMenuScript._achievement_reward_text(def), "Phase Tome I")
+
+func test_achievement_reward_text_unknown_tome_falls_back_to_id():
+	var def := AchievementDefinition.make_tome("m", "", "T", "F", "not_a_real_node", "not_a_real_spell")
+	assert_eq(PauseMenuScript._achievement_reward_text(def), "not_a_real_node")
