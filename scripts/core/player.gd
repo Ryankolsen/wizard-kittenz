@@ -21,6 +21,10 @@ signal item_dropped(item: ItemData)
 signal gold_dropped(amount: int)
 
 const ATTACK_COOLDOWN: float = 0.4
+# Mirrors Quickbar._GWENDOLYN_SPELL_ID (issue #477) — duplicated locally
+# rather than reaching into Quickbar's private constant, same convention as
+# skill_tree.gd's literal "summon_gwendolyn" id.
+const _GWENDOLYN_SPELL_ID := "summon_gwendolyn"
 # PRD #52 power-up pickup XP. Awarded on every collect_power_up call.
 # Co-op routes through the party-split broadcaster (each member receives
 # floor(POWERUP_XP / party_size)); solo applies directly to data.
@@ -57,6 +61,7 @@ var _died_emitted: bool = false
 var _second_wind_used: bool = false
 var _level_up_effect: LevelUpEffect
 var _spell_light: PointLight2D
+var _gwendolyn_floor_wipe_effect: GwendolynFloorWipeEffect
 var _weapon_pivot: WeaponPivot = null
 var _attack_choreographer: AttackChoreographer = null
 # PRD #280 / issue #282: when unarmed, _try_attack routes here instead of
@@ -151,6 +156,7 @@ func _ready() -> void:
 	_visual = sprite
 	_level_up_effect = get_node_or_null("LevelUpEffect") as LevelUpEffect
 	_spell_light = get_node_or_null("SpellLight") as PointLight2D
+	_gwendolyn_floor_wipe_effect = get_node_or_null("GwendolynFloorWipeEffect") as GwendolynFloorWipeEffect
 	_init_weapon_pivot()
 	_init_quickbar()
 	_bind_coop_level_up()
@@ -396,6 +402,14 @@ func _on_slot_fired(n: int) -> void:
 	# null-check inside _broadcast_attack.
 	var facing: Vector2 = data.facing if data != null else Vector2.RIGHT
 	_broadcast_attack(facing, NakamaLobby.ATTACK_KIND_QUICKBAR_CAST, spell.id)
+	# Issue #478: Summon Gwendolyn's payoff (floor-wide kill, not a localized
+	# hitbox effect) is a completely different shape from every other spell's
+	# SpellEffectResolver dispatch, so it's special-cased here rather than
+	# added as another EffectKind — the kill timing is driven by the VFX
+	# sequence's flash, not by _apply_spell_effect's immediate hitbox pass.
+	if spell.id == _GWENDOLYN_SPELL_ID:
+		_trigger_gwendolyn_floor_wipe()
+		return
 	_apply_spell_effect(spell)
 
 func _physics_process(delta: float) -> void:
@@ -833,6 +847,48 @@ func _handle_enemy_killed(node: Enemy, killing_blow_damage: int = 0) -> void:
 	_award_kill_xp(node.data, killing_blow_damage)
 	node.queue_free()
 
+# Issue #478: kicks off the VFX sequence (smoke arrival, thought-bubble
+# lines, full-screen flash). The floor-wipe kill effect itself is deferred
+# until flash_resolved so the kill lands exactly at the flash's visual peak,
+# matching the PRD's "gameplay effect, timed to the flash" spec. Falls back
+# to resolving immediately if the effect node isn't present (e.g. a Player
+# built without the scene's child nodes, same defensive shape as
+# _trigger_level_up_effect's null guard below).
+func _trigger_gwendolyn_floor_wipe() -> void:
+	if _gwendolyn_floor_wipe_effect == null:
+		_resolve_gwendolyn_floor_wipe()
+		return
+	_gwendolyn_floor_wipe_effect.flash_resolved.connect(_resolve_gwendolyn_floor_wipe, CONNECT_ONE_SHOT)
+	_gwendolyn_floor_wipe_effect.play()
+
+# Kills every non-boss enemy currently spawned anywhere on the floor (the
+# "enemies" group, not just what's in a hitbox — see enemy.gd's
+# add_to_group("enemies")). Routes each kill through the normal XP/gold path
+# with suppress_drops=true (issue #478 AC: no items from a floor-wipe kill).
+# In co-op, route_kill's existing per-enemy wire send already despawns the
+# enemy and applies XP on every other party member's client — no new
+# broadcast plumbing needed for that half of "shared effect" (issue #476/#477
+# established this same kill-routing path already fans out over the wire).
+func _resolve_gwendolyn_floor_wipe() -> void:
+	var enemy_nodes: Array = get_tree().get_nodes_in_group("enemies")
+	var data_to_node := {}
+	var enemy_data_list: Array = []
+	for n in enemy_nodes:
+		if n is Enemy and n.data != null and n.data.is_alive():
+			enemy_data_list.append(n.data)
+			data_to_node[n.data] = n
+	var kill_list: Array = GwendolynFloorWipe.non_boss_kills(enemy_data_list)
+	var any_killed := false
+	for enemy_data in kill_list:
+		_award_kill_xp(enemy_data, 0, true)
+		var node = data_to_node.get(enemy_data)
+		if node != null:
+			node.queue_free()
+		any_killed = true
+	if any_killed:
+		_record_meta_progress()
+		SaveManager.save_from_state()
+
 # Tiered achievements (PRD #453 / issue #462): feeds the cumulative
 # "damage_dealt" counter for Warming Up/Certified Wrecking Ball/One-Cat
 # Apocalypse. Called from every outgoing-damage call site (melee, spell
@@ -876,7 +932,7 @@ func _meta_tracker() -> MetaProgressionTracker:
 # be tested without booting a Player scene. Null enemy_data degrades to
 # a no-op (defensive for a future kill source that doesn't pass the
 # data, e.g. DoT spells).
-func _award_kill_xp(enemy_data: EnemyData, killing_blow_damage: int = 0) -> void:
+func _award_kill_xp(enemy_data: EnemyData, killing_blow_damage: int = 0, suppress_drops: bool = false) -> void:
 	if data == null or enemy_data == null:
 		return
 	# Bind before route_kill so the co-op level_up signal (which fires
@@ -898,7 +954,8 @@ func _award_kill_xp(enemy_data: EnemyData, killing_blow_damage: int = 0) -> void
 		_spell_tree,
 		_quickbar,
 		killing_blow_damage,
-		_item_inventory()
+		_item_inventory(),
+		suppress_drops
 	)
 	if item_drop != null:
 		item_dropped.emit(item_drop)

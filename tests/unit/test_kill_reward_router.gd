@@ -697,3 +697,31 @@ func test_route_kill_no_lifesteal_without_locket():
 	var inv := ItemInventory.new()
 	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null, null, 100, inv)
 	assert_eq(c.hp, 1, "no passive equipped means no HP change from the kill path")
+
+# --- route_kill: suppress_drops (issue #478 floor-wipe) ---------------------
+
+func test_route_kill_suppress_drops_true_never_returns_item_even_on_guaranteed_boss_drop():
+	# Boss context (Context.BOSS) has a 100% drop chance (DROP_CHANCE_BOSS),
+	# so without suppress_drops this would deterministically return an item.
+	var c := _make_character(1)
+	var boss := _make_enemy(0, true)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var item_drop := KillRewardRouter.route_kill(c, boss, null, "", null, null, null, rng, null, null, 0, null, true)
+	assert_null(item_drop, "suppress_drops=true must never yield an item, even a guaranteed boss drop")
+
+func test_route_kill_suppress_drops_true_still_awards_xp():
+	var c := _make_character(1)
+	var enemy := _make_enemy(ProgressionSystem.xp_to_next_level(1))
+	KillRewardRouter.route_kill(c, enemy, null, "", null, null, null, null, null, null, 0, null, true)
+	assert_eq(c.level, 2, "XP is independent of suppress_drops")
+
+func test_route_kill_suppress_drops_false_default_preserves_existing_behavior():
+	# Default (omitted) suppress_drops must keep the pre-#478 guaranteed
+	# boss-drop contract intact.
+	var c := _make_character(1)
+	var boss := _make_enemy(0, true)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var item_drop := KillRewardRouter.route_kill(c, boss, null, "", null, null, null, rng, null, null, 0, null)
+	assert_not_null(item_drop, "default suppress_drops=false keeps guaranteed boss drop")

@@ -1,7 +1,8 @@
-[gd_scene load_steps=8 format=3 uid="uid://b8wk1tn3p2yqa"]
+[gd_scene load_steps=9 format=3 uid="uid://b8wk1tn3p2yqa"]
 
 [ext_resource type="Script" path="res://scripts/core/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/core/level_up_effect.gd" id="2_level_up_effect"]
+[ext_resource type="Script" path="res://scripts/effects/gwendolyn_floor_wipe_effect.gd" id="3_gwendolyn_floor_wipe_effect"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(20, 20)
@@ -57,3 +58,6 @@ color = Color(0.4, 0.6, 1.0, 1.0)
 
 [node name="LevelUpEffect" type="Node2D" parent="."]
 script = ExtResource("2_level_up_effect")
+
+[node name="GwendolynFloorWipeEffect" type="CanvasLayer" parent="."]
+script = ExtResource("3_gwendolyn_floor_wipe_effect")

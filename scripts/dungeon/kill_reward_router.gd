@@ -43,7 +43,8 @@ static func route_kill(
 	tree: SkillTree = null,
 	quickbar: Quickbar = null,
 	killing_blow_damage: int = 0,
-	item_inventory: ItemInventory = null
+	item_inventory: ItemInventory = null,
+	suppress_drops: bool = false
 ) -> ItemData:
 	if data == null or enemy_data == null:
 		return null
@@ -78,13 +79,20 @@ static func route_kill(
 	# router does not mutate ItemInventory — it returns the ItemData so
 	# the caller (Player) can decide between auto-equip / equip prompt /
 	# auto-bag based on inventory state.
-	var drop_context: int = ItemDropResolver.Context.BOSS if enemy_data.is_boss else ItemDropResolver.Context.ENEMY
-	var item_drop: ItemData = ItemDropResolver.resolve(data, drop_context, rng)
-	# Luck rarity bump (PRD #85 / issue #90). Reuse the same rng so a
-	# seeded test can pin both the resolver roll and the bump roll. Null
-	# item, luck<=0, or EPIC-tier drops all pass through untouched inside
-	# bump_item — no extra gating needed here.
-	item_drop = LuckRewardModifier.bump_item(item_drop, data.luck, rng)
+	# Issue #478: suppress_drops (Summon Gwendolyn floor-wipe kills) skips
+	# ItemDropResolver entirely rather than resolving-then-discarding, so a
+	# guaranteed boss-context roll never happens for these kills — a per-
+	# caller flag rather than a global toggle, since normal kills on the
+	# same floor must keep dropping items.
+	var item_drop: ItemData = null
+	if not suppress_drops:
+		var drop_context: int = ItemDropResolver.Context.BOSS if enemy_data.is_boss else ItemDropResolver.Context.ENEMY
+		item_drop = ItemDropResolver.resolve(data, drop_context, rng)
+		# Luck rarity bump (PRD #85 / issue #90). Reuse the same rng so a
+		# seeded test can pin both the resolver roll and the bump roll. Null
+		# item, luck<=0, or EPIC-tier drops all pass through untouched inside
+		# bump_item — no extra gating needed here.
+		item_drop = LuckRewardModifier.bump_item(item_drop, data.luck, rng)
 	if session != null and session.is_routing_ready():
 		# Party XP split: each member receives floor(xp_reward / party_size)
 		# rather than the full reward. Both the local broadcast and the wire
