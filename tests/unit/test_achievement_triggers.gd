@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 46)
+	assert_eq(defs.size(), 47)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -39,6 +39,8 @@ func test_catalog_has_sixteen_entries_with_valid_content():
 				assert_not_null(node.spell, "%s tome reward node '%s' must carry a spell" % [d.id, d.reward_node_id])
 				assert_eq(node.spell.id, d.reward_spell_id,
 					"%s tome reward spell id must match the unlocked node's spell" % d.id)
+		elif d.reward_type == AchievementDefinition.RewardType.NONE:
+			pass
 
 # --- Content details: enemies-killed tier thresholds --------------------------
 
@@ -194,6 +196,74 @@ func test_rename_cat_twice_does_not_reunlock():
 	save_btn.pressed.emit()
 	assert_signal_emit_count(GameState.achievement_service, "achievement_unlocked", 1,
 		"a second rename must not re-unlock first_rename")
+
+# --- Core wiring: name a cat "Gwendolyn" (PRD #474 / issue #475) --------------
+
+func test_rename_cat_to_gwendolyn_triggers_memorial_achievement_and_grants_node():
+	var scene := _instantiate_creation_scene()
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.WIZARD_KITTEN, "Old Name")
+	GameState.skill_tree = SkillTree.make_wizard_kitten_tree()
+	GameState.current_quickbar = Quickbar.new()
+	var name_edit := scene.get_node("Customize/VBox/NameRow/NameEdit") as LineEdit
+	name_edit.text = "Gwendolyn"
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	save_btn.pressed.emit()
+	assert_true(GameState.achievement_service.account.achievement_state.has("named_gwendolyn"),
+		"naming a cat Gwendolyn must record the named_gwendolyn event")
+	assert_true(GameState.skill_tree.is_unlocked("summon_gwendolyn"),
+		"the matching character's own skill tree gets the node directly")
+
+func test_rename_cat_to_non_gwendolyn_name_does_not_trigger():
+	var scene := _instantiate_creation_scene()
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.WIZARD_KITTEN, "Old Name")
+	GameState.skill_tree = SkillTree.make_wizard_kitten_tree()
+	GameState.current_quickbar = Quickbar.new()
+	var name_edit := scene.get_node("Customize/VBox/NameRow/NameEdit") as LineEdit
+	name_edit.text = "Whiskers"
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	save_btn.pressed.emit()
+	assert_false(GameState.achievement_service.account.achievement_state.has("named_gwendolyn"))
+	assert_false(GameState.skill_tree.is_unlocked("summon_gwendolyn"))
+
+func test_create_new_cat_named_gwendolyn_triggers_memorial_achievement_and_grants_node():
+	var scene := _instantiate_creation_scene()
+	scene._selected_archetype = SaveBundle.SLOT_WIZARD
+	var name_edit := scene.get_node("Customize/VBox/NameRow/NameEdit") as LineEdit
+	name_edit.text = "Gwendolyn"
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	save_btn.pressed.emit()
+	assert_true(GameState.achievement_service.account.achievement_state.has("named_gwendolyn"),
+		"creating a cat named Gwendolyn must record the named_gwendolyn event")
+	assert_true(GameState.skill_tree.is_unlocked("summon_gwendolyn"),
+		"the freshly-created character's own skill tree gets the node directly")
+
+func test_second_gwendolyn_character_grants_own_node_without_reunlocking_achievement():
+	var scene := _instantiate_creation_scene()
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.WIZARD_KITTEN, "Old Name")
+	GameState.skill_tree = SkillTree.make_wizard_kitten_tree()
+	GameState.current_quickbar = Quickbar.new()
+	watch_signals(GameState.achievement_service)
+	var name_edit := scene.get_node("Customize/VBox/NameRow/NameEdit") as LineEdit
+	var save_btn := scene.find_child("SaveButton", true, false) as Button
+	name_edit.text = "Gwendolyn"
+	save_btn.pressed.emit()
+	# Simulate a second character (different slot) also being named Gwendolyn.
+	GameState.current_character = CharacterData.make_new(
+		CharacterData.CharacterClass.BATTLE_KITTEN, "Other Cat")
+	GameState.skill_tree = SkillTree.make_battle_kitten_tree()
+	GameState.current_quickbar = Quickbar.new()
+	name_edit.text = "Gwendolyn"
+	save_btn.pressed.emit()
+	assert_true(GameState.skill_tree.is_unlocked("summon_gwendolyn"),
+		"the second character gets her own node unlock")
+	# Both saves also fire "cat_renamed" (first_rename unlocks once), so the
+	# full emit count is 2 (first_rename + named_gwendolyn) — what matters is
+	# named_gwendolyn itself only unlocked once, not duplicated per character.
+	assert_eq(GameState.achievement_service.account.achievement_state.size(), 2,
+		"the memorial achievement does not re-fire for a second Gwendolyn")
 
 # --- Core wiring: enter dungeon -----------------------------------------------
 

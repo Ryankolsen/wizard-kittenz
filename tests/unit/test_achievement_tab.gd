@@ -68,3 +68,7 @@ func test_achievement_reward_text_tome_uses_node_display_name():
 func test_achievement_reward_text_unknown_tome_falls_back_to_id():
 	var def := AchievementDefinition.make_tome("m", "", "T", "F", "not_a_real_node", "not_a_real_spell")
 	assert_eq(PauseMenuScript._achievement_reward_text(def), "not_a_real_node")
+
+func test_achievement_reward_text_none_shows_memorial_badge():
+	var def := AchievementDefinition.make_none("m", "", "T", "F")
+	assert_eq(PauseMenuScript._achievement_reward_text(def), "Memorial Badge")

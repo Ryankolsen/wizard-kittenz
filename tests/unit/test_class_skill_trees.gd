@@ -31,20 +31,40 @@ const CHONK_NODES := [
 	["maximum_chonk", 12, Spell.EffectKind.BUFF],
 ]
 
-# 5 class spells + 3 Phase Tome nodes (issue #460), the enemies-killed tiered
-# achievement reward line added to every Kitten-tier tree.
-func test_battle_kitten_tree_has_8_nodes():
+# 5 class spells + 3 Phase Tome nodes (issue #460) + 1 summon_gwendolyn node
+# (issue #475), both reward lines added to every Kitten-tier tree.
+func test_battle_kitten_tree_has_9_nodes():
 	var t := SkillTree.make_battle_kitten_tree()
-	assert_eq(t.nodes.size(), 8)
+	assert_eq(t.nodes.size(), 9)
 
-func test_wizard_kitten_tree_has_8_nodes():
-	assert_eq(SkillTree.make_wizard_kitten_tree().nodes.size(), 8)
+func test_wizard_kitten_tree_has_9_nodes():
+	assert_eq(SkillTree.make_wizard_kitten_tree().nodes.size(), 9)
 
-func test_sleepy_kitten_tree_has_8_nodes():
-	assert_eq(SkillTree.make_sleepy_kitten_tree().nodes.size(), 8)
+func test_sleepy_kitten_tree_has_9_nodes():
+	assert_eq(SkillTree.make_sleepy_kitten_tree().nodes.size(), 9)
 
-func test_chonk_kitten_tree_has_8_nodes():
-	assert_eq(SkillTree.make_chonk_kitten_tree().nodes.size(), 8)
+func test_chonk_kitten_tree_has_9_nodes():
+	assert_eq(SkillTree.make_chonk_kitten_tree().nodes.size(), 9)
+
+# summon_gwendolyn (issue #475): every Kitten-tier tree carries the node,
+# unreachable via normal leveling — the only unlock path is GwendolynGrant
+# calling SkillTree.unlock() directly when a cat is named "Gwendolyn".
+func test_summon_gwendolyn_node_on_every_kitten_tree_is_unreachable_by_leveling():
+	var trees := [
+		SkillTree.make_battle_kitten_tree(),
+		SkillTree.make_wizard_kitten_tree(),
+		SkillTree.make_sleepy_kitten_tree(),
+		SkillTree.make_chonk_kitten_tree(),
+	]
+	for tree in trees:
+		var node: SkillNode = tree.find("summon_gwendolyn")
+		assert_not_null(node, "summon_gwendolyn must exist on every Kitten-tier tree")
+		if node == null:
+			continue
+		assert_false(node.unlocked, "summon_gwendolyn starts locked")
+		assert_true(node.level_required > 30, "summon_gwendolyn must be unreachable via normal leveling (capstones top out at 30)")
+		assert_not_null(node.spell, "summon_gwendolyn must carry a placeholder spell")
+		assert_true(node.prerequisite_ids.is_empty())
 
 func _assert_roster(tree: SkillTree, roster: Array, label: String) -> void:
 	for entry in roster:

@@ -296,6 +296,22 @@ func test_claim_tome_inactive_slot_mutates_bundle_slot_only():
 	assert_null(active_qb.get_slot(1),
 		"the currently-active slot's live quickbar must not be touched")
 
+# --- NONE reward (memorial achievements, issue #475) --------------------------
+
+func _make_none_definition(id: String, trigger_event: String) -> AchievementDefinition:
+	return AchievementDefinition.make_none(id, trigger_event, "Title", "Flavor text.")
+
+func test_claim_none_reward_grants_no_currency_and_marks_claimed():
+	var def := _make_none_definition("memorial_ach", "test_event")
+	var account := AccountSaveData.new()
+	var service := AchievementService.new(account, [def])
+	service.record_event("test_event")
+	var ledger := CurrencyLedger.new()
+	var claimed := service.claim("memorial_ach", ledger, null, null)
+	assert_not_null(claimed)
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD), 0)
+	assert_true(account.achievement_state["memorial_ach"]["claimed"])
+
 func test_claim_nonexistent_id_is_safe_no_op():
 	var account := AccountSaveData.new()
 	var service := AchievementService.new(account, [])

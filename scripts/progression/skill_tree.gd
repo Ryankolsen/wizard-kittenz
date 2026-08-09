@@ -30,6 +30,20 @@ static func _add_phase_tome_nodes(t: SkillTree, mp_cost: int = 0) -> void:
 	t.add_node(SkillNode.make("phase_tome_iii", "Phase Tome III", phase_tome_iii, [], 1, PHASE_TOME_LEVEL_REQUIRED,
 		"Phases you out of harm's way, sears nearby enemies, and lands a bonus strike as it ends. Reward for 1,000 kills."))
 
+# Summon Gwendolyn (PRD #474 / issue #475): the memorial spell granted
+# directly (bypassing the achievements UI) to any character named
+# "Gwendolyn", by GwendolynGrant. Not reachable via normal leveling — same
+# unreachable-level_required convention as _add_phase_tome_nodes above.
+# Placeholder BUFF spell for this slice; cast-time/payoff behavior arrive in
+# later slices (issues #476/#478). Added to every Kitten-tier tree (and
+# inherited by each Cat-tier tree) so the grant resolves regardless of which
+# class the named cat is.
+static func _add_summon_gwendolyn_node(t: SkillTree, mp_cost: int = 0) -> void:
+	const SUMMON_GWENDOLYN_LEVEL_REQUIRED := 999
+	var summon_gwendolyn := Spell.make("summon_gwendolyn", "Summon Gwendolyn", Spell.EffectKind.BUFF, 0, 15.0, 0, mp_cost)
+	t.add_node(SkillNode.make("summon_gwendolyn", "Summon Gwendolyn", summon_gwendolyn, [], 1, SUMMON_GWENDOLYN_LEVEL_REQUIRED,
+		"Calls upon Gwendolyn's memory. Granted to any cat that bears her name."))
+
 func find(node_id: String) -> SkillNode:
 	for n in nodes:
 		if n.id == node_id:
@@ -97,6 +111,7 @@ static func make_battle_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("cat_nap", "Cat Nap", cat_nap, [], 1, 8, "A relaxed swipe that hits all nearby enemies."))
 	t.add_node(SkillNode.make("feral_frenzy", "Feral Frenzy", feral_frenzy, [], 1, 12, "Unleashes chaos on all surrounding enemies."))
 	_add_phase_tome_nodes(t)
+	_add_summon_gwendolyn_node(t)
 	return t
 
 # Cat-tier walking skeleton (PRD #418 / issue #420), extended with the rest
@@ -264,6 +279,7 @@ static func make_wizard_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("litter_storm", "Litter Storm", litter_storm, [], 1, 8, "Rains litter down on all nearby enemies."))
 	t.add_node(SkillNode.make("arcane_purr", "Arcane Purr", arcane_purr, [], 1, 12, "Channels pure arcane energy into one devastating blast."))
 	_add_phase_tome_nodes(t, 8)
+	_add_summon_gwendolyn_node(t, 8)
 	return t
 
 static func make_sleepy_kitten_tree() -> SkillTree:
@@ -286,6 +302,7 @@ static func make_sleepy_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("regen_snooze", "Regen Snooze", regen_snooze, [], 1, 8, "The party curls up for a cat-nap, regenerating HP over time."))
 	t.add_node(SkillNode.make("nap_of_the_gods", "Nap of the Gods", nap_of_the_gods, [], 1, 12, "A divine slumber that restores a large amount of HP to all nearby allies."))
 	_add_phase_tome_nodes(t, 8)
+	_add_summon_gwendolyn_node(t, 8)
 	return t
 
 static func make_chonk_kitten_tree() -> SkillTree:
@@ -301,6 +318,7 @@ static func make_chonk_kitten_tree() -> SkillTree:
 	t.add_node(SkillNode.make("hairball_horrors", "Hairball Horrors", hairball_horrors, [], 1, 8, "Scatters hairballs across the area."))
 	t.add_node(SkillNode.make("maximum_chonk", "Maximum Chonk", maximum_chonk, [], 1, 12, "Reaches peak chonkiness, boosting all stats."))
 	_add_phase_tome_nodes(t)
+	_add_summon_gwendolyn_node(t)
 	return t
 
 # DEPRECATED — pre-PRD-#124 archetype-shaped trees. Retained only so legacy

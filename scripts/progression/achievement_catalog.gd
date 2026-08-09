@@ -215,6 +215,14 @@ static func all() -> Array:
 		"Maximum Zoomies",
 		"All Epic gear equipped. You're basically radioactive with main-character energy.",
 		250))
+	# Memorial achievement (PRD #474 / issue #475): naming a cat "Gwendolyn"
+	# fires this badge-only unlock via record_event, independent of the direct
+	# summon_gwendolyn skill-node grant (GwendolynGrant) which delivers the
+	# real reward outside the claim flow — see make_none's doc comment.
+	out.append(AchievementDefinition.make_none(
+		"named_gwendolyn", "named_gwendolyn",
+		"In Memory of Gwendolyn",
+		"You named a kitten Gwendolyn. She would have loved that."))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's

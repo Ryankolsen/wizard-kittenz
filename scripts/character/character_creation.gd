@@ -298,6 +298,7 @@ func _on_customize_save() -> void:
 	if _customize_is_rename and GameState.current_character != null:
 		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
 		GameState.achievement_service.record_event("cat_renamed")
+		_grant_gwendolyn_if_named(n)
 		SaveManager.save_from_state()
 		_refresh_card_grid()
 		_show_main_menu()
@@ -309,6 +310,7 @@ func _on_customize_save() -> void:
 	if _customize_is_rename == false and _selected_archetype == "" and GameState.current_character != null:
 		QuickStartController.apply_identity_edit(GameState.current_character, n, 0)
 		GameState.achievement_service.record_event("cat_renamed")
+		_grant_gwendolyn_if_named(n)
 		SaveManager.save_from_state()
 		_show_main_menu()
 		return
@@ -321,6 +323,18 @@ func _on_customize_save() -> void:
 	var data := CharacterFactory.create_default(klass_name, n)
 	data.appearance_index = 0
 	_finalize(data)
+
+# Name-detection hook (PRD #474 / issue #475): naming a cat "Gwendolyn" — at
+# creation or via rename — unlocks the one-shot memorial achievement and
+# directly grants that character her own summon_gwendolyn skill node,
+# independent of the achievement-claim flow. Called with GameState.skill_tree
+# already pointing at the character being saved (live for both rename paths;
+# built by GameState.set_character inside _finalize for Path C).
+func _grant_gwendolyn_if_named(character_name: String) -> void:
+	if not GwendolynNameMatch.is_gwendolyn_name(character_name):
+		return
+	GameState.achievement_service.record_event("named_gwendolyn")
+	GwendolynGrant.grant_to_active(GameState.skill_tree, GameState.current_quickbar)
 
 func _class_name_for(archetype: String) -> String:
 	match archetype:
@@ -339,6 +353,7 @@ func _on_random_name() -> void:
 
 func _finalize(data: CharacterData) -> void:
 	GameState.set_character(data)
+	_grant_gwendolyn_if_named(data.character_name)
 	GameState.dungeon_run_controller = null
 	# Co-op picker created an empty slot's character: persist it as a real
 	# bundle slot (so its progress is the active slot for co-op rewards) and

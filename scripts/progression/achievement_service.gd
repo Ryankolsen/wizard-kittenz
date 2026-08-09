@@ -110,6 +110,8 @@ func claim(id: String, currency_ledger: CurrencyLedger = null, consumable_invent
 			var slot: CharacterSlotData = bundle.get_slot(earned_slot)
 			if slot != null:
 				_grant_tome_to_slot_data(slot, definition.reward_node_id, definition.reward_spell_id)
+	elif definition.reward_type == AchievementDefinition.RewardType.NONE:
+		pass
 	else:
 		var earned_slot := String(entry.get("earned_by_slot", ""))
 		if earned_slot == active_slot and consumable_inventory != null:

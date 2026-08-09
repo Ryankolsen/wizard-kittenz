@@ -8,7 +8,7 @@ extends RefCounted
 # #457), routed by AchievementService.claim() (issue #448, item routing
 # added in #458).
 
-enum RewardType { GOLD, POTION, ITEM, TOME }
+enum RewardType { GOLD, POTION, ITEM, TOME, NONE }
 
 var id: String = ""
 var trigger_event: String = ""
@@ -66,4 +66,18 @@ static func make_tome(p_id: String, p_trigger_event: String, p_title: String, p_
 	d.reward_type = RewardType.TOME
 	d.reward_node_id = p_node_id
 	d.reward_spell_id = p_spell_id
+	return d
+
+# A memorial/badge-only achievement (issue #475) — claiming it grants nothing,
+# since the real reward (e.g. a direct skill-node grant) was already delivered
+# outside the claim flow. Deliberately its own reward type rather than a
+# 0-amount GOLD grant, which would look like a real reward path silently
+# granting zero.
+static func make_none(p_id: String, p_trigger_event: String, p_title: String, p_flavor_text: String) -> AchievementDefinition:
+	var d := AchievementDefinition.new()
+	d.id = p_id
+	d.trigger_event = p_trigger_event
+	d.title = p_title
+	d.flavor_text = p_flavor_text
+	d.reward_type = RewardType.NONE
 	return d

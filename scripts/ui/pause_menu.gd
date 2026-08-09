@@ -834,6 +834,8 @@ static func _achievement_reward_text(def: AchievementDefinition) -> String:
 	if def.reward_type == AchievementDefinition.RewardType.TOME:
 		var node := SkillTree.make_battle_kitten_tree().find(def.reward_node_id)
 		return node.display_name if node != null else def.reward_node_id
+	if def.reward_type == AchievementDefinition.RewardType.NONE:
+		return "Memorial Badge"
 	var potion := PotionCatalog.find(def.reward_potion_id)
 	var potion_name := potion.display_name if potion != null else def.reward_potion_id
 	return "+%d %s" % [def.reward_amount, potion_name]
