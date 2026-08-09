@@ -39,6 +39,14 @@ var party_buff_stats: Array = []  # Array of {"stat": String, "amount": int}
 var party_buff_damage_mult: float = 0.0
 var party_buff_duration: float = 0.0
 
+# Cast-channel duration in seconds (issue #476). 0 (default) means an instant
+# cast — cast()/tick() behavior above is unchanged and every spell predating
+# this field keeps casting the same way. > 0 marks a spell as channeled; the
+# Quickbar/CastChannel wiring (not this class) locks the caster and defers
+# cast() until the channel completes uninterrupted, set post-construction by
+# skill_tree.gd the same way party_buff_* fields are.
+var cast_time: float = 0.0
+
 static func make(s_id: String, name: String, kind: int, power_val: int, cd: float = 1.0, hp_cost_val: int = 0, mp_cost_val: int = 0) -> Spell:
 	var s := Spell.new()
 	s.id = s_id

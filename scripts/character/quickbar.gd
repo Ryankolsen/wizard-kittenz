@@ -9,8 +9,22 @@ const SLOT_COUNT := 4
 
 signal slot_changed(slot: int)
 signal slot_fired(slot: int)
+signal channel_started(slot: int)
+signal channel_completed(slot: int)
+signal channel_cancelled(slot: int)
 
 var _slots: Array = [null, null, null, null]
+
+# Cast-channel state (issue #476). At most one channel is active at a time —
+# fire_slot() on a cast_time > 0 spell starts it instead of casting
+# immediately; tick()/on_damage_taken() (driven by Player each physics frame
+# and on damage respectively) advance or cancel it. The underlying
+# Spell.cast() — and therefore its cooldown/MP/HP cost — only runs once the
+# channel completes uninterrupted, so a cancelled channel never consumes a
+# cooldown and can be retried right away.
+var _channel := CastChannel.new()
+var _channel_slot: int = -1
+var _channel_caster = null
 
 func get_slot(n: int) -> Spell:
 	if n < 1 or n > SLOT_COUNT:
@@ -61,19 +75,68 @@ func on_spell_unlocked(spell: Spell) -> void:
 			slot_changed.emit(i + 1)
 			return
 
-# Attempts to fire the spell in slot n by calling spell.cast(caster). Returns
-# the cast outcome (false if slot empty, on cooldown, insufficient MP/HP, etc.).
-# Emits slot_fired(n) only on successful cast.
+# Attempts to fire the spell in slot n. Instant spells (cast_time == 0, the
+# default and every spell predating issue #476) call spell.cast(caster)
+# immediately as before. Channeled spells (cast_time > 0) start a cast-channel
+# instead — spell.cast() is deferred until tick() reports the channel
+# complete, so cooldown/MP/HP are untouched unless the channel finishes
+# uninterrupted. Returns false (no state mutation) for an empty slot, an
+# on-cooldown spell, or while another channel is already active.
+# Emits slot_fired(n) only on successful instant cast or completed channel.
 func fire_slot(n: int, caster = null) -> bool:
 	if n < 1 or n > SLOT_COUNT:
+		return false
+	if is_channeling():
 		return false
 	var spell: Spell = _slots[n - 1]
 	if spell == null:
 		return false
+	if spell.cast_time > 0.0:
+		if not spell.is_ready():
+			return false
+		_channel.start(spell.cast_time)
+		_channel_slot = n
+		_channel_caster = caster
+		channel_started.emit(n)
+		return true
 	if not spell.cast(caster):
 		return false
 	slot_fired.emit(n)
 	return true
+
+func is_channeling() -> bool:
+	return _channel.is_active()
+
+# Advances the active channel by dt. Called once per physics frame by the
+# player/quickbar wiring (mirrors Spell.tick's per-spell cooldown decay). A
+# completed channel fires the deferred spell.cast() now — cooldown/MP/HP are
+# consumed here, not at start(), so an interrupted channel never pays those
+# costs.
+func tick(dt: float) -> void:
+	if not _channel.is_active():
+		return
+	_channel.tick(dt)
+	if not _channel.is_complete():
+		return
+	var n := _channel_slot
+	var caster = _channel_caster
+	_channel_slot = -1
+	_channel_caster = null
+	var spell: Spell = _slots[n - 1] if n >= 1 and n <= SLOT_COUNT else null
+	if spell != null and spell.cast(caster):
+		slot_fired.emit(n)
+	channel_completed.emit(n)
+
+# Cancels the active channel (safe no-op if none is active). No cooldown is
+# consumed and the slot can be fired again immediately.
+func on_damage_taken() -> void:
+	if not _channel.is_active():
+		return
+	_channel.on_damage_taken()
+	var n := _channel_slot
+	_channel_slot = -1
+	_channel_caster = null
+	channel_cancelled.emit(n)
 
 # Returns {"slots": ["spell_id_or_empty", ...]} suitable for JSON round-trip.
 # Empty slots serialize as "" so the list keeps positional meaning.

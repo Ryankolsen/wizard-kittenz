@@ -34,13 +34,16 @@ static func _add_phase_tome_nodes(t: SkillTree, mp_cost: int = 0) -> void:
 # directly (bypassing the achievements UI) to any character named
 # "Gwendolyn", by GwendolynGrant. Not reachable via normal leveling — same
 # unreachable-level_required convention as _add_phase_tome_nodes above.
-# Placeholder BUFF spell for this slice; cast-time/payoff behavior arrive in
-# later slices (issues #476/#478). Added to every Kitten-tier tree (and
-# inherited by each Cat-tier tree) so the grant resolves regardless of which
-# class the named cat is.
+# cast_time = 15 (issue #476) makes this a channeled cast: the Quickbar/
+# CastChannel wiring locks the caster for the duration and cancels cleanly
+# on damage. The effect payoff (floor-wipe + VFX) is still a stub — that
+# lands in issue #478. Added to every Kitten-tier tree (and inherited by
+# each Cat-tier tree) so the grant resolves regardless of which class the
+# named cat is.
 static func _add_summon_gwendolyn_node(t: SkillTree, mp_cost: int = 0) -> void:
 	const SUMMON_GWENDOLYN_LEVEL_REQUIRED := 999
 	var summon_gwendolyn := Spell.make("summon_gwendolyn", "Summon Gwendolyn", Spell.EffectKind.BUFF, 0, 15.0, 0, mp_cost)
+	summon_gwendolyn.cast_time = 15.0
 	t.add_node(SkillNode.make("summon_gwendolyn", "Summon Gwendolyn", summon_gwendolyn, [], 1, SUMMON_GWENDOLYN_LEVEL_REQUIRED,
 		"Calls upon Gwendolyn's memory. Granted to any cat that bears her name."))
 

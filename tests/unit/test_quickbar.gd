@@ -99,6 +99,82 @@ func test_fire_slot_calls_spell_cast():
 	assert_true(qb.fire_slot(1, caster))
 	assert_signal_emitted_with_parameters(qb, "slot_fired", [1])
 
+# --- Cast-channel wiring (issue #476) ---
+
+func _channeled_spell(cast_time: float = 15.0) -> Spell:
+	var s := Spell.make("channeled_test_spell", "Channeled Test Spell", Spell.EffectKind.BUFF, 0, 1.0)
+	s.cast_time = cast_time
+	return s
+
+func test_fire_slot_with_cast_time_starts_channel_without_casting_yet():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell()
+	qb.assign(1, spell)
+	watch_signals(qb)
+	assert_true(qb.fire_slot(1, null), "starting a channel is itself a successful input")
+	assert_true(qb.is_channeling())
+	assert_eq(spell.cooldown_remaining, 0.0, "cooldown must not be consumed until the channel completes")
+	assert_signal_not_emitted(qb, "slot_fired")
+	assert_signal_emitted_with_parameters(qb, "channel_started", [1])
+
+func test_channel_tick_to_completion_casts_and_emits_slot_fired():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	watch_signals(qb)
+	qb.tick(15.0)
+	assert_false(qb.is_channeling())
+	assert_gt(spell.cooldown_remaining, 0.0, "cooldown is consumed only on channel completion")
+	assert_signal_emitted_with_parameters(qb, "slot_fired", [1])
+	assert_signal_emitted_with_parameters(qb, "channel_completed", [1])
+
+func test_channel_partial_tick_does_not_cast():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	watch_signals(qb)
+	qb.tick(10.0)
+	assert_true(qb.is_channeling())
+	assert_signal_not_emitted(qb, "slot_fired")
+
+func test_on_damage_taken_cancels_channel_without_consuming_cooldown():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	qb.tick(5.0)
+	watch_signals(qb)
+	qb.on_damage_taken()
+	assert_false(qb.is_channeling())
+	assert_eq(spell.cooldown_remaining, 0.0, "an interrupted channel must not consume a cooldown")
+	assert_signal_emitted_with_parameters(qb, "channel_cancelled", [1])
+	# Retry is immediate: no penalty, no lockout.
+	assert_true(qb.fire_slot(1, null), "an interrupted cast can be retried immediately")
+
+func test_fire_slot_is_blocked_while_another_channel_is_active():
+	var qb := Quickbar.new()
+	var a := _channeled_spell(15.0)
+	var b := _channeled_spell(15.0)
+	b.id = "channeled_test_spell_2"
+	qb.assign(1, a)
+	qb.assign(2, b)
+	qb.fire_slot(1, null)
+	assert_false(qb.fire_slot(2, null), "a second cast cannot start while a channel is active")
+
+func test_instant_spell_cast_time_zero_is_unaffected_by_channel_logic():
+	var tree := _wizard_tree()
+	var qb := Quickbar.new()
+	var a := _spell(tree, "hairball_hex")
+	assert_eq(a.cast_time, 0.0, "existing spells default to instant cast")
+	var caster := _StubCaster.new()
+	caster.magic_points = 999
+	caster.hp = 999
+	qb.assign(1, a)
+	assert_true(qb.fire_slot(1, caster))
+	assert_false(qb.is_channeling(), "an instant cast never enters the channeling state")
+
 func test_serialize_deserialize_preserves_assignments():
 	var tree := _wizard_tree()
 	var qb := Quickbar.new()

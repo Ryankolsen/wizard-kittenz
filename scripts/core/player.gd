@@ -265,6 +265,11 @@ func _broadcast_damage(enemy_id: String, damage: int, kind: int = DamageKind.Kin
 func take_damage(damage: int, source_position: Vector2) -> void:
 	if damage <= 0:
 		return
+	# Issue #476: any positive damage lands here regardless of solo/co-op, so
+	# it's the single choke point to cancel an in-progress cast-channel (e.g.
+	# Summon Gwendolyn) — no cooldown consumed, retry allowed immediately.
+	if _quickbar != null:
+		_quickbar.on_damage_taken()
 	var lob := _lobby()
 	if lob == null:
 		return
@@ -371,7 +376,12 @@ func _init_quickbar() -> void:
 	_quickbar_controller.quickbar = _quickbar
 	_quickbar_controller.caster = data
 	add_child(_quickbar_controller)
-	_quickbar_controller.slot_fired.connect(_on_slot_fired)
+	# Issue #476: listen on Quickbar.slot_fired directly rather than the
+	# controller's re-emit. A channeled cast (e.g. Summon Gwendolyn) only
+	# completes later, from Quickbar.tick() — not through the controller's
+	# try_fire_slot() path — so Quickbar itself is the single source of
+	# truth that fires exactly once per successful cast, instant or channeled.
+	_quickbar.slot_fired.connect(_on_slot_fired)
 
 func _on_slot_fired(n: int) -> void:
 	var spell = _quickbar.get_slot(n)
@@ -379,7 +389,7 @@ func _on_slot_fired(n: int) -> void:
 		return
 	# Slice 5 of PRD #328 (issue #333): broadcast a quickbar_cast packet
 	# so every peer's RemoteKitten can mirror the cast pose. Reaches this
-	# point only after QuickbarController.slot_fired emits, which itself
+	# point only after Quickbar.slot_fired emits, which itself
 	# only fires after Spell.cast() succeeds — so cooldown / MP / HP
 	# gating already filtered the spam case (same shape as the slice-4
 	# cooldown gate around _broadcast_attack). Solo path is a single
@@ -398,7 +408,11 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
-	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# Issue #476: an active cast-channel (Summon Gwendolyn) locks movement and
+	# other actions for its duration — zero input_dir rather than early-return
+	# so idle tracking / facing / animation below still see a stationary frame.
+	var channeling: bool = _quickbar != null and _quickbar.is_channeling()
+	var input_dir := Vector2.ZERO if channeling else Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# ConfusionEffect (#160) flips the input vector while active. Done here
 	# rather than inside compute_velocity so facing / sprite flip below also
 	# read the reversed direction — confused players visibly face "wrong".
@@ -439,13 +453,15 @@ func _physics_process(delta: float) -> void:
 	_apply_ale_wobble(delta)
 	_apply_wet_tint()
 	_maybe_broadcast_position()
-	if Input.is_action_just_pressed("attack"):
+	if Input.is_action_just_pressed("attack") and not channeling:
 		_try_attack()
 	if _attack_choreographer != null:
 		_attack_choreographer.tick(delta)
 	if _unarmed_attack != null:
 		_unarmed_attack.tick(delta)
-	if _quickbar_controller != null:
+	if _quickbar != null:
+		_quickbar.tick(delta)
+	if _quickbar_controller != null and not channeling:
 		_quickbar_controller._poll_inputs()
 
 # Emit `died` exactly once when hp first reaches zero. The death-screen

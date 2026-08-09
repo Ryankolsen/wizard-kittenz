@@ -127,6 +127,61 @@ func test_player_casts_through_quickbar_on_cast_slot_1():
 	assert_gt(hairball.cooldown_remaining, 0.0,
 		"casting via Quickbar must start the spell cooldown")
 
+# --- Cast-channel wiring (issue #476) ---
+
+func _channeled_spell(cast_time: float = 15.0) -> Spell:
+	var s := Spell.make("test_channeled_spell", "Test Channeled Spell", Spell.EffectKind.BUFF, 0, 1.0)
+	s.cast_time = cast_time
+	return s
+
+func test_channeled_cast_locks_movement_while_active():
+	var p := _make_player_with_wizard_tree()
+	var qb: Quickbar = p.get_quickbar()
+	qb.assign(2, _channeled_spell(15.0))
+	p._quickbar_controller.try_fire_slot(2)
+	assert_true(qb.is_channeling(), "starting the channel should lock the player")
+	Input.action_press("move_right")
+	p._physics_process(0.016)
+	Input.action_release("move_right")
+	assert_eq(p.velocity, Vector2.ZERO,
+		"movement input must be ignored while a cast channel is active")
+
+func test_channeled_cast_blocks_further_quickbar_casts_while_active():
+	var p := _make_player_with_wizard_tree()
+	var qb: Quickbar = p.get_quickbar()
+	qb.assign(2, _channeled_spell(15.0))
+	p._quickbar_controller.try_fire_slot(2)
+	var hairball = qb.get_slot(1)
+	var mp_before := p.data.magic_points
+	p._quickbar_controller.try_fire_slot(1)
+	assert_eq(p.data.magic_points, mp_before,
+		"a second slot cannot be fired while a channel is active")
+	assert_eq(hairball.cooldown_remaining, 0.0)
+
+func test_taking_damage_cancels_channel_and_allows_immediate_retry():
+	var p := _make_player_with_wizard_tree()
+	var qb: Quickbar = p.get_quickbar()
+	var spell := _channeled_spell(15.0)
+	qb.assign(2, spell)
+	p._quickbar_controller.try_fire_slot(2)
+	qb.tick(5.0)
+	p.take_damage(1, Vector2.ZERO)
+	assert_false(qb.is_channeling(), "damage must cancel the active channel")
+	assert_eq(spell.cooldown_remaining, 0.0, "a cancelled channel must not consume a cooldown")
+	assert_true(p._quickbar_controller.try_fire_slot(2),
+		"the player may attempt to cast again immediately after an interrupted cast")
+
+func test_uninterrupted_channel_completes_without_error():
+	var p := _make_player_with_wizard_tree()
+	var qb: Quickbar = p.get_quickbar()
+	var spell := _channeled_spell(15.0)
+	qb.assign(2, spell)
+	p._quickbar_controller.try_fire_slot(2)
+	qb.tick(15.0)
+	assert_false(qb.is_channeling())
+	assert_gt(spell.cooldown_remaining, 0.0,
+		"an uninterrupted channel completes and consumes the cooldown")
+
 # --- Self-heal counter wiring (PRD #453 / issue #461) ---
 
 func _add_spell_hitbox(p: Player) -> void:
