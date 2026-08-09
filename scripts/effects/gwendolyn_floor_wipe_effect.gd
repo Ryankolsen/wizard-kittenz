@@ -60,6 +60,7 @@ func _build_ui() -> void:
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override("font_size", 20)
 	_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_label.position.y = 48.0
 	_label.visible = false
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
