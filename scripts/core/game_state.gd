@@ -235,6 +235,7 @@ func _hydrate_active_character(slot: CharacterSlotData) -> void:
 	else:
 		for spell in skill_tree.get_unlocked_spells():
 			qb.on_spell_unlocked(spell)
+	qb.gwendolyn_last_summon_unix = slot.gwendolyn_last_summon_unix
 	current_quickbar = qb
 	# Potion persistence (PRD #358 / slice 6). Restore stack counts + belt slot
 	# assignments from the slot. Unknown ids (catalog dropped a potion since

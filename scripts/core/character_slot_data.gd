@@ -45,6 +45,11 @@ var consumable_inventory_data: Dictionary = {}
 var potion_belt_slots: Array = []
 var dungeon_run_state: Dictionary = {}
 var offline_xp_earned: int = 0
+# Unix timestamp of this character's last successful Summon Gwendolyn cast
+# (issue #477). 0 = never used. Read/written by GwendolynCooldown via
+# Quickbar.gwendolyn_last_summon_unix so the real-world hourly cooldown
+# survives an app restart instead of resetting.
+var gwendolyn_last_summon_unix: int = 0
 
 # Snapshot live per-character state into a slot. Used by SaveManager.save_from_state
 # to assemble the active slot of the SaveBundle (PRD #250 / slice 2). Each
@@ -87,6 +92,7 @@ static func from_state(c: CharacterData, tree: SkillTree = null, item_inv: ItemI
 			s.item_bag.append(it.id)
 	if qb != null:
 		s.quickbar_slots = qb.serialize().get("slots", [])
+		s.gwendolyn_last_summon_unix = qb.gwendolyn_last_summon_unix
 	if consumable_inv != null:
 		s.consumable_inventory_data = consumable_inv.serialize()
 	if potion_belt != null:
@@ -130,6 +136,7 @@ func to_dict() -> Dictionary:
 		"potion_belt_slots": potion_belt_slots.duplicate(),
 		"dungeon_run_state": dungeon_run_state.duplicate(true),
 		"offline_xp_earned": offline_xp_earned,
+		"gwendolyn_last_summon_unix": gwendolyn_last_summon_unix,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterSlotData:
@@ -185,4 +192,5 @@ static func from_dict(d: Dictionary) -> CharacterSlotData:
 	if run_state is Dictionary:
 		s.dungeon_run_state = run_state.duplicate(true)
 	s.offline_xp_earned = int(d.get("offline_xp_earned", 0))
+	s.gwendolyn_last_summon_unix = int(d.get("gwendolyn_last_summon_unix", 0))
 	return s

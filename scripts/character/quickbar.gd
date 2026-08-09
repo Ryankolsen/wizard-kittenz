@@ -26,6 +26,16 @@ var _channel := CastChannel.new()
 var _channel_slot: int = -1
 var _channel_caster = null
 
+# Real-world hourly cooldown for Summon Gwendolyn specifically (issue #477),
+# layered on top of (not replacing) the cast-channel above. Unix timestamp
+# of the last successful, uninterrupted cast; 0 = never cast. Persisted via
+# CharacterSlotData.gwendolyn_last_summon_unix so it survives app restarts.
+const _GWENDOLYN_SPELL_ID := "summon_gwendolyn"
+var gwendolyn_last_summon_unix: int = 0
+
+static func _resolve_now(now_unix: int) -> int:
+	return now_unix if now_unix >= 0 else int(Time.get_unix_time_from_system())
+
 func get_slot(n: int) -> Spell:
 	if n < 1 or n > SLOT_COUNT:
 		return null
@@ -83,13 +93,18 @@ func on_spell_unlocked(spell: Spell) -> void:
 # uninterrupted. Returns false (no state mutation) for an empty slot, an
 # on-cooldown spell, or while another channel is already active.
 # Emits slot_fired(n) only on successful instant cast or completed channel.
-func fire_slot(n: int, caster = null) -> bool:
+# now_unix is an optional real-world-clock override for the Gwendolyn
+# hourly-cooldown check below (issue #477); -1 (default) reads the system
+# clock, tests pass a fixed value for deterministic assertions.
+func fire_slot(n: int, caster = null, now_unix: int = -1) -> bool:
 	if n < 1 or n > SLOT_COUNT:
 		return false
 	if is_channeling():
 		return false
 	var spell: Spell = _slots[n - 1]
 	if spell == null:
+		return false
+	if spell.id == _GWENDOLYN_SPELL_ID and not GwendolynCooldown.is_ready(gwendolyn_last_summon_unix, _resolve_now(now_unix)):
 		return false
 	if spell.cast_time > 0.0:
 		if not spell.is_ready():
@@ -101,6 +116,8 @@ func fire_slot(n: int, caster = null) -> bool:
 		return true
 	if not spell.cast(caster):
 		return false
+	if spell.id == _GWENDOLYN_SPELL_ID:
+		gwendolyn_last_summon_unix = _resolve_now(now_unix)
 	slot_fired.emit(n)
 	return true
 
@@ -112,7 +129,7 @@ func is_channeling() -> bool:
 # completed channel fires the deferred spell.cast() now — cooldown/MP/HP are
 # consumed here, not at start(), so an interrupted channel never pays those
 # costs.
-func tick(dt: float) -> void:
+func tick(dt: float, now_unix: int = -1) -> void:
 	if not _channel.is_active():
 		return
 	_channel.tick(dt)
@@ -124,6 +141,8 @@ func tick(dt: float) -> void:
 	_channel_caster = null
 	var spell: Spell = _slots[n - 1] if n >= 1 and n <= SLOT_COUNT else null
 	if spell != null and spell.cast(caster):
+		if spell.id == _GWENDOLYN_SPELL_ID:
+			gwendolyn_last_summon_unix = _resolve_now(now_unix)
 		slot_fired.emit(n)
 	channel_completed.emit(n)
 

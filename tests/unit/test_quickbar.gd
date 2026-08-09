@@ -191,6 +191,53 @@ func test_serialize_deserialize_preserves_assignments():
 	assert_eq(qb2.get_slot(3).id, "whisker_bolt")
 	assert_null(qb2.get_slot(4))
 
+# --- Gwendolyn hourly cooldown gating (issue #477) ---
+
+func _gwendolyn_spell() -> Spell:
+	var s := Spell.make("summon_gwendolyn", "Summon Gwendolyn", Spell.EffectKind.BUFF, 0, 15.0)
+	s.cast_time = 15.0
+	return s
+
+func test_fire_slot_blocked_while_gwendolyn_on_cooldown():
+	var qb := Quickbar.new()
+	var spell := _gwendolyn_spell()
+	qb.assign(1, spell)
+	var now := 100000
+	qb.gwendolyn_last_summon_unix = now - 1800
+	watch_signals(qb)
+	assert_false(qb.fire_slot(1, null, now))
+	assert_false(qb.is_channeling())
+	assert_signal_not_emitted(qb, "channel_started")
+
+func test_fire_slot_allowed_once_gwendolyn_cooldown_expires():
+	var qb := Quickbar.new()
+	var spell := _gwendolyn_spell()
+	qb.assign(1, spell)
+	var now := 100000
+	qb.gwendolyn_last_summon_unix = now - 3700
+	assert_true(qb.fire_slot(1, null, now))
+	assert_true(qb.is_channeling())
+
+func test_completed_gwendolyn_channel_starts_cooldown():
+	var qb := Quickbar.new()
+	var spell := _gwendolyn_spell()
+	qb.assign(1, spell)
+	var now := 100000
+	assert_eq(qb.gwendolyn_last_summon_unix, 0)
+	qb.fire_slot(1, null, now)
+	qb.tick(15.0, now)
+	assert_eq(qb.gwendolyn_last_summon_unix, now)
+
+func test_cancelled_gwendolyn_channel_does_not_start_cooldown():
+	var qb := Quickbar.new()
+	var spell := _gwendolyn_spell()
+	qb.assign(1, spell)
+	var now := 100000
+	qb.fire_slot(1, null, now)
+	qb.tick(5.0, now)
+	qb.on_damage_taken()
+	assert_eq(qb.gwendolyn_last_summon_unix, 0, "interrupted cast must not start the cooldown")
+
 func test_inputmap_has_cast_slot_actions():
 	for i in range(1, 5):
 		var name := "cast_slot_%d" % i
