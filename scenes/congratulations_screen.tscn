@@ -32,50 +32,53 @@ anchor_bottom = 1.0
 [node name="Panel" type="PanelContainer" parent="Backdrop/Center"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_congrats")
 
-[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel"]
+[node name="Scroll" type="ScrollContainer" parent="Backdrop/Center/Panel"]
+horizontal_scroll_mode = 0
+
+[node name="VBox" type="VBoxContainer" parent="Backdrop/Center/Panel/Scroll"]
 theme_override_constants/separation = 10
 
-[node name="Headline" type="Label" parent="Backdrop/Center/Panel/VBox"]
+[node name="Headline" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox"]
 horizontal_alignment = 1
 text = "Congratulations!"
 theme_override_font_sizes/font_size = 24
 autowrap_mode = 2
 
-[node name="Stats" type="VBoxContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="Stats" type="VBoxContainer" parent="Backdrop/Center/Panel/Scroll/VBox"]
 theme_override_constants/separation = 4
 
-[node name="FloorLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+[node name="FloorLabel" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox/Stats"]
 horizontal_alignment = 1
 text = "Floor: 0"
 
-[node name="EnemiesLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+[node name="EnemiesLabel" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox/Stats"]
 horizontal_alignment = 1
 text = "Enemies Slain: 0"
 
-[node name="XPLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+[node name="XPLabel" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox/Stats"]
 horizontal_alignment = 1
 text = "XP Earned: 0"
 
-[node name="GoldLabel" type="Label" parent="Backdrop/Center/Panel/VBox/Stats"]
+[node name="GoldLabel" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox/Stats"]
 horizontal_alignment = 1
 text = "Gold Earned: 0"
 
-[node name="ButtonRow" type="HFlowContainer" parent="Backdrop/Center/Panel/VBox"]
+[node name="ButtonRow" type="HFlowContainer" parent="Backdrop/Center/Panel/Scroll/VBox"]
 alignment = 1
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 
-[node name="NextFloor" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+[node name="NextFloor" type="Button" parent="Backdrop/Center/Panel/Scroll/VBox/ButtonRow"]
 text = "Next Floor"
 
-[node name="WaitingLabel" type="Label" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+[node name="WaitingLabel" type="Label" parent="Backdrop/Center/Panel/Scroll/VBox/ButtonRow"]
 visible = false
 horizontal_alignment = 1
 autowrap_mode = 2
 text = "Waiting for the party leader to choose the next floor…"
 
-[node name="UpdateCharacter" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+[node name="UpdateCharacter" type="Button" parent="Backdrop/Center/Panel/Scroll/VBox/ButtonRow"]
 text = "Update Character"
 
-[node name="SaveAndExit" type="Button" parent="Backdrop/Center/Panel/VBox/ButtonRow"]
+[node name="SaveAndExit" type="Button" parent="Backdrop/Center/Panel/Scroll/VBox/ButtonRow"]
 text = "Save & Exit"

@@ -27,7 +27,7 @@ func test_leader_next_floor_button_visible_active_and_emits():
 	var s := _instantiate()
 	watch_signals(s)
 	s.populate(_build_summary(), "Headline", true)
-	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/NextFloor")
+	var btn: Button = s.get_node("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/NextFloor")
 	assert_true(btn.visible, "leader next-floor button should be visible")
 	assert_false(btn.disabled, "leader next-floor button should not be disabled")
 	btn.pressed.emit()
@@ -37,9 +37,9 @@ func test_leader_next_floor_button_visible_active_and_emits():
 func test_non_leader_next_floor_replaced_with_waiting_label():
 	var s := _instantiate()
 	s.populate(_build_summary(), "Headline", false)
-	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/NextFloor")
+	var btn: Button = s.get_node("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/NextFloor")
 	assert_false(btn.visible, "non-leader next-floor button should be hidden")
-	var status: Label = s.get_node_or_null("Backdrop/Center/Panel/VBox/ButtonRow/WaitingLabel")
+	var status: Label = s.get_node_or_null("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/WaitingLabel")
 	assert_not_null(status, "non-leader screen should expose a waiting status label")
 	assert_true(status.visible, "waiting status should be visible for non-leader")
 	assert_eq(status.text, WAITING_TEXT)
@@ -49,13 +49,13 @@ func test_headline_and_summary_render_for_both_states():
 	for is_leader in [true, false]:
 		var s := _instantiate()
 		s.populate(FloorRunSummary.new(7, 33, 410, 99), "Boss down!", is_leader)
-		var headline: Label = s.get_node("Backdrop/Center/Panel/VBox/Headline")
+		var headline: Label = s.get_node("Backdrop/Center/Panel/Scroll/VBox/Headline")
 		assert_eq(headline.text, "Boss down!",
 			"headline must render for is_leader=%s" % [is_leader])
-		var floor_lbl: Label = s.get_node("Backdrop/Center/Panel/VBox/Stats/FloorLabel")
-		var enemies_lbl: Label = s.get_node("Backdrop/Center/Panel/VBox/Stats/EnemiesLabel")
-		var xp_lbl: Label = s.get_node("Backdrop/Center/Panel/VBox/Stats/XPLabel")
-		var gold_lbl: Label = s.get_node("Backdrop/Center/Panel/VBox/Stats/GoldLabel")
+		var floor_lbl: Label = s.get_node("Backdrop/Center/Panel/Scroll/VBox/Stats/FloorLabel")
+		var enemies_lbl: Label = s.get_node("Backdrop/Center/Panel/Scroll/VBox/Stats/EnemiesLabel")
+		var xp_lbl: Label = s.get_node("Backdrop/Center/Panel/Scroll/VBox/Stats/XPLabel")
+		var gold_lbl: Label = s.get_node("Backdrop/Center/Panel/Scroll/VBox/Stats/GoldLabel")
 		assert_true(floor_lbl.text.find("7") != -1)
 		assert_true(enemies_lbl.text.find("33") != -1)
 		assert_true(xp_lbl.text.find("410") != -1)
@@ -68,7 +68,7 @@ func test_non_leader_cannot_emit_next_floor_pressed():
 	var s := _instantiate()
 	watch_signals(s)
 	s.populate(_build_summary(), "Headline", false)
-	var btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/NextFloor")
+	var btn: Button = s.get_node("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/NextFloor")
 	assert_true(btn.disabled or not btn.visible,
 		"non-leader next-floor button must be disabled or hidden")
 	# Disabled buttons swallow pressed.emit() in Godot, but pin the no-emit
@@ -82,8 +82,8 @@ func test_other_buttons_active_and_emit_in_both_states():
 		var s := _instantiate()
 		watch_signals(s)
 		s.populate(_build_summary(), "Headline", is_leader)
-		var update_btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/UpdateCharacter")
-		var exit_btn: Button = s.get_node("Backdrop/Center/Panel/VBox/ButtonRow/SaveAndExit")
+		var update_btn: Button = s.get_node("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/UpdateCharacter")
+		var exit_btn: Button = s.get_node("Backdrop/Center/Panel/Scroll/VBox/ButtonRow/SaveAndExit")
 		assert_true(update_btn.visible and not update_btn.disabled,
 			"update button must stay active for is_leader=%s" % [is_leader])
 		assert_true(exit_btn.visible and not exit_btn.disabled,

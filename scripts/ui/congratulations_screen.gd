@@ -35,34 +35,37 @@ var _gold_label: Label
 var _next_floor_button: Button
 var _waiting_label: Label
 var _panel: PanelContainer
+var _scroll: ScrollContainer
 var _vbox: VBoxContainer
 var _stats: VBoxContainer
 var _button_row: HFlowContainer
 var _natural_panel_width: float = 0.0
 var _panel_margins: float = 0.0
+var _panel_margins_y: float = 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_panel = $Backdrop/Center/Panel
-	_vbox = $Backdrop/Center/Panel/VBox
-	_stats = $Backdrop/Center/Panel/VBox/Stats
-	_button_row = $Backdrop/Center/Panel/VBox/ButtonRow
-	_headline = $Backdrop/Center/Panel/VBox/Headline
-	_floor_label = $Backdrop/Center/Panel/VBox/Stats/FloorLabel
-	_enemies_label = $Backdrop/Center/Panel/VBox/Stats/EnemiesLabel
-	_xp_label = $Backdrop/Center/Panel/VBox/Stats/XPLabel
-	_gold_label = $Backdrop/Center/Panel/VBox/Stats/GoldLabel
-	_next_floor_button = $Backdrop/Center/Panel/VBox/ButtonRow/NextFloor
-	_waiting_label = $Backdrop/Center/Panel/VBox/ButtonRow/WaitingLabel
-	var update_btn: Button = $Backdrop/Center/Panel/VBox/ButtonRow/UpdateCharacter
-	var exit_btn: Button = $Backdrop/Center/Panel/VBox/ButtonRow/SaveAndExit
+	_scroll = $Backdrop/Center/Panel/Scroll
+	_vbox = $Backdrop/Center/Panel/Scroll/VBox
+	_stats = $Backdrop/Center/Panel/Scroll/VBox/Stats
+	_button_row = $Backdrop/Center/Panel/Scroll/VBox/ButtonRow
+	_headline = $Backdrop/Center/Panel/Scroll/VBox/Headline
+	_floor_label = $Backdrop/Center/Panel/Scroll/VBox/Stats/FloorLabel
+	_enemies_label = $Backdrop/Center/Panel/Scroll/VBox/Stats/EnemiesLabel
+	_xp_label = $Backdrop/Center/Panel/Scroll/VBox/Stats/XPLabel
+	_gold_label = $Backdrop/Center/Panel/Scroll/VBox/Stats/GoldLabel
+	_next_floor_button = $Backdrop/Center/Panel/Scroll/VBox/ButtonRow/NextFloor
+	_waiting_label = $Backdrop/Center/Panel/Scroll/VBox/ButtonRow/WaitingLabel
+	var update_btn: Button = $Backdrop/Center/Panel/Scroll/VBox/ButtonRow/UpdateCharacter
+	var exit_btn: Button = $Backdrop/Center/Panel/Scroll/VBox/ButtonRow/SaveAndExit
 	_next_floor_button.pressed.connect(_on_next_floor_pressed)
 	update_btn.pressed.connect(_on_update_character_pressed)
 	exit_btn.pressed.connect(_on_save_and_exit_pressed)
-	get_viewport().size_changed.connect(_update_panel_width)
+	get_viewport().size_changed.connect(_update_panel_size)
 	await get_tree().process_frame
 	_natural_panel_width = _compute_natural_panel_width()
-	_update_panel_width()
+	_update_panel_size()
 
 # ButtonRow is an HFlowContainer so it CAN wrap to a small width — its own
 # reported minimum size is just the widest single button, not what it looks
@@ -80,9 +83,11 @@ func _compute_natural_panel_width() -> float:
 		button_row_width += _button_row.get_theme_constant("h_separation") * (visible_count - 1)
 	var content_width: float = maxf(button_row_width, _stats.get_combined_minimum_size().x)
 	_panel_margins = 0.0
+	_panel_margins_y = 0.0
 	var panel_style := _panel.get_theme_stylebox("panel")
 	if panel_style is StyleBoxFlat:
 		_panel_margins = panel_style.content_margin_left + panel_style.content_margin_right
+		_panel_margins_y = panel_style.content_margin_top + panel_style.content_margin_bottom
 	return content_width + _panel_margins
 
 # Deferred one frame past _ready because the panel's theme-driven minimum
@@ -100,6 +105,31 @@ func _update_panel_width(vp_width_override: float = -1.0) -> void:
 	var target_panel_width: float = minf(vp_width - VIEWPORT_EDGE_MARGIN, cap)
 	_vbox.custom_minimum_size.x = maxf(target_panel_width - _panel_margins, 0.0)
 
+# A boss with a long display name wraps the headline onto extra lines,
+# growing the panel taller than the viewport (screen gets cut off on phone
+# aspect ratios / short windows). VBox lives inside a ScrollContainer so
+# once its natural height — measured *after* the width cap above has been
+# applied and a layout pass has run, since wrapping only happens once the
+# width is fixed — exceeds the available viewport height, the
+# ScrollContainer is capped to that available height and the overflow
+# scrolls instead of pushing the buttons off-screen.
+func _update_panel_height(vp_height_override: float = -1.0) -> void:
+	if _scroll == null or _vbox == null:
+		return
+	var natural_height := _vbox.get_combined_minimum_size().y
+	if natural_height <= 0.0:
+		return
+	var vp_height := vp_height_override
+	if vp_height < 0.0:
+		vp_height = get_viewport().get_visible_rect().size.y
+	var available: float = maxf(vp_height - VIEWPORT_EDGE_MARGIN - _panel_margins_y, 0.0)
+	_scroll.custom_minimum_size.y = minf(natural_height, available)
+
+func _update_panel_size(vp_width_override: float = -1.0, vp_height_override: float = -1.0) -> void:
+	_update_panel_width(vp_width_override)
+	await get_tree().process_frame
+	_update_panel_height(vp_height_override)
+
 # PRD #348 / issue #350 — `is_leader` defaults true so solo (and every
 # pre-#350 caller) keeps the active "Next Floor" button. Co-op peers
 # pass false and get the passive "Waiting for the party leader…" label
@@ -116,6 +146,7 @@ func populate(summary: FloorRunSummary, message: String, is_leader: bool = true)
 	_next_floor_button.visible = is_leader
 	_next_floor_button.disabled = not is_leader
 	_waiting_label.visible = not is_leader
+	_update_panel_size()
 
 func _on_next_floor_pressed() -> void:
 	# Defense-in-depth: a disabled button shouldn't fire pressed in Godot,
