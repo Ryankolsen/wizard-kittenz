@@ -124,6 +124,22 @@ func fire_slot(n: int, caster = null, now_unix: int = -1) -> bool:
 func is_channeling() -> bool:
 	return _channel.is_active()
 
+# 0.0..1.0 elapsed fraction of the active channel, for progress-bar UI.
+func channel_progress() -> float:
+	return _channel.progress()
+
+# Seconds left in the active channel, for a countdown label.
+func channel_remaining() -> float:
+	return _channel.remaining()
+
+# The spell currently being channeled, or null if none. Lets any future
+# cast_time > 0 spell's own display_name show on the cast-progress-bar UI
+# instead of it being hardcoded to one spell.
+func channeling_spell() -> Spell:
+	if not _channel.is_active() or _channel_slot < 1 or _channel_slot > SLOT_COUNT:
+		return null
+	return _slots[_channel_slot - 1]
+
 # Advances the active channel by dt. Called once per physics frame by the
 # player/quickbar wiring (mirrors Spell.tick's per-spell cooldown decay). A
 # completed channel fires the deferred spell.cast() now — cooldown/MP/HP are

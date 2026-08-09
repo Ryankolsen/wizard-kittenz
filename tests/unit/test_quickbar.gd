@@ -139,6 +139,35 @@ func test_channel_partial_tick_does_not_cast():
 	assert_true(qb.is_channeling())
 	assert_signal_not_emitted(qb, "slot_fired")
 
+func test_channeling_spell_reports_the_spell_being_cast():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	assert_eq(qb.channeling_spell(), spell)
+
+func test_channeling_spell_is_null_when_not_channeling():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	assert_null(qb.channeling_spell())
+
+func test_channeling_spell_is_null_after_completion():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	qb.tick(15.0)
+	assert_null(qb.channeling_spell())
+
+func test_channeling_spell_is_null_after_cancellation():
+	var qb := Quickbar.new()
+	var spell := _channeled_spell(15.0)
+	qb.assign(1, spell)
+	qb.fire_slot(1, null)
+	qb.on_damage_taken()
+	assert_null(qb.channeling_spell())
+
 func test_on_damage_taken_cancels_channel_without_consuming_cooldown():
 	var qb := Quickbar.new()
 	var spell := _channeled_spell(15.0)

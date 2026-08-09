@@ -40,3 +40,16 @@ func is_complete() -> bool:
 
 func is_cancelled() -> bool:
 	return state == State.CANCELLED
+
+# 0.0..1.0 fraction of the channel elapsed so far, for progress-bar UI. 0.0
+# when idle/cancelled/duration is zero (nothing to show).
+func progress() -> float:
+	if duration <= 0.0:
+		return 0.0
+	return clampf(elapsed / duration, 0.0, 1.0)
+
+# Seconds left in the channel, for a countdown label. 0.0 when idle/cancelled.
+func remaining() -> float:
+	if state != State.ACTIVE:
+		return 0.0
+	return maxf(0.0, duration - elapsed)

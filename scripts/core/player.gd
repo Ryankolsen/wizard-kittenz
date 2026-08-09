@@ -159,6 +159,7 @@ func _ready() -> void:
 	_gwendolyn_floor_wipe_effect = get_node_or_null("GwendolynFloorWipeEffect") as GwendolynFloorWipeEffect
 	_init_weapon_pivot()
 	_init_quickbar()
+	CastProgressBar.attach(self)
 	_bind_coop_level_up()
 	_bind_achievement_unlock()
 
