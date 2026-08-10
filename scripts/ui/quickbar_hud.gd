@@ -141,7 +141,8 @@ func _refresh_all_slots() -> void:
 		caster = _player.data
 	for i in range(1, _QuickbarScript.SLOT_COUNT + 1):
 		var spell: Spell = _quickbar.get_slot(i)
-		var state := _QuickbarSlotStateScript.derive(spell, caster)
+		var gwendolyn_last_used = _quickbar.gwendolyn_last_summon_unix if "gwendolyn_last_summon_unix" in _quickbar else null
+		var state := _QuickbarSlotStateScript.derive(spell, caster, gwendolyn_last_used)
 		var v: Control = _slots[i - 1]
 		v.set_spell_and_state(spell, state)
 

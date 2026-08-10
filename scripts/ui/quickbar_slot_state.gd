@@ -11,6 +11,8 @@ const REASON_COOLDOWN := "cooldown"
 const REASON_MP := "mp"
 const REASON_READY := "ready"
 
+const _GWENDOLYN_SPELL_ID := "summon_gwendolyn"
+
 # Returns a dict with:
 #   empty:             bool — true when slot has no spell
 #   disabled:          bool — empty, cooldown, or insufficient MP
@@ -18,7 +20,15 @@ const REASON_READY := "ready"
 #   show_mp_badge:     bool — true when spell.mp_cost > 0
 #   mp_cost:           int  — spell.mp_cost (or 0 when empty)
 #   reason:            String — REASON_* constant explaining disabled state
-static func derive(spell: Spell, caster) -> Dictionary:
+#
+# gwendolyn_last_used/now_unix (issue #477 follow-up): Summon Gwendolyn's real
+# gate is GwendolynCooldown's hourly real-world timer, not spell.cooldown (a
+# short in-run value that only exists so the cast-channel path has *a*
+# cooldown to tick). Without this, the icon read spell.cooldown_remaining and
+# looked ready seconds after casting even though fire_slot() was still
+# blocking the recast for the rest of the hour. now_unix < 0 reads the system
+# clock; tests pass a fixed value for deterministic assertions.
+static func derive(spell: Spell, caster, gwendolyn_last_used = null, now_unix: int = -1) -> Dictionary:
 	if spell == null:
 		return {
 			"empty": true,
@@ -31,6 +41,11 @@ static func derive(spell: Spell, caster) -> Dictionary:
 	var fraction := 0.0
 	if spell.cooldown > 0.0 and spell.cooldown_remaining > 0.0:
 		fraction = clampf(spell.cooldown_remaining / spell.cooldown, 0.0, 1.0)
+	if spell.id == _GWENDOLYN_SPELL_ID and gwendolyn_last_used != null:
+		var now := now_unix if now_unix >= 0 else int(Time.get_unix_time_from_system())
+		var remaining := GwendolynCooldown.time_remaining(gwendolyn_last_used, now)
+		var gwendolyn_fraction := clampf(float(remaining) / float(GwendolynCooldown.COOLDOWN_SECONDS), 0.0, 1.0)
+		fraction = maxf(fraction, gwendolyn_fraction)
 	var on_cooldown := fraction > 0.0
 	var mp_short := false
 	if spell.mp_cost > 0 and caster != null and "magic_points" in caster:

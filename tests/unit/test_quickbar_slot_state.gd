@@ -58,3 +58,26 @@ func test_state_shows_mp_badge_when_cost_positive():
 	var state := QuickbarSlotState.derive(s, caster)
 	assert_true(state["show_mp_badge"], "mp_cost>0 must show MP badge")
 	assert_eq(state["mp_cost"], 5)
+
+# issue #477 follow-up: the hotkey icon must reflect Gwendolyn's hourly
+# real-world cooldown, not her short in-run spell.cooldown, which used to
+# make the icon look ready seconds after casting.
+func test_gwendolyn_cooldown_fraction_uses_hourly_timer_not_spell_cooldown():
+	var s := Spell.make("summon_gwendolyn", "Summon Gwendolyn", Spell.EffectKind.BUFF, 0, 15.0, 0, 0)
+	var caster := _StubCaster.new()
+	var now := 10000
+	var last_used := now - 1800  # cast 30 minutes ago, half the hour elapsed
+	var state := QuickbarSlotState.derive(s, caster, last_used, now)
+	assert_true(state["disabled"], "still within the hourly cooldown")
+	assert_almost_eq(state["cooldown_fraction"], 0.5, 0.01)
+	assert_eq(state["reason"], QuickbarSlotState.REASON_COOLDOWN)
+
+func test_gwendolyn_cooldown_fraction_zero_once_hour_elapsed():
+	var s := Spell.make("summon_gwendolyn", "Summon Gwendolyn", Spell.EffectKind.BUFF, 0, 15.0, 0, 0)
+	var caster := _StubCaster.new()
+	var now := 10000
+	var last_used := now - 3600
+	var state := QuickbarSlotState.derive(s, caster, last_used, now)
+	assert_false(state["disabled"])
+	assert_eq(state["cooldown_fraction"], 0.0)
+	assert_eq(state["reason"], QuickbarSlotState.REASON_READY)
