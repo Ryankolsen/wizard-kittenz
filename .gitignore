@@ -33,3 +33,6 @@ nakama.env
 
 # macOS
 .DS_Store
+
+# Local screenshot working files / skill
+/screenshots/
