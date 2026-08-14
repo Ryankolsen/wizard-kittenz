@@ -63,6 +63,23 @@ func test_chonk_weapon_renames_preserve_stats():
 	assert_eq(item.rarity, ItemData.Rarity.RARE)
 	assert_eq(item.allowed_classes, [CharacterData.CharacterClass.CHONK_KITTEN])
 
+func test_sleepy_weapon_new_names():
+	# Slice 3 (issue #481): Sleepy's 7 weapons get themed display names while
+	# ids/stats stay unchanged.
+	assert_eq(ItemCatalog.find("healing_wand").display_name, "Mushroom-on-a-Stick")
+	assert_eq(ItemCatalog.find("feather_wand").display_name, "Lollipop Wand")
+	assert_eq(ItemCatalog.find("dreamcatcher_staff").display_name, "Dreamcatcher Staff")
+	assert_eq(ItemCatalog.find("cloud_staff").display_name, "Cloud-Puff Wand")
+	assert_eq(ItemCatalog.find("shop_lullaby_wand").display_name, "Warm-Milk Ladle")
+	assert_eq(ItemCatalog.find("lullaby_scepter").display_name, "Moonbeam Scepter")
+	assert_eq(ItemCatalog.find("starlight_caduceus").display_name, "Caduceus of Catnaps")
+
+func test_sleepy_weapon_renames_preserve_stats():
+	var item := ItemCatalog.find("healing_wand")
+	assert_eq(item.display_name, "Mushroom-on-a-Stick")
+	assert_eq(item.rarity, ItemData.Rarity.COMMON)
+	assert_eq(item.allowed_classes, [CharacterData.CharacterClass.SLEEPY_KITTEN])
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6 + Bramble
 	# Plate (issue #463) + Fungal Cap (issue #470) + Cozy Blanket

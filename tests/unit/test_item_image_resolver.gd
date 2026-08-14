@@ -43,13 +43,24 @@ func test_wizard_weapons_resolve_to_unique_sprites():
 			"id %s resolves to wrong sprite" % id
 		)
 
-func test_healing_wand_resolves_to_staff_sprite():
-	# healing_wand has no per-id sprite yet (sleepy slice still pending),
-	# so the resolver must fall back to the class-default staff sprite.
-	assert_eq(
-		ItemImageResolver.texture_path_for_item(ItemCatalog.find("healing_wand")),
-		"res://assets/sprites/weapon_staff_sprite.png"
-	)
+func test_sleepy_weapons_resolve_to_unique_sprites():
+	# Slice 3 (issue #481): all 7 Sleepy weapon ids must resolve to their
+	# per-id sprite (the fallback to weapon_staff_sprite.png is no longer hit).
+	var expected := {
+		"healing_wand": "res://assets/sprites/weapon_mushroom_on_a_stick.png",
+		"feather_wand": "res://assets/sprites/weapon_lollipop_wand.png",
+		"dreamcatcher_staff": "res://assets/sprites/weapon_dreamcatcher_staff.png",
+		"cloud_staff": "res://assets/sprites/weapon_cloud_puff_wand.png",
+		"shop_lullaby_wand": "res://assets/sprites/weapon_warm_milk_ladle.png",
+		"lullaby_scepter": "res://assets/sprites/weapon_moonbeam_scepter.png",
+		"starlight_caduceus": "res://assets/sprites/weapon_caduceus_of_catnaps.png",
+	}
+	for id in expected.keys():
+		assert_eq(
+			ItemImageResolver.texture_path_for_item(ItemCatalog.find(id)),
+			expected[id],
+			"id %s resolves to wrong sprite" % id
+		)
 
 func test_spiked_mace_resolves_to_iron_banded_stein_sprite():
 	assert_eq(

@@ -33,6 +33,14 @@ const _PER_ID_SPRITES := {
 	"bone_crusher": "res://assets/sprites/weapon_hefty_stein.png",
 	"earthshaker_hammer": "res://assets/sprites/weapon_mighty_keg.png",
 	"mountain_maul": "res://assets/sprites/weapon_golden_chalice_of_ale.png",
+	# Sleepy Kitten — slice 3
+	"healing_wand": "res://assets/sprites/weapon_mushroom_on_a_stick.png",
+	"feather_wand": "res://assets/sprites/weapon_lollipop_wand.png",
+	"dreamcatcher_staff": "res://assets/sprites/weapon_dreamcatcher_staff.png",
+	"cloud_staff": "res://assets/sprites/weapon_cloud_puff_wand.png",
+	"shop_lullaby_wand": "res://assets/sprites/weapon_warm_milk_ladle.png",
+	"lullaby_scepter": "res://assets/sprites/weapon_moonbeam_scepter.png",
+	"starlight_caduceus": "res://assets/sprites/weapon_caduceus_of_catnaps.png",
 }
 
 # Per-id override for armor/accessory bespoke art. Empty for now; entries

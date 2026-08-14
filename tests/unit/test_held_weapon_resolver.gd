@@ -16,15 +16,14 @@ func test_iron_sword_battle_resolves_armed_with_battle_pose_and_mackerel_texture
 	assert_eq(def.attack_type, battle.attack_type, "pose attack_type matches battle preset")
 	assert_eq(def.anchor_offset, battle.anchor_offset, "pose anchor_offset matches battle preset")
 
-func test_healing_wand_falls_back_to_class_default_staff_texture():
-	# healing_wand has no per-id sprite yet (sleepy slice still pending) — so
-	# the resolver must fall through to the sleepy class-default staff sprite,
-	# mirroring the ItemImageResolver fallback pin.
+func test_healing_wand_sleepy_uses_mushroom_texture():
+	# Slice 3 (issue #481): healing_wand now has a per-id sprite, so the
+	# texture is the Mushroom-on-a-Stick art, not the class-default staff.
 	var item := ItemCatalog.find("healing_wand")
 	var out := HeldWeaponResolver.resolve(item, CharacterData.CharacterClass.SLEEPY_KITTEN)
 	assert_true(out[HeldWeaponResolver.ARMED_KEY])
 	assert_eq(out[HeldWeaponResolver.TEXTURE_KEY],
-		"res://assets/sprites/weapon_staff_sprite.png")
+		"res://assets/sprites/weapon_mushroom_on_a_stick.png")
 
 func test_heavy_club_chonk_uses_mug_pose_and_pint_texture():
 	# Slice 4 (issue #482): heavy_club now has a per-id sprite, so the

@@ -181,8 +181,8 @@ func test_sleepy_cat_player_constructs_weapon_pivot():
 	var ws := _combat_weapon_sprite(p)
 	assert_not_null(ws)
 	assert_true(ws.visible)
-	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_staff_sprite.png",
-		"Sleepy Cat reuses Sleepy Kitten's class-default staff texture")
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_mushroom_on_a_stick.png",
+		"Sleepy Cat resolves the same equipped-weapon texture as Sleepy Kitten")
 
 func test_chonk_cat_player_constructs_weapon_pivot():
 	var p := _make_player_with_class(CharacterData.CharacterClass.CHONK_CAT, "heavy_club")
