@@ -25,6 +25,14 @@ const _PER_ID_SPRITES := {
 	"starfire_rod": "res://assets/sprites/weapon_comet_caller.png",
 	"voidcaller_staff": "res://assets/sprites/weapon_wand_of_the_big_bang.png",
 	"shop_archmage_staff": "res://assets/sprites/weapon_archmage_astrolabe.png",
+	# Chonk Kitten — slice 4
+	"heavy_club": "res://assets/sprites/weapon_cheap_tavern_pint.png",
+	"oak_cudgel": "res://assets/sprites/weapon_wooden_tankard.png",
+	"shop_oak_mallet": "res://assets/sprites/weapon_sloshing_pint_glass.png",
+	"spiked_mace": "res://assets/sprites/weapon_iron_banded_stein.png",
+	"bone_crusher": "res://assets/sprites/weapon_hefty_stein.png",
+	"earthshaker_hammer": "res://assets/sprites/weapon_mighty_keg.png",
+	"mountain_maul": "res://assets/sprites/weapon_golden_chalice_of_ale.png",
 }
 
 # Per-id override for armor/accessory bespoke art. Empty for now; entries

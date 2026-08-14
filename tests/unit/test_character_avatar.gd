@@ -9,7 +9,6 @@ extends GutTest
 
 const SwordTex := "res://assets/sprites/weapon_slippery_mackerel.png"
 const WandTex := "res://assets/sprites/weapon_wand_sprite.png"
-const MugTex := "res://assets/sprites/weapon_mug_sprite.png"
 
 func _make_avatar() -> CharacterAvatar:
 	var a := CharacterAvatar.new()
@@ -45,12 +44,13 @@ func test_body_uses_sprite_helper_for_wizard_class():
 		SpriteHelper.path_for_class(CharacterData.CharacterClass.WIZARD_KITTEN)
 	)
 
-func test_chonk_with_heavy_club_shows_mug_texture():
+func test_chonk_with_heavy_club_shows_pint_texture():
+	# Slice 4 (issue #482): heavy_club now has a per-id sprite.
 	var a := _make_avatar()
 	a.set_loadout(CharacterData.CharacterClass.CHONK_KITTEN, ItemCatalog.find("heavy_club"))
 	var ws := _weapon_sprite(a)
 	assert_not_null(ws.texture)
-	assert_eq(ws.texture.resource_path, MugTex)
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_cheap_tavern_pint.png")
 
 func test_no_weapon_hides_weapon_sprite():
 	var a := _make_avatar()

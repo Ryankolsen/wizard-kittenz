@@ -46,6 +46,23 @@ func test_wizard_weapon_new_names():
 	assert_eq(aw.bonuses[0].stat_name, "magic_attack")
 	assert_eq(aw.bonuses[0].stat_bonus, 3.0)
 
+func test_chonk_weapon_new_names():
+	# Slice 4 (issue #482): Chonk's 7 weapons get themed display names while
+	# ids/stats stay unchanged.
+	assert_eq(ItemCatalog.find("heavy_club").display_name, "Cheap Tavern Pint")
+	assert_eq(ItemCatalog.find("oak_cudgel").display_name, "Wooden Tankard")
+	assert_eq(ItemCatalog.find("shop_oak_mallet").display_name, "Sloshing Pint Glass")
+	assert_eq(ItemCatalog.find("spiked_mace").display_name, "Iron-Banded Stein")
+	assert_eq(ItemCatalog.find("bone_crusher").display_name, "Hefty Stein")
+	assert_eq(ItemCatalog.find("earthshaker_hammer").display_name, "Mighty Keg")
+	assert_eq(ItemCatalog.find("mountain_maul").display_name, "Golden Chalice of Ale")
+
+func test_chonk_weapon_renames_preserve_stats():
+	var item := ItemCatalog.find("spiked_mace")
+	assert_eq(item.display_name, "Iron-Banded Stein")
+	assert_eq(item.rarity, ItemData.Rarity.RARE)
+	assert_eq(item.allowed_classes, [CharacterData.CharacterClass.CHONK_KITTEN])
+
 func test_items_for_slot_armor():
 	# 24 DROP armor + 4 SHOP armor (one per class) from Slice 6 + Bramble
 	# Plate (issue #463) + Fungal Cap (issue #470) + Cozy Blanket

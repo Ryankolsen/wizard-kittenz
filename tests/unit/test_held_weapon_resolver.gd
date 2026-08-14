@@ -26,12 +26,14 @@ func test_healing_wand_falls_back_to_class_default_staff_texture():
 	assert_eq(out[HeldWeaponResolver.TEXTURE_KEY],
 		"res://assets/sprites/weapon_staff_sprite.png")
 
-func test_heavy_club_chonk_uses_mug_pose_and_texture():
+func test_heavy_club_chonk_uses_mug_pose_and_pint_texture():
+	# Slice 4 (issue #482): heavy_club now has a per-id sprite, so the
+	# texture is the Cheap Tavern Pint art, not the class-default mug.
 	var item := ItemCatalog.find("heavy_club")
 	var out := HeldWeaponResolver.resolve(item, CharacterData.CharacterClass.CHONK_KITTEN)
 	assert_true(out[HeldWeaponResolver.ARMED_KEY])
 	assert_eq(out[HeldWeaponResolver.TEXTURE_KEY],
-		"res://assets/sprites/weapon_mug_sprite.png")
+		"res://assets/sprites/weapon_cheap_tavern_pint.png")
 	var def: WeaponDefinition = out[HeldWeaponResolver.DEFINITION_KEY]
 	var chonk := WeaponDefinition.for_class(CharacterData.CharacterClass.CHONK_KITTEN)
 	assert_eq(def.sprite_scale, chonk.sprite_scale, "chonk preset upright-mug scaling preserved")

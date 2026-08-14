@@ -191,8 +191,8 @@ func test_chonk_cat_player_constructs_weapon_pivot():
 	var ws := _combat_weapon_sprite(p)
 	assert_not_null(ws)
 	assert_true(ws.visible)
-	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_mug_sprite.png",
-		"Chonk Cat reuses Chonk Kitten's class-default mug texture")
+	assert_eq(ws.texture.resource_path, "res://assets/sprites/weapon_cheap_tavern_pint.png",
+		"Chonk Cat resolves the same equipped-weapon texture as Chonk Kitten")
 
 func test_cat_tier_no_preset_still_gets_unarmed_fallback():
 	# Independent of weapon-preset presence, every class must still get the
