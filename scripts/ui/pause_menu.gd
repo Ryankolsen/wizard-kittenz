@@ -209,8 +209,23 @@ func open() -> void:
 	visible = true
 	_set_touch_controls_hidden(true)
 	_show_main_menu()
+	_pause_music()
 	if not is_multiplayer():
 		get_tree().paused = true
+
+# Pauses MusicManager independently of get_tree().paused (#488, parent PRD
+# #485) so co-op's personal pause — which deliberately never sets tree-pause,
+# leaving the local player vulnerable — still silences music while the menu
+# is open. No-op if MusicManager isn't registered (isolated test scenes).
+func _pause_music() -> void:
+	var manager := get_node_or_null("/root/MusicManager")
+	if manager != null:
+		manager.pause_music()
+
+func _resume_music() -> void:
+	var manager := get_node_or_null("/root/MusicManager")
+	if manager != null:
+		manager.resume_music()
 
 # Hides (or restores) the gameplay touch overlay while the menu is open.
 # The overlay shares CanvasLayer.layer with this menu, so on touch platforms
@@ -235,11 +250,13 @@ func close() -> void:
 		if panel != null:
 			panel.set_continue_visible(false)
 		visible = false
+		_resume_music()
 		if not _is_host_paused():
 			get_tree().paused = false
 		transition_continued.emit()
 		return
 	visible = false
+	_resume_music()
 	# Clear the local soft-pause flag — UNLESS a host-initiated party-wide
 	# pause is active (#43). The host opening their own PauseMenu after
 	# pressing "Pause for everyone" would otherwise silently unfreeze the
@@ -313,6 +330,7 @@ func open_for_dungeon_transition() -> void:
 	# Continue button and any unspent points to allocate.
 	_show_stats_tab()
 	_refresh_character_stats()
+	_pause_music()
 	if not is_multiplayer():
 		get_tree().paused = true
 	var panel := find_child("StatsPanel", true, false) as StatsTabPanelScript
@@ -329,6 +347,7 @@ func _on_transition_continue_pressed() -> void:
 	if panel != null:
 		panel.set_continue_visible(false)
 	visible = false
+	_resume_music()
 	if not _is_host_paused():
 		get_tree().paused = false
 	transition_continued.emit()

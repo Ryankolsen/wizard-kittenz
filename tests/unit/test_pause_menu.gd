@@ -95,3 +95,147 @@ func test_hud_has_pause_button():
 	assert_not_null(btn, "HUD must expose a PauseButton during dungeon runs")
 	assert_true(btn is Button, "PauseButton must be a Button")
 	hud.free()
+
+# --- Music pause/resume wiring (#488, parent PRD #485) ---------------------
+
+func _make_lobby(player_specs: Array) -> LobbyState:
+	var ls := LobbyState.new("ABCDE")
+	for spec in player_specs:
+		var lp := LobbyPlayer.make(spec[0], spec[1], spec[2], false)
+		ls.add_player(lp)
+	return ls
+
+func _make_character(klass: int, level: int) -> CharacterData:
+	var c := CharacterData.make_new(klass, "k%d" % level)
+	c.level = level
+	c.max_hp = CharacterData.base_max_hp_for(klass, level)
+	c.hp = c.max_hp
+	c.attack = CharacterData.base_attack_for(klass, level)
+	c.defense = CharacterData.base_defense_for(klass, level)
+	c.speed = CharacterData.base_speed_for(klass, level)
+	return c
+
+func _make_two_room_dungeon() -> Dungeon:
+	var d := Dungeon.new()
+	var start := Room.make(0, Room.TYPE_START)
+	start.connections = [1]
+	d.add_room(start)
+	d.start_id = 0
+	var boss := Room.make(1, Room.TYPE_BOSS)
+	boss.enemy_kind = EnemyData.EnemyKind.DOG_KNIGHT
+	d.add_room(boss)
+	d.boss_id = 1
+	return d
+
+func _music_player() -> AudioStreamPlayer:
+	var manager := get_node_or_null("/root/MusicManager")
+	assert_not_null(manager, "MusicManager autoload must be registered")
+	return manager.find_child("MusicPlayer", false, false) as AudioStreamPlayer
+
+func test_open_pauses_music_in_solo_mode():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_true(_music_player().stream_paused, "open() must pause music in solo mode")
+	get_tree().paused = false
+
+func test_close_resumes_music():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene.close()
+	assert_false(_music_player().stream_paused, "close() must resume music")
+
+func test_open_pauses_music_in_coop_mode():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
+	var c := _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 5)
+	var session := CoopSession.new(lobby, {"u1": c})
+	assert_true(session.start(_make_two_room_dungeon()), "session must start")
+	gs.coop_session = session
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	assert_true(scene.is_multiplayer(), "scene must report multiplayer with active coop_session")
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	scene.open()
+	assert_true(_music_player().stream_paused,
+		"open() must pause music in co-op personal pause")
+	assert_false(get_tree().paused,
+		"co-op personal pause must not touch get_tree().paused")
+
+func test_open_for_dungeon_transition_pauses_music():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open_for_dungeon_transition()
+	assert_true(_music_player().stream_paused,
+		"open_for_dungeon_transition() must pause music")
+	get_tree().paused = false
+
+func test_transition_continue_resumes_music():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open_for_dungeon_transition()
+	scene._on_transition_continue_pressed()
+	assert_false(_music_player().stream_paused,
+		"_on_transition_continue_pressed() must resume music")
+
+func test_close_via_transition_mode_back_button_resumes_music():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open_for_dungeon_transition()
+	scene.close()
+	assert_false(_music_player().stream_paused,
+		"close() during transition mode (Back button) must resume music")
+
+func test_open_close_music_toggle_survives_repeated_cycles():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	for i in range(3):
+		scene.open()
+		scene.close()
+	assert_false(_music_player().stream_paused,
+		"repeated open/close cycles must leave music resumed")
+
+func test_pause_menu_music_state_independent_of_tree_pause():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var lobby := _make_lobby([["u1", "Whiskers", "Mage"]])
+	var c := _make_character(CharacterData.CharacterClass.WIZARD_KITTEN, 5)
+	var session := CoopSession.new(lobby, {"u1": c})
+	assert_true(session.start(_make_two_room_dungeon()), "session must start")
+	gs.coop_session = session
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_true(_music_player().stream_paused,
+		"co-op open() must pause music even though the tree never pauses")
+	assert_false(get_tree().paused,
+		"co-op personal pause must never set get_tree().paused")
