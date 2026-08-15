@@ -29,3 +29,12 @@ func play_music() -> void:
 	if _player.playing:
 		return
 	_player.play()
+
+func stop_music() -> void:
+	_player.stop()
+
+func pause_music() -> void:
+	_player.stream_paused = true
+
+func resume_music() -> void:
+	_player.stream_paused = false
