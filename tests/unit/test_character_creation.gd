@@ -482,3 +482,27 @@ func test_all_four_cat_tier_classes_resolve_independently():
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveManager.DEFAULT_PATH))
 
+# --- character-creation stops music on load (issue #487) ---
+
+func _music_player() -> AudioStreamPlayer:
+	var manager := get_node_or_null("/root/MusicManager")
+	return manager.find_child("MusicPlayer", false, false) as AudioStreamPlayer
+
+func test_character_creation_ready_stops_music_when_playing():
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.play_music()
+
+	_instantiate_creation_scene()
+
+	assert_false(_music_player().playing,
+		"character_creation must stop music unconditionally on load")
+
+func test_character_creation_ready_is_safe_when_music_already_stopped():
+	var manager := get_node_or_null("/root/MusicManager")
+	manager.stop_music()
+
+	_instantiate_creation_scene()
+
+	assert_false(_music_player().playing,
+		"stop_music() call on an already-silent MusicManager must be a safe no-op")
+

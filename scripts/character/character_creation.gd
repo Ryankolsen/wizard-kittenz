@@ -74,6 +74,12 @@ var _customize_is_rename: bool = false
 var _multiplayer_pick_mode: bool = false
 
 func _ready() -> void:
+	# Unconditional stop closes every leak path (Quit Dungeon, Give Up, Save &
+	# Exit) in one place instead of each call site (PRD #485, issue #487).
+	# character_creation.tscn is also the app's boot scene, so this is a
+	# harmless no-op on first launch — nothing was playing yet.
+	MusicManager.stop_music()
+
 	_battle_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_BATTLE))
 	_wizard_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_WIZARD))
 	_sleepy_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_SLEEPY))
