@@ -9,7 +9,7 @@ extends RefCounted
 const DEFAULT_PATH := "user://audio_settings.json"
 const BGM_BUS := "BGM"
 const SFX_BUS := "SFX"
-const DEFAULT_BGM := 1.0
+const DEFAULT_BGM := 0.5
 const DEFAULT_SFX := 1.0
 const MUTE_FLOOR_DB := -80.0
 

@@ -73,8 +73,8 @@ func test_apply_loaded_with_no_saved_file_uses_defaults():
 	var sfx_idx := AudioServer.get_bus_index("SFX")
 	if bgm_idx < 0 or sfx_idx < 0:
 		return
-	assert_almost_eq(AudioServer.get_bus_volume_db(bgm_idx), 0.0, 0.01,
-		"Missing settings file must default BGM volume to 0dB (linear 1.0)")
+	assert_almost_eq(AudioServer.get_bus_volume_db(bgm_idx), linear_to_db(0.5), 0.01,
+		"Missing settings file must default BGM volume to linear 0.5")
 	assert_almost_eq(AudioServer.get_bus_volume_db(sfx_idx), 0.0, 0.01,
 		"Missing settings file must default SFX volume to 0dB (linear 1.0)")
 
@@ -96,8 +96,34 @@ func test_audio_settings_persist_and_reload():
 
 func test_load_settings_missing_file_returns_defaults():
 	var loaded := AudioSettings.load_settings("user://no_such_file.json")
-	assert_eq(loaded.get("bgm"), 1.0, "default BGM must be 1.0")
+	assert_eq(loaded.get("bgm"), 0.5, "default BGM must be 0.5")
 	assert_eq(loaded.get("sfx"), 1.0, "default SFX must be 1.0")
+
+func test_default_bgm_constant_is_half_volume():
+	assert_eq(AudioSettings.DEFAULT_BGM, 0.5, "DEFAULT_BGM must be lowered to 0.5")
+
+func test_load_settings_missing_file_returns_new_default():
+	var loaded := AudioSettings.load_settings("user://no_such_audio_settings_2.json")
+	assert_eq(loaded.get("bgm"), 0.5, "missing file must return new BGM default of 0.5")
+
+func test_apply_loaded_missing_file_sets_bus_to_new_default():
+	var bus_idx := AudioServer.get_bus_index("BGM")
+	if bus_idx < 0:
+		AudioSettings.apply_loaded("user://no_such_audio_settings_3.json")
+		return
+	AudioSettings.apply_loaded("user://no_such_audio_settings_3.json")
+	assert_almost_eq(AudioServer.get_bus_volume_db(bus_idx), linear_to_db(0.5), 0.01,
+		"Missing settings file must set BGM bus to linear 0.5, not 1.0")
+
+func test_saved_bgm_value_overrides_new_default():
+	AudioSettings.save_settings({"bgm": 0.8, "sfx": 1.0}, TEST_PATH)
+	var loaded := AudioSettings.load_settings(TEST_PATH)
+	assert_eq(loaded.get("bgm"), 0.8, "a saved BGM value must not be overridden by the new default")
+
+func test_sfx_default_unchanged():
+	assert_eq(AudioSettings.DEFAULT_SFX, 1.0, "DEFAULT_SFX must remain 1.0")
+	var loaded := AudioSettings.load_settings("user://no_such_audio_settings_4.json")
+	assert_eq(loaded.get("sfx"), 1.0, "SFX default must remain unaffected by the BGM default change")
 
 func test_zero_volume_maps_to_mute_floor():
 	# Mute (linear 0.0) should clamp to the floor rather than passing
