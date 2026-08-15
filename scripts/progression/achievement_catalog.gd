@@ -222,7 +222,7 @@ static func all() -> Array:
 	out.append(AchievementDefinition.make_none(
 		"named_gwendolyn", "named_gwendolyn",
 		"In Memory of Gwendolyn",
-		"You named a kitten Gwendolyn. She would have loved that."))
+		"You named a kitten Gwendolyn. In her honor you go all in for ham, chaos, and glory — no teeth required."))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
