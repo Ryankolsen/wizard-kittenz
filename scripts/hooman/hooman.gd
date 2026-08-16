@@ -55,6 +55,13 @@ var _attack_choreographer: AttackChoreographer = null
 # something to apply DamageResolver.apply against.
 var _current_target: Node = null
 
+# HEAL-state visual telegraph (issue #503) — a looping particle glow shown
+# for the entire time state == State.HEAL, including cooldown gaps between
+# bursts, so the hooman doesn't look idle while "casting". Lazily created
+# (mirrors _ensure_attack_choreographer) so headless tick()-only test
+# fixtures with no _ready() call still have something to toggle.
+var _heal_glow: CPUParticles2D = null
+
 # Seconds remaining until the next burst heal is allowed (issue #500) —
 # counts down every tick() regardless of state so the cooldown started by a
 # heal keeps elapsing even if HEAL isn't re-entered immediately after.
@@ -85,6 +92,7 @@ func _ready() -> void:
 		_weapon_pivot = _WeaponPivotScene.instantiate()
 		add_child(_weapon_pivot)
 	_ensure_attack_choreographer()
+	_ensure_heal_glow()
 
 
 # Matches EnemyData.take_damage's contract: reduces hp by amount (floored at
@@ -127,6 +135,8 @@ func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_
 	_active = is_active
 	_current_target = nearest_mob
 	state = HoomanAIState.next_state(state, nearest_mob_dist, player_hp_percent, is_active)
+	_ensure_heal_glow()
+	_heal_glow.emitting = state == HoomanAIState.State.HEAL
 	if _heal_cooldown_remaining > 0.0:
 		_heal_cooldown_remaining -= delta
 	if _attack_choreographer != null:
@@ -232,6 +242,39 @@ func _apply_briefcase_damage() -> void:
 
 func _on_strike_window_open() -> void:
 	_apply_briefcase_damage()
+
+
+# Lazily builds the looping glow particle node (issue #503), matching
+# _ensure_attack_choreographer's pattern so headless Hooman.new() test
+# fixtures with no _ready() call still have something for tick() to toggle.
+# one_shot = false + emitting driven purely by state == HEAL in tick() is
+# what makes this a continuous telegraph rather than a one-off flash.
+func _ensure_heal_glow() -> void:
+	if _heal_glow != null:
+		return
+	_heal_glow = get_node_or_null("HealGlow") as CPUParticles2D
+	if _heal_glow == null:
+		_heal_glow = CPUParticles2D.new()
+		_heal_glow.name = "HealGlow"
+		_heal_glow.amount = 12
+		_heal_glow.lifetime = 0.6
+		_heal_glow.one_shot = false
+		_heal_glow.emitting = false
+		_heal_glow.direction = Vector2(0, -1)
+		_heal_glow.spread = 30.0
+		_heal_glow.initial_velocity_min = 10.0
+		_heal_glow.initial_velocity_max = 24.0
+		_heal_glow.gravity = Vector2.ZERO
+		_heal_glow.scale_amount_min = 2.0
+		_heal_glow.scale_amount_max = 3.5
+		_heal_glow.color = Color(0.2, 1.0, 0.4)
+		add_child(_heal_glow)
+
+
+# Test-facing accessor for the HEAL-state glow node (issue #503).
+func get_heal_glow() -> CPUParticles2D:
+	_ensure_heal_glow()
+	return _heal_glow
 
 
 # Single cooldown-gated burst heal (issue #500) — a "pause to heal" per the

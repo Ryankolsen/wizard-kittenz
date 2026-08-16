@@ -334,3 +334,58 @@ func test_heal_fires_again_after_cooldown_elapses():
 		"heal should fire again once HEAL_COOLDOWN seconds have elapsed since the last one")
 	h.free()
 	player.free()
+
+
+# --- HEAL-state glow telegraph (issue #503) -----------------------------
+
+func test_heal_state_shows_glow_effect():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(h.state, HoomanAIState.State.HEAL)
+	assert_true(h.get_heal_glow().emitting, "glow effect should be emitting while in HEAL state")
+	h.free()
+	player.free()
+
+
+func test_glow_effect_hidden_when_leaving_heal_state():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+	assert_true(h.get_heal_glow().emitting)
+
+	h.tick(0.016, Vector2.ZERO, 5.0, 0.1, false)
+
+	assert_eq(h.state, HoomanAIState.State.FOLLOW)
+	assert_false(h.get_heal_glow().emitting, "glow effect should stop emitting once the hooman leaves HEAL")
+	h.free()
+	player.free()
+
+
+func test_glow_effect_off_when_never_entering_heal():
+	var h := Hooman.new()
+	h.tick(0.016, Vector2.ZERO, 50.0, 0.9, true)
+	assert_eq(h.state, HoomanAIState.State.CHASE)
+	assert_false(h.get_heal_glow().emitting, "glow effect should not be on by default outside HEAL")
+	h.free()
+
+
+func test_glow_stays_visible_during_heal_cooldown():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+	assert_true(h.get_heal_glow().emitting)
+
+	# Second tick still routes to HEAL, but the burst is on cooldown so no
+	# heal number lands — the glow must still be on.
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(h.state, HoomanAIState.State.HEAL)
+	assert_true(h.get_heal_glow().emitting,
+		"glow effect should stay on through the HEAL cooldown window, not just when a heal lands")
+	h.free()
+	player.free()
