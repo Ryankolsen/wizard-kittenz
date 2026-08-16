@@ -1,10 +1,10 @@
 class_name Hooman
 extends CharacterBody2D
 
-# Rented companion node (PRD #491, issue #496). Spawn/follow/lifecycle only —
-# CHASE/ATTACK/HEAL are reachable states (driven by HoomanAIState, #493) but
-# are no-ops at the node level until #497 (HP/aggro) and #498 (combat/heal)
-# land.
+# Rented companion node (PRD #491, issue #496). Spawn/follow/lifecycle,
+# HP/health bar (#497), mob aggro (#498), briefcase combat (#499), and burst
+# heal (#500) — CHASE/ATTACK/HEAL are all fully wired states, driven by
+# HoomanAIState (#493).
 #
 # Movement is plain position math (not move_and_slide) since the hooman is a
 # non-colliding companion that drifts/snaps toward the player rather than
@@ -54,6 +54,11 @@ var _attack_choreographer: AttackChoreographer = null
 # reference, not just a distance) so the strike-window callback has
 # something to apply DamageResolver.apply against.
 var _current_target: Node = null
+
+# Seconds remaining until the next burst heal is allowed (issue #500) —
+# counts down every tick() regardless of state so the cooldown started by a
+# heal keeps elapsing even if HEAL isn't re-entered immediately after.
+var _heal_cooldown_remaining: float = 0.0
 
 
 func _ready() -> void:
@@ -111,22 +116,27 @@ func _on_defeated() -> void:
 
 # Pure/headless-callable per-frame driver, same shape as
 # Enemy.apply_state_update. Advances the AI state machine from
-# HoomanAIState.next_state, then applies follow movement in FOLLOW or drives
-# the briefcase attack in ATTACK (issue #499); HEAL remains a no-op at the
-# node level until #500. `nearest_mob` is the actual Enemy reference (not
-# just the distance already used for the state decision) so the strike
-# window has a concrete target to damage — defaults to null so existing
-# FOLLOW/CHASE-only callers keep working unchanged.
-func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_percent: float, is_active: bool, nearest_mob: Node = null) -> void:
+# HoomanAIState.next_state, then applies follow movement in FOLLOW, drives
+# the briefcase attack in ATTACK (issue #499), or applies a burst heal in
+# HEAL (issue #500). `nearest_mob` is the actual Enemy reference (not just
+# the distance already used for the state decision) so the strike window has
+# a concrete target to damage; `player` is the Player-shaped node (exposing
+# `.data`) the heal lands on and FloatingText spawns against. Both default to
+# null so existing FOLLOW/CHASE-only callers keep working unchanged.
+func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_percent: float, is_active: bool, nearest_mob: Node = null, player: Node = null) -> void:
 	_active = is_active
 	_current_target = nearest_mob
 	state = HoomanAIState.next_state(state, nearest_mob_dist, player_hp_percent, is_active)
+	if _heal_cooldown_remaining > 0.0:
+		_heal_cooldown_remaining -= delta
 	if _attack_choreographer != null:
 		_attack_choreographer.tick(delta)
 	if state == HoomanAIState.State.FOLLOW:
 		_apply_follow(delta, player_pos)
 	elif state == HoomanAIState.State.ATTACK:
 		_try_attack()
+	elif state == HoomanAIState.State.HEAL:
+		_try_heal(player)
 
 
 # Pure helper: velocity that would carry `pos` toward `player_pos` at
@@ -222,3 +232,21 @@ func _apply_briefcase_damage() -> void:
 
 func _on_strike_window_open() -> void:
 	_apply_briefcase_damage()
+
+
+# Single cooldown-gated burst heal (issue #500) — a "pause to heal" per the
+# PRD, not HealingBox's per-second drip accumulator. Applies via
+# CharacterData.heal (same overheal-capped call HealingBox uses) and spawns
+# the same "+N" green-text FloatingText.spawn feedback on the player.
+func _try_heal(player: Node) -> void:
+	if _heal_cooldown_remaining > 0.0:
+		return
+	if player == null or not is_instance_valid(player) or not ("data" in player):
+		return
+	var player_data = player.data
+	if player_data == null:
+		return
+	var healed: int = player_data.heal(HoomanAIState.HEAL_BURST_AMOUNT)
+	_heal_cooldown_remaining = HoomanAIState.HEAL_COOLDOWN
+	if healed > 0:
+		FloatingText.spawn(player, "+" + str(healed), Color(0.2, 1.0, 0.4))

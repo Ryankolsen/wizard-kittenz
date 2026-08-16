@@ -264,3 +264,73 @@ func test_killing_mob_via_hooman_emits_died_signal():
 	assert_eq(fired[0], 1, "died emitted exactly once on the hooman's killing blow")
 	h.free()
 	target.free()
+
+
+# --- Burst heal (issue #500) -----------------------------------------------
+
+# Node-based player stand-in (not a plain RefCounted mock) so
+# FloatingText.spawn's target_node.add_child(ft) call works the same as it
+# does against the real Player node in production.
+class _MockPlayer:
+	extends Node
+	var data: CharacterData
+
+func _make_player(hp: int, max_hp: int) -> Node:
+	var p := _MockPlayer.new()
+	p.data = CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN, "k")
+	p.data.max_hp = max_hp
+	p.data.hp = hp
+	return p
+
+func test_heal_state_heals_player_by_burst_amount():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(h.state, HoomanAIState.State.HEAL, "low player HP percent should route the hooman into HEAL")
+	assert_eq(player.data.hp, 1 + HoomanAIState.HEAL_BURST_AMOUNT)
+	h.free()
+	player.free()
+
+
+func test_heal_does_not_overheal_beyond_max_hp():
+	var h := Hooman.new()
+	var max_hp := 10
+	var player := _make_player(max_hp - 1, max_hp)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(player.data.hp, max_hp, "heal is capped at max_hp even though the burst amount would overheal")
+	h.free()
+	player.free()
+
+
+func test_heal_does_not_refire_before_cooldown_elapses():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+	var hp_after_first: int = player.data.hp
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(player.data.hp, hp_after_first,
+		"second heal within HEAL_COOLDOWN seconds of the first should not fire")
+	h.free()
+	player.free()
+
+
+func test_heal_fires_again_after_cooldown_elapses():
+	var h := Hooman.new()
+	var player := _make_player(1, 50)
+
+	h.tick(0.016, Vector2.ZERO, INF, 0.02, true, null, player)
+	var hp_after_first: int = player.data.hp
+
+	h.tick(HoomanAIState.HEAL_COOLDOWN + 0.01, Vector2.ZERO, INF, 0.02, true, null, player)
+
+	assert_eq(player.data.hp, hp_after_first + HoomanAIState.HEAL_BURST_AMOUNT,
+		"heal should fire again once HEAL_COOLDOWN seconds have elapsed since the last one")
+	h.free()
+	player.free()

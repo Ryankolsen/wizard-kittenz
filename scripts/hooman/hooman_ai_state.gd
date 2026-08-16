@@ -17,6 +17,12 @@ const MELEE_RANGE: float = 20.0
 const ATTACK_COOLDOWN: float = 0.8
 const HEAL_HP_THRESHOLD: float = 0.3
 const HEAL_COOLDOWN: float = 10.0
+# Flat burst amount per heal (issue #500) — a single cooldown-gated "pause to
+# heal" per the PRD, not a per-second drip like HealingBox. Tuned to a
+# meaningful chunk relative to HEAL_HP_THRESHOLD (roughly a third of a
+# 20-30 max_hp player's missing HP at the trigger point) without being an
+# outright full heal.
+const HEAL_BURST_AMOUNT: int = 8
 
 # Decides the next state given the current state, distance to the nearest
 # eligible mob, the player's HP percent (0.0-1.0), whether the rental is

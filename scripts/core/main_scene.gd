@@ -621,7 +621,7 @@ func _tick_hooman(delta: float) -> void:
 			if d < nearest_mob_dist:
 				nearest_mob_dist = d
 				nearest_mob = enemy
-	_hooman.tick(delta, _player.global_position, nearest_mob_dist, player_hp_percent, is_active, nearest_mob)
+	_hooman.tick(delta, _player.global_position, nearest_mob_dist, player_hp_percent, is_active, nearest_mob, _player)
 
 
 # Revive flow (#322). After CoopRouter.revive restores the player's HP, the
