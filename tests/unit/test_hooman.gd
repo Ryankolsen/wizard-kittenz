@@ -114,3 +114,64 @@ func test_hooman_persists_across_floor_transition_but_goes_idle():
 	inst._hooman.tick(0.016, inst._player.global_position, 5.0, 0.1, false)
 	assert_eq(inst._hooman.state, HoomanAIState.State.FOLLOW,
 		"idle-until-renewed gate forces FOLLOW on the new floor")
+
+
+# --- HP pool (issue #497) -------------------------------------------------
+
+func test_take_damage_reduces_hp_and_returns_amount_dealt():
+	var h := Hooman.new()
+	h.hp = 10
+	h.max_hp = 10
+	h.defense = 0
+	assert_eq(h.take_damage(4), 4)
+	assert_eq(h.hp, 6)
+	h.free()
+
+
+func test_take_damage_does_not_go_below_zero():
+	var h := Hooman.new()
+	h.hp = 3
+	h.max_hp = 10
+	assert_eq(h.take_damage(10), 3, "amount actually dealt is capped at remaining hp")
+	assert_eq(h.hp, 0)
+	h.free()
+
+
+func test_hp_reaching_zero_triggers_defeat_and_clears_rental() -> void:
+	var service := HoomanRentalService.new()
+	var ledger := CurrencyLedger.new()
+	ledger.credit(HoomanRentalService.RENT_COST_GOLD, CurrencyLedger.Currency.GOLD)
+	assert_true(service.activate(2, ledger))
+	assert_true(service.is_active_for_floor(2))
+
+	var h := Hooman.new()
+	h.hp = 5
+	h.max_hp = 5
+	h.rental_service = service
+
+	watch_signals(h)
+	h.take_damage(10)
+
+	assert_signal_emitted(h, "defeated")
+	assert_true(h.is_queued_for_deletion())
+	assert_false(service.is_active_for_floor(2),
+		"defeat clears the rental so the player must pay again without a floor transition")
+	await get_tree().process_frame
+
+
+func test_damage_resolver_apply_works_against_hooman_data():
+	var h := Hooman.new()
+	h.hp = 10
+	h.max_hp = 10
+	h.defense = 1
+
+	var attacker := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	attacker.attack = 5
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var dealt: int = DamageResolver.apply(attacker, h, rng)
+
+	assert_gt(dealt, 0)
+	assert_eq(h.hp, 10 - dealt)
+	h.free()

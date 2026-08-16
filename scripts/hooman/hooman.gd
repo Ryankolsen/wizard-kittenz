@@ -22,6 +22,22 @@ const COMFORT_RADIUS: float = 40.0
 const LEASH_DISTANCE: float = 220.0
 const FOLLOW_SPEED: float = 140.0
 
+# Emitted when hp reaches 0 via take_damage, right before the node
+# queue_frees itself (issue #497).
+signal defeated
+
+# Duck-typed stat block (hp/max_hp/attack/defense + take_damage/heal),
+# matching EnemyData/CharacterData's shape so DamageResolver.apply works
+# against a Hooman unmodified in either direction (issue #497).
+@export var hp: int = 20
+@export var max_hp: int = 20
+@export var attack: int = 3
+@export var defense: int = 0
+
+# Wired by main_scene on spawn so take_damage can clear the rental on defeat
+# without the node needing to reach back into GameState itself.
+var rental_service: HoomanRentalService = null
+
 var state: int = HoomanAIState.State.FOLLOW
 var _active: bool = false
 
@@ -41,6 +57,34 @@ func _ready() -> void:
 		circle.radius = 16.0
 		shape.shape = circle
 		add_child(shape)
+	HoomanHealthBar.attach(self)
+
+
+# Matches EnemyData.take_damage's contract: reduces hp by amount (floored at
+# 0) and returns the amount actually dealt. HP reaching 0 clears the rental
+# (so the player must pay again even without a floor transition) and
+# despawns the node.
+func take_damage(amount: int) -> int:
+	var dealt := mini(amount, hp)
+	hp -= dealt
+	if hp <= 0:
+		_on_defeated()
+	return dealt
+
+
+# Matches EnemyData-shaped heal contract: increases hp by amount (capped at
+# max_hp) and returns the amount actually healed.
+func heal(amount: int) -> int:
+	var healed := mini(amount, max_hp - hp)
+	hp += healed
+	return healed
+
+
+func _on_defeated() -> void:
+	if rental_service != null:
+		rental_service.clear()
+	defeated.emit()
+	queue_free()
 
 
 # Pure/headless-callable per-frame driver, same shape as

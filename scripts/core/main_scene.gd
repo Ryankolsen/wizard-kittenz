@@ -560,11 +560,25 @@ func _spawn_hooman() -> void:
 	var hooman := Hooman.new()
 	hooman.name = "Hooman"
 	hooman.global_position = _player.global_position
-	add_child(hooman)
-	_hooman = hooman
 	var gs := get_node_or_null("/root/GameState")
 	if gs != null:
+		hooman.rental_service = gs.hooman_rental_service
+	hooman.defeated.connect(_on_hooman_defeated)
+	add_child(hooman)
+	_hooman = hooman
+	if gs != null:
 		gs.hooman_spawned = true
+
+
+# Hooman.defeated (issue #497). take_damage already cleared the rental
+# service and the node is queue_free-ing itself; just drop our reference and
+# mirror on_player_died's hooman_spawned reset so a later floor reload
+# doesn't try to respawn a node that no longer exists.
+func _on_hooman_defeated() -> void:
+	_hooman = null
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.hooman_spawned = false
 
 
 func _despawn_hooman() -> void:
