@@ -165,6 +165,75 @@ func test_resolve_hp_data_coop_returns_effective_stats():
 	assert_ne(resolved, real, "co-op must not heal real_stats (stays full, invisible)")
 
 
+# --- Hooman healing (issue #504) --------------------------------------------
+#
+# The hooman is not in the "player" group (per PRD #502's decision — that
+# group is read by several unrelated systems), so it gets its own explicit
+# tick_hooman() entry point rather than flowing through _find_overlapping_player.
+
+func _make_active_hooman() -> Hooman:
+	var h := Hooman.new()
+	_spawned.append(h)
+	# delta=0.0, dist=INF keeps it in FOLLOW with zero movement; is_active=true
+	# is all this call is here to set (mirrors test_hooman.gd's pattern of
+	# driving tick() headless to reach a given _active status).
+	h.tick(0.0, h.global_position, INF, 1.0, true)
+	return h
+
+
+func test_tick_hooman_heals_hp_after_one_second():
+	var box := _make()
+	var h := _make_active_hooman()
+	h.hp = 5
+	h.max_hp = 10
+	box.tick_hooman(1.0, h)
+	assert_eq(h.hp, 7, "2 HP/s tick should heal an active hooman 2 HP in 1 second")
+
+
+func test_tick_hooman_does_not_overheal_beyond_max():
+	var box := _make()
+	var h := _make_active_hooman()
+	h.hp = 9
+	h.max_hp = 10
+	box.tick_hooman(2.0, h)
+	assert_eq(h.hp, 10, "hooman healing should cap at max_hp")
+
+
+func test_tick_hooman_idle_is_not_healed():
+	var box := _make()
+	var h := Hooman.new()
+	_spawned.append(h)
+	# Never driven active — default _active is false.
+	h.hp = 5
+	h.max_hp = 10
+	box.tick_hooman(1.0, h)
+	assert_eq(h.hp, 5, "an idle/unpaid hooman (active == false) should not be healed")
+
+
+func test_tick_hooman_null_target_resets_accumulator():
+	var box := _make()
+	var h := _make_active_hooman()
+	h.hp = 5
+	h.max_hp = 10
+	# Partial tick accumulates 0.5s of HP (1 HP accrued, not yet whole)
+	box.tick_hooman(0.4, h)
+	box.tick_hooman(0.4, null)
+	var hp_before := h.hp
+	box.tick_hooman(0.4, h)
+	assert_eq(h.hp, hp_before, "accumulator reset on null should prevent phantom heal")
+
+
+func test_tick_hooman_does_not_touch_mp_fields():
+	# A hooman has no magic_points/max_mp fields at all; tick_hooman should
+	# run without erroring or attempting any MP-related access.
+	var box := _make()
+	var h := _make_active_hooman()
+	h.hp = 5
+	h.max_hp = 10
+	box.tick_hooman(1.0, h)
+	assert_false("magic_points" in h, "hooman has no MP field for the box to touch")
+
+
 func test_tick_heals_routed_hp_block_and_leaves_node_data_hp():
 	# Co-op shape: HP heals the routed block (effective_stats stand-in) while
 	# the node's own data.hp (real_stats) is untouched. MP still heals the

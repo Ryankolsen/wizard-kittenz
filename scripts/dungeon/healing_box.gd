@@ -7,6 +7,7 @@ const RADIUS: float = 40.0
 
 var _hp_accum: float = 0.0
 var _mp_accum: float = 0.0
+var _hooman_hp_accum: float = 0.0
 
 func _ready() -> void:
 	z_index = -1
@@ -21,6 +22,7 @@ func _draw() -> void:
 func _physics_process(_delta: float) -> void:
 	var target = _find_overlapping_player()
 	tick(_delta, target)
+	tick_hooman(_delta, _find_overlapping_hooman())
 
 # Public so tests can drive healing without a SceneTree. hp_data is the
 # CharacterData block HP healing lands on; null resolves it via _hp_data_for
@@ -84,12 +86,47 @@ static func resolve_hp_data(target, session, local_player_id: String):
 		return target.data
 	return CoopRouter.target_for(session, target.data, local_player_id)
 
+# Additive Hooman-aware branch (issue #504) — the hooman is not in the
+# "player" group (that group is read by several unrelated systems per PRD
+# #502's decision), so it gets its own entry point rather than flowing
+# through tick()/_find_overlapping_player. Heals hooman.hp directly (it has
+# no .data wrapper) via the same whole-HP-accumulator pattern, and no MP
+# heal is attempted since a hooman has no magic_points field. Gated on
+# hooman.is_active() so an idle/unpaid hooman standing in the zone isn't
+# healed.
+func tick_hooman(delta: float, hooman) -> void:
+	if hooman == null or not hooman.is_active():
+		_hooman_hp_accum = 0.0
+		return
+
+	_hooman_hp_accum += HP_PER_SEC * delta
+	var hp_whole := int(_hooman_hp_accum)
+	if hp_whole > 0:
+		_hooman_hp_accum -= float(hp_whole)
+		var healed: int = hooman.heal(hp_whole)
+		if healed > 0 and is_inside_tree():
+			FloatingText.spawn(hooman as Node, "+" + str(healed), Color(0.2, 1.0, 0.4))
+
+
 func _find_overlapping_player():
 	var tree := get_tree()
 	if tree == null:
 		return null
 	var r2 := RADIUS * RADIUS
 	for node in tree.get_nodes_in_group("player"):
+		if node is Node2D and (node as Node2D).global_position.distance_squared_to(global_position) <= r2:
+			return node
+	return null
+
+
+# Mirrors _find_overlapping_player but scans "hooman" (issue #504) — the
+# hooman is deliberately not added to "player" per PRD #502's decision.
+func _find_overlapping_hooman():
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var r2 := RADIUS * RADIUS
+	for node in tree.get_nodes_in_group("hooman"):
 		if node is Node2D and (node as Node2D).global_position.distance_squared_to(global_position) <= r2:
 			return node
 	return null

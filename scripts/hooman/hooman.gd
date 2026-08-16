@@ -277,6 +277,15 @@ func get_heal_glow() -> CPUParticles2D:
 	return _heal_glow
 
 
+# Public getter for the rental-paid-for-the-current-floor status set each
+# tick() call (issue #504) — lets HealingBox gate litter-box healing on the
+# same active/idle status the AI state machine already uses, without adding
+# the hooman to the "player" group (that group is read by several unrelated
+# systems per PRD #502's decision).
+func is_active() -> bool:
+	return _active
+
+
 # Single cooldown-gated burst heal (issue #500) — a "pause to heal" per the
 # PRD, not HealingBox's per-second drip accumulator. Applies via
 # CharacterData.heal (same overheal-capped call HealingBox uses) and spawns
