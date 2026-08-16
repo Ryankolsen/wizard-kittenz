@@ -9,8 +9,11 @@ extends RefCounted
 # Algorithm (random spanning tree with terminal boss + guaranteed bar):
 #   1. Pick room count N in [MIN_ROOMS, MAX_ROOMS] from the RNG.
 #   2. Room 0 is the start.
-#   3. Pick a bar slot bar_id in [2, N-4] and two distinct bar-child slots
-#      from [bar_id+1, N-2]. The bar gets exactly those two outgoing edges.
+#   3. The bar slot bar_id is always 1, so its only valid parent is the
+#      start room (0) — the bar is guaranteed one corridor-hop from the
+#      start on every floor (#492). Two distinct bar-child slots are then
+#      picked from [bar_id+1, N-2]; the bar gets exactly those two outgoing
+#      edges.
 #   4. For i in 1..N-2: attach room i as a child of either the bar (if it
 #      is one of the two pre-picked bar children) or a random existing room
 #      excluding the bar. j gets `connections.append(i)`. This keeps the
@@ -64,13 +67,14 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	dungeon.add_room(start)
 	dungeon.start_id = 0
 
-	# Pick the bar slot. Constraints (#180):
-	#   - not the start (id 0) or boss (id room_count - 1)
+	# The bar slot is always room 1 (#492): room 1's only valid parent is
+	# room 0 (the start), so the bar is always directly, single-corridor
+	# connected to the start on every floor. Still constrained (#180):
+	#   - not the boss (id room_count - 1)
 	#   - not adjacent to the boss (boss's parent must not be the bar)
 	#   - has exactly 2 outgoing edges -> need at least 2 later non-boss
 	#     slots to attach as bar children, so bar_id <= room_count - 4.
-	# bar_id >= 2 keeps the bar's own parent choice from collapsing to {0}.
-	var bar_id := rng.randi_range(2, room_count - 4)
+	var bar_id := 1
 	var child_candidates: Array = []
 	for k in range(bar_id + 1, room_count - 1):
 		child_candidates.append(k)

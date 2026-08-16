@@ -135,6 +135,25 @@ func test_bar_room_is_not_adjacent_to_boss():
 				assert_false(r.connections.has(boss.id),
 					"seed %d: bar should not connect directly to boss" % s)
 
+# --- Bar room forced start-adjacency (#492) ---
+
+func test_bar_room_is_directly_connected_to_start():
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		var bar := d.start_room()
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				bar = r
+		assert_true(d.start_room().connections.has(bar.id),
+			"seed %d: start room should connect directly to the bar" % s)
+
+func test_bar_id_is_always_one():
+	for s in [1, 2, 3, 7, 42, 123, 9999]:
+		var d := DungeonGenerator.generate(s)
+		for r in d.rooms:
+			if r.type == Room.TYPE_BAR:
+				assert_eq(r.id, 1, "seed %d: bar room id should be 1" % s)
+
 # --- Coverage beyond the 5 issue scenarios ---
 
 func test_same_seed_is_deterministic():
