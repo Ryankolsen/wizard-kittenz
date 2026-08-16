@@ -27,6 +27,12 @@ extends InteractableNPC
 #   keeps the spawn independent of how the test stubs the player.
 
 signal shop_requested()
+# Issue #496: fires on every successful rental (first rent of a run and any
+# later re-rental on a subsequent floor). main_scene listens (via BarRoom's
+# re-emit) and spawns the Hooman node the first time only — later rentals
+# just re-activate HoomanRentalService, which is already handled by
+# _rent_hooman below.
+signal hooman_rented()
 
 const SPRITE_TEXTURE_PATH := "res://assets/sprites/bartender.png"
 
@@ -201,4 +207,5 @@ func _rent_hooman() -> void:
 	if not service.activate(_floor_number(), ledger):
 		return
 	FloatingText.spawn(self, RENT_HOOMAN_FLOATING_TEXT, Color(1.0, 0.9, 0.2))
+	hooman_rented.emit()
 	_close_bubble()

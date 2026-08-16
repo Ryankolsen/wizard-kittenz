@@ -75,6 +75,11 @@ var _hidden_dungeon_nodes: Array = []
 # both rendering and physics collisions for those tiles, so the dungeon's
 # wall colliders don't trap the player inside the bar's footprint.
 var _disabled_tilemap_layers: Array[int] = []
+# Rented companion (PRD #491, issue #496). Spawned once per run on the first
+# hooman_rented signal; persists across floor transitions (re-created on
+# reload if gs.hooman_spawned was already true), removed on player death,
+# quitting the dungeon, or returning to the main menu.
+var _hooman: Hooman = null
 
 func _ready() -> void:
 	MusicManager.play_music()
@@ -124,6 +129,14 @@ func _ready() -> void:
 	_setup_rooms()
 	_spawn_exit_door()
 	_setup_minimap()
+
+	# Issue #496: reload_current_scene (floor transition) frees the previous
+	# Hooman node along with the rest of the tree, so a run that already paid
+	# for a hooman respawns the node here rather than waiting for a second
+	# rental. HoomanRentalService.is_active_for_floor naturally comes back
+	# false for the new floor until the player pays again at that floor's bar.
+	if gs != null and gs.hooman_spawned and _hooman == null:
+		_spawn_hooman()
 
 # Co-op wire bridge — subscribes main_scene to the lobby's #99 signals so a
 # remote boss-clear opens the local exit door, a host mint broadcasts the
@@ -331,9 +344,10 @@ func _setup_rooms() -> void:
 # than an Area2D body_entered trigger so the test path
 # (set _player.global_position, await one process frame) is deterministic
 # without needing the physics step to fire.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_check_bar_entrance()
 	_update_current_room()
+	_tick_hooman(delta)
 
 # Minimap slice 1 (#305): instantiates the per-floor FloorMapState and
 # RoomRevealBridge after the dungeon is laid out, then hands the trio
@@ -441,6 +455,8 @@ func _enter_bar_room() -> void:
 	bar.name = "BarRoomScene"
 	if bar.has_signal("player_exited_bar"):
 		bar.player_exited_bar.connect(_on_player_exited_bar)
+	if bar.has_signal("hooman_rented") and not bar.hooman_rented.is_connected(_on_hooman_rented):
+		bar.hooman_rented.connect(_on_hooman_rented)
 	add_child(bar)
 	# Push the bar to the front of the child list so the Player (and any later
 	# siblings like HUD) draw on top of the bar's tilemap and props. Without
@@ -526,6 +542,70 @@ func _on_player_exited_bar() -> void:
 		for layer in _disabled_tilemap_layers:
 			_tilemap.set_layer_enabled(layer, true)
 	_disabled_tilemap_layers.clear()
+
+
+# Bartender.hooman_rented -> BarRoom.hooman_rented -> here (issue #496).
+# Fires on every successful rental; only the first one (per run) spawns the
+# node — later floors' rentals just re-activate HoomanRentalService, which
+# Bartender._rent_hooman already handled before emitting this signal.
+func _on_hooman_rented() -> void:
+	if _hooman != null and is_instance_valid(_hooman):
+		return
+	_spawn_hooman()
+
+
+func _spawn_hooman() -> void:
+	if _player == null:
+		return
+	var hooman := Hooman.new()
+	hooman.name = "Hooman"
+	hooman.global_position = _player.global_position
+	add_child(hooman)
+	_hooman = hooman
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.hooman_spawned = true
+
+
+func _despawn_hooman() -> void:
+	if _hooman != null and is_instance_valid(_hooman):
+		_hooman.queue_free()
+	_hooman = null
+
+
+# HUD calls this on the alive->dead edge (mirrors on_player_revived's call
+# shape). The hooman is a hired companion, not part of the run's persistent
+# state once the player is down — removed rather than left standing idle
+# next to a dead player.
+func on_player_died() -> void:
+	_despawn_hooman()
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		gs.hooman_spawned = false
+
+
+# Per-frame driver for the rented companion (issue #496). Active-for-floor is
+# re-derived every frame from HoomanRentalService rather than cached, so a
+# floor transition (which resets the service's active floor) naturally goes
+# idle without any extra bookkeeping here.
+func _tick_hooman(delta: float) -> void:
+	if _hooman == null or not is_instance_valid(_hooman) or _player == null:
+		return
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null or gs.hooman_rental_service == null:
+		return
+	var floor_number: int = gs.meta_tracker.dungeons_completed + 1 if gs.meta_tracker != null else 1
+	var is_active: bool = gs.hooman_rental_service.is_active_for_floor(floor_number)
+	var player_hp_percent := 1.0
+	if _player.data != null and _player.data.max_hp > 0:
+		player_hp_percent = float(_player.data.hp) / float(_player.data.max_hp)
+	var nearest_mob_dist := INF
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if enemy is Node2D:
+			var d: float = _hooman.global_position.distance_to((enemy as Node2D).global_position)
+			if d < nearest_mob_dist:
+				nearest_mob_dist = d
+	_hooman.tick(delta, _player.global_position, nearest_mob_dist, player_hp_percent, is_active)
 
 
 # Revive flow (#322). After CoopRouter.revive restores the player's HP, the

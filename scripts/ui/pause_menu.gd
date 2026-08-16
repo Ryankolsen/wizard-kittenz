@@ -489,6 +489,8 @@ func confirm_quit_dungeon() -> void:
 		gs.current_character = null
 		gs.skill_tree = null
 		gs.dungeon_run_controller = null
+		gs.hooman_rental_service = HoomanRentalService.new()
+		gs.hooman_spawned = false
 	get_tree().change_scene_to_file("res://scenes/character_creation.tscn")
 
 func _current_coop_session() -> CoopSession:

@@ -44,6 +44,12 @@ var currency_ledger: CurrencyLedger = CurrencyLedger.new()
 # Bartender can reach it without a null check; per-floor state resets via
 # clear() rather than reassignment.
 var hooman_rental_service: HoomanRentalService = HoomanRentalService.new()
+# True once the Hooman node has been spawned for the current run (issue
+# #496). main_scene checks this on _ready() to respawn the node after a
+# floor-transition scene reload — the node itself doesn't survive
+# reload_current_scene, but the PRD's "persists across floor transitions"
+# contract is honored at the GameState level instead.
+var hooman_spawned: bool = false
 # Owned skill ids (PRD #53 / issue #69). Always non-null so the grant handler
 # and future SkillTree availability gate can read freely without a null
 # check. Hydrated from KittenSaveData.to_skill_inventory() in apply_merged_save.
@@ -418,6 +424,8 @@ func clear() -> void:
 	dungeon_run_controller = null
 	streak_day = 0
 	last_login_date = ""
+	hooman_rental_service = HoomanRentalService.new()
+	hooman_spawned = false
 
 # Lobby setter — routes the inbound position_received signal into
 # coop_session.network_sync. The character creation / lobby UI scene calls

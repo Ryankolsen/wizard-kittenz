@@ -21,6 +21,10 @@ extends Node2D
 #   on the next physics step; tuned in QA (#184) if it feels off.
 
 signal player_exited_bar()
+# Re-emits Bartender.hooman_rented (issue #496) so main_scene — which owns
+# the Hooman node, since it lives in the dungeon rather than the bar — can
+# listen without reaching two levels deep into the mounted bar_room.tscn.
+signal hooman_rented()
 
 const ENEMY_PUSHBACK_DISTANCE: float = 64.0
 const SHOP_SCENE_PATH := "res://scenes/shop_screen.tscn"
@@ -58,6 +62,9 @@ func _ready() -> void:
 	if bartender != null and bartender.has_signal("shop_requested") \
 			and not bartender.shop_requested.is_connected(_on_shop_requested):
 		bartender.shop_requested.connect(_on_shop_requested)
+	if bartender != null and bartender.has_signal("hooman_rented") \
+			and not bartender.hooman_rented.is_connected(_on_hooman_rented):
+		bartender.hooman_rented.connect(_on_hooman_rented)
 	# One-off achievement (issue #471): Wait, There's a Bar? fires on every
 	# BarRoom instantiation, but record_event's own idempotency (issue #447)
 	# means only the true first entry actually unlocks it.
@@ -80,6 +87,10 @@ func get_exit_zones() -> Array:
 
 func _on_exit_zone_player_entered() -> void:
 	player_exited_bar.emit()
+
+
+func _on_hooman_rented() -> void:
+	hooman_rented.emit()
 
 
 # Pushes an enemy body that crossed into the bar back outside along the

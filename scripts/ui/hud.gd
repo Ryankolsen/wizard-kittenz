@@ -277,6 +277,12 @@ func _check_player_dead() -> void:
 	if dead and not _you_died.visible:
 		_refresh_death_screen()
 		_you_died.visible = true
+		# Issue #496: the rented hooman is removed on player death. Routed
+		# through main_scene (same has_method call shape as
+		# on_player_revived) since it owns the Hooman node.
+		var parent := get_parent()
+		if parent != null and parent.has_method("on_player_died"):
+			parent.on_player_died()
 
 # Death-screen presentation (post-#27, free-revive contract). Free revives
 # are always available so the shape is fixed; the helper exists for a single
