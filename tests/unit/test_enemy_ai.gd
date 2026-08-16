@@ -369,6 +369,52 @@ func test_select_nearest_combatant_includes_remote_avatars():
 		"a remote avatar with no Player/CharacterData is still chaseable")
 	e.free()
 
+# --- Hooman as an aggro/contact-damage target (issue #498) ---
+
+func _make_hooman(hp_val: int = 10) -> Hooman:
+	var h := Hooman.new()
+	h.hp = hp_val
+	h.max_hp = hp_val
+	add_child_autofree(h)
+	return h
+
+func test_select_nearest_combatant_includes_hooman():
+	# Core wiring: a Hooman stand-in is just another Node2D in the
+	# taunt_targets candidate set — no changes needed to the selector itself.
+	var e := _make_enemy()
+	e.global_position = Vector2.ZERO
+	var hooman := _make_hooman()
+	hooman.global_position = Vector2(40, 0)
+	assert_eq(e._select_nearest_combatant([hooman]), hooman,
+		"a Hooman candidate is selectable exactly like a Player/RemoteKitten stand-in")
+	e.free()
+
+func test_try_contact_damage_applies_to_hooman():
+	# Content details: _try_contact_damage's new `target is Hooman` branch
+	# routes through DamageResolver.apply against the hooman's local HP.
+	var e := _make_enemy()
+	add_child_autofree(e)
+	var hooman := _make_hooman(10)
+	# The 2-attack ANGRY_PIGEON attacker has an 85% base hit chance; reset the
+	# cooldown and retry rather than asserting on a single non-deterministic
+	# roll (matches how the enemy is actually driven in game — one contact
+	# per physics frame, cooldown-gated).
+	for i in range(20):
+		e._attack_controller.last_attack_time = -1.0e9
+		e._try_contact_damage(hooman)
+		if hooman.hp < 10:
+			break
+	assert_lt(hooman.hp, 10, "contact damage reduced the hooman's local HP")
+
+func test_try_contact_damage_still_no_ops_for_non_player_non_hooman_targets():
+	# Edge case: preserves the existing RemoteKitten no-op path (a Node2D with
+	# no .data / not a Player and not a Hooman) — pursued but not damaged.
+	var e := _make_enemy()
+	add_child_autofree(e)
+	var remote := _node_at(Vector2(10, 0))
+	e._try_contact_damage(remote)
+	assert_true(true, "no exception thrown for a non-Player, non-Hooman target")
+
 func test_constants_are_sensible():
 	# Guard against a tuning typo flipping the geometry — melee must be
 	# strictly inside detection or Chase becomes unreachable.

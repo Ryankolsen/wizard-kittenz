@@ -44,6 +44,10 @@ var _active: bool = false
 
 func _ready() -> void:
 	add_to_group("hooman")
+	# Issue #498: joining "taunt_targets" makes Enemy._select_nearest_combatant
+	# (which already scans this group for Player/RemoteKitten targets) treat
+	# the hooman as a valid chase target with zero changes to that method.
+	add_to_group("taunt_targets")
 	if get_node_or_null("Sprite2D") == null:
 		var sprite := Sprite2D.new()
 		sprite.name = "Sprite2D"

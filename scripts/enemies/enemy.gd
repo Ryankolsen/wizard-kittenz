@@ -200,6 +200,20 @@ func _chase(target: Node2D) -> void:
 # drain the player's HP every physics frame. Same cooldown shape as the
 # player's swing — DamageResolver duck-types over both sides.
 func _try_contact_damage(target: Node2D) -> void:
+	# Issue #498: the hooman has its own local HP pool (#497) and is a valid
+	# taunt_targets chase target, so it takes contact damage directly via
+	# DamageResolver rather than the Player/co-op routing below.
+	if target is Hooman:
+		var hooman := target as Hooman
+		var now_h := Time.get_ticks_msec() / 1000.0
+		if not _attack_controller.try_attack(now_h):
+			return
+		var dealt_h := DamageResolver.apply(data, hooman)
+		if dealt_h == 0 and data != null and data.attack > 0:
+			FloatingText.spawn(hooman, "Miss")
+		elif dealt_h > 0:
+			FloatingText.spawn(hooman, str(dealt_h), Color(1.0, 0.2, 0.2))
+		return
 	# Co-op TAUNT can park us on a RemoteKitten (Node2D, no .data) when the
 	# caster is on another client. Pursue without damaging — the casting
 	# client's own Enemy still resolves contact damage against the caster.
