@@ -40,6 +40,10 @@ var paid_unlocks: PaidUnlockInventory = PaidUnlockInventory.new()
 # clear watcher, and shop UI can credit/debit without a null check.
 # Hydrated from KittenSaveData.to_currency_ledger() in apply_merged_save.
 var currency_ledger: CurrencyLedger = CurrencyLedger.new()
+# Rental state for the hired hooman companion (PRD #491). Always non-null so
+# Bartender can reach it without a null check; per-floor state resets via
+# clear() rather than reassignment.
+var hooman_rental_service: HoomanRentalService = HoomanRentalService.new()
 # Owned skill ids (PRD #53 / issue #69). Always non-null so the grant handler
 # and future SkillTree availability gate can read freely without a null
 # check. Hydrated from KittenSaveData.to_skill_inventory() in apply_merged_save.

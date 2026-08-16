@@ -32,18 +32,16 @@ func test_bartender_opens_bubble_on_attack_in_range():
 
 
 func test_bartender_options_include_get_a_beer():
-	# Content: bubble menu rows are exactly [Shop, Get a beer, Exit] in that
-	# order — Beer wedged between Shop and Exit so the existing nav muscle
-	# memory (down-once → Exit) only changes when Beer is affordable.
+	# Content: Get a beer sits at row 1, right after Shop. Full row order
+	# (including Rent a Hooman added in #495) is covered by
+	# test_bartender_options_include_rent_a_hooman.
 	var bartender := _make_bartender()
 	bartender._on_player_entered_range()
 	bartender._on_attack_pressed()
 	var bubble := bartender.get_bubble()
 	var list: NPCOptionList = bubble._list
-	assert_eq(list.size(), 3, "bartender menu has 3 options")
 	assert_eq(list.get_at(0).label, "Shop")
 	assert_eq(list.get_at(1).label, "Get a beer")
-	assert_eq(list.get_at(2).label, "Exit")
 
 
 func test_selecting_shop_emits_shop_requested():
@@ -153,11 +151,12 @@ func test_beer_option_disabled_when_gold_below_25():
 	var list: NPCOptionList = bubble._list
 	assert_false(list.get_at(1).is_enabled(),
 		"Beer option is disabled when gold < 25")
-	# Initial cursor is on Shop (0). One move_next should skip Beer (1)
-	# and land on Exit (2).
+	# Initial cursor is on Shop (0). Rent a Hooman (2) also costs 25 gold, so
+	# at 10 gold both Beer (1) and Rent a Hooman (2) are disabled — one
+	# move_next should skip both and land on Exit (3).
 	bubble.move_next()
-	assert_eq(bubble.selection.current_index(), 2,
-		"Navigation skips disabled Beer row, lands on Exit")
+	assert_eq(bubble.selection.current_index(), 3,
+		"Navigation skips disabled Beer and Rent a Hooman rows, lands on Exit")
 
 
 func test_confirming_disabled_beer_does_not_charge_or_buff():
@@ -253,6 +252,110 @@ func test_bartender_lives_in_bar_room():
 	add_child_autofree(room)
 	var bartender := room.find_child("Bartender", true, false)
 	assert_not_null(bartender, "bar room contains a Bartender node")
+
+
+# --- #495: Rent a Hooman option --------------------------------------------
+
+func test_bartender_options_include_rent_a_hooman():
+	# Content: bubble menu rows are exactly [Shop, Get a beer, Rent a Hooman,
+	# Exit] in that order.
+	var bartender := _make_bartender()
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	var list: NPCOptionList = bubble._list
+	assert_eq(list.size(), 4, "bartender menu has 4 options")
+	assert_eq(list.get_at(0).label, "Shop")
+	assert_eq(list.get_at(1).label, "Get a beer")
+	assert_eq(list.get_at(2).label, "Rent a Hooman")
+	assert_eq(list.get_at(3).label, "Exit")
+
+
+func test_renting_hooman_debits_gold_and_activates_service():
+	var trio := _make_bartender_with_economy(100)
+	var bartender: Bartender = trio[0]
+	var ledger: CurrencyLedger = trio[1]
+	var service := HoomanRentalService.new()
+	bartender.setup_hooman_rental(service, 2, null)
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	bubble.move_next()  # Shop (0) -> Beer (1)
+	bubble.move_next()  # Beer (1) -> Rent a Hooman (2)
+	bubble.confirm()
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD),
+		100 - HoomanRentalService.RENT_COST_GOLD,
+		"Renting a hooman costs exactly RENT_COST_GOLD gold")
+	assert_true(service.is_active_for_floor(2),
+		"Confirming Rent a Hooman activates the service for the current floor")
+
+
+func test_rent_hooman_option_disabled_when_gold_insufficient():
+	var trio := _make_bartender_with_economy(HoomanRentalService.RENT_COST_GOLD - 1)
+	var bartender: Bartender = trio[0]
+	bartender.setup_hooman_rental(HoomanRentalService.new(), 1, null)
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	assert_false(bubble._list.get_at(2).is_enabled(),
+		"Rent a Hooman is disabled when gold is below RENT_COST_GOLD")
+
+
+class _StubCoopSession:
+	extends RefCounted
+	var _active: bool = true
+	func is_active() -> bool:
+		return _active
+
+
+func test_rent_hooman_option_disabled_during_active_coop_session():
+	var trio := _make_bartender_with_economy(100)
+	var bartender: Bartender = trio[0]
+	var stub_session := _StubCoopSession.new()
+	stub_session._active = true
+	bartender.setup_hooman_rental(HoomanRentalService.new(), 1, stub_session)
+	bartender._on_player_entered_range()
+	bartender._on_attack_pressed()
+	var bubble := bartender.get_bubble()
+	assert_false(bubble._list.get_at(2).is_enabled(),
+		"Rent a Hooman is disabled whenever an active co-op session exists, regardless of gold")
+
+
+func test_rent_hooman_enabled_when_coop_session_null_or_inactive():
+	var trio_null := _make_bartender_with_economy(100)
+	var bartender_null: Bartender = trio_null[0]
+	bartender_null.setup_hooman_rental(HoomanRentalService.new(), 1, null)
+	bartender_null._on_player_entered_range()
+	bartender_null._on_attack_pressed()
+	assert_true(bartender_null.get_bubble()._list.get_at(2).is_enabled(),
+		"Rent a Hooman is enabled when coop_session is null")
+
+	var trio_inactive := _make_bartender_with_economy(100)
+	var bartender_inactive: Bartender = trio_inactive[0]
+	var stub_session := _StubCoopSession.new()
+	stub_session._active = false
+	bartender_inactive.setup_hooman_rental(HoomanRentalService.new(), 1, stub_session)
+	bartender_inactive._on_player_entered_range()
+	bartender_inactive._on_attack_pressed()
+	assert_true(bartender_inactive.get_bubble()._list.get_at(2).is_enabled(),
+		"Rent a Hooman is enabled when coop_session exists but is inactive")
+
+
+func test_confirming_disabled_rent_hooman_does_not_charge_or_activate():
+	# Belt-and-suspenders: even if the cursor were forced onto a disabled
+	# Rent a Hooman row, confirming it must not debit or activate.
+	var trio := _make_bartender_with_economy(HoomanRentalService.RENT_COST_GOLD - 1)
+	var bartender: Bartender = trio[0]
+	var ledger: CurrencyLedger = trio[1]
+	var service := HoomanRentalService.new()
+	bartender.setup_hooman_rental(service, 3, null)
+	# Dispatch the effect directly to bypass the controller's disable-skip.
+	bartender._handle_effect("rent_hooman")
+	assert_eq(ledger.balance(CurrencyLedger.Currency.GOLD),
+		HoomanRentalService.RENT_COST_GOLD - 1,
+		"Gold unchanged when renting a hooman is unaffordable")
+	assert_false(service.is_active_for_floor(3),
+		"Service not activated when renting a hooman is unaffordable")
 
 
 func test_bartender_positioned_behind_bar_counter():
