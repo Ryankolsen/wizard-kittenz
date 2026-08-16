@@ -614,12 +614,14 @@ func _tick_hooman(delta: float) -> void:
 	if _player.data != null and _player.data.max_hp > 0:
 		player_hp_percent = float(_player.data.hp) / float(_player.data.max_hp)
 	var nearest_mob_dist := INF
+	var nearest_mob: Node = null
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if enemy is Node2D:
 			var d: float = _hooman.global_position.distance_to((enemy as Node2D).global_position)
 			if d < nearest_mob_dist:
 				nearest_mob_dist = d
-	_hooman.tick(delta, _player.global_position, nearest_mob_dist, player_hp_percent, is_active)
+				nearest_mob = enemy
+	_hooman.tick(delta, _player.global_position, nearest_mob_dist, player_hp_percent, is_active, nearest_mob)
 
 
 # Revive flow (#322). After CoopRouter.revive restores the player's HP, the

@@ -113,6 +113,23 @@ static func chonk() -> WeaponDefinition:
 	d.idle_rotation = 0.2
 	return d
 
+# Hooman companion preset (PRD #491, issue #499) — briefcase-bash SWING,
+# tuned identically to chonk()'s mug-bash shape since both are squarish items
+# swung around a grip point rather than a horizontal-stick weapon.
+static func briefcase() -> WeaponDefinition:
+	var d := WeaponDefinition.new()
+	d.texture_path = "res://assets/sprites/weapon_briefcase_sprite.png"
+	d.attack_type = AttackType.SWING
+	d.swing_arc = 2.3
+	d.anchor_offset = Vector2(4, 2)
+	d.weapon_offset = Vector2(10, 0)
+	d.sprite_scale = Vector2(0.5, 0.5)
+	d.windup_duration = 0.1
+	d.strike_duration = 0.14
+	d.recovery_duration = 0.18
+	d.idle_rotation = 0.2
+	return d
+
 # Lookup hook for SpriteHelper / player.gd. All four kitten classes return a
 # preset as of slice 3; as of issue #431, their Cat-tier upgrades fall back to
 # the same preset (Cat-tier reuses the Kitten weapon art as-is). Any other

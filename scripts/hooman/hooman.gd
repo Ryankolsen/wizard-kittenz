@@ -13,6 +13,7 @@ extends CharacterBody2D
 # testable-without-scene-tree shape.
 
 const RIGHT_TEXTURE_PATH := "res://assets/sprites/hooman_right.png"
+const _WeaponPivotScene = preload("res://scenes/weapon_pivot.tscn")
 
 # Follow tuning. Comfort radius is the "stand near the player" band; beyond
 # LEASH_DISTANCE the hooman snaps back in rather than visibly catching up —
@@ -31,7 +32,11 @@ signal defeated
 # against a Hooman unmodified in either direction (issue #497).
 @export var hp: int = 20
 @export var max_hp: int = 20
-@export var attack: int = 3
+# Flat, moderate attack stat (issue #499) — not scaled by player level/gear
+# per the PRD decision. Comparable to a level-1 kitten's base attack (2-9
+# across classes) rather than to mob attack (2-4), since the hooman is
+# meant to meaningfully dent mob HP, not just tickle it.
+@export var attack: int = 6
 @export var defense: int = 0
 
 # Wired by main_scene on spawn so take_damage can clear the rental on defeat
@@ -40,6 +45,15 @@ var rental_service: HoomanRentalService = null
 
 var state: int = HoomanAIState.State.FOLLOW
 var _active: bool = false
+
+# Independent of the player's WeaponPivot/AttackChoreographer (issue #499) —
+# the hooman always wields the briefcase preset, no equip/loadout system.
+var _weapon_pivot: WeaponPivot = null
+var _attack_choreographer: AttackChoreographer = null
+# Nearest in-range mob, fed in each tick() call by main_scene (real Enemy
+# reference, not just a distance) so the strike-window callback has
+# something to apply DamageResolver.apply against.
+var _current_target: Node = null
 
 
 func _ready() -> void:
@@ -62,6 +76,10 @@ func _ready() -> void:
 		shape.shape = circle
 		add_child(shape)
 	HoomanHealthBar.attach(self)
+	if _weapon_pivot == null:
+		_weapon_pivot = _WeaponPivotScene.instantiate()
+		add_child(_weapon_pivot)
+	_ensure_attack_choreographer()
 
 
 # Matches EnemyData.take_damage's contract: reduces hp by amount (floored at
@@ -93,14 +111,22 @@ func _on_defeated() -> void:
 
 # Pure/headless-callable per-frame driver, same shape as
 # Enemy.apply_state_update. Advances the AI state machine from
-# HoomanAIState.next_state, then — for this slice — applies follow movement
-# only in FOLLOW; CHASE/ATTACK/HEAL are no-ops at the node level until
-# #497/#498 wire up combat and healing.
-func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_percent: float, is_active: bool) -> void:
+# HoomanAIState.next_state, then applies follow movement in FOLLOW or drives
+# the briefcase attack in ATTACK (issue #499); HEAL remains a no-op at the
+# node level until #500. `nearest_mob` is the actual Enemy reference (not
+# just the distance already used for the state decision) so the strike
+# window has a concrete target to damage — defaults to null so existing
+# FOLLOW/CHASE-only callers keep working unchanged.
+func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_percent: float, is_active: bool, nearest_mob: Node = null) -> void:
 	_active = is_active
+	_current_target = nearest_mob
 	state = HoomanAIState.next_state(state, nearest_mob_dist, player_hp_percent, is_active)
+	if _attack_choreographer != null:
+		_attack_choreographer.tick(delta)
 	if state == HoomanAIState.State.FOLLOW:
 		_apply_follow(delta, player_pos)
+	elif state == HoomanAIState.State.ATTACK:
+		_try_attack()
 
 
 # Pure helper: velocity that would carry `pos` toward `player_pos` at
@@ -138,3 +164,61 @@ func _update_facing(dir: Vector2) -> void:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
 		sprite.flip_h = dir.x < 0.0
+
+
+# Lazily builds the choreographer so tick()/_try_attack() work headless in
+# tests that construct a bare Hooman.new() (no _ready(), no WeaponPivot) —
+# AttackChoreographer null-checks weapon_pivot throughout, so the swing
+# state machine (and thus damage) still runs without a visual. Wires the
+# pivot in once one exists (from _ready() in the real scene tree).
+func _ensure_attack_choreographer() -> void:
+	if _attack_choreographer == null:
+		_attack_choreographer = AttackChoreographer.new()
+		_attack_choreographer.definition = WeaponDefinition.briefcase()
+		_attack_choreographer.hitbox_enable_requested.connect(_on_strike_window_open)
+	if _attack_choreographer.weapon_pivot == null and _weapon_pivot != null:
+		_attack_choreographer.weapon_pivot = _weapon_pivot
+		_weapon_pivot.set_definition(_attack_choreographer.definition)
+
+
+# Starts a briefcase swing toward the current target if the choreographer
+# isn't already mid-swing — start_attack itself would clean-interrupt and
+# restart, but ATTACK is re-entered every tick while in range, so gating on
+# IDLE here keeps one swing per windup+strike+recovery cycle instead of
+# restarting every frame.
+func _try_attack() -> void:
+	_ensure_attack_choreographer()
+	if _attack_choreographer.phase != AttackChoreographer.Phase.IDLE:
+		return
+	var dir := Vector2.RIGHT
+	if _current_target != null and is_instance_valid(_current_target) and _current_target is Node2D:
+		var to_target: Vector2 = (_current_target as Node2D).global_position - global_position
+		if to_target != Vector2.ZERO:
+			dir = to_target.normalized()
+	_attack_choreographer.start_attack(dir, WeaponDefinition.AttackType.SWING)
+
+
+# Strike-window callback (mirrors player.gd's _on_strike_window_open ->
+# _apply_melee_damage). Damages the nearest in-range mob tracked via
+# _current_target through the same DamageResolver.apply duck-typed call
+# player.gd uses, so a hooman kill drops the target's HP to 0 and the
+# target's own AI tick (Enemy.apply_state_update) detects the live->DEAD
+# edge and emits `died` exactly like a player kill — no parallel kill path.
+func _apply_briefcase_damage() -> void:
+	var target := _current_target
+	if target == null or not is_instance_valid(target) or not ("data" in target):
+		return
+	var target_data = target.data
+	if target_data == null or not target_data.is_alive():
+		return
+	if global_position.distance_to((target as Node2D).global_position) > HoomanAIState.MELEE_RANGE:
+		return
+	var dealt: int = DamageResolver.apply(self, target_data)
+	if dealt == 0 and attack > 0:
+		FloatingText.spawn(target, "Miss")
+	elif dealt > 0:
+		FloatingText.spawn_at(target, str(dealt), DamageKind.color_for(DamageKind.Kind.PHYSICAL))
+
+
+func _on_strike_window_open() -> void:
+	_apply_briefcase_damage()

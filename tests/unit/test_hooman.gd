@@ -175,3 +175,92 @@ func test_damage_resolver_apply_works_against_hooman_data():
 	assert_gt(dealt, 0)
 	assert_eq(h.hp, 10 - dealt)
 	h.free()
+
+
+# --- Briefcase combat (issue #499) ----------------------------------------
+
+func _make_target_enemy() -> Enemy:
+	var e := Enemy.new()
+	e.data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	e.data.defense = 0
+	return e
+
+# Advances the choreographer through a full windup+strike+recovery cycle in
+# one call so tests don't need to hand-step individual phase durations.
+# `dist` re-feeds the same distance-to-mob used to enter ATTACK so the state
+# machine doesn't flip elsewhere mid-swing.
+func _run_full_swing(h: Hooman, dist: float) -> void:
+	var def := WeaponDefinition.briefcase()
+	h.tick(def.total_duration() + 0.01, Vector2.ZERO, dist, 1.0, true, h._current_target)
+
+func test_briefcase_definition_uses_swing_attack_type():
+	assert_eq(WeaponDefinition.briefcase().attack_type, WeaponDefinition.AttackType.SWING)
+
+func test_briefcase_definition_texture_path():
+	assert_eq(WeaponDefinition.briefcase().texture_path, "res://assets/sprites/weapon_briefcase_sprite.png")
+
+func test_attack_state_deals_damage_to_nearest_mob():
+	var h := Hooman.new()
+	h.attack = 20
+	h.global_position = Vector2.ZERO
+	var target := _make_target_enemy()
+	target.global_position = Vector2(HoomanAIState.MELEE_RANGE - 1.0, 0.0)
+	var start_hp: int = target.data.hp
+
+	h.tick(0.016, Vector2.ZERO, 0.0, 1.0, true, target)
+	assert_eq(h.state, HoomanAIState.State.ATTACK)
+	# HitResolver's base 85% hit chance (uses the global randf(), same as
+	# production) means a single swing can whiff; retry swings rather than
+	# asserting on one non-deterministic roll — matches
+	# test_try_contact_damage_applies_to_hooman's retry pattern.
+	for i in range(20):
+		_run_full_swing(h, 0.0)
+		if target.data.hp < start_hp:
+			break
+
+	assert_lt(target.data.hp, start_hp, "strike window should have damaged the nearest in-range mob")
+	h.free()
+	target.free()
+
+func test_attack_does_not_damage_mob_out_of_melee_range():
+	var h := Hooman.new()
+	h.attack = 20
+	h.global_position = Vector2.ZERO
+	var target := _make_target_enemy()
+	target.global_position = Vector2(HoomanAIState.MELEE_RANGE + 50.0, 0.0)
+	var start_hp: int = target.data.hp
+
+	# distance_to_mob for the state decision is the mob's actual distance
+	# (beyond melee range), so the hooman lands in CHASE, not ATTACK — no
+	# strike ever fires, and hp is untouched either way.
+	var dist := HoomanAIState.MELEE_RANGE + 50.0
+	h.tick(0.016, Vector2.ZERO, dist, 1.0, true, target)
+	assert_eq(h.state, HoomanAIState.State.CHASE)
+	_run_full_swing(h, dist)
+
+	assert_eq(target.data.hp, start_hp, "mob outside melee range takes no damage")
+	h.free()
+	target.free()
+
+func test_killing_mob_via_hooman_emits_died_signal():
+	var h := Hooman.new()
+	h.attack = 999
+	h.global_position = Vector2.ZERO
+	var target := _make_target_enemy()
+	target.global_position = Vector2(HoomanAIState.MELEE_RANGE - 1.0, 0.0)
+	target.data.hp = 1
+	var fired := [0]
+	target.died.connect(func(): fired[0] += 1)
+
+	h.tick(0.016, Vector2.ZERO, 0.0, 1.0, true, target)
+	# Same 85%-hit-chance retry rationale as test_attack_state_deals_damage_
+	# to_nearest_mob — keep swinging until the one-hp killing blow lands.
+	for i in range(20):
+		_run_full_swing(h, 0.0)
+		if not target.data.is_alive():
+			break
+	target.apply_state_update(1000.0)
+
+	assert_eq(fired[0], 1, "died emitted exactly once on the hooman's killing blow")
+	h.free()
+	target.free()
