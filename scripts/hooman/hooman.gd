@@ -124,8 +124,10 @@ func _on_defeated() -> void:
 
 # Pure/headless-callable per-frame driver, same shape as
 # Enemy.apply_state_update. Advances the AI state machine from
-# HoomanAIState.next_state, then applies follow movement in FOLLOW, drives
-# the briefcase attack in ATTACK (issue #499), or applies a burst heal in
+# HoomanAIState.next_state, then applies follow movement in FOLLOW, drifts
+# toward the target in CHASE (without this the hooman would enter CHASE and
+# just sit there, never actually reaching MELEE_RANGE to attack), drives the
+# briefcase attack in ATTACK (issue #499), or applies a burst heal in
 # HEAL (issue #500). `nearest_mob` is the actual Enemy reference (not just
 # the distance already used for the state decision) so the strike window has
 # a concrete target to damage; `player` is the Player-shaped node (exposing
@@ -143,6 +145,8 @@ func tick(delta: float, player_pos: Vector2, nearest_mob_dist: float, player_hp_
 		_attack_choreographer.tick(delta)
 	if state == HoomanAIState.State.FOLLOW:
 		_apply_follow(delta, player_pos)
+	elif state == HoomanAIState.State.CHASE:
+		_apply_chase(delta)
 	elif state == HoomanAIState.State.ATTACK:
 		_try_attack()
 	elif state == HoomanAIState.State.HEAL:
@@ -173,6 +177,27 @@ func _apply_follow(delta: float, player_pos: Vector2) -> void:
 		global_position = player_pos - dir * COMFORT_RADIUS
 		velocity = Vector2.ZERO
 		return
+	velocity = dir * FOLLOW_SPEED
+	global_position += velocity * delta
+	_update_facing(dir)
+
+
+# Drifts toward the currently tracked mob while in CHASE — without this the
+# state machine correctly enters CHASE but the hooman never actually closes
+# the gap to MELEE_RANGE, so it can sit in CHASE indefinitely and never
+# attack. Falls back to holding position if the target is gone (mob died/
+# despawned mid-chase) rather than drifting toward a stale position.
+func _apply_chase(delta: float) -> void:
+	if _current_target == null or not is_instance_valid(_current_target) or not (_current_target is Node2D):
+		velocity = Vector2.ZERO
+		return
+	var target_pos: Vector2 = (_current_target as Node2D).global_position
+	var to_target := target_pos - global_position
+	var dist := to_target.length()
+	if dist <= HoomanAIState.MELEE_RANGE:
+		velocity = Vector2.ZERO
+		return
+	var dir := to_target / dist
 	velocity = dir * FOLLOW_SPEED
 	global_position += velocity * delta
 	_update_facing(dir)

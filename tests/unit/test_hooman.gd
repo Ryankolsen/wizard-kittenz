@@ -58,6 +58,53 @@ func test_follow_snaps_when_beyond_leash_distance():
 	h.free()
 
 
+# --- CHASE movement (issue #506) -------------------------------------------
+#
+# Regression coverage for the missing CHASE-movement branch: the state
+# machine correctly entered CHASE when a mob was beyond MELEE_RANGE but
+# within DETECTION_RADIUS, but tick() never moved the hooman toward it, so it
+# could sit in CHASE forever and never reach melee range to attack.
+
+func test_chase_moves_toward_target_mob():
+	var h := Hooman.new()
+	h.global_position = Vector2.ZERO
+	var target := _make_target_enemy()
+	var chase_dist := HoomanAIState.MELEE_RANGE + 50.0
+	target.global_position = Vector2(chase_dist, 0.0)
+
+	h.tick(0.016, Vector2(-1000.0, 0.0), chase_dist, 1.0, true, target)
+	assert_eq(h.state, HoomanAIState.State.CHASE)
+	assert_gt(h.global_position.x, 0.0,
+		"hooman should have moved toward the mob (positive x), not stayed put")
+	h.free()
+	target.free()
+
+
+func test_chase_stops_closing_once_within_melee_range():
+	var h := Hooman.new()
+	h.global_position = Vector2.ZERO
+	var target := _make_target_enemy()
+	target.global_position = Vector2(HoomanAIState.MELEE_RANGE - 1.0, 0.0)
+
+	h.tick(1.0, Vector2(-1000.0, 0.0), HoomanAIState.MELEE_RANGE - 1.0, 1.0, true, target)
+	assert_eq(h.state, HoomanAIState.State.ATTACK,
+		"already within melee range should route to ATTACK, not CHASE")
+	h.free()
+	target.free()
+
+
+func test_chase_holds_position_when_target_is_gone():
+	var h := Hooman.new()
+	h.global_position = Vector2(10.0, 10.0)
+	# nearest_mob_dist still routes to CHASE, but no concrete target node is
+	# passed — mirrors a mob dying/despawning mid-chase.
+	h.tick(0.016, Vector2(-1000.0, 0.0), HoomanAIState.MELEE_RANGE + 50.0, 1.0, true, null)
+	assert_eq(h.state, HoomanAIState.State.CHASE)
+	assert_eq(h.global_position, Vector2(10.0, 10.0),
+		"no crash and no drift toward a stale/missing target")
+	h.free()
+
+
 # --- Edge cases: spawn / despawn wiring on main.tscn ----------------------
 
 func test_renting_twice_in_one_run_does_not_spawn_second_node():
