@@ -67,13 +67,24 @@ def autocrop(img: Image.Image, padding: int = 2) -> Image.Image:
     return img.crop((left, top, right, bottom))
 
 
-def split_grid(img: Image.Image, cols: int, rows: int) -> list[Image.Image]:
+def split_grid(img: Image.Image, cols: int, rows: int, inset: int = 8) -> list[Image.Image]:
+    """Split into a grid, trimming `inset` px off each cell edge first.
+
+    Midjourney's 2x2 sheets draw a several-px anti-aliased divider line
+    centered exactly on each grid boundary, so a naive crop leaves half of
+    that line stuck to the edge of every cell. remove_background's
+    flood-fill won't touch it (it's near-black, not near-white), and it
+    then survives as a faint dark sliver on the final sprite. Insetting
+    before background removal keeps the divider out of every cell,
+    including the outer image border where it's harmless since that's
+    already background.
+    """
     w, h = img.size
     cw, ch = w // cols, h // rows
     cells = []
     for row in range(rows):
         for col in range(cols):
-            box = (col * cw, row * ch, (col + 1) * cw, (row + 1) * ch)
+            box = (col * cw + inset, row * ch + inset, (col + 1) * cw - inset, (row + 1) * ch - inset)
             cells.append(img.crop(box))
     return cells
 
@@ -96,6 +107,7 @@ def main():
     parser.add_argument("--tolerance", type=int, default=15, help="Background removal tolerance 0-255 (default: 15)")
     parser.add_argument("--bg", default="white", choices=["white", "black"], help="Background color to remove (default: white)")
     parser.add_argument("--size", type=int, default=48, help="Fit sprite within this pixel box (default: 48). Set 0 to skip resize.")
+    parser.add_argument("--inset", type=int, default=8, help="Pixels trimmed off each cell edge before background removal, to drop the grid divider line (default: 8)")
     parser.add_argument("--out", default="assets/sprites", help="Output directory (default: assets/sprites)")
     args = parser.parse_args()
 
@@ -107,7 +119,7 @@ def main():
     img = Image.open(src)
     print(f"Source: {src.name}  {img.size}  mode={img.mode}  grid={cols}x{rows}  bg={args.bg}")
 
-    cells = split_grid(img, cols, rows)
+    cells = split_grid(img, cols, rows, args.inset)
     labels = GRID_LABELS.get((cols, rows), [f"frame_{i}" for i in range(len(cells))])
 
     saved = []
