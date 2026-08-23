@@ -16,6 +16,23 @@ const ARCHETYPES := [
 	CharacterData.CharacterClass.CHONK_KITTEN,
 ]
 
+const WALL_WALKER_ID := "wall_walker"
+
+# Seeds the wall_walker achievement as unlocked-but-unclaimed directly on the
+# account, matching the entry shape AchievementService.record_event/
+# increment_counter write (PRD #512 / issue #516). Idempotent — re-running
+# against an already-seeded account leaves the single entry untouched.
+# earned_by_slot is left blank since claim-routing doesn't apply to a
+# NONE-reward achievement.
+static func seed_wall_walker(account: AccountSaveData) -> AccountSaveData:
+	if not account.achievement_state.has(WALL_WALKER_ID):
+		account.achievement_state[WALL_WALKER_ID] = {
+			"unlocked_at": Time.get_unix_time_from_system(),
+			"claimed": false,
+			"earned_by_slot": "",
+		}
+	return account
+
 func _init() -> void:
 	var bundle := SaveManager.load_bundle()
 
@@ -29,6 +46,7 @@ func _init() -> void:
 	var ledger := CurrencyLedger.new()
 	ledger.credit(TARGET_GEMS, CurrencyLedger.Currency.GEM)
 	bundle.account = AccountSaveData.from_state(ledger)
+	seed_wall_walker(bundle.account)
 	bundle.active_slot = SaveBundle.SLOT_BATTLE
 
 	var err := SaveManager.save_bundle(bundle)
