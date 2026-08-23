@@ -118,6 +118,8 @@ func _rebuild_rows() -> void:
 		var opt: NPCOption = _list.get_at(i)
 		var lbl := Label.new()
 		lbl.text = opt.label
+		if opt.cost_currency == NPCOption.CurrencyType.GOLD:
+			lbl.text += "  —  %d G" % opt.cost_amount
 		if not opt.is_enabled():
 			lbl.modulate = Color(0.5, 0.5, 0.5, 1.0)
 		_rows_container.add_child(lbl)

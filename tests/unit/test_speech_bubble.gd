@@ -108,3 +108,44 @@ func test_panel_bottom_edge_anchored_above_npc():
 		"bubble bottom edge sits BOTTOM_MARGIN above the NPC origin")
 	assert_almost_eq(bubble._panel.position.x, -bubble._panel.size.x * 0.5, 0.5,
 		"bubble is centred horizontally over the NPC origin")
+
+
+# Issue #508: rows for GOLD-cost options render a "— <amount> G" suffix.
+func test_gold_cost_option_row_shows_cost_suffix():
+	var list := NPCOptionList.make([
+		NPCOption.make("Get a beer", "buy_beer", Callable(), NPCOption.CurrencyType.GOLD, 25),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	assert_true(bubble._row_labels[0].text.ends_with("—  25 G"),
+		"GOLD-cost row renders the cost suffix")
+
+
+# NONE-cost options (e.g. "Exit") render unchanged, with no suffix.
+func test_none_cost_option_row_has_no_suffix():
+	var list := NPCOptionList.make([
+		NPCOption.make("Get a beer", "buy_beer", Callable(), NPCOption.CurrencyType.GOLD, 25),
+		NPCOption.make("Exit", "close"),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	assert_eq(bubble._row_labels[1].text, "Exit",
+		"NONE-cost row's label text is unchanged, no trailing whitespace")
+
+
+# A GOLD-cost option with cost_amount == 0 still renders the suffix — the
+# branch keys off cost_currency, not whether the amount is truthy.
+func test_gold_cost_zero_amount_still_renders_suffix():
+	var list := NPCOptionList.make([
+		NPCOption.make("Free sample", "free_sample", Callable(), NPCOption.CurrencyType.GOLD, 0),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	assert_true(bubble._row_labels[0].text.ends_with("—  0 G"),
+		"zero-amount GOLD-cost row still renders the suffix")
