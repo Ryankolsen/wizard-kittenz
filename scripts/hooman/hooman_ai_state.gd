@@ -12,7 +12,11 @@ enum State { FOLLOW, CHASE, ATTACK, HEAL }
 
 # Tunables — separate constants from EnemyAIState's even though the shape
 # mirrors it, since the hooman is tuned independently of enemy aggro ranges.
-const DETECTION_RADIUS: float = 160.0
+# DETECTION_RADIUS is kept close to Hooman.COMFORT_RADIUS (40) + a mob's own
+# melee range (20) so the hooman mostly reacts once a mob is already close
+# enough to be attacking the player, rather than proactively hunting mobs
+# well off in the distance.
+const DETECTION_RADIUS: float = 60.0
 const MELEE_RANGE: float = 20.0
 const ATTACK_COOLDOWN: float = 0.8
 const HEAL_HP_THRESHOLD: float = 0.3

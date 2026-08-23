@@ -69,7 +69,7 @@ func test_chase_moves_toward_target_mob():
 	var h := Hooman.new()
 	h.global_position = Vector2.ZERO
 	var target := _make_target_enemy()
-	var chase_dist := HoomanAIState.MELEE_RANGE + 50.0
+	var chase_dist := HoomanAIState.MELEE_RANGE + 10.0
 	target.global_position = Vector2(chase_dist, 0.0)
 
 	h.tick(0.016, Vector2(-1000.0, 0.0), chase_dist, 1.0, true, target)
@@ -98,7 +98,7 @@ func test_chase_holds_position_when_target_is_gone():
 	h.global_position = Vector2(10.0, 10.0)
 	# nearest_mob_dist still routes to CHASE, but no concrete target node is
 	# passed — mirrors a mob dying/despawning mid-chase.
-	h.tick(0.016, Vector2(-1000.0, 0.0), HoomanAIState.MELEE_RANGE + 50.0, 1.0, true, null)
+	h.tick(0.016, Vector2(-1000.0, 0.0), HoomanAIState.MELEE_RANGE + 10.0, 1.0, true, null)
 	assert_eq(h.state, HoomanAIState.State.CHASE)
 	assert_eq(h.global_position, Vector2(10.0, 10.0),
 		"no crash and no drift toward a stale/missing target")
@@ -274,13 +274,13 @@ func test_attack_does_not_damage_mob_out_of_melee_range():
 	h.attack = 20
 	h.global_position = Vector2.ZERO
 	var target := _make_target_enemy()
-	target.global_position = Vector2(HoomanAIState.MELEE_RANGE + 50.0, 0.0)
+	target.global_position = Vector2(HoomanAIState.MELEE_RANGE + 10.0, 0.0)
 	var start_hp: int = target.data.hp
 
 	# distance_to_mob for the state decision is the mob's actual distance
 	# (beyond melee range), so the hooman lands in CHASE, not ATTACK — no
 	# strike ever fires, and hp is untouched either way.
-	var dist := HoomanAIState.MELEE_RANGE + 50.0
+	var dist := HoomanAIState.MELEE_RANGE + 10.0
 	h.tick(0.016, Vector2.ZERO, dist, 1.0, true, target)
 	assert_eq(h.state, HoomanAIState.State.CHASE)
 	_run_full_swing(h, dist)
