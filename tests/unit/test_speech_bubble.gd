@@ -149,3 +149,43 @@ func test_gold_cost_zero_amount_still_renders_suffix():
 	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
 	assert_true(bubble._row_labels[0].text.ends_with("—  0 G"),
 		"zero-amount GOLD-cost row still renders the suffix")
+
+
+# Issue #509: the Panel gets nonzero content margins so rows aren't jammed
+# against the panel edges.
+func test_panel_has_nonzero_content_margins():
+	var bubble := _make_open_bubble()
+	var sb: StyleBox = bubble._panel.get_theme_stylebox("panel")
+	assert_true(sb is StyleBoxFlat, "precondition: panel stylebox is a StyleBoxFlat")
+	var flat := sb as StyleBoxFlat
+	assert_gt(flat.content_margin_left, 0.0, "panel has left content margin")
+	assert_gt(flat.content_margin_top, 0.0, "panel has top content margin")
+	assert_gt(flat.content_margin_right, 0.0, "panel has right content margin")
+	assert_gt(flat.content_margin_bottom, 0.0, "panel has bottom content margin")
+
+
+# The Rows VBoxContainer gets nonzero separation so rows aren't touching.
+func test_rows_have_nonzero_separation():
+	var bubble := _make_open_bubble()
+	assert_eq(bubble._rows_container.get_theme_constant("separation"), 6,
+		"rows container has 6px separation between rows")
+
+
+# Regression guard (#197 follow-up): padding/separation must be additive, not
+# a fixed clip — the panel must still widen to fit the widest label.
+func test_panel_still_widens_to_contain_longest_label_with_padding():
+	var list := NPCOptionList.make([
+		NPCOption.make("Shop", "open_shop"),
+		NPCOption.make("Get a beer", "buy_beer"),
+		NPCOption.make("Exit", "close"),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	var widest := 0.0
+	for lbl in bubble._row_labels:
+		widest = maxf(widest, lbl.get_minimum_size().x)
+	assert_gt(widest, 0.0, "precondition: labels report a non-zero text width")
+	assert_true(bubble._panel.size.x >= widest,
+		"panel still widens to contain its longest label with padding applied")
