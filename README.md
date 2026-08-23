@@ -75,7 +75,7 @@ On macOS the Godot binary is typically at `/Applications/Godot.app/Contents/MacO
 
 `tools/` holds standalone scripts for local testing — not part of the shipped game.
 
-**Preload save data** (`tools/dev_preload_save.gd`): writes `user://save.json` with all four Kitten archetypes at level 15 and 5000 Gems on the account, so you can jump straight into testing higher-level content (e.g. Shop Cat-tier upgrades) without grinding. Uses the real `CharacterData`/`ProgressionSystem`/`SaveManager` classes, so the result matches what normal play would produce. Safe to rerun — resets level/gems without touching other save fields (items, dungeon progress, etc).
+**Preload save data** (`tools/dev_preload_save.gd`): writes `user://save.json` with all four Kitten archetypes at level 15 and 5000 Gems on the account, so you can jump straight into testing higher-level content (e.g. Shop Cat-tier upgrades) without grinding. Also pre-unlocks the `wall_walker` achievement (PRD #512) directly on the account, so all four classes start with the permanent wall phase-through ability without grinding 5 dungeon clears. Uses the real `CharacterData`/`ProgressionSystem`/`SaveManager` classes, so the result matches what normal play would produce. Safe to rerun — resets level/gems and re-seeds the achievement without touching other save fields (items, dungeon progress, etc).
 
 ```bash
 /path/to/Godot.app/Contents/MacOS/Godot \
