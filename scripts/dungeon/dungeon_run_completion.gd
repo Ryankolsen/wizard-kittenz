@@ -18,3 +18,6 @@ extends RefCounted
 static func complete(meta_tracker: MetaProgressionTracker) -> void:
 	if meta_tracker != null:
 		meta_tracker.record_dungeon_complete()
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if gs != null:
+		gs.achievement_service.increment_counter("dungeons_completed", 1)

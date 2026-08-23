@@ -19,7 +19,7 @@ func after_each() -> void:
 
 func test_catalog_has_sixteen_entries_with_valid_content():
 	var defs := AchievementCatalog.all()
-	assert_eq(defs.size(), 47)
+	assert_eq(defs.size(), 48)
 	for d in defs:
 		assert_false(d.title.is_empty(), "%s must have a non-empty title" % d.id)
 		assert_false(d.flavor_text.is_empty(), "%s must have non-empty flavor text" % d.id)
@@ -318,6 +318,36 @@ func test_dungeons_entered_tiers_have_correct_thresholds_and_rewards():
 	assert_eq(by_id["dungeon_landlord"].threshold, 200)
 	assert_eq(by_id["dungeon_landlord"].reward_type, AchievementDefinition.RewardType.ITEM)
 	assert_eq(by_id["dungeon_landlord"].reward_item_id, "bramble_plate")
+
+# --- Content details: dungeons-completed / Wall Walker ---------------------------
+
+func test_dungeons_completed_wall_walker_unlocks_at_correct_count_using_real_catalog():
+	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	service.increment_counter("dungeons_completed", 4)
+	assert_false(service.account.achievement_state.has("wall_walker"), "4 dungeon clears must not unlock Wall Walker")
+	service.increment_counter("dungeons_completed", 1)
+	assert_true(service.account.achievement_state.has("wall_walker"), "5 dungeon clears unlocks Wall Walker")
+
+func test_wall_walker_has_correct_threshold_counter_key_and_reward_type():
+	var by_id := {}
+	for d in AchievementCatalog.all():
+		by_id[d.id] = d
+	assert_eq(by_id["wall_walker"].threshold, 5)
+	assert_eq(by_id["wall_walker"].counter_key, "dungeons_completed")
+	assert_eq(by_id["wall_walker"].reward_type, AchievementDefinition.RewardType.NONE)
+
+func test_dungeon_run_completion_complete_increments_dungeons_completed_counter():
+	GameState.achievement_service = AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())
+	DungeonRunCompletion.complete(MetaProgressionTracker.new())
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("dungeons_completed", 0)), 1,
+		"DungeonRunCompletion.complete() must increment the dungeons_completed counter")
+
+func test_dungeon_entering_does_not_increment_dungeons_completed_counter():
+	var controller := DungeonRunController.new()
+	var dungeon := DungeonGenerator.generate(12345)
+	controller.start(dungeon)
+	assert_eq(int(GameState.achievement_service.account.achievement_counters.get("dungeons_completed", 0)), 0,
+		"entering a dungeon must not increment the dungeons_completed counter, only dungeons_entered")
 
 func test_dungeons_entered_tier_rewards_are_claimable():
 	var service := AchievementService.new(AccountSaveData.new(), AchievementCatalog.all())

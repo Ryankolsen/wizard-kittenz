@@ -223,6 +223,13 @@ static func all() -> Array:
 		"named_gwendolyn", "named_gwendolyn",
 		"In Memory of Gwendolyn",
 		"You named a kitten Gwendolyn. In her honor you go all in for ham, chaos, and glory — no teeth required."))
+	# Wall Walker (PRD #512 / issue #514): badge-only unlock at 5 dungeon
+	# clears (boss-room cleared, not just entered) — the real reward, a
+	# permanent wall phase-through ability, is applied outside the claim
+	# flow by a later slice (#515), same "memorial" pattern as named_gwendolyn.
+	out.append(_tiered_none("wall_walker", "dungeons_completed", 5,
+		"Wall Walker",
+		"Cleared 5 dungeons. The walls have given up trying to stop you."))
 	return out
 
 # Tiered TOME entries (issue #460) share AchievementDefinition.make_tome's
@@ -250,6 +257,12 @@ static func _tiered_potion(p_id: String, p_counter_key: String, p_threshold: int
 
 static func _tiered_item(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String, p_item_id: String) -> AchievementDefinition:
 	var d := AchievementDefinition.make_item(p_id, "", p_title, p_flavor_text, p_item_id)
+	d.counter_key = p_counter_key
+	d.threshold = p_threshold
+	return d
+
+static func _tiered_none(p_id: String, p_counter_key: String, p_threshold: int, p_title: String, p_flavor_text: String) -> AchievementDefinition:
+	var d := AchievementDefinition.make_none(p_id, "", p_title, p_flavor_text)
 	d.counter_key = p_counter_key
 	d.threshold = p_threshold
 	return d
