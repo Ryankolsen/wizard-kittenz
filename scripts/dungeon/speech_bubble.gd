@@ -27,6 +27,12 @@ signal dismissed()
 # width is NOT fixed — it grows to fit the widest row (see _resize_to_content).
 const BOTTOM_MARGIN := 32.0
 
+# NPCs near the top of a room (e.g. the bartender's counter) push a
+# tall/wide menu above the visible viewport, clipping the top rows (#197
+# follow-up). After anchoring above the NPC, clamp the panel back into the
+# active camera's visible rect with this screen-space margin.
+const SCREEN_MARGIN := 8.0
+
 var selection: BubbleSelectionController = null
 
 var _list: NPCOptionList = null
@@ -147,7 +153,29 @@ func _resize_to_content() -> void:
 		return
 	_panel.reset_size()
 	var sz := _panel.size
-	_panel.position = Vector2(-sz.x * 0.5, -BOTTOM_MARGIN - sz.y)
+	var local_pos := Vector2(-sz.x * 0.5, -BOTTOM_MARGIN - sz.y)
+	_panel.position = _clamp_within_camera_view(local_pos, sz)
+
+
+# Pulls the panel back inside the active camera's visible rect if anchoring
+# above the NPC would push it off-screen. No-op when there's no active
+# Camera2D (e.g. in unit tests), preserving the plain above-NPC position.
+func _clamp_within_camera_view(local_pos: Vector2, sz: Vector2) -> Vector2:
+	var viewport := get_viewport()
+	if viewport == null:
+		return local_pos
+	var camera := viewport.get_camera_2d()
+	if camera == null:
+		return local_pos
+	var half_view := viewport.get_visible_rect().size * 0.5 / camera.zoom
+	var view_center := camera.get_screen_center_position()
+	var view_min := view_center - half_view
+	var view_max := view_center + half_view
+	var global_top_left := global_position + local_pos
+	var clamped := global_top_left
+	clamped.x = clampf(clamped.x, view_min.x + SCREEN_MARGIN, view_max.x - sz.x - SCREEN_MARGIN)
+	clamped.y = clampf(clamped.y, view_min.y + SCREEN_MARGIN, view_max.y - sz.y - SCREEN_MARGIN)
+	return clamped - global_position
 
 
 func _refresh_highlight() -> void:
