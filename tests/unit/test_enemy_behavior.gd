@@ -637,16 +637,16 @@ func test_wall_mask_for_haunted_spray_bottle_is_zero():
 		"behaviors that ignore wall collision must return mask 0")
 
 
-func test_player_does_not_mask_walls_by_default():
-	# Issue #263: players walk through walls (until #264 adds toggleable
-	# phasing). The Player scene's CharacterBody2D must leave the walls bit
-	# unmasked so move_and_slide ignores dungeon wall tiles.
+func test_player_masks_walls_by_default():
+	# Issue #513: players default to wall-blocked, matching mob wall
+	# collision. Phase-through is granted only via the Wall Walker
+	# achievement (#512/#515).
 	var scene: PackedScene = load("res://scenes/player.tscn")
 	assert_not_null(scene, "player.tscn must load")
 	var player := scene.instantiate() as CharacterBody2D
 	add_child_autofree(player)
-	assert_eq(player.collision_mask & EnemyBehavior.WALL_COLLISION_MASK, 0,
-		"player CharacterBody2D must not mask the dedicated walls bit")
+	assert_eq(player.collision_mask & EnemyBehavior.WALL_COLLISION_MASK, EnemyBehavior.WALL_COLLISION_MASK,
+		"player CharacterBody2D must mask the dedicated walls bit by default")
 
 
 func test_wall_collision_mask_uses_dedicated_bit_not_actor_bit():

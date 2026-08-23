@@ -90,10 +90,19 @@ var _late_night_check_accum: float = 0.0
 # Per-player phasing capability (issue #264). When true the player ignores
 # the dedicated walls physics bit (EnemyBehavior.WALL_COLLISION_MASK from
 # #263) and walks through dungeon wall tiles; when false that bit is added
-# to collision_mask so move_and_slide is blocked by walls. Defaults to true
-# so the pre-#264 pass-through behavior is preserved. Per-instance — the
-# setter only mutates `self.collision_mask`, never any other Player in co-op.
-var _can_phase_through_walls: bool = true
+# to collision_mask so move_and_slide is blocked by walls. Defaults to false
+# (issue #513) so a fresh player collides with walls exactly like mobs do;
+# phase-through is granted only via the Wall Walker achievement (#512).
+# Per-instance — the setter only mutates `self.collision_mask`, never any
+# other Player in co-op.
+var _can_phase_through_walls: bool = false
+
+func _init() -> void:
+	# CharacterBody2D's own collision_mask default doesn't know about the
+	# walls bit, so the default above must be actively applied here rather
+	# than assumed — otherwise a fresh instance's mask wouldn't reflect
+	# _can_phase_through_walls until the setter was called explicitly.
+	set_can_phase_through_walls(_can_phase_through_walls)
 # Cached once in _ready; injectable via _inject_game_state() so tests can
 # drive Player without a running GameState autoload.
 var _game_state = null

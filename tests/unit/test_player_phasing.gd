@@ -2,8 +2,9 @@ extends GutTest
 
 # Issue #264: per-player toggleable wall-collision capability. The walls
 # physics bit (#263) is added to / removed from collision_mask via the
-# Player.set_can_phase_through_walls setter. Default is phasing-on so the
-# pre-#264 pass-through behavior survives.
+# Player.set_can_phase_through_walls setter. Issue #513: default is now
+# wall-blocked (phasing-off), matching mob wall collision; phase-through
+# is granted only via the Wall Walker achievement (#512/#515).
 
 const _WALLS_MASK := EnemyBehavior.WALL_COLLISION_MASK
 const _ACTOR_BIT := 1  # default CharacterBody2D collision_mask bit 0
@@ -16,10 +17,10 @@ func _make_player() -> Player:
 
 func test_phasing_on_by_default():
 	var p := _make_player()
-	assert_true(p.can_phase_through_walls(),
-		"fresh Player must default to phasing enabled")
-	assert_eq(p.collision_mask & _WALLS_MASK, 0,
-		"default collision_mask must not include the walls bit")
+	assert_false(p.can_phase_through_walls(),
+		"fresh Player must default to wall-blocked")
+	assert_eq(p.collision_mask & _WALLS_MASK, _WALLS_MASK,
+		"default collision_mask must include the walls bit")
 
 
 func test_disabling_phasing_adds_wall_mask():
@@ -71,8 +72,8 @@ func test_per_instance_does_not_leak_to_other_players():
 	var a := _make_player()
 	var b := _make_player()
 	var b_mask_before := b.collision_mask
-	a.set_can_phase_through_walls(false)
+	a.set_can_phase_through_walls(true)
 	assert_eq(b.collision_mask, b_mask_before,
 		"toggling on one player must not change another player's mask")
-	assert_true(b.can_phase_through_walls(),
-		"other player's capability flag must still be the default")
+	assert_false(b.can_phase_through_walls(),
+		"other player's capability flag must still be the default (wall-blocked)")
