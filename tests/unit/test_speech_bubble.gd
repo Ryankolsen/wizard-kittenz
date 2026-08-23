@@ -189,3 +189,66 @@ func test_panel_still_widens_to_contain_longest_label_with_padding():
 	assert_gt(widest, 0.0, "precondition: labels report a non-zero text width")
 	assert_true(bubble._panel.size.x >= widest,
 		"panel still widens to contain its longest label with padding applied")
+
+
+# Issue #510: disabled/unaffordable rows used to render with a flat gray
+# modulate. That's replaced with a red font_color override on the row Label,
+# driven by the same is_enabled() check, so the cost suffix (added in #508) is
+# covered too since label + suffix are one Label.
+const DISABLED_RED := Color(1.0, 0.2, 0.2, 1.0)
+
+
+func test_disabled_row_has_red_font_color_override():
+	var list := NPCOptionList.make([
+		NPCOption.make("Get a beer", "buy_beer", func(): return false, NPCOption.CurrencyType.GOLD, 25),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	var lbl := bubble._row_labels[0]
+	assert_true(lbl.has_theme_color_override("font_color"),
+		"disabled row has a font_color override")
+	assert_eq(lbl.get_theme_color("font_color"), DISABLED_RED,
+		"disabled row's font_color override is red")
+
+
+func test_disabled_row_has_no_gray_modulate():
+	var list := NPCOptionList.make([
+		NPCOption.make("Get a beer", "buy_beer", func(): return false, NPCOption.CurrencyType.GOLD, 25),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	var lbl := bubble._row_labels[0]
+	assert_eq(lbl.modulate, Color(1, 1, 1, 1),
+		"old gray modulate path is fully removed, not just visually overridden")
+
+
+func test_enabled_row_has_no_red_override_unless_highlighted():
+	var list := NPCOptionList.make([
+		NPCOption.make("Shop", "open_shop"),
+		NPCOption.make("Get a beer", "buy_beer", func(): return false, NPCOption.CurrencyType.GOLD, 25),
+		NPCOption.make("Exit", "close"),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	# Row 2 ("Exit", enabled, not the initially-highlighted row 0) has no
+	# override at all.
+	assert_false(bubble._row_labels[2].has_theme_color_override("font_color"),
+		"enabled, non-highlighted row has no font_color override")
+	# Highlighting the disabled row should show yellow, not red. The controller
+	# never steps onto a permanently-disabled row on its own, so the cursor is
+	# forced there directly to exercise _refresh_highlight's precedence rule.
+	bubble.selection._cursor = 1
+	bubble._refresh_highlight()
+	assert_eq(bubble._row_labels[1].get_theme_color("font_color"), Color(1.0, 0.9, 0.2),
+		"the highlighted row shows the yellow highlight even when it is the disabled/red row")
+	# Moving the highlight off the disabled row restores its red override.
+	bubble.selection._cursor = 0
+	bubble._refresh_highlight()
+	assert_eq(bubble._row_labels[1].get_theme_color("font_color"), DISABLED_RED,
+		"the disabled row reverts to red once it is no longer highlighted")

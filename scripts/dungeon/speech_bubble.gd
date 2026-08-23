@@ -31,8 +31,15 @@ var selection: BubbleSelectionController = null
 
 var _list: NPCOptionList = null
 var _row_labels: Array[Label] = []
+var _row_enabled: Array[bool] = []
 var _rows_container: VBoxContainer = null
 var _panel: PanelContainer = null
+
+# Issue #510: disabled/unaffordable rows render in red instead of the old
+# flat-gray modulate. _refresh_highlight's yellow takes precedence when a
+# disabled row happens to be the highlighted one.
+const _DISABLED_COLOR := Color(1.0, 0.2, 0.2, 1.0)
+const _HIGHLIGHT_COLOR := Color(1.0, 0.9, 0.2)
 
 
 func _ready() -> void:
@@ -112,6 +119,7 @@ func _rebuild_rows() -> void:
 	for child in _rows_container.get_children():
 		child.queue_free()
 	_row_labels.clear()
+	_row_enabled.clear()
 	if _list == null:
 		return
 	for i in _list.size():
@@ -120,10 +128,12 @@ func _rebuild_rows() -> void:
 		lbl.text = opt.label
 		if opt.cost_currency == NPCOption.CurrencyType.GOLD:
 			lbl.text += "  —  %d G" % opt.cost_amount
-		if not opt.is_enabled():
-			lbl.modulate = Color(0.5, 0.5, 0.5, 1.0)
+		var enabled := opt.is_enabled()
+		if not enabled:
+			lbl.add_theme_color_override("font_color", _DISABLED_COLOR)
 		_rows_container.add_child(lbl)
 		_row_labels.append(lbl)
+		_row_enabled.append(enabled)
 	_resize_to_content()
 
 
@@ -147,6 +157,8 @@ func _refresh_highlight() -> void:
 	for i in _row_labels.size():
 		var lbl := _row_labels[i]
 		if i == idx:
-			lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+			lbl.add_theme_color_override("font_color", _HIGHLIGHT_COLOR)
+		elif not _row_enabled[i]:
+			lbl.add_theme_color_override("font_color", _DISABLED_COLOR)
 		else:
 			lbl.remove_theme_color_override("font_color")
