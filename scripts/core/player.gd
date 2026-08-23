@@ -81,6 +81,12 @@ var _coop_level_up_bound: bool = false
 # the "only the unlocking player's cat, not broadcast" requirement (issue #450)
 # with no networking plumbing needed, unlike the co-op XP level-up path above.
 var _achievement_unlock_bound: bool = false
+# Issue #515: applies permanent gameplay effects (e.g. wall phase-through)
+# for specific achievement unlocks, both reactively mid-session and at
+# player-start for already-unlocked ids. Built in _bind_achievement_effects;
+# held only so it isn't garbage-collected out from under its signal
+# connection to achievement_service.
+var _achievement_effects: AchievementEffects = null
 # Issue #472: "Nap Time"/"3 AM Kitten" one-offs. IdleTracker is pure/scene-
 # tree-free (see idle_tracker.gd); _late_night_check_accum throttles the
 # ClockHour.current_hour() syscall to roughly once a second instead of every
@@ -171,6 +177,7 @@ func _ready() -> void:
 	CastProgressBar.attach(self)
 	_bind_coop_level_up()
 	_bind_achievement_unlock()
+	_bind_achievement_effects()
 
 # PRD #280 / issue #281: the combat weapon is now driven by the player's
 # actually equipped weapon (HeldWeaponResolver), not the class default. The
@@ -1015,6 +1022,14 @@ func _on_achievement_unlocked(_id: String) -> void:
 	if _level_up_effect == null:
 		return
 	_level_up_effect.play(0, ACHIEVEMENT_UNLOCK_TEXT)
+
+func _bind_achievement_effects() -> void:
+	if _achievement_effects != null or _game_state == null:
+		return
+	var service := _game_state.get("achievement_service") as AchievementService
+	if service == null:
+		return
+	_achievement_effects = AchievementEffects.new(service, self)
 
 func _taunt_broadcaster() -> TauntBroadcaster:
 	var session := _coop_session()
