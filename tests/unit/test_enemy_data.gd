@@ -9,8 +9,9 @@ const _NEW_KINDS := [
 ]
 
 # PRD #297 slice 2: the 9 boss-only kinds added at the tail of EnemyKind.
-# Each must round-trip through make_new with the expected display name and
-# share the same boss-tier base stats (sprite-only differentiation).
+# Each must round-trip through make_new with the expected display name.
+# PRD #518 / issue #535 gave each boss its own hp/attack/defense/detection
+# profile, so bosses are differentiated by more than sprite alone.
 const _BOSS_KINDS_AND_NAMES := [
 	[EnemyData.EnemyKind.SIR_PICKLETON, "Sir Pickleton"],
 	[EnemyData.EnemyKind.OLD_LADY_PEARL, "Old Lady Pearl"],
@@ -418,3 +419,67 @@ func test_boss_base_defense_stays_under_the_dog_knights():
 		var k: int = entry[0]
 		assert_lt(EnemyData.base_defense_for(k), dog_knight,
 			"%s base defense must stay under the Dog Knight's" % entry[1])
+
+# --- Issue #568: collapse the per-stat match statements into _PROFILE_BY_KIND ---
+
+func test_profile_by_kind_has_every_named_boss():
+	# Core wiring: driven over the roster (not listed inline) so a tenth boss
+	# added later fails this test until it is registered in the table.
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		assert_true(EnemyData._PROFILE_BY_KIND.has(k),
+			"%s missing from _PROFILE_BY_KIND" % entry[1])
+
+func test_profile_by_kind_values_match_issue_535_exactly():
+	# Content details: the table's stored values, read directly (not through
+	# the static helpers), must equal issue #535's numbers byte-for-byte.
+	var expected_radius := {
+		EnemyData.EnemyKind.SIR_PICKLETON: 120.0,
+		EnemyData.EnemyKind.OLD_LADY_PEARL: 135.0,
+		EnemyData.EnemyKind.TRASH_PANDA_TYRONE: 130.0,
+		EnemyData.EnemyKind.BIG_BRUISER_BUSTER: 90.0,
+		EnemyData.EnemyKind.LAST_CALL_LARRY: 100.0,
+		EnemyData.EnemyKind.THE_BOUNCER: 95.0,
+		EnemyData.EnemyKind.DJ_DUBSTEP: 110.0,
+		EnemyData.EnemyKind.KARAOKE_KAREN: 125.0,
+		EnemyData.EnemyKind.WARDEN_WRETCHED: 135.0,
+	}
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		var n: String = entry[1]
+		var p: Array = _BOSS_PROFILES[k]
+		var profile: Dictionary = EnemyData._PROFILE_BY_KIND[k]
+		assert_eq(profile.max_hp, p[0], "%s table max_hp" % n)
+		assert_eq(profile.attack, p[1], "%s table attack" % n)
+		assert_eq(profile.defense, p[2], "%s table defense" % n)
+		assert_eq(profile.detection_radius, expected_radius[k], "%s table detection radius" % n)
+
+func test_missing_kind_resolves_through_one_documented_fallback():
+	# Fallback: a kind absent from the table must resolve every stat through
+	# a single documented fallback profile, not five independent per-stat
+	# defaults. Picking one out-of-range int stands in for "absent from the
+	# table" without depending on any real EnemyKind ever being missing.
+	var absent_kind: int = EnemyData.EnemyKind.values().max() + 1
+	assert_false(EnemyData._PROFILE_BY_KIND.has(absent_kind), "test fixture must actually be absent")
+	var fallback: Dictionary = EnemyData._FALLBACK_PROFILE
+	assert_eq(EnemyData.base_max_hp_for(absent_kind), fallback.max_hp)
+	assert_eq(EnemyData.base_attack_for(absent_kind), fallback.attack)
+	assert_eq(EnemyData.base_defense_for(absent_kind), fallback.defense)
+	assert_eq(EnemyData.base_detection_radius_for(absent_kind), fallback.detection_radius)
+
+func test_out_of_range_kind_resolves_without_crashing():
+	# Edge case: an integer outside the whole enum must not crash any helper.
+	var wild_kind := 9999
+	assert_eq(EnemyData.base_max_hp_for(wild_kind), EnemyData._FALLBACK_PROFILE.max_hp)
+	assert_eq(EnemyData.base_attack_for(wild_kind), EnemyData._FALLBACK_PROFILE.attack)
+	assert_eq(EnemyData.base_defense_for(wild_kind), EnemyData._FALLBACK_PROFILE.defense)
+	assert_eq(EnemyData.base_detection_radius_for(wild_kind), EnemyData._FALLBACK_PROFILE.detection_radius)
+
+func test_standard_mob_kind_resolves_without_crashing():
+	# Edge case: a standard (non-boss) mob kind must resolve cleanly through
+	# the same table, keeping its pre-existing, already-pinned values.
+	var e := EnemyData.make_new(EnemyData.EnemyKind.CATNIP_DEALER)
+	assert_eq(e.max_hp, 14)
+	assert_eq(e.attack, 3)
+	assert_eq(e.defense, 0)
+	assert_eq(e.detection_radius, 75.0)
