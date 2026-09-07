@@ -314,6 +314,30 @@ func _consume_ability_payload(ability) -> void:
 		ability.pending_pull_target = null
 		if pulled is Node:
 			FloatingText.spawn(pulled, "PULL", Color(0.6, 0.8, 1.0))
+	# Ambush/petrify (issue #536). Duck-typed via get() — only AmbushAbility
+	# declares this field, so every other archetype's ability.get() here is a
+	# safe no-op null (same pattern as _game_state.get("achievement_service")
+	# elsewhere in the codebase).
+	var petrify_target = ability.get("pending_petrify_target")
+	if petrify_target != null:
+		ability.set("pending_petrify_target", null)
+		_apply_ability_petrify(petrify_target, ability)
+
+
+# Applies petrify through the same debuff seam the catnip bag / spray bottle
+# use (player.apply_debuff), so the unified PowerUpManager path is the only
+# place duration/refresh semantics live.
+func _apply_ability_petrify(target, ability) -> void:
+	if not (target is Player):
+		return
+	var player := target as Player
+	if player.data == null or not player.data.is_alive():
+		return
+	var duration: float = PetrifyEffect.DEFAULT_DURATION
+	if ability.has_method("petrify_duration"):
+		duration = ability.petrify_duration()
+	player.apply_debuff({"type_id": PowerUpEffect.TYPE_PETRIFY, "duration": duration})
+	FloatingText.spawn(player, "PETRIFIED!", Color(0.75, 0.75, 0.8))
 
 
 func _apply_ability_damage(target) -> void:

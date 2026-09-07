@@ -1185,6 +1185,17 @@ func test_boss_no_longer_resolves_to_a_bare_base_behavior():
 	assert_eq(b.abilities.size(), 2, "the Vacuum's behavior carries its two archetypes")
 
 
+func test_sir_pickleton_loadout_is_ambush_plus_telegraphed_charge():
+	# Loadout test (issue #536): Sir Pickleton composes exactly its two named
+	# archetypes — ambush/petrify plus the telegraphed charge it falls back to
+	# when a scare fails to land.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.SIR_PICKLETON, true)
+	assert_eq(abilities.size(), 2, "Sir Pickleton composes exactly two archetypes")
+	assert_true(abilities[0] is AmbushAbility, "Sir Pickleton's first archetype is Ambush/Petrify")
+	assert_true(abilities[1] is TelegraphedChargeAbility,
+		"Sir Pickleton's second archetype is the telegraphed charge")
+
+
 func test_boss_routes_through_the_same_factory_as_standard_mobs():
 	# Acceptance #10 (routing): boss-ness no longer short-circuits the factory,
 	# so a boss of a kind with a registered subclass gets that subclass.

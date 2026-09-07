@@ -18,6 +18,10 @@ extends RefCounted
 static func for_enemy(kind: int, is_boss: bool) -> Array:
 	if is_boss and kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
 		return vacuum_loadout()
+	# SIR_PICKLETON is a dedicated kind (unlike ROGUE_ROOMBA, it's never
+	# reused for a standard mob), so it's keyed on kind alone.
+	if kind == EnemyData.EnemyKind.SIR_PICKLETON:
+		return pickleton_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -28,4 +32,16 @@ static func vacuum_loadout() -> Array:
 	return [
 		PullAbility.new(5.0, 0.9, 0.25, 0.3, 160.0, 28.0, 48.0),
 		TelegraphedChargeAbility.new(6.5, 0.8, 0.35, 0.3, 140.0, 24.0),
+	]
+
+
+# Sir Pickleton (floor 2 / issue #536). Ambush teaches attention — keep him in
+# your sights and the scare cannot land; look away and it petrifies you
+# briefly. Failing the scare (or getting caught before charge maxes out)
+# falls through to the telegraphed charge, teaching the sidestep as the
+# fallback punish for not noticing him in time.
+static func pickleton_loadout() -> Array:
+	return [
+		AmbushAbility.new(0.4, 0.2, 0.3, 40.0, 1.75),
+		TelegraphedChargeAbility.new(6.0, 0.8, 0.35, 0.3, 130.0, 22.0),
 	]
