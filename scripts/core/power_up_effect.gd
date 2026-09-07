@@ -18,6 +18,7 @@ const TYPE_MUSHROOMS := "mushrooms"
 const TYPE_WET := "wet"
 const TYPE_SLOWNESS := "slowness"
 const TYPE_CONFUSION := "confusion"
+const TYPE_PETRIFY := "petrify"
 
 # Single declarative source of truth for every kind: default duration +
 # is_pickup. make() dispatches construction by id and reads the default
@@ -30,6 +31,7 @@ const _REGISTRY := {
 	TYPE_WET: {"default_duration": 4.0, "is_pickup": false},
 	TYPE_SLOWNESS: {"default_duration": 3.0, "is_pickup": false},
 	TYPE_CONFUSION: {"default_duration": 3.0, "is_pickup": false},
+	TYPE_PETRIFY: {"default_duration": 1.75, "is_pickup": false},
 }
 
 var type: String = ""
@@ -94,6 +96,8 @@ static func make(type_id: String, duration: float = -1.0) -> PowerUpEffect:
 			return SlownessEffect.new(dur)
 		TYPE_CONFUSION:
 			return ConfusionEffect.new(dur)
+		TYPE_PETRIFY:
+			return PetrifyEffect.new(dur)
 	return null
 
 static func is_pickup(type_id: String) -> bool:

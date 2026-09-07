@@ -102,6 +102,24 @@ var _late_night_check_accum: float = 0.0
 # Per-instance — the setter only mutates `self.collision_mask`, never any
 # other Player in co-op.
 var _can_phase_through_walls: bool = false
+# Petrify visual bookkeeping (PRD #518 / issue #536), same edge-tracking
+# shape as Enemy._pigeon_was_charging / _roomba_berserk_applied: the impact
+# VFX and ring must fire once on the rising edge, not every physics frame.
+var _was_petrified: bool = false
+var _petrify_ring: Node2D = null
+
+# Shrinking countdown ring drawn at the cat's feet while petrified (PRD #518
+# / issue #536 acceptance: "a shrinking countdown ring at the cat's feet").
+# `fraction` is set from PetrifyEffect.remaining / duration each frame.
+class _PetrifyCountdownRing extends Node2D:
+	var fraction: float = 1.0
+	const _MAX_RADIUS := 10.0
+	const _RING_COLOR := Color(0.8, 0.85, 0.95, 0.85)
+	func _draw() -> void:
+		var radius := _MAX_RADIUS * fraction
+		if radius <= 0.0:
+			return
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, _RING_COLOR, 2.0)
 
 func _init() -> void:
 	# CharacterBody2D's own collision_mask default doesn't know about the
@@ -443,7 +461,13 @@ func _physics_process(delta: float) -> void:
 	# other actions for its duration — zero input_dir rather than early-return
 	# so idle tracking / facing / animation below still see a stationary frame.
 	var channeling: bool = _quickbar != null and _quickbar.is_channeling()
-	var input_dir := Vector2.ZERO if channeling else Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# Petrify (PRD #518 / issue #536) locks movement the same way a channel
+	# does -- zero input_dir rather than early-return -- but leaves attacks,
+	# spells and potion use untouched: nothing in this method (or
+	# AttackController / Spell / PotionBelt) reads is_petrified(), so those
+	# actions stay fully available by construction.
+	var petrified: bool = data != null and data.is_petrified()
+	var input_dir := Vector2.ZERO if (channeling or petrified) else Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# ConfusionEffect (#160) flips the input vector while active. Done here
 	# rather than inside compute_velocity so facing / sprite flip below also
 	# read the reversed direction — confused players visibly face "wrong".
@@ -482,7 +506,8 @@ func _physics_process(delta: float) -> void:
 	_tick_regeneration(delta)
 	_power_ups.tick(delta)
 	_apply_ale_wobble(delta)
-	_apply_wet_tint()
+	_apply_status_tint()
+	_apply_petrify_visual(delta)
 	_maybe_broadcast_position()
 	if Input.is_action_just_pressed("attack") and not channeling:
 		_try_attack()
@@ -631,18 +656,81 @@ func _apply_ale_wobble(delta: float) -> void:
 	elif _visual.position != Vector2.ZERO:
 		_visual.position = Vector2.ZERO
 
-# Render-time blue tint while the wet debuff (#160) is active. Visual-only; the
-# speed reduction is handled by the effect itself mutating data.speed. Clean
-# restore on expiry mirrors _apply_ale_wobble.
-const _WET_TINT := Color(0.55, 0.75, 1.0, 1.0)
-func _apply_wet_tint() -> void:
+# Render-time tint driven by StatusTintResolver (PRD #518 / issue #536).
+# Extracted from the old wet-specific routine, which hardcoded a single
+# branch and forced every other state back to white -- petrify would have
+# fought it over `modulate`. Visual-only; the underlying stat mutation (speed
+# reduction, movement lock) is handled by each effect itself. Only the cat's
+# own Sprite2D is touched here, never the weapon pivot's sprite, which is how
+# "weapon swings render at full colour while petrified" falls out for free.
+func _apply_status_tint() -> void:
 	if _sprite == null:
 		return
-	if _power_ups.is_active(PowerUpEffect.TYPE_WET):
-		if _sprite.modulate != _WET_TINT:
-			_sprite.modulate = _WET_TINT
-	elif _sprite.modulate != Color.WHITE:
-		_sprite.modulate = Color.WHITE
+	var tint := StatusTintResolver.resolve(_power_ups.active_ids())
+	if _sprite.modulate != tint:
+		_sprite.modulate = tint
+
+# Petrify's non-tint visual treatment (PRD #518 / issue #536): a stone-crack
+# flash + dust puff on landing, and a shrinking countdown ring at the cat's
+# feet for the debuff's duration. Edge-triggered off is_petrified() the same
+# way Enemy._observe_angry_pigeon tracks its own was-charging edge.
+func _apply_petrify_visual(_delta: float) -> void:
+	var petrified: bool = data != null and data.is_petrified()
+	if petrified and not _was_petrified:
+		_spawn_petrify_impact_vfx()
+		_start_petrify_ring()
+	elif not petrified and _was_petrified:
+		_end_petrify_ring()
+	if petrified and _petrify_ring != null:
+		var effect := _power_ups.get_active(PowerUpEffect.TYPE_PETRIFY)
+		if effect != null and effect.duration > 0.0:
+			_petrify_ring.fraction = clampf(effect.remaining / effect.duration, 0.0, 1.0)
+			_petrify_ring.queue_redraw()
+	_was_petrified = petrified
+
+func _spawn_petrify_impact_vfx() -> void:
+	if _sprite != null:
+		# Stone-crack flash: same white-pulse-then-settle shape as Enemy.flash_hit,
+		# settling into the stone-grey tint rather than back to white.
+		var tween := create_tween()
+		tween.tween_property(_sprite, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.0)
+		tween.tween_property(_sprite, "modulate", StatusTintResolver.PETRIFY_TINT, 0.12)
+	var parent := get_parent()
+	if parent == null:
+		return
+	# Dust puff: same expanding-fading Polygon2D shape as Enemy._spawn_catnip_burst.
+	var puff := Node2D.new()
+	puff.top_level = true
+	puff.global_position = global_position
+	var circle := Polygon2D.new()
+	var points := PackedVector2Array()
+	var seg := 12
+	for i in range(seg):
+		var a := TAU * float(i) / float(seg)
+		points.append(Vector2(cos(a), sin(a)) * 14.0)
+	circle.polygon = points
+	circle.color = Color(0.6, 0.58, 0.55, 0.55)
+	puff.add_child(circle)
+	parent.add_child(puff)
+	var tween2 := puff.create_tween()
+	tween2.tween_property(circle, "scale", Vector2(1.6, 1.6), 0.3)
+	tween2.parallel().tween_property(circle, "modulate:a", 0.0, 0.3)
+	tween2.tween_callback(puff.queue_free)
+
+func _start_petrify_ring() -> void:
+	if _petrify_ring != null:
+		return
+	_petrify_ring = _PetrifyCountdownRing.new()
+	_petrify_ring.top_level = true
+	_petrify_ring.position = Vector2(0.0, 10.0)
+	add_child(_petrify_ring)
+
+func _end_petrify_ring() -> void:
+	if _petrify_ring == null:
+		return
+	var ring := _petrify_ring
+	_petrify_ring = null
+	ring.queue_free()
 
 func _tick_spells(dt: float) -> void:
 	if _spell_tree == null:

@@ -88,6 +88,24 @@ func push_confusion() -> void:
 func pop_confusion() -> void:
 	_confusion_count = maxi(0, _confusion_count - 1)
 
+# Petrify-debuff counter (PRD #518 / issue #536). Same push/pop-counter shape
+# as confusion so concurrent sources (unlikely today — only Sir Pickleton's
+# ambush lands it — but future-proofed the same way) can't clobber each
+# other. Player reads `is_petrified()` each frame to zero movement input
+# while leaving attacks, spells and potion use untouched — nothing else in
+# the codebase checks this flag, which is exactly what "leaves actions fully
+# available" means in practice.
+var _petrify_count: int = 0
+
+func is_petrified() -> bool:
+	return _petrify_count > 0
+
+func push_petrify() -> void:
+	_petrify_count += 1
+
+func pop_petrify() -> void:
+	_petrify_count = maxi(0, _petrify_count - 1)
+
 # Active buff system (issue #144). Each buff is
 # {stat: String, amount: int, remaining: float, accum: float}. The sentinel
 # stat name BUFF_GROUP_REGEN ticks HP-over-time instead of mutating a field;

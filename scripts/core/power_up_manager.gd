@@ -51,3 +51,9 @@ func get_active(type_id: String) -> PowerUpEffect:
 
 func active_count() -> int:
 	return _active.size()
+
+# The set of currently-active type ids (PRD #518 / issue #536). Feeds
+# StatusTintResolver.resolve so Player can ask "what colour am I" without
+# reaching into `_active` directly.
+func active_ids() -> Array:
+	return _active.keys()
