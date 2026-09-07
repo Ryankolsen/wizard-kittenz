@@ -62,10 +62,6 @@ var _enemy_data_by_room_id: Dictionary = {}
 # Boss multipliers and per-floor scaling rates live on BossScaling (extracted
 # in #323 so #324 party-size and #325 average-level scaling can stack on top
 # of the boss baseline without piling more scaling logic into the planner).
-# Boss room is 24x24 tiles at 16 px each = 384x384 px. A player entering at
-# any wall edge is at most ~272 px (half-diagonal) from the room center.
-# 300 px gives the boss sight-line to the doorway without reaching into the corridor.
-const BOSS_DETECTION_RADIUS: float = 300.0
 
 static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, party_size: int = 1, avg_party_level: float = -1.0, floor_baseline_level: int = -1, kind_override: int = -1) -> EnemyData:
 	if room == null:
@@ -126,7 +122,16 @@ static func plan_enemy(room: Room, spawn_idx: int = 0, floor_number: int = 1, pa
 			data.enemy_name = "The Vacuum"
 		else:
 			data.enemy_name = room.boss_display_name
-		data.detection_radius = BOSS_DETECTION_RADIUS
+		# Detection radius comes from the kind's stat profile (EnemyData.make_new
+		# already stamped it above) rather than a flat override — issue #535 gave
+		# each boss a distinct radius so a fragile ranged boss notices the player
+		# later than a shielded bruiser, and issue #569 makes that survive into
+		# the spawned game data instead of every boss aggroing at a uniform 300px
+		# (well off the 480x270 viewport, whose 135px half-height is the ceiling
+		# past which a boss would aggro before the player can see it). Clamped
+		# again here (not just trusted from make_new) so this call site stays
+		# correct even if a future profile entry is authored above the ceiling.
+		data.detection_radius = minf(data.detection_radius, EnemyData.DETECTION_RADIUS_MAX_PX)
 		data.boss_sprite_left_path = room.boss_sprite_left_path
 		data.boss_sprite_right_path = room.boss_sprite_right_path
 	else:

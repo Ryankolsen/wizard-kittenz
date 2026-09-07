@@ -111,15 +111,80 @@ func test_boss_plan_sets_level():
 	assert_eq(d.level, BossScaling.baseline_level_for_floor(1),
 		"boss level matches the floor baseline so HUD readout stays consistent with mob levels")
 
-func test_plan_enemy_boss_room_has_wide_detection_radius():
-	var r := _make_boss_room(7, EnemyData.EnemyKind.DOG_KNIGHT)
+const _NINE_NAMED_BOSS_KINDS := [
+	EnemyData.EnemyKind.SIR_PICKLETON,
+	EnemyData.EnemyKind.OLD_LADY_PEARL,
+	EnemyData.EnemyKind.TRASH_PANDA_TYRONE,
+	EnemyData.EnemyKind.BIG_BRUISER_BUSTER,
+	EnemyData.EnemyKind.LAST_CALL_LARRY,
+	EnemyData.EnemyKind.THE_BOUNCER,
+	EnemyData.EnemyKind.DJ_DUBSTEP,
+	EnemyData.EnemyKind.KARAOKE_KAREN,
+	EnemyData.EnemyKind.WARDEN_WRETCHED,
+]
+
+# --- boss detection radius from stat profile (issue #569) ------------------
+
+func test_plan_enemy_boss_detection_radius_comes_from_profile():
+	# Core wiring / the live bug stated as an assertion: a planned boss's
+	# detection radius must be that kind's profile value, not the old
+	# hardcoded 300.0 (which exceeded the 135px viewport half-height).
+	var r := _make_boss_room(7, EnemyData.EnemyKind.SIR_PICKLETON)
 	var d := RoomSpawnPlanner.plan_enemy(r)
-	assert_eq(d.detection_radius, RoomSpawnPlanner.BOSS_DETECTION_RADIUS,
-		"boss detects player anywhere in the 384x384 boss room")
-	var standard := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
-	var sd := RoomSpawnPlanner.plan_enemy(standard)
-	assert_lt(sd.detection_radius, RoomSpawnPlanner.BOSS_DETECTION_RADIUS,
-		"standard enemy has a shorter detection radius than the boss")
+	assert_eq(d.detection_radius, EnemyData.base_detection_radius_for(EnemyData.EnemyKind.SIR_PICKLETON))
+	assert_ne(d.detection_radius, 300.0, "must not fall back to the old hardcoded override")
+
+func test_plan_enemy_two_boss_kinds_produce_different_radii():
+	# Content details: catches a fix that just swaps one hardcoded constant
+	# for another instead of actually reading the per-kind profile.
+	var pearl := RoomSpawnPlanner.plan_enemy(_make_boss_room(1, EnemyData.EnemyKind.OLD_LADY_PEARL))
+	var buster := RoomSpawnPlanner.plan_enemy(_make_boss_room(2, EnemyData.EnemyKind.BIG_BRUISER_BUSTER))
+	assert_ne(pearl.detection_radius, buster.detection_radius,
+		"differing profile radii must survive into the planned data")
+
+func test_all_nine_bosses_stay_at_or_below_viewport_ceiling():
+	# Ceiling: no boss may aggro before the player can see it. 135px is the
+	# viewport half-height (EnemyData.DETECTION_RADIUS_MAX_PX).
+	for k in _NINE_NAMED_BOSS_KINDS:
+		var d := RoomSpawnPlanner.plan_enemy(_make_boss_room(100 + k, k))
+		assert_lte(d.detection_radius, EnemyData.DETECTION_RADIUS_MAX_PX,
+			"%s planned radius %f exceeds the viewport ceiling" % [EnemyData.display_name_for(k), d.detection_radius])
+
+func test_boss_radii_preserve_relative_ordering_after_clamp():
+	# Ordering preserved: the clamp must compress the range, not flatten it —
+	# ranking the planned radii by kind must match ranking the profile radii
+	# by kind.
+	var profile_ranked := _NINE_NAMED_BOSS_KINDS.duplicate()
+	profile_ranked.sort_custom(func(a, b): return EnemyData.base_detection_radius_for(a) < EnemyData.base_detection_radius_for(b))
+	var planned_ranked := _NINE_NAMED_BOSS_KINDS.duplicate()
+	planned_ranked.sort_custom(func(a, b):
+		var da := RoomSpawnPlanner.plan_enemy(_make_boss_room(200 + a, a))
+		var db := RoomSpawnPlanner.plan_enemy(_make_boss_room(200 + b, b))
+		return da.detection_radius < db.detection_radius)
+	assert_eq(planned_ranked, profile_ranked, "clamped ordering must match the #535 profile ordering")
+
+func test_standard_mob_detection_radius_untouched_by_boss_path():
+	# Edge case: a standard mob's radius is not touched by the boss-only
+	# clamp/override logic.
+	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	assert_eq(d.detection_radius, EnemyData.base_detection_radius_for(EnemyData.EnemyKind.DOG_KNIGHT))
+
+func test_plan_enemy_unknown_boss_kind_does_not_crash():
+	# Edge case: an out-of-range kind flagged as a boss room must still plan
+	# without crashing, falling through to EnemyData's documented fallback.
+	var r := Room.make(11, Room.TYPE_BOSS)
+	r.enemy_kind = 9999
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	assert_not_null(d)
+	assert_lte(d.detection_radius, EnemyData.DETECTION_RADIUS_MAX_PX)
+
+func test_boss_radius_already_under_ceiling_passes_through_unchanged():
+	# Edge case: a profile radius already below the ceiling (e.g. Big Bruiser
+	# Buster's 90.0) must pass through unclamped, not get pulled up or down.
+	var r := _make_boss_room(12, EnemyData.EnemyKind.BIG_BRUISER_BUSTER)
+	var d := RoomSpawnPlanner.plan_enemy(r)
+	assert_eq(d.detection_radius, EnemyData.base_detection_radius_for(EnemyData.EnemyKind.BIG_BRUISER_BUSTER))
 
 func test_plan_enemy_standard_room_not_boosted():
 	var r := _make_standard_room(3, EnemyData.EnemyKind.DOG_KNIGHT)
