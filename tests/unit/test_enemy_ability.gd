@@ -131,6 +131,56 @@ func test_charge_windup_is_long_enough_to_walk_out_of_the_lane():
 		"wind-up must leave at least double the margin needed to clear the lane")
 
 
+# --- resolve_hit core wiring (issue #566) ------------------------------------
+# The seam _apply_ability_damage / _try_contact_damage's shared tail is built
+# on. Asserted directly (not just indirectly via TelegraphedChargeAbility)
+# so a future dedup refactor in enemy.gd cannot silently move this contract.
+
+func test_resolve_hit_returns_the_local_player_when_the_zone_contains_them():
+	var setup := _charge_setup(Vector2(100.0, 0.0))
+	var a: TelegraphedChargeAbility = setup[0]
+	var e = setup[1]
+	var p: Node2D = setup[2]
+	# resolve_hit's contains() check only reads true during the zone's COMMIT
+	# phase, so advance past the wind-up (0.8s) without reaching fade (1.15s).
+	for _i in range(17):
+		a.tick(0.05, e)
+	assert_eq(a.resolve_hit(e, a.active_zone), p,
+		"resolve_hit must return the local player when the zone contains them")
+
+
+func test_resolve_hit_returns_null_when_the_zone_does_not_contain_the_player():
+	var setup := _charge_setup(Vector2(100.0, 0.0))
+	var a: TelegraphedChargeAbility = setup[0]
+	var e = setup[1]
+	var p: Node2D = setup[2]
+	p.global_position = Vector2(100.0, 60.0)  # sidestepped out of the lane
+	for _i in range(17):
+		a.tick(0.05, e)
+	assert_null(a.resolve_hit(e, a.active_zone),
+		"resolve_hit must return null when the zone does not contain the player")
+
+
+func test_resolve_hit_returns_null_for_a_null_enemy():
+	var a := TelegraphedChargeAbility.new()
+	assert_null(a.resolve_hit(null, null), "a null enemy must not crash resolve_hit")
+
+
+func test_resolve_hit_returns_null_for_a_null_zone():
+	var a := TelegraphedChargeAbility.new()
+	var e := _MockEnemy.new()
+	assert_null(a.resolve_hit(e, null), "a null zone must not crash resolve_hit")
+
+
+func test_resolve_hit_returns_null_when_the_enemy_has_no_player_ref():
+	var a := TelegraphedChargeAbility.new()
+	var e := _MockEnemy.new()
+	var zone := DangerZoneShape.make_lane(
+		e.global_position, Vector2.RIGHT, 100.0, 20.0, 0.7, 0.2, 0.3)
+	assert_null(a.resolve_hit(e, zone),
+		"an enemy with no _player_ref must not crash resolve_hit")
+
+
 func test_pull_drags_a_tethered_player_toward_the_enemy():
 	# The Pull archetype's commit payload: the caught player is displaced along
 	# the direction the zone itself reports, so the drag and the drawn tether

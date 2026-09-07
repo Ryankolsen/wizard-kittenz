@@ -227,6 +227,16 @@ func _try_contact_damage(target: Node2D) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if not _attack_controller.try_attack(now):
 		return
+	_apply_routed_damage(player)
+
+
+# Shared tail for every enemy-on-player damage path — contact damage above
+# and every danger-zone ability's commit payload via _apply_ability_damage
+# below (issue #566). Callers own their own gating (attack cooldown for
+# contact, the ability's own commit edge for abilities) and the `target is
+# Player` / alive guard; this owns everything from that point on so a fix to
+# routing or death handling reaches both paths by construction.
+func _apply_routed_damage(player: Player) -> void:
 	# PRD #116: route incoming damage through CoopRouter so that in a
 	# co-op session the hit lands on the local member's effective_stats
 	# (the scaled HP pool the HUD reads) rather than real_stats. Solo
@@ -359,18 +369,7 @@ func _apply_ability_damage(target) -> void:
 	var player := target as Player
 	if player.data == null or not player.data.is_alive():
 		return
-	var session: CoopSession = null
-	var pid := ""
-	var gs := get_node_or_null("/root/GameState")
-	if gs != null:
-		session = gs.coop_session
-		pid = gs.local_player_id
-	var dealt := CoopRouter.apply_damage(session, data, player.data, pid)
-	if dealt == 0 and data != null and data.attack > 0:
-		FloatingText.spawn(player, "Miss")
-	elif dealt > 0:
-		FloatingText.spawn(player, str(dealt), Color(1.0, 0.2, 0.2))
-		player.take_damage(dealt, global_position)
+	_apply_routed_damage(player)
 
 
 # Spawns Old Lady Pearl's knitting-needle projectile (issue #537). Reuses the
