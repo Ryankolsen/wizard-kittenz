@@ -141,13 +141,12 @@ func _physics_process(delta: float) -> void:
 	# Skipped on DEAD so behaviors don't tick a freed node.
 	if _behavior != null and state != EnemyAIState.State.DEAD:
 		_drive_rogue_roomba(delta)
-		_drive_catnip_dealer(delta)
 		_drive_haunted_spray_bottle(delta)
 		_behavior.tick(delta, self)
 		_pump_abilities(delta)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
-		_observe_catnip_dealer()
+		_observe_catnip_dealer_burst()
 		_observe_haunted_spray_bottle()
 	if state != EnemyAIState.State.DEAD:
 		_clamp_to_room_bounds()
@@ -330,12 +329,18 @@ func _consume_ability_payload(ability) -> void:
 	if petrify_target != null:
 		ability.set("pending_petrify_target", null)
 		_apply_ability_petrify(petrify_target, ability)
-	# Retreat and fire (issue #537). Duck-typed the same way — only
-	# RetreatAndFireAbility declares this field.
+	# Retreat and fire (issue #537 / #582). Duck-typed the same way — only
+	# RetreatAndFireAbility declares this field. Both Old Lady Pearl and the
+	# Catnip Dealer compose this same archetype, keyed apart by kind because
+	# their commit payloads differ (Pearl's needle is plain damage; the
+	# dealer's bag also rolls and applies a debuff).
 	var fire_target = ability.get("pending_fire_target")
 	if fire_target != null:
 		ability.set("pending_fire_target", null)
-		_spawn_pearl_projectile(fire_target)
+		if data != null and data.kind == EnemyData.EnemyKind.CATNIP_DEALER:
+			_spawn_catnip_dealer_projectile(fire_target)
+		else:
+			_spawn_pearl_projectile(fire_target)
 	# Summon adds (issue #537). Duck-typed the same way — only
 	# SummonAddsAbility declares this field.
 	var summons = ability.get("pending_summons")
@@ -556,29 +561,32 @@ func _spawn_roomba_trail() -> void:
 	hazard.global_position = global_position
 	parent.add_child(hazard)
 
-# Catnip Dealer motion override (issue #164). Reads the behavior's desired
-# direction (preferred-range hold + flee inside FLEE_RANGE) and drives
-# move_and_slide directly. Pure-data behavior stays SceneTree-free; the Enemy
-# node owns the physics step — same separation as the roomba's _drive helper.
-func _drive_catnip_dealer(_delta: float) -> void:
-	pass
-
-# Bridges CatnipDealerBehavior state edges to scene-tree side effects: spawns
-# the catnip-bag EnemyProjectile when pending_fire_target is set, and the
-# green-burst VFX + debuff FloatingText on projectile hit (via the on_hit
-# callback closed over the chosen debuff type).
-func _observe_catnip_dealer() -> void:
+# Catnip Dealer kiting/fire cadence moved onto the composed
+# RetreatAndFireAbility (issue #582) — the pre-migration `_drive_catnip_dealer`
+# motion stub and the fire-target half of `_observe_catnip_dealer` are gone.
+# What remains scene-side: routing the ability's pending_fire_target into the
+# dealer's own projectile + debuff (below, from _consume_ability_payload) and
+# polling the burst VFX handoff, which is still the behavior's own field since
+# it fires off the projectile's on_hit callback rather than the ability pump.
+func _observe_catnip_dealer_burst() -> void:
 	if not (_behavior is CatnipDealerBehavior):
 		return
 	var cdb := _behavior as CatnipDealerBehavior
-	if cdb.pending_fire_target != null:
-		var target_pos: Vector2 = cdb.pending_fire_target
-		var debuff_type: String = cdb.pick_debuff()
-		_spawn_catnip_projectile(target_pos, debuff_type)
-		cdb.pending_fire_target = null
 	if cdb.pending_burst_position != null:
 		_spawn_catnip_burst(cdb.pending_burst_position)
 		cdb.pending_burst_position = null
+
+# Routes a fire request from the Catnip Dealer's composed RetreatAndFireAbility
+# into the existing catnip-bag projectile + debuff-on-hit path (issue #582).
+# The debuff roll itself is unchanged — still CatnipDealerBehavior.pick_debuff,
+# seeded deterministically per enemy id (issue #534) — only the kiting/cadence
+# that used to gate this moved onto the archetype.
+func _spawn_catnip_dealer_projectile(target_pos: Vector2) -> void:
+	if not (_behavior is CatnipDealerBehavior):
+		return
+	var cdb := _behavior as CatnipDealerBehavior
+	var debuff_type: String = cdb.pick_debuff()
+	_spawn_catnip_projectile(target_pos, debuff_type)
 
 # Issue #265: build the wall-overlap predicate consumed by EnemyProjectile.
 # Looks for the dungeon TileMap on the enemy's parent (main_scene's $TileMap)

@@ -376,38 +376,6 @@ class _MockDealerEnemy:
 	var _player_ref: Node2D = null
 
 
-func test_catnip_dealer_holds_preferred_range():
-	# Acceptance #1: at >PREFERRED_RANGE (+deadband), approach the player;
-	# at <PREFERRED_RANGE (-deadband), back away to hold distance. The
-	# behavior's desired_direction returns a unit vector the Enemy node
-	# scales by move_speed. Issue text says "away (repositioning inward)"
-	# at 150 — read as a typo for "toward" since the dealer's stated goal
-	# is to *reach* ~120 from a too-far position. The test pins the
-	# gameplay-sensible direction.
-	var b := CatnipDealerBehavior.new()
-	var far_dir := b.desired_direction(Vector2.ZERO, Vector2(150.0, 0.0))
-	assert_eq(far_dir, Vector2(1.0, 0.0), "at 150px the dealer should approach the player")
-	var near_dir := b.desired_direction(Vector2.ZERO, Vector2(90.0, 0.0))
-	assert_eq(near_dir, Vector2(-1.0, 0.0), "at 90px the dealer should back away to hold range")
-
-
-func test_catnip_dealer_flees_on_melee_entry():
-	# Acceptance #2: ≤FLEE_RANGE (~40px) flips is_fleeing on; 50px is outside.
-	var b := CatnipDealerBehavior.new()
-	assert_true(b.is_fleeing(35.0), "35px should be inside flee range")
-	assert_false(b.is_fleeing(50.0), "50px should be outside flee range")
-
-
-func test_catnip_dealer_fire_timer_fires():
-	# Acceptance #3: fire timer trips wants_to_fire() after ~2.5s. Driving 2.6s
-	# of ticks without a player ref accrues the timer without queuing a fire.
-	var b := CatnipDealerBehavior.new()
-	var e := _MockDealerEnemy.new()
-	for _i in range(26):
-		b.tick(0.1, e)
-	assert_true(b.wants_to_fire(), "wants_to_fire should be true after 2.6s")
-
-
 func test_catnip_dealer_pick_debuff_covers_all_three():
 	# Acceptance #4: debuff selection eventually picks all three types.
 	# 20 calls across a seeded RNG should yield at least one of each.
@@ -459,35 +427,37 @@ func test_catnip_dealer_for_kind_dispatches_subclass():
 		"CATNIP_DEALER kind must dispatch to CatnipDealerBehavior")
 
 
-func test_catnip_dealer_dead_enemy_skips_fire():
-	# DEAD is the sink — a dead dealer must not accrue the fire timer or
-	# queue a projectile. Same pattern as pigeon / roomba / dog knight.
-	var b := CatnipDealerBehavior.new()
-	var e := _MockDealerEnemy.new()
-	e.state = 3  # EnemyAIState.State.DEAD
-	for _i in range(30):
-		b.tick(0.1, e)
-	assert_false(b.wants_to_fire(),
-		"dead dealer should never want to fire")
-	assert_eq(b.pending_fire_target, null,
-		"dead dealer should never queue a fire")
+# ---------------------------------------------------------------------------
+# Catnip Dealer retreat-and-fire migration (PRD #518 / issue #582). Kiting and
+# fire cadence move onto the shared RetreatAndFireAbility archetype; the
+# bespoke desired_direction/wants_to_fire/pending_fire_target logic that used
+# to live on CatnipDealerBehavior directly is retired in favor of it. The
+# behavior keeps only what the archetype doesn't own: idle wander and the
+# debuff-on-hit selection.
+# ---------------------------------------------------------------------------
+
+func test_catnip_dealer_loadout_is_exactly_one_retreat_and_fire():
+	# Test 1 (core wiring / loadout): the Catnip Dealer's kind resolves through
+	# AbilityLoadout.for_enemy to exactly one ability, a RetreatAndFireAbility.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.CATNIP_DEALER, false)
+	assert_eq(abilities.size(), 1, "the Catnip Dealer composes exactly one archetype")
+	assert_true(abilities[0] is RetreatAndFireAbility,
+		"the Catnip Dealer's one archetype is retreat-and-fire")
 
 
-func test_catnip_dealer_fire_publishes_target_when_in_range():
-	# Integration of fire-timer + range gate: with a player ref set inside
-	# projectile range (>FLEE, <=MAX) the next ready tick should publish the
-	# player position as pending_fire_target.
-	var b := CatnipDealerBehavior.new()
-	var e := _MockDealerEnemy.new()
-	var p := _MockDealerPlayer.new()
-	p.global_position = Vector2(150.0, 0.0)
-	e._player_ref = p
-	for _i in range(26):
-		b.tick(0.1, e)
-	assert_not_null(b.pending_fire_target,
-		"fire should be queued once cooldown elapses and player is in range")
-	assert_eq(b.pending_fire_target, Vector2(150.0, 0.0),
-		"pending_fire_target should equal the player position at fire time")
+func test_catnip_dealer_retreat_and_fire_tuning_restates_pre_migration_constants():
+	# Test 2 (tuning preserved): preferred range, deadband and fire interval
+	# must equal the pre-migration CatnipDealerBehavior constants, not new
+	# numbers picked during the migration.
+	var ability: RetreatAndFireAbility = AbilityLoadout.catnip_dealer_loadout()[0]
+	assert_almost_eq(ability.preferred_range(), CatnipDealerBehavior.PREFERRED_RANGE, 0.0001,
+		"preferred range must restate the retired CatnipDealerBehavior.PREFERRED_RANGE")
+	assert_almost_eq(ability.range_deadband(), CatnipDealerBehavior.RANGE_DEADBAND, 0.0001,
+		"deadband must restate the retired CatnipDealerBehavior.RANGE_DEADBAND")
+	assert_almost_eq(ability.fire_interval(), CatnipDealerBehavior.FIRE_INTERVAL, 0.0001,
+		"fire interval must restate the retired CatnipDealerBehavior.FIRE_INTERVAL")
+	assert_true(ability.telegraph_enabled(),
+		"the dealer opts into the telegraph the retired hand-rolled throw never had")
 
 
 # ---------------------------------------------------------------------------
@@ -771,37 +741,6 @@ func test_dog_knight_charge_ability_chase_still_wants_charge():
 	for _i in range(5):
 		ability.tick(1.0, e)
 	assert_true(ability.wants_to_fire(), "CHASE dog should still want to charge after cooldown")
-
-
-func test_catnip_dealer_idle_does_not_fire():
-	# Issue #261 — player in projectile range but enemy IDLE: no fire queued.
-	var b := CatnipDealerBehavior.new()
-	var e := _MockDealerEnemy.new()
-	e.state = 0  # IDLE
-	var p := _MockDealerPlayer.new()
-	p.global_position = Vector2(120.0, 0.0)
-	e._player_ref = p
-	for _i in range(30):
-		b.tick(0.1, e)
-	assert_eq(b.pending_fire_target, null,
-		"IDLE dealer must not queue a projectile even with player in range")
-	assert_false(b.wants_to_fire(),
-		"IDLE dealer must not accrue fire cadence")
-
-
-func test_catnip_dealer_chase_still_fires():
-	# Regression mirror of test_catnip_dealer_fire_publishes_target_when_in_range
-	# now that the gate exists. Same setup, explicit CHASE.
-	var b := CatnipDealerBehavior.new()
-	var e := _MockDealerEnemy.new()
-	e.state = 1  # CHASE
-	var p := _MockDealerPlayer.new()
-	p.global_position = Vector2(150.0, 0.0)
-	e._player_ref = p
-	for _i in range(26):
-		b.tick(0.1, e)
-	assert_not_null(b.pending_fire_target,
-		"CHASE dealer should still publish a fire target after cooldown")
 
 
 func test_spray_bottle_idle_does_not_fire():

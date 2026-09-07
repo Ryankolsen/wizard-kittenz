@@ -5,9 +5,20 @@ extends EnemyBehavior
 # than chasing, flees on melee entry (≤FLEE_RANGE), fires a catnip-bag
 # EnemyProjectile every FIRE_INTERVAL seconds while in firing distance, and on
 # hit applies one of three randomly-chosen debuffs (confusion / slowness /
-# misfire). Pure-data RefCounted — the Enemy node side observes
-# `pending_fire_target` to spawn the projectile and surfaces the green-burst
-# VFX + debuff-name FloatingText from the projectile's on_hit callback.
+# misfire). Pure-data RefCounted.
+#
+# The kiting and fire cadence (issue #582 / PRD #518) are now the composed
+# RetreatAndFireAbility from AbilityLoadout.catnip_dealer_loadout — constructed
+# with this file's own tuning constants below and the telegraph flag on — so
+# this class no longer owns desired_direction/is_overriding_motion/
+# wants_to_fire/pending_fire_target. The constants stay here because they
+# remain the tuning's source of truth (the loadout table reads them, and the
+# Enemy node still reads the PROJECTILE_* ones for the catnip bag's visuals)
+# and because the "tuning preserved" test compares the migrated ability
+# against them directly. What's left on this class is what the archetype
+# doesn't own: idle wander and the debuff-on-hit selection, which the Enemy
+# node still reaches via pick_debuff() once the ability's pending_fire_target
+# fires.
 
 const PREFERRED_RANGE: float = 120.0
 const FLEE_RANGE: float = 40.0
@@ -39,18 +50,9 @@ const IDLE_RADIUS: float = 48.0
 const IDLE_CHANGE_CADENCE: float = 1.0
 const IDLE_PAUSE_LENGTH: float = 0.6
 
-# Variant null sentinel — Vector2 once a fire is queued and the Enemy-side
-# observer has not yet consumed the spawn request. Observer clears it after
-# parenting the EnemyProjectile.
-var pending_fire_target = null
 # Variant null sentinel — Vector2 once the projectile reports a hit and the
 # observer should spawn the green-burst VFX at the impact point.
 var pending_burst_position = null
-
-var _fire_elapsed: float = 0.0
-
-func is_overriding_motion() -> bool:
-	return false
 
 
 func idle_style() -> int:
@@ -71,34 +73,6 @@ func idle_change_cadence() -> float:
 
 func idle_pause_length() -> float:
 	return IDLE_PAUSE_LENGTH
-
-# True when the player is inside the melee threshold and the dealer should
-# back away rather than hold range. Exposed for tests so the threshold is
-# verified without driving a full physics tick.
-func is_fleeing(player_distance: float) -> bool:
-	return player_distance <= FLEE_RANGE
-
-# Pure helper returning a unit-length direction vector (or Vector2.ZERO inside
-# the deadband). Positive magnitude only — the Enemy node scales by move_speed.
-# Flee zone (≤FLEE_RANGE): away from player.
-# Inside preferred range (>FLEE_RANGE, <PREFERRED_RANGE-deadband): away.
-# Outside preferred range (>PREFERRED_RANGE+deadband): toward player.
-# Deadband around PREFERRED_RANGE: zero — hold position.
-func desired_direction(self_pos: Vector2, player_pos: Vector2) -> Vector2:
-	var to_player := player_pos - self_pos
-	var dist := to_player.length()
-	if dist == 0.0:
-		return Vector2.RIGHT
-	if dist <= FLEE_RANGE:
-		return -to_player.normalized()
-	if dist < PREFERRED_RANGE - RANGE_DEADBAND:
-		return -to_player.normalized()
-	if dist > PREFERRED_RANGE + RANGE_DEADBAND:
-		return to_player.normalized()
-	return Vector2.ZERO
-
-func wants_to_fire() -> bool:
-	return _fire_elapsed >= FIRE_INTERVAL
 
 # Picks one of the three debuff type ids uniformly. Defaults to the
 # behaviour's own RNG, seeded from the enemy's stable spawn id (issue #534)
@@ -135,30 +109,11 @@ static func floating_text_label(debuff_type: String) -> String:
 		DEBUFF_MISFIRE: return "MISFIRE"
 	return ""
 
-func tick(delta: float, enemy) -> void:
-	# Seed the debuff RNG from the spawn id before any early return, so the
-	# stream is identical on every client regardless of when the dealer aggroes.
+# Kiting and fire cadence are the composed RetreatAndFireAbility's job now
+# (issue #582); this override exists solely to seed the debuff RNG from the
+# enemy's stable spawn id (issue #534) before pick_debuff is ever called, so
+# the roll is deterministic on every co-op client regardless of when the
+# dealer aggroes. The Enemy node still calls this every physics frame
+# (the ability pump is a separate, parallel tick over `abilities`).
+func tick(_delta: float, enemy) -> void:
 	_ensure_rng(enemy)
-	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
-		return
-	# Aggro gate (issue #261): an IDLE dealer must not accrue fire cadence or
-	# queue a projectile — fixes the "shot the moment the level loads" issue.
-	if not EnemyBehavior.is_aggroed(enemy):
-		return
-	_fire_elapsed += delta
-	if enemy == null:
-		return
-	var player = enemy.get("_player_ref")
-	if player == null or not (player is Node2D):
-		return
-	if not wants_to_fire():
-		return
-	var player_node := player as Node2D
-	var dist: float = enemy.global_position.distance_to(player_node.global_position)
-	# Don't fire while in flee range — the dealer is busy retreating, and
-	# point-blank projectile spawns are awkward. Also gate by projectile range
-	# so a fire never leaves the dealer with a guaranteed miss.
-	if dist <= FLEE_RANGE or dist > PROJECTILE_MAX_RANGE:
-		return
-	pending_fire_target = player_node.global_position
-	_fire_elapsed = 0.0

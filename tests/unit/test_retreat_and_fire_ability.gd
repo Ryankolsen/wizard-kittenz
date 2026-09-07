@@ -95,3 +95,86 @@ func test_idle_enemy_does_not_fire():
 	for _i in range(int(ceil(RetreatAndFireAbility.FIRE_INTERVAL / 0.1)) + 5):
 		b.tick(0.1, e)
 	assert_null(b.pending_fire_target, "IDLE enemy must not fire even with a player in range")
+
+
+# --- Constructor tuning / telegraph flag (issue #582 amendment) -----------------
+#
+# retreat_and_fire_ability.gd was originally read-only in the PRD's ability
+# migration issues, but as written it had no constructor at all — hardcoded
+# Pearl's own numbers as class consts, with no way for another caller to bring
+# its own tuning or opt into a telegraph. #582 adds constructor parameters for
+# every tuning value, each defaulted to Pearl's existing constants, plus an
+# opt-in telegraph flag defaulted to false, so Pearl's own no-args call site
+# (pearl_loadout) keeps behaving exactly as before while the Catnip Dealer can
+# now compose this same archetype with his own numbers and the telegraph on.
+
+func test_constructor_defaults_match_pearls_current_tuning():
+	# Test 7: RetreatAndFireAbility.new() with no arguments must produce the
+	# exact tuning Pearl's loadout relies on today, and telegraph must default
+	# to false so a caller that passes nothing gets the pre-#582 behavior.
+	var b := RetreatAndFireAbility.new()
+	assert_almost_eq(b.preferred_range(), RetreatAndFireAbility.PREFERRED_RANGE, 0.0001)
+	assert_almost_eq(b.flee_range(), RetreatAndFireAbility.FLEE_RANGE, 0.0001)
+	assert_almost_eq(b.range_deadband(), RetreatAndFireAbility.RANGE_DEADBAND, 0.0001)
+	assert_almost_eq(b.fire_interval(), RetreatAndFireAbility.FIRE_INTERVAL, 0.0001)
+	assert_almost_eq(b.projectile_speed(), RetreatAndFireAbility.PROJECTILE_SPEED, 0.0001)
+	assert_almost_eq(b.projectile_radius(), RetreatAndFireAbility.PROJECTILE_RADIUS, 0.0001)
+	assert_eq(b.projectile_color(), RetreatAndFireAbility.PROJECTILE_COLOR)
+	assert_almost_eq(
+		b.projectile_max_range(), RetreatAndFireAbility.PROJECTILE_MAX_RANGE, 0.0001)
+	assert_false(b.telegraph_enabled(), "telegraph flag should default to false")
+
+
+func test_constructor_overrides_apply_and_telegraph_flag_gates_the_zone_pump():
+	# Test 8: passing explicit tuning + true for telegraph produces an instance
+	# using those values; leaving the flag false (even with a very short fire
+	# interval) must never publish a danger zone — the no-telegraph path stays
+	# the default, inline-fire behavior for any caller that passes nothing for
+	# it specifically.
+	var tuned := RetreatAndFireAbility.new(
+		200.0, 60.0, 12.0, 3.0, 180.0, 10.0, Color(1.0, 0.0, 0.0, 1.0), 400.0, true)
+	assert_almost_eq(tuned.preferred_range(), 200.0, 0.0001)
+	assert_almost_eq(tuned.flee_range(), 60.0, 0.0001)
+	assert_almost_eq(tuned.range_deadband(), 12.0, 0.0001)
+	assert_almost_eq(tuned.fire_interval(), 3.0, 0.0001)
+	assert_almost_eq(tuned.projectile_speed(), 180.0, 0.0001)
+	assert_almost_eq(tuned.projectile_radius(), 10.0, 0.0001)
+	assert_eq(tuned.projectile_color(), Color(1.0, 0.0, 0.0, 1.0))
+	assert_almost_eq(tuned.projectile_max_range(), 400.0, 0.0001)
+	assert_true(tuned.telegraph_enabled())
+
+	var no_telegraph := RetreatAndFireAbility.new(200.0, 60.0, 12.0, 0.05)
+	var e := _MockEnemy.new()
+	var p := _MockPlayer.new()
+	p.global_position = Vector2(200.0, 0.0)
+	e._player_ref = p
+	for _i in range(5):
+		no_telegraph.tick(0.1, e)
+	assert_null(no_telegraph.active_zone,
+		"telegraph left false must never publish a danger zone, even past its fire interval")
+
+
+func test_telegraph_enabled_publishes_a_zone_before_the_fire_target_commits():
+	# Companion to test 8: with the flag on, the wind-up must be visible (an
+	# active zone in its WINDUP phase) strictly before any pending_fire_target
+	# is published — this is what "the throw telegraphs before it commits"
+	# means mechanically.
+	var b := RetreatAndFireAbility.new(140.0, 50.0, 10.0, 0.2, 170.0, 6.0,
+		Color(0.85, 0.8, 0.7, 1.0), 360.0, true)
+	var e := _MockEnemy.new()
+	var p := _MockPlayer.new()
+	p.global_position = Vector2(140.0, 0.0)
+	e._player_ref = p
+	for _i in range(int(ceil(b.fire_interval() / 0.05)) + 1):
+		b.tick(0.05, e)
+		if b.wants_to_fire():
+			b.begin(e)
+	assert_not_null(b.active_zone, "the fire interval elapsing should have begun a telegraph zone")
+	assert_eq(b.active_zone.phase_at(b.zone_elapsed()), DangerZoneShape.Phase.WINDUP,
+		"the zone should still be winding up immediately after begin()")
+	assert_null(b.pending_fire_target, "no fire target should exist before the zone commits")
+	for _i in range(200):
+		b.tick(0.01, e)
+		if b.pending_fire_target != null:
+			break
+	assert_not_null(b.pending_fire_target, "the throw should commit once the zone reaches COMMIT")

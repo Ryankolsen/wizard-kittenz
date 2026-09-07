@@ -37,6 +37,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return pearl_loadout()
 	if kind == EnemyData.EnemyKind.DOG_KNIGHT:
 		return dog_knight_loadout()
+	if kind == EnemyData.EnemyKind.CATNIP_DEALER:
+		return catnip_dealer_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -85,4 +87,27 @@ static func pearl_loadout() -> Array:
 static func dog_knight_loadout() -> Array:
 	return [
 		TelegraphedChargeAbility.new(5.0, 1.0, 1.0, 0.3, 140.0, 48.0),
+	]
+
+
+# Catnip Dealer (floor-1 standard mob / issue #582). Composes the same
+# retreat-and-fire archetype Old Lady Pearl uses, tuned to the dealer's own
+# pre-migration constants and opted into the telegraph her fight leaves off —
+# the catnip bag's throw now reads with the same amber-to-red tell every other
+# archetype draws, rather than firing invisibly the instant range and cadence
+# line up. The debuff itself and its projectile are unchanged (out of scope);
+# only the kiting and the fire cadence move here.
+static func catnip_dealer_loadout() -> Array:
+	return [
+		RetreatAndFireAbility.new(
+			CatnipDealerBehavior.PREFERRED_RANGE,
+			CatnipDealerBehavior.FLEE_RANGE,
+			CatnipDealerBehavior.RANGE_DEADBAND,
+			CatnipDealerBehavior.FIRE_INTERVAL,
+			CatnipDealerBehavior.PROJECTILE_SPEED,
+			CatnipDealerBehavior.PROJECTILE_RADIUS,
+			CatnipDealerBehavior.PROJECTILE_COLOR,
+			CatnipDealerBehavior.PROJECTILE_MAX_RANGE,
+			true
+		),
 	]
