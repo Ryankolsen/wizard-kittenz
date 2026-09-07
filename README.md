@@ -71,6 +71,20 @@ On macOS the Godot binary is typically at `/Applications/Godot.app/Contents/MacO
 
 **From the editor:** open the GUT panel (bottom dock) and click Run All.
 
+**Pre-commit hook:** the repo ships a hook in `.githooks/` that runs the suite
+and refuses the commit unless a real, non-zero test count comes back — a run
+that executes zero tests exits clean and reports no failures, so the count is
+asserted rather than inferred. Git does not enable a tracked hooks directory on
+its own, so enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook finds Godot on `PATH` or in the usual macOS locations. If yours lives
+elsewhere, set `GODOT=/path/to/Godot.app/Contents/MacOS/Godot`. Bypass a single
+commit with `git commit --no-verify`.
+
 ### 5. Dev tools
 
 `tools/` holds standalone scripts for local testing — not part of the shipped game.

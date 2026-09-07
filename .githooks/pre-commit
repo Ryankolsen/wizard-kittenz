@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Run GUT unit tests before allowing a commit. Abort if anything fails —
+# and abort if nothing ran at all.
+#
+# A run that executes zero tests exits 0 and reports no failures, so a gate
+# that only checks the exit status and greps for failure words passes it.
+# Green then means nothing was checked. The suite size is therefore asserted
+# explicitly: no Totals block, or a zero count, is a failure to verify.
+#
+# Scope comes from gut_config.json via -gconfig rather than a -gdir path
+# duplicated here, so moving the test directory updates one file instead of
+# silently emptying this gate. GUT only auto-loads the name `.gutconfig.json`,
+# so the config must be passed explicitly. -gexit overrides should_exit.
+
+set -u
+
+# This file is tracked and shared, so the engine path cannot be one machine's
+# Downloads folder. Set $GODOT to override; otherwise try the usual locations.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+GODOT="${GODOT:-}"
+if [ -z "$GODOT" ]; then
+    for candidate in \
+        "$(command -v godot 2>/dev/null || true)" \
+        "$(command -v godot4 2>/dev/null || true)" \
+        "/Applications/Godot.app/Contents/MacOS/Godot" \
+        "$HOME/Applications/Godot.app/Contents/MacOS/Godot" \
+        "$HOME/Downloads/Godot.app/Contents/MacOS/Godot"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            GODOT="$candidate"
+            break
+        fi
+    done
+fi
+
+fail() {
+    echo "pre-commit: $1" >&2
+    echo "pre-commit: bypass with 'git commit --no-verify' if you really mean it." >&2
+    exit 1
+}
+
+if [ -z "$GODOT" ] || [ ! -x "$GODOT" ]; then
+    echo "pre-commit: Godot binary not found." >&2
+    echo "pre-commit: set GODOT=/path/to/Godot.app/Contents/MacOS/Godot and retry." >&2
+    exit 1
+fi
+
+echo "pre-commit: running GUT tests..."
+OUTPUT="$("$GODOT" --headless --path "$REPO_ROOT" -s addons/gut/gut_cmdln.gd \
+    -gconfig=res://gut_config.json -gexit 2>&1)"
+STATUS=$?
+
+# Surface GUT's own fatal text too — it matches none of the success words, so a
+# filter without it turns a failed startup into empty output that reads as calm.
+echo "$OUTPUT" | grep -E "passed|failed|FAIL|Totals|Parse error|Nothing was run|directories configured"
+
+[ $STATUS -ne 0 ] && fail "GUT exited $STATUS — commit aborted."
+
+echo "$OUTPUT" | grep -qE "failing tests|Parse error|\[Failed\]" \
+    && fail "tests failed — commit aborted."
+
+echo "$OUTPUT" | grep -q "Nothing was run" \
+    && fail "GUT ran no tests at all — commit aborted."
+
+# "Passing Tests" also ends in Tests, so anchor to the line's own start.
+TESTS="$(echo "$OUTPUT" | grep -E '^[[:space:]]*Tests[[:space:]]+[0-9]+' \
+    | head -1 | awk '{print $2}')"
+
+[ -z "$TESTS" ] && fail "no Totals block in GUT output — the run never finished; this is not a pass."
+[ "$TESTS" -eq 0 ] && fail "GUT reported 0 tests — nothing was verified; this is not a pass."
+
+echo "pre-commit: tests passed ($TESTS tests)."
+exit 0
