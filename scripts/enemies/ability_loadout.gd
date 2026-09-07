@@ -22,6 +22,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 	# reused for a standard mob), so it's keyed on kind alone.
 	if kind == EnemyData.EnemyKind.SIR_PICKLETON:
 		return pickleton_loadout()
+	if kind == EnemyData.EnemyKind.OLD_LADY_PEARL:
+		return pearl_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -44,4 +46,15 @@ static func pickleton_loadout() -> Array:
 	return [
 		AmbushAbility.new(0.4, 0.2, 0.3, 40.0, 1.75),
 		TelegraphedChargeAbility.new(6.0, 0.8, 0.35, 0.3, 130.0, 22.0),
+	]
+
+
+# Old Lady Pearl (floor 3 / issue #537). Summon adds forces a choice between
+# clearing the cats and eating chip damage; retreat-and-fire keeps her out of
+# melee entirely, so the fight is a spacing puzzle around both the cats and
+# her own kept distance.
+static func pearl_loadout() -> Array:
+	return [
+		SummonAddsAbility.new(),
+		RetreatAndFireAbility.new(),
 	]

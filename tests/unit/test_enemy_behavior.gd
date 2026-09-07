@@ -1196,6 +1196,17 @@ func test_sir_pickleton_loadout_is_ambush_plus_telegraphed_charge():
 		"Sir Pickleton's second archetype is the telegraphed charge")
 
 
+func test_old_lady_pearl_loadout_is_summon_plus_retreat_and_fire():
+	# Loadout test (issue #537): Old Lady Pearl composes exactly her two named
+	# archetypes — spawns adds on a cooldown, and kites/fires while the player
+	# is at range.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.OLD_LADY_PEARL, true)
+	assert_eq(abilities.size(), 2, "Old Lady Pearl composes exactly two archetypes")
+	assert_true(abilities[0] is SummonAddsAbility, "Old Lady Pearl's first archetype is Summon adds")
+	assert_true(abilities[1] is RetreatAndFireAbility,
+		"Old Lady Pearl's second archetype is Retreat and fire")
+
+
 func test_boss_routes_through_the_same_factory_as_standard_mobs():
 	# Acceptance #10 (routing): boss-ness no longer short-circuits the factory,
 	# so a boss of a kind with a registered subclass gets that subclass.

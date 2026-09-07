@@ -322,6 +322,19 @@ func _consume_ability_payload(ability) -> void:
 	if petrify_target != null:
 		ability.set("pending_petrify_target", null)
 		_apply_ability_petrify(petrify_target, ability)
+	# Retreat and fire (issue #537). Duck-typed the same way — only
+	# RetreatAndFireAbility declares this field.
+	var fire_target = ability.get("pending_fire_target")
+	if fire_target != null:
+		ability.set("pending_fire_target", null)
+		_spawn_pearl_projectile(fire_target)
+	# Summon adds (issue #537). Duck-typed the same way — only
+	# SummonAddsAbility declares this field.
+	var summons = ability.get("pending_summons")
+	if summons != null and not (summons as Array).is_empty():
+		ability.set("pending_summons", [])
+		for entry in summons:
+			_spawn_summoned_add(entry, ability)
 
 
 # Applies petrify through the same debuff seam the catnip bag / spray bottle
@@ -358,6 +371,54 @@ func _apply_ability_damage(target) -> void:
 	elif dealt > 0:
 		FloatingText.spawn(player, str(dealt), Color(1.0, 0.2, 0.2))
 		player.take_damage(dealt, global_position)
+
+
+# Spawns Old Lady Pearl's knitting-needle projectile (issue #537). Reuses the
+# same EnemyProjectile node the catnip bag / spray cone already use — no new
+# projectile class — and routes the hit through _apply_ability_damage, the
+# same co-op damage seam contact damage and the other archetypes share.
+func _spawn_pearl_projectile(target_pos: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var proj := EnemyProjectile.new()
+	proj.position = global_position
+	proj.is_wall_at = _make_wall_predicate(parent)
+	var on_hit := func(player_node):
+		_apply_ability_damage(player_node)
+	proj.configure(
+		target_pos,
+		RetreatAndFireAbility.PROJECTILE_SPEED,
+		RetreatAndFireAbility.PROJECTILE_RADIUS,
+		RetreatAndFireAbility.PROJECTILE_COLOR,
+		RetreatAndFireAbility.PROJECTILE_MAX_RANGE,
+		on_hit
+	)
+	parent.add_child(proj)
+
+
+# Instantiates one of SummonAddsAbility's published entries as a real Enemy
+# node (issue #537). Deterministic kind/position/id already came off the
+# ability's seeded roll, so this is presentation only — no branching that
+# could diverge between co-op clients. Wires the add's `died` signal back to
+# `notify_add_died` so the summoner's cap tracks reality as adds fall.
+func _spawn_summoned_add(entry: Dictionary, summon_ability) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var scene: PackedScene = load("res://scenes/enemy.tscn")
+	if scene == null:
+		return
+	var kind: int = entry.get("kind", EnemyData.EnemyKind.ANGRY_PIGEON)
+	var pos: Vector2 = entry.get("position", global_position)
+	var add_data := EnemyData.make_new(kind)
+	add_data.enemy_id = entry.get("enemy_id", "")
+	add_data.spawn_position = pos
+	var add := scene.instantiate() as Enemy
+	add.data = add_data
+	add.global_position = pos
+	add.died.connect(func(): summon_ability.notify_add_died())
+	parent.call_deferred("add_child", add)
 
 
 func flash_hit() -> void:
