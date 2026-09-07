@@ -21,21 +21,29 @@ zero tests. `-gexit` makes GUT exit when the run finishes instead of hanging
 in the GUI.
 
 ```bash
+GUT_LOG=$(mktemp -t gut_output)
 /Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot \
   --headless --path . -s addons/gut/gut_cmdln.gd \
   -gconfig=res://gut_config.json -gexit 2>&1 \
-  | tee /tmp/gut_output.log \
+  | tee "$GUT_LOG" \
   | grep -E "passed|failed|FAIL|Totals|directories configured"
-cat /tmp/gut_output.log | grep -A 10 "^Totals"
+grep -A 10 "^Totals" "$GUT_LOG"
 ```
 
-Do not rely on `grep` alone to judge the run: pipe through `tee` (or
-otherwise keep the full log) and confirm a `Totals` block with a real test
-count actually appears. A `grep` matching only `passed|failed|FAIL|Totals`
-will silently discard GUT's own fatal error text (e.g. "You do not have any
-directories configured"), since that text matches none of those patterns —
-producing empty grep output that reads as "no failures" when the run never
-started at all.
+Do not rely on `grep` alone to judge the run. A `grep` matching only
+`passed|failed|FAIL|Totals` silently discards GUT's own fatal error text
+(e.g. "You do not have any directories configured"), since that text matches
+none of those patterns — producing empty grep output that reads as "no
+failures" when the run never started at all. So keep the full log via `tee`
+and confirm a `Totals` block with a real test count actually appears.
+
+The two `grep` passes do different jobs and both are needed: the first pulls
+per-script signal lines out of the stream, the second prints the `Totals`
+block on its own. Do not merge them by adding `-A 10` to the first — that
+would append ten lines of context to every one of the 258 `N/N passed`
+lines. Keep the log in a per-run `mktemp` file rather than a fixed path, so
+two runs sharing `/tmp` (say, parallel worktrees) cannot interleave into one
+log or read each other's stale output.
 
 ## Run a single test file
 
@@ -56,12 +64,14 @@ not the full 3394). If GUT instead prints
 omitted or malformed, not that `-gconfig` should be added back.
 
 ```bash
+GUT_LOG=$(mktemp -t gut_output)
 /Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot \
   --headless --path . -s addons/gut/gut_cmdln.gd \
   -gexit \
   -gtest=res://tests/unit/test_foo.gd 2>&1 \
-  | tee /tmp/gut_output.log \
+  | tee "$GUT_LOG" \
   | grep -E "passed|failed|FAIL|Totals|directories configured"
+grep -A 10 "^Totals" "$GUT_LOG"
 ```
 
 ## Workflow
@@ -81,7 +91,7 @@ omitted or malformed, not that `-gconfig` should be added back.
 | `---- N failing tests ----` | Summary count |
 | `Parse error` + `does not extend GutTest` | GDScript syntax error in the file — fix it first |
 | Empty output / no `Totals` block | The run failed to start (e.g. missing `-gconfig`) — this is **not** a pass and must never be read as green |
-| `You do not have any directories configured` | GUT wasn't given `-gconfig=res://gut_config.json` — fix the invocation and re-run |
+| `You do not have any directories configured` | The run never started — **the fix differs by command**. In *run all tests*, `-gconfig=res://gut_config.json` is missing. In *run a single test file*, `-gtest` is missing or malformed; do **not** add `-gconfig` there, it silently un-scopes the run to the full suite |
 
 ## Test file locations
 
