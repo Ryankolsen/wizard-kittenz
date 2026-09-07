@@ -1,0 +1,177 @@
+class_name DangerZoneShape
+extends RefCounted
+
+# Danger-zone geometry (PRD #518 / tracer slice #533). One pure module owns the
+# shape vocabulary, the three-phase lifecycle and the containment query, so the
+# telegraph the player sees and the area that damages them cannot drift apart:
+# the renderer draws what `outline()` reports and damage resolution asks
+# `contains()` on the same instance. There is no separate Area2D hitbox.
+#
+# Geometry is a snapshot taken at telegraph start — the caller passes already-
+# resolved world coordinates, so a target that keeps moving during the wind-up
+# does not drag the zone along with it.
+
+enum Kind {
+	LANE,   # straight corridor: origin -> origin + heading * length, `width` wide
+	TETHER, # line from the enemy to a locked target point, dragging the player in
+}
+
+enum Phase {
+	WINDUP, # amber outline filling in; drawn but harmless
+	COMMIT, # flash to red; the damage window
+	FADE,   # fading out; harmless again
+}
+
+var kind: int = Kind.LANE
+var origin: Vector2 = Vector2.ZERO
+var heading: Vector2 = Vector2.RIGHT
+var length: float = 0.0
+var width: float = 0.0
+var windup_duration: float = 0.0
+var commit_duration: float = 0.0
+var fade_duration: float = 0.0
+
+
+static func make_lane(
+	lane_origin: Vector2,
+	lane_heading: Vector2,
+	lane_length: float,
+	lane_width: float,
+	windup: float,
+	commit: float,
+	fade: float
+) -> DangerZoneShape:
+	var s := DangerZoneShape.new()
+	s.kind = Kind.LANE
+	s.origin = lane_origin
+	s.heading = lane_heading.normalized() if lane_heading != Vector2.ZERO else Vector2.RIGHT
+	s.length = maxf(0.0, lane_length)
+	s.width = maxf(0.0, lane_width)
+	s.windup_duration = maxf(0.0, windup)
+	s.commit_duration = maxf(0.0, commit)
+	s.fade_duration = maxf(0.0, fade)
+	return s
+
+
+# Endpoint of the lane / tether in world space. Reported (rather than re-derived
+# by callers) so the renderer and the damage query agree on the same segment.
+func endpoint() -> Vector2:
+	return origin + heading * length
+
+
+func phase_at(t: float) -> int:
+	if t < windup_duration:
+		return Phase.WINDUP
+	if t < windup_duration + commit_duration:
+		return Phase.COMMIT
+	return Phase.FADE
+
+
+# True only while the zone is live AND the point is inside its geometry. The
+# wind-up deliberately answers false: the zone is drawn so the player can walk
+# clear, and it must not hurt anyone until it commits.
+func contains(point: Vector2, t: float) -> bool:
+	if phase_at(t) != Phase.COMMIT:
+		return false
+	return _contains_geometry(point)
+
+
+func _contains_geometry(point: Vector2) -> bool:
+	var to_point := point - origin
+	var along := to_point.dot(heading)
+	if along < 0.0 or along > length:
+		return false
+	var perpendicular := absf(to_point.cross(heading))
+	return perpendicular <= width * 0.5
+
+
+# Tether from the enemy to a locked target point (Pull archetype). Same segment
+# containment as a lane — the distinction is what the ability does on commit,
+# which is why the tether also answers `pull_direction`.
+static func make_tether(
+	enemy_position: Vector2,
+	locked_target: Vector2,
+	tether_width: float,
+	windup: float,
+	commit: float,
+	fade: float
+) -> DangerZoneShape:
+	var span := locked_target - enemy_position
+	var s := make_lane(
+		enemy_position, span, span.length(), tether_width, windup, commit, fade)
+	s.kind = Kind.TETHER
+	return s
+
+
+# Unit vector from `point` back toward the zone's origin (the enemy). The Pull
+# archetype drags the player along this, so the direction is reported by the
+# same module that decides whether the player was caught at all.
+func pull_direction(point: Vector2) -> Vector2:
+	var to_origin := origin - point
+	if to_origin == Vector2.ZERO:
+		return Vector2.ZERO
+	return to_origin.normalized()
+
+
+# The zone's whole lifetime. Past it the zone has finished fading and the
+# renderer can free itself.
+func total_duration() -> float:
+	return windup_duration + commit_duration + fade_duration
+
+
+func is_expired(t: float) -> bool:
+	return t >= total_duration()
+
+
+# --- Presentation, reported by the geometry rather than authored separately ---
+#
+# DangerZoneRenderer draws these two and nothing else, which is what keeps the
+# telegraph and the hitbox from drifting: the polygon below is the same
+# half-width rectangle around the same locked segment that `contains` tests.
+
+# Corner ring of the zone in the same world space `contains` is queried with,
+# wound near-left -> far-left -> far-right -> near-right.
+func outline() -> PackedVector2Array:
+	# Left-hand normal of the heading, so the winding is stable for any heading.
+	var side := Vector2(-heading.y, heading.x) * (width * 0.5)
+	var far := endpoint()
+	return PackedVector2Array([
+		origin - side,
+		far - side,
+		far + side,
+		origin + side,
+	])
+
+
+# How much of the zone has filled in during the wind-up: 0 at telegraph start,
+# 1 at commit. The renderer sweeps its fill with this so the player can read
+# time-to-impact off the zone itself.
+func fill_progress(t: float) -> float:
+	if windup_duration <= 0.0:
+		return 1.0
+	return clampf(t / windup_duration, 0.0, 1.0)
+
+
+const WINDUP_COLOR := Color(1.0, 0.72, 0.2, 0.45)  # amber
+const COMMIT_COLOR := Color(1.0, 0.2, 0.15, 0.65)  # flash to red
+
+
+# Uniform colour language across every enemy (PRD #518 user story 4): amber
+# while winding up, red at commit, fading to nothing after.
+func color_at(t: float) -> Color:
+	match phase_at(t):
+		Phase.WINDUP:
+			var c := WINDUP_COLOR
+			# Alpha ramps with the fill so the telegraph reads as "charging".
+			c.a *= 0.35 + 0.65 * fill_progress(t)
+			return c
+		Phase.COMMIT:
+			return COMMIT_COLOR
+		_:
+			var c2 := COMMIT_COLOR
+			if fade_duration <= 0.0:
+				c2.a = 0.0
+				return c2
+			var faded := (t - windup_duration - commit_duration) / fade_duration
+			c2.a *= clampf(1.0 - faded, 0.0, 1.0)
+			return c2

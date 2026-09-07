@@ -6,6 +6,13 @@ extends RefCounted
 # wanders owns exactly one profile instance for its lifetime.
 var _wander_profile = null  # WanderProfile
 
+# Composed ability archetypes (PRD #518 / tracer slice #533). The Enemy node
+# pumps this list generically each physics frame; subclasses populate it from
+# AbilityLoadout rather than hand-rolling per-kind drive/observe branches.
+# Empty on the base so a kind that hasn't been converted yet is unaffected —
+# EnemyBehavior.for_data fills it from the loadout table.
+var abilities: Array = []
+
 # Per-kind tick hook (issue #157). The Enemy node calls `behavior.tick(delta, self)`
 # each physics frame after the base state machine resolves; subclasses override
 # `tick` to layer kind-specific behavior (dive bomb charge, wall bounce, water
@@ -134,11 +141,35 @@ func idle_pause_length() -> float:
 # (e.g., Angry Pigeon's straight-line dive bomb that must ignore steering),
 # it returns true and the Enemy node skips its state-machine match block,
 # letting the behavior's tick write global_position / velocity unopposed.
-# Default false so the standard chase/attack/idle baseline runs.
+# The base aggregates its composed abilities, so a dash-style archetype
+# (telegraphed charge) claims motion without its behavior writing a line of
+# code. Subclasses that override this own their own answer.
 func is_overriding_motion() -> bool:
+	for a in abilities:
+		if a.is_overriding_motion():
+			return true
 	return false
 
-static func for_kind(kind: int) -> EnemyBehavior:
+# Resolves the behavior for a spawned enemy, including its ability loadout.
+# Bosses route through the same factory as standard mobs (PRD #518 user story
+# 42): the old `EnemyBehavior.new() if data.is_boss` short-circuit is gone, so
+# boss-ness only selects a different loadout, never a different code path.
+static func for_data(data) -> EnemyBehavior:
+	if data == null:
+		return EnemyBehavior.new()
+	var is_boss: bool = data.get("is_boss") == true
+	var b := for_kind(data.kind, is_boss)
+	if b.abilities.is_empty():
+		b.abilities = AbilityLoadout.for_enemy(data.kind, is_boss)
+	return b
+
+
+static func for_kind(kind: int, is_boss: bool = false) -> EnemyBehavior:
+	# The floor-1 Vacuum shares ROGUE_ROOMBA's kind (see BossRoster), so the
+	# boss flag is what separates its archetype loadout from the standard
+	# roomba's bounce-and-trail behavior.
+	if is_boss and kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
+		return VacuumBossBehavior.new()
 	match kind:
 		EnemyData.EnemyKind.ANGRY_PIGEON:
 			return AngryPigeonBehavior.new()

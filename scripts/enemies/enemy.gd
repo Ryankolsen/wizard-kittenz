@@ -43,10 +43,11 @@ func _ready() -> void:
 		data = EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	_attack_controller = AttackController.new()
 	_attack_controller.cooldown = EnemyAIState.ATTACK_COOLDOWN
-	# Bosses use the base (standard chase) behavior regardless of kind — they
-	# already have a unique sprite and boosted stats; pigeon dive-bomb / roomba
-	# bounce / etc. fight the room-confinement clamp and look wrong on the Vacuum.
-	_behavior = EnemyBehavior.new() if data.is_boss else EnemyBehavior.for_kind(data.kind)
+	# Bosses route through the same factory as standard mobs (PRD #518 user
+	# story 42) — the old `is_boss` short-circuit onto the base behavior is
+	# gone. for_data also stamps the behavior's ability loadout, so what a boss
+	# does differently is data (AbilityLoadout), not a different code path.
+	_behavior = EnemyBehavior.for_data(data)
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite != null:
 		var path: String
@@ -144,6 +145,7 @@ func _physics_process(delta: float) -> void:
 		_drive_haunted_spray_bottle(delta)
 		_drive_dog_knight()
 		_behavior.tick(delta, self)
+		_pump_abilities(delta)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
 		_observe_dog_knight()
@@ -250,6 +252,89 @@ func _try_contact_damage(target: Node2D) -> void:
 		# to play the matching hit-flash + knockback reaction. Solo path
 		# is a single null-check no-op inside take_damage.
 		player.take_damage(dealt, global_position)
+
+
+# Generic ability pump (PRD #518 / tracer slice #533). Every enemy's abilities
+# are driven through this one loop — no per-kind branch — so adding a move is a
+# row in AbilityLoadout rather than another drive/observe pair in this file.
+# The pump owns only the scene-side work an ability cannot do from a RefCounted:
+# parenting the telegraph renderer and routing damage through CoopRouter.
+#
+# The per-kind _drive_* / _observe_* helpers below are the pre-archetype
+# mechanics of the five standard mobs; issues #534-#545 convert them into
+# archetypes and delete them. Until then their loadout is a single inert
+# LegacyBehaviorAbility, so this loop is a no-op for them.
+func _pump_abilities(delta: float) -> void:
+	if _behavior == null or _behavior.abilities.is_empty():
+		return
+	for ability in _behavior.abilities:
+		ability.tick(delta, self)
+		if ability.is_overriding_motion():
+			ability.drive_motion(delta, self)
+		_consume_ability_zone(ability)
+		_consume_ability_payload(ability)
+	# One telegraph at a time: overlapping zones would make the colour language
+	# unreadable, which is the whole point of the danger-zone system.
+	for ability in _behavior.abilities:
+		if ability.is_active():
+			return
+	for ability in _behavior.abilities:
+		if ability.wants_to_fire():
+			ability.begin(self)
+			_consume_ability_zone(ability)
+			return
+
+
+# Parents a renderer for a freshly telegraphed zone. The renderer is handed the
+# very shape object the ability will query for damage, and reads the ability's
+# own clock, so what is drawn and what hits cannot drift.
+func _consume_ability_zone(ability) -> void:
+	if ability.pending_zone == null:
+		return
+	var zone: DangerZoneShape = ability.pending_zone
+	ability.pending_zone = null
+	var parent := get_parent()
+	if parent == null:
+		return
+	var renderer := DangerZoneRenderer.new()
+	parent.add_child(renderer)
+	renderer.configure(zone, Callable(ability, "zone_elapsed"))
+
+
+# Applies what an ability committed: damage on the caught player, and a cue for
+# a player who got dragged. Routed here rather than inside the ability so co-op
+# damage routing stays in exactly one place (see _try_contact_damage).
+func _consume_ability_payload(ability) -> void:
+	if ability.pending_hit_target != null:
+		var hit = ability.pending_hit_target
+		ability.pending_hit_target = null
+		_apply_ability_damage(hit)
+	if ability.pending_pull_target != null:
+		var pulled = ability.pending_pull_target
+		ability.pending_pull_target = null
+		if pulled is Node:
+			FloatingText.spawn(pulled, "PULL", Color(0.6, 0.8, 1.0))
+
+
+func _apply_ability_damage(target) -> void:
+	if not (target is Player):
+		return
+	var player := target as Player
+	if player.data == null or not player.data.is_alive():
+		return
+	var session: CoopSession = null
+	var pid := ""
+	var gs := get_node_or_null("/root/GameState")
+	if gs != null:
+		session = gs.coop_session
+		pid = gs.local_player_id
+	var dealt := CoopRouter.apply_damage(session, data, player.data, pid)
+	if dealt == 0 and data != null and data.attack > 0:
+		FloatingText.spawn(player, "Miss")
+	elif dealt > 0:
+		FloatingText.spawn(player, str(dealt), Color(1.0, 0.2, 0.2))
+		player.take_damage(dealt, global_position)
+
 
 func flash_hit() -> void:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D

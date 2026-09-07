@@ -1143,3 +1143,53 @@ func test_spray_bottle_chase_still_fires():
 		b.tick(0.1, e)
 	assert_not_null(b.pending_fire_aim,
 		"CHASE spray bottle should still queue a cone after cooldown")
+
+
+# ---------------------------------------------------------------------------
+# Ability loadout + boss routing (PRD #518 / tracer slice #533).
+# ---------------------------------------------------------------------------
+
+func test_loadout_is_non_empty_for_every_enemy_kind():
+	# Acceptance #9: the loadout table is exhaustive over EnemyKind, the same
+	# contract for_kind already holds. Kinds whose archetype conversion is a
+	# later issue (#534-#545) still answer with their existing behavior rather
+	# than an empty list, so the generic pump never has nothing to drive.
+	for kind in EnemyData.EnemyKind.values():
+		var abilities := AbilityLoadout.for_enemy(kind, false)
+		assert_false(abilities.is_empty(), "loadout for kind %d must not be empty" % kind)
+
+
+func test_vacuum_loadout_is_pull_plus_telegraphed_charge():
+	# Acceptance #9 (Vacuum): the floor-1 boss composes exactly the two
+	# archetypes the PRD assigns it. BossRoster maps floor 1 to the Vacuum,
+	# whose kind is ROGUE_ROOMBA — the is_boss flag is what separates the boss
+	# loadout from the standard roomba's.
+	var vacuum := BossRoster.boss_for_floor(1)
+	var abilities := AbilityLoadout.for_enemy(vacuum.kind, true)
+	assert_eq(abilities.size(), 2, "the Vacuum composes exactly two archetypes")
+	assert_true(abilities[0] is PullAbility, "the Vacuum's first archetype is Pull")
+	assert_true(abilities[1] is TelegraphedChargeAbility,
+		"the Vacuum's second archetype is the telegraphed charge")
+
+
+func test_boss_no_longer_resolves_to_a_bare_base_behavior():
+	# Acceptance #10: the is_boss branch forcing EnemyBehavior.new() is gone.
+	# The floor-1 boss resolves to its own behavior with a real loadout.
+	var vacuum := BossRoster.boss_for_floor(1)
+	var data := EnemyData.make_new(vacuum.kind)
+	data.is_boss = true
+	var b := EnemyBehavior.for_data(data)
+	assert_false(
+		b.get_script() == EnemyBehavior.new().get_script(),
+		"a boss must not resolve to a bare base EnemyBehavior")
+	assert_eq(b.abilities.size(), 2, "the Vacuum's behavior carries its two archetypes")
+
+
+func test_boss_routes_through_the_same_factory_as_standard_mobs():
+	# Acceptance #10 (routing): boss-ness no longer short-circuits the factory,
+	# so a boss of a kind with a registered subclass gets that subclass.
+	var data := EnemyData.make_new(EnemyData.EnemyKind.DOG_KNIGHT)
+	data.is_boss = true
+	var b := EnemyBehavior.for_data(data)
+	assert_true(b is DogKnightBehavior,
+		"is_boss must not divert a kind away from its registered behavior")

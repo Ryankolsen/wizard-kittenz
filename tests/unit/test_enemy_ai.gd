@@ -422,3 +422,31 @@ func test_constants_are_sensible():
 		"melee must be a tighter ring than detection")
 	assert_gt(EnemyAIState.ATTACK_COOLDOWN, 0.0)
 	assert_gt(EnemyAIState.CHASE_SPEED, 0.0)
+
+
+# --- Generic ability pump (PRD #518 / tracer slice #533) --------------------
+
+func test_boss_enemy_pumps_its_abilities_and_parents_a_danger_zone_renderer():
+	# The pump wiring end to end: a floor-1 Vacuum with a player in range winds
+	# up an archetype and the Enemy node parents a renderer for the zone the
+	# ability produced. Proves bosses route through the factory with a real
+	# loadout and that nothing in the pump needs a per-kind branch.
+	var vacuum := BossRoster.boss_for_floor(1)
+	var e := Enemy.new()
+	e.data = EnemyData.make_new(vacuum.kind)
+	e.data.is_boss = true
+	add_child_autofree(e)
+	e.global_position = Vector2.ZERO
+	var player := _node_at(Vector2(30.0, 0.0))
+	e._player_ref = player
+	e.state = _State.CHASE
+	for _i in range(600):
+		e._pump_abilities(1.0 / 60.0)
+	var renderers := 0
+	for child in e.get_parent().get_children():
+		if child is DangerZoneRenderer:
+			renderers += 1
+			# In game the renderer frees itself once its zone expires (_process);
+			# nothing runs _process here, so tidy them up by hand.
+			child.queue_free()
+	assert_gt(renderers, 0, "a pumped boss ability must parent a danger-zone renderer")
