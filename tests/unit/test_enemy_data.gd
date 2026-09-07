@@ -23,6 +23,11 @@ const _BOSS_KINDS_AND_NAMES := [
 	[EnemyData.EnemyKind.WARDEN_WRETCHED, "Warden Wretched"],
 ]
 
+# The stat every kind falls back to when base_max_hp_for has no case for it.
+# Pinned here so the "no boss still uses the fallback" test below fails for the
+# right reason rather than against a magic number copied from the source.
+const _GENERIC_FALLBACK_MAX_HP := 8
+
 func test_make_new_angry_pigeon_has_expected_defaults():
 	var e := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
 	assert_eq(e.kind, EnemyData.EnemyKind.ANGRY_PIGEON)
@@ -182,9 +187,12 @@ func test_make_new_boss_kinds_have_expected_names():
 		var expected: String = entry[1]
 		assert_eq(EnemyData.make_new(k).enemy_name, expected)
 
-func test_boss_kinds_share_boss_base_stats():
-	# Sprite-only differentiation per PRD: all 9 new kinds must collapse to a
-	# single value for hp/attack/defense. Set size 1 across the cohort proves it.
+func test_boss_kinds_do_not_share_one_base_stat_line():
+	# Supersedes the old "sprite-only differentiation" contract (PRD #297
+	# slice 2), which required all 9 boss kinds to collapse to a single
+	# hp/attack/defense triple. PRD #518 / issue #535 reverses that: each boss
+	# gets a profile matching its archetypes, so the cohort must now span more
+	# than one value on every axis.
 	var hp_set := {}
 	var atk_set := {}
 	var def_set := {}
@@ -193,9 +201,9 @@ func test_boss_kinds_share_boss_base_stats():
 		hp_set[EnemyData.base_max_hp_for(k)] = true
 		atk_set[EnemyData.base_attack_for(k)] = true
 		def_set[EnemyData.base_defense_for(k)] = true
-	assert_eq(hp_set.size(), 1, "boss kinds must share base hp")
-	assert_eq(atk_set.size(), 1, "boss kinds must share base attack")
-	assert_eq(def_set.size(), 1, "boss kinds must share base defense")
+	assert_gt(hp_set.size(), 1, "boss kinds must not share a single base hp")
+	assert_gt(atk_set.size(), 1, "boss kinds must not share a single base attack")
+	assert_gt(def_set.size(), 1, "boss kinds must not share a single base defense")
 
 func test_boss_kinds_default_is_boss_false():
 	# Same contract as the 5 legacy kinds — make_new mints a generic enemy; the
@@ -244,3 +252,169 @@ func test_debuff_stays_active_across_small_sub_duration_ticks():
 	for i in range(50):
 		e.tick_debuffs(0.1)
 	assert_eq(e.defense, 6, "50 x 0.1s ticks (5s total) must leave the 10s debuff still active")
+
+# --- PRD #518 / issue #535: per-boss stat profiles ---
+
+func test_every_boss_kind_declares_its_own_max_hp():
+	# Core wiring: no boss may still fall through to the generic 8 hp
+	# fallback. A boss returning the baseline means base_max_hp_for has no
+	# case for it, which is exactly the bug this slice closes.
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		assert_ne(EnemyData.base_max_hp_for(k), _GENERIC_FALLBACK_MAX_HP,
+			"boss kind %d still uses the generic fallback hp" % k)
+
+# Per-boss profiles from the PRD #518 boss loadout table: [max_hp, attack, defense].
+# Roles drive the numbers — melee-denial bruisers (Buster, Warden) are tanky,
+# the kiting/ranged boss (Pearl) is squishiest, and the shielded boss (Bouncer)
+# carries the roster's defense. Pinned so a tuning pass is a deliberate edit.
+const _BOSS_PROFILES := {
+	EnemyData.EnemyKind.SIR_PICKLETON: [7, 4, 0],
+	EnemyData.EnemyKind.OLD_LADY_PEARL: [6, 2, 0],
+	EnemyData.EnemyKind.TRASH_PANDA_TYRONE: [7, 3, 0],
+	EnemyData.EnemyKind.BIG_BRUISER_BUSTER: [14, 4, 0],
+	EnemyData.EnemyKind.LAST_CALL_LARRY: [10, 3, 0],
+	EnemyData.EnemyKind.THE_BOUNCER: [12, 3, 1],
+	EnemyData.EnemyKind.DJ_DUBSTEP: [9, 4, 0],
+	EnemyData.EnemyKind.KARAOKE_KAREN: [9, 3, 0],
+	EnemyData.EnemyKind.WARDEN_WRETCHED: [13, 4, 0],
+}
+
+func _assert_boss_profile(k: int) -> void:
+	var p: Array = _BOSS_PROFILES[k]
+	var n := EnemyData.display_name_for(k)
+	assert_eq(EnemyData.base_max_hp_for(k), p[0], "%s max_hp" % n)
+	assert_eq(EnemyData.base_attack_for(k), p[1], "%s attack" % n)
+	assert_eq(EnemyData.base_defense_for(k), p[2], "%s defense" % n)
+
+func test_sir_pickleton_profile_is_a_fragile_assassin():
+	# Ambush/petrify + telegraphed charge: hits hard out of stealth, folds fast.
+	_assert_boss_profile(EnemyData.EnemyKind.SIR_PICKLETON)
+
+func test_old_lady_pearl_profile_is_a_fragile_kiter():
+	# Summon adds + retreat and fire: the adds carry the fight, she does not.
+	_assert_boss_profile(EnemyData.EnemyKind.OLD_LADY_PEARL)
+
+func test_trash_panda_tyrone_profile_is_an_evasive_skirmisher():
+	# Steal + zone denial: survives by running, not by soaking.
+	_assert_boss_profile(EnemyData.EnemyKind.TRASH_PANDA_TYRONE)
+
+func test_big_bruiser_buster_profile_is_a_melee_denial_bruiser():
+	# Ground slam + knockback shove: the roster's beefiest melee wall.
+	_assert_boss_profile(EnemyData.EnemyKind.BIG_BRUISER_BUSTER)
+
+func test_last_call_larry_profile_is_a_midweight_zoner():
+	# Zone denial + enrage: average bulk, the enrage supplies the spike.
+	_assert_boss_profile(EnemyData.EnemyKind.LAST_CALL_LARRY)
+
+func test_the_bouncer_profile_carries_the_defense():
+	# Shielded front + knockback shove: armor is his identity.
+	_assert_boss_profile(EnemyData.EnemyKind.THE_BOUNCER)
+
+func test_dj_dubstep_profile_is_a_midweight_burster():
+	# Ground slam on a beat + enrage: rhythm damage, thin armor.
+	_assert_boss_profile(EnemyData.EnemyKind.DJ_DUBSTEP)
+
+func test_karaoke_karen_profile_is_a_midweight_zone_caster():
+	# Cone spray + summon adds: pressures space rather than trading blows.
+	_assert_boss_profile(EnemyData.EnemyKind.KARAOKE_KAREN)
+
+func test_warden_wretched_profile_is_a_tanky_trapper():
+	# Pull + zone denial: drags you in and outlasts you.
+	_assert_boss_profile(EnemyData.EnemyKind.WARDEN_WRETCHED)
+
+func test_every_boss_kind_has_a_capped_detection_radius():
+	# Iterates the enum rather than a hand-listed roster so a boss kind added
+	# later cannot slip past the viewport-half-height ceiling. A radius above
+	# DETECTION_RADIUS_MAX_PX would let a boss aggro from off-screen (#260).
+	var max_px := EnemyData.DETECTION_RADIUS_MAX_PX
+	for k in EnemyData.EnemyKind.values():
+		var r: float = EnemyData.base_detection_radius_for(k)
+		assert_gt(r, 0.0, "%s must have a positive detection radius" % EnemyData.display_name_for(k))
+		assert_lte(r, max_px, "%s radius %f exceeds the viewport ceiling" % [EnemyData.display_name_for(k), r])
+
+func test_boss_detection_radii_match_their_archetypes():
+	# Pinned per-boss radii. Ranged/pull bosses open at the ceiling; brawlers
+	# who want you in melee sit tight and see less.
+	var expected := {
+		EnemyData.EnemyKind.SIR_PICKLETON: 120.0,
+		EnemyData.EnemyKind.OLD_LADY_PEARL: 135.0,
+		EnemyData.EnemyKind.TRASH_PANDA_TYRONE: 130.0,
+		EnemyData.EnemyKind.BIG_BRUISER_BUSTER: 90.0,
+		EnemyData.EnemyKind.LAST_CALL_LARRY: 100.0,
+		EnemyData.EnemyKind.THE_BOUNCER: 95.0,
+		EnemyData.EnemyKind.DJ_DUBSTEP: 110.0,
+		EnemyData.EnemyKind.KARAOKE_KAREN: 125.0,
+		EnemyData.EnemyKind.WARDEN_WRETCHED: 135.0,
+	}
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		assert_eq(EnemyData.base_detection_radius_for(k), expected[k], "%s detection radius" % entry[1])
+
+func test_shielded_boss_has_the_rosters_highest_defense():
+	# Design intent, not a literal: The Bouncer's shielded-front loadout means
+	# armor is his identity, so no other boss may match or beat his defense.
+	var bouncer := EnemyData.base_defense_for(EnemyData.EnemyKind.THE_BOUNCER)
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		if k == EnemyData.EnemyKind.THE_BOUNCER:
+			continue
+		assert_lt(EnemyData.base_defense_for(k), bouncer,
+			"%s must not match the shielded boss's defense" % entry[1])
+
+func test_kiting_boss_is_squishier_than_the_melee_denial_boss():
+	# Old Lady Pearl retreats and fires; Big Bruiser Buster slams and shoves
+	# anyone who closes. The ranged boss must be the softer target.
+	assert_lt(
+		EnemyData.base_max_hp_for(EnemyData.EnemyKind.OLD_LADY_PEARL),
+		EnemyData.base_max_hp_for(EnemyData.EnemyKind.BIG_BRUISER_BUSTER),
+		"the kiting boss must have less hp than the melee-denial boss")
+
+func test_kiting_boss_outranges_the_melee_denial_boss():
+	assert_gt(
+		EnemyData.base_detection_radius_for(EnemyData.EnemyKind.OLD_LADY_PEARL),
+		EnemyData.base_detection_radius_for(EnemyData.EnemyKind.BIG_BRUISER_BUSTER),
+		"the kiting boss must notice the player from further out")
+
+func test_standard_mob_profiles_are_untouched_by_the_boss_pass():
+	# Regression guard for issue #535. BossRoster maps floor 1's Vacuum onto
+	# EnemyKind.ROGUE_ROOMBA, which is also a standard mob kind — so giving the
+	# bosses profiles is one edit away from silently retuning the roomba that
+	# spawns in ordinary rooms. These are the pre-#535 values, verbatim.
+	var expected := {
+		EnemyData.EnemyKind.ANGRY_PIGEON: [6, 2, 0, 80.0],
+		EnemyData.EnemyKind.ROGUE_ROOMBA: [12, 3, 0, 90.0],
+		EnemyData.EnemyKind.DOG_KNIGHT: [24, 4, 2, 135.0],
+		EnemyData.EnemyKind.CATNIP_DEALER: [14, 3, 0, 75.0],
+		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE: [10, 4, 0, 75.0],
+	}
+	for k in _NEW_KINDS:
+		var p: Array = expected[k]
+		var n := EnemyData.display_name_for(k)
+		assert_eq(EnemyData.base_max_hp_for(k), p[0], "%s max_hp must be unchanged" % n)
+		assert_eq(EnemyData.base_attack_for(k), p[1], "%s attack must be unchanged" % n)
+		assert_eq(EnemyData.base_defense_for(k), p[2], "%s defense must be unchanged" % n)
+		assert_eq(EnemyData.base_detection_radius_for(k), p[3], "%s detection radius must be unchanged" % n)
+
+func test_make_new_is_well_formed_for_every_kind():
+	# Edge cases across the full enum: a freshly minted enemy of any kind
+	# starts at full health with a readable name, so a boss profile added
+	# without a display name or with a zero hp typo fails here.
+	for k in EnemyData.EnemyKind.values():
+		var e := EnemyData.make_new(k)
+		assert_gt(e.max_hp, 0, "kind %d must have positive max_hp" % k)
+		assert_eq(e.hp, e.max_hp, "kind %d must spawn at full health" % k)
+		assert_ne(e.enemy_name, "", "kind %d must have a display name" % k)
+		assert_eq(e.detection_radius, EnemyData.base_detection_radius_for(k), "kind %d radius" % k)
+
+func test_boss_base_defense_stays_under_the_dog_knights():
+	# The Dog Knight is the armored outlier of the whole enum (issue #163),
+	# and BossScaling triples boss defense on top of these values — so a boss
+	# base defense at or above 2 would both break that contract and turn the
+	# fight into a chip-damage slog under DamageResolver's subtractive
+	# mitigation. Boss bulk belongs in HP, armor belongs to The Bouncer.
+	var dog_knight := EnemyData.base_defense_for(EnemyData.EnemyKind.DOG_KNIGHT)
+	for entry in _BOSS_KINDS_AND_NAMES:
+		var k: int = entry[0]
+		assert_lt(EnemyData.base_defense_for(k), dog_knight,
+			"%s base defense must stay under the Dog Knight's" % entry[1])

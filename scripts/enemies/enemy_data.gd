@@ -98,9 +98,26 @@ var taunt_source_id: String = ""
 # Per-kind floor-1 stat profiles (PRD #376 / issue #378). Replaces the
 # uniform 8/2 baseline so each kind has a role: Pigeon glass-cannon swarmer,
 # Roomba erratic skirmisher, Catnip medium all-rounder, Spray fragile ranged
-# poke, Dog Knight tank. Boss-tier kinds (Sir Pickleton onward) keep the
-# legacy 8/2 baseline since BossScaling multiplies on top and per-boss
-# differentiation is sprite/AI-driven.
+# poke, Dog Knight tank.
+#
+# Boss-tier kinds (Sir Pickleton onward) gained their own profiles in PRD #518
+# / issue #535, replacing the shared 8/2/0 baseline that made every boss the
+# same numbers behind a different sprite. Each profile expresses that boss's
+# two archetypes from the PRD's loadout table:
+#
+#   Sir Pickleton      7/4/0   ambush+charge   — assassin, hits hard, folds fast
+#   Old Lady Pearl     6/2/0   summon+kite     — squishiest; the adds do the work
+#   Trash Panda Tyrone 7/3/0   steal+zone      — evasive, survives by running
+#   Big Bruiser Buster 14/4/0  slam+shove      — melee-denial wall, bulk is all HP
+#   Last Call Larry    10/3/0  zone+enrage     — midweight; enrage is the spike
+#   The Bouncer        12/3/1  shield+shove    — the only boss with any armor
+#   DJ Dubstep         9/4/0   slam+enrage     — rhythm damage, no armor
+#   Karaoke Karen      9/3/0   cone+summon     — pressures space, not trades
+#   Warden Wretched    13/4/0  pull+zone       — tanky trapper
+#
+# These are pre-scaling values: BossScaling still multiplies on top of them
+# (6x hp / 2.5x attack / 3x defense plus per-floor rates), so the spread here
+# is deliberately narrow around the old baseline of 8.
 static func base_max_hp_for(k: EnemyKind) -> int:
 	match k:
 		EnemyKind.ANGRY_PIGEON: return 6
@@ -108,6 +125,15 @@ static func base_max_hp_for(k: EnemyKind) -> int:
 		EnemyKind.CATNIP_DEALER: return 14
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 10
 		EnemyKind.DOG_KNIGHT: return 24
+		EnemyKind.SIR_PICKLETON: return 7
+		EnemyKind.OLD_LADY_PEARL: return 6
+		EnemyKind.TRASH_PANDA_TYRONE: return 7
+		EnemyKind.BIG_BRUISER_BUSTER: return 14
+		EnemyKind.LAST_CALL_LARRY: return 10
+		EnemyKind.THE_BOUNCER: return 12
+		EnemyKind.DJ_DUBSTEP: return 9
+		EnemyKind.KARAOKE_KAREN: return 9
+		EnemyKind.WARDEN_WRETCHED: return 13
 	return 8
 
 static func base_attack_for(k: EnemyKind) -> int:
@@ -117,14 +143,43 @@ static func base_attack_for(k: EnemyKind) -> int:
 		EnemyKind.CATNIP_DEALER: return 3
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 4
 		EnemyKind.DOG_KNIGHT: return 4
+		EnemyKind.SIR_PICKLETON: return 4
+		EnemyKind.OLD_LADY_PEARL: return 2
+		EnemyKind.TRASH_PANDA_TYRONE: return 3
+		EnemyKind.BIG_BRUISER_BUSTER: return 4
+		EnemyKind.LAST_CALL_LARRY: return 3
+		EnemyKind.THE_BOUNCER: return 3
+		EnemyKind.DJ_DUBSTEP: return 4
+		EnemyKind.KARAOKE_KAREN: return 3
+		EnemyKind.WARDEN_WRETCHED: return 4
 	return 2
 
 static func base_defense_for(k: EnemyKind) -> int:
 	# Dog Knight (issue #163) remains the only standard kind with nonzero
 	# defense — its raised armor is the gameplay reason to drop the mead
 	# bottle instead of front-line tanking.
-	if k == EnemyKind.DOG_KNIGHT:
-		return 2
+	#
+	# Boss base defense is deliberately tiny, and every boss but The Bouncer
+	# declares an explicit 0 (PRD #518 / issue #535). Two constraints squeeze
+	# it: DamageResolver subtracts defense from every hit with only a floor of
+	# 1, and BossScaling triples boss defense before per-floor scaling — so a
+	# boss at base 2 already blunts harder on floor 1 than the Dog Knight does,
+	# and the Dog Knight must stay the armored outlier of the whole enum
+	# (issue #163). The Bouncer's 1 becomes an effective 3 once scaled, which
+	# is what makes armor his identity; his shielded-front archetype (#542)
+	# carries the rest. The other bosses express their bulk through HP, not
+	# through mitigation, so a fight never becomes a chip-damage slog.
+	match k:
+		EnemyKind.DOG_KNIGHT: return 2
+		EnemyKind.THE_BOUNCER: return 1
+		EnemyKind.SIR_PICKLETON: return 0
+		EnemyKind.OLD_LADY_PEARL: return 0
+		EnemyKind.TRASH_PANDA_TYRONE: return 0
+		EnemyKind.BIG_BRUISER_BUSTER: return 0
+		EnemyKind.LAST_CALL_LARRY: return 0
+		EnemyKind.DJ_DUBSTEP: return 0
+		EnemyKind.KARAOKE_KAREN: return 0
+		EnemyKind.WARDEN_WRETCHED: return 0
 	return 0
 
 static func base_xp_for(_k: EnemyKind) -> int:
@@ -167,6 +222,20 @@ static func base_detection_radius_for(k: EnemyKind) -> float:
 		EnemyKind.DOG_KNIGHT:      return 135.0 # aggressive charger, capped at viewport half-height
 		EnemyKind.CATNIP_DEALER:   return 75.0  # skittish but short-sighted
 		EnemyKind.HAUNTED_SPRAY_BOTTLE: return 75.0  # floaty, dim
+		# Boss radii track the PRD #518 loadouts: bosses that fight at range or
+		# reach out (retreat-and-fire, pull, cone spray, steal) open at or near
+		# the ceiling, while brawlers who want you in melee see less and hold
+		# their ground. All stay <= DETECTION_RADIUS_MAX_PX so none aggros
+		# from off-screen.
+		EnemyKind.SIR_PICKLETON:        return 120.0 # stalks to reach your blind side
+		EnemyKind.OLD_LADY_PEARL:       return 135.0 # opens fire at max range
+		EnemyKind.TRASH_PANDA_TYRONE:   return 130.0 # spots the gold early
+		EnemyKind.BIG_BRUISER_BUSTER:   return 90.0  # slow brawler, waits for you
+		EnemyKind.LAST_CALL_LARRY:      return 100.0 # zoner, works the near floor
+		EnemyKind.THE_BOUNCER:          return 95.0  # holds the door, short leash
+		EnemyKind.DJ_DUBSTEP:           return 110.0 # slam rings need some runway
+		EnemyKind.KARAOKE_KAREN:        return 125.0 # lines up the cone from afar
+		EnemyKind.WARDEN_WRETCHED:      return 135.0 # the pull needs the longest reach
 	return EnemyAIState.DETECTION_RADIUS
 
 static func make_new(k: EnemyKind) -> EnemyData:
