@@ -72,12 +72,19 @@ func wants_to_fire() -> bool:
 	return not is_active() and _cooldown_elapsed >= cooldown()
 
 # Locks the zone in and starts the wind-up. Called by the pump when
-# `wants_to_fire` — same shape as AngryPigeonBehavior.begin_charge.
+# `wants_to_fire` — same shape as AngryPigeonBehavior.begin_charge. Every
+# existing archetype's _build_zone only returns null when there is no target
+# at all (never true while aggroed), so this path was untested until
+# RetreatAndFireAbility's range gate made a declined build a routine event:
+# resetting the cooldown even on a decline let the player pin the cadence at
+# zero forever by holding the enemy inside its flee range or beyond its max
+# fire range, so it never actually fired. The cooldown now only resets on a
+# successful build; a decline leaves it running so the next frame retries.
 func begin(enemy) -> void:
 	var zone := _build_zone(enemy)
-	_cooldown_elapsed = 0.0
 	if zone == null:
 		return
+	_cooldown_elapsed = 0.0
 	active_zone = zone
 	pending_zone = zone
 	_zone_elapsed = 0.0
