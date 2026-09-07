@@ -508,7 +508,7 @@ func _observe_catnip_dealer() -> void:
 	var cdb := _behavior as CatnipDealerBehavior
 	if cdb.pending_fire_target != null:
 		var target_pos: Vector2 = cdb.pending_fire_target
-		var debuff_type: String = cdb.pick_debuff(cdb._rng)
+		var debuff_type: String = cdb.pick_debuff()
 		_spawn_catnip_projectile(target_pos, debuff_type)
 		cdb.pending_fire_target = null
 	if cdb.pending_burst_position != null:

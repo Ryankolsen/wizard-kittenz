@@ -13,6 +13,51 @@ var _wander_profile = null  # WanderProfile
 # EnemyBehavior.for_data fills it from the loadout table.
 var abilities: Array = []
 
+# Behaviour RNG (issue #534 / PRD #518 "Co-op consistency"). Enemy AI runs
+# locally on every client and only death is synchronised, so a behaviour that
+# randomises at construction makes each client fight a visibly different enemy
+# — the dog knight charged a different way and the catnip bag applied a
+# different debuff on every screen. Seeded lazily on the first tick from the
+# enemy's stable spawn id, which is already derived from the shared dungeon
+# seed, so every client rolls the same sequence with no new network packet.
+# Untyped-null until seeded; subclasses reach it through _ensure_rng.
+var _rng: RandomNumberGenerator = null
+
+# Salt keeping the behaviour stream distinct from the wander stream, which is
+# seeded from the same id below — an enemy's charge direction should not be a
+# function of its patrol path.
+const _BEHAVIOR_RNG_SALT: String = "behavior:"
+
+# The enemy's stable spawn id, or "" when the enemy carries no data or no id
+# (test fixtures, the legacy static enemy). Duck-typed on `get` so mocks need
+# no SceneTree and an enemy missing the field entirely reads as "".
+static func spawn_id_of(enemy) -> String:
+	if enemy == null:
+		return ""
+	var d = enemy.get("data")
+	if d == null:
+		return ""
+	var eid = d.get("enemy_id")
+	if eid == null:
+		return ""
+	return str(eid)
+
+# Lazily seeds and returns this behaviour's RNG. Subclasses call it at the top
+# of `tick` so the enemy is available to seed from; a roll taken before any
+# tick still gets a usable generator. Enemies with no spawn id fall back to a
+# per-instance random seed — a constant would be worse than the bug it fixes,
+# collapsing every unidentified enemy onto one sequence.
+func _ensure_rng(enemy) -> RandomNumberGenerator:
+	if _rng != null:
+		return _rng
+	_rng = RandomNumberGenerator.new()
+	var eid := spawn_id_of(enemy)
+	if eid == "":
+		_rng.randomize()
+	else:
+		_rng.seed = hash(_BEHAVIOR_RNG_SALT + eid)
+	return _rng
+
 # Per-kind tick hook (issue #157). The Enemy node calls `behavior.tick(delta, self)`
 # each physics frame after the base state machine resolves; subclasses override
 # `tick` to layer kind-specific behavior (dive bomb charge, wall bounce, water
@@ -107,11 +152,9 @@ func _ensure_wander_profile(enemy) -> void:
 	if _wander_profile != null:
 		return
 	var seed_value: int = 0
-	var d = enemy.get("data")
-	if d != null:
-		var eid = d.get("enemy_id")
-		if eid != null and str(eid) != "":
-			seed_value = hash(eid)
+	var eid := spawn_id_of(enemy)
+	if eid != "":
+		seed_value = hash(eid)
 	_wander_profile = WanderProfile.new(seed_value)
 
 func _resolve_anchor(enemy) -> Vector2:

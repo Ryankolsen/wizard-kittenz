@@ -37,19 +37,17 @@ var pending_mead_drop_position = null
 
 var _cooldown_elapsed: float = 0.0
 var _charge_elapsed: float = 0.0
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
-
-func _init() -> void:
-	_rng.randomize()
 
 func wants_to_charge() -> bool:
 	return not is_charging and _cooldown_elapsed >= CHARGE_COOLDOWN
 
-# Picks a unit-vector direction from the supplied RNG. Exposed so tests can
-# pin the random choice with a seeded RNG; runtime path uses the internal
-# _rng seeded on _init.
-func pick_charge_direction(rng: RandomNumberGenerator) -> Vector2:
-	var angle := rng.randf_range(0.0, TAU)
+# Picks a unit-vector direction. Defaults to the behaviour's own RNG, seeded
+# from the enemy's stable spawn id (issue #534) so every co-op client picks
+# the same direction for the same dog. Exposed with an explicit-RNG override
+# so tests can pin the choice.
+func pick_charge_direction(rng: RandomNumberGenerator = null) -> Vector2:
+	var r := rng if rng != null else _ensure_rng(null)
+	var angle := r.randf_range(0.0, TAU)
 	return Vector2(cos(angle), sin(angle))
 
 # Lateral wobble offset along the charge axis. Pure sine of time so the path
@@ -98,6 +96,9 @@ func on_enemy_died(enemy) -> void:
 	pending_mead_drop_position = enemy.global_position
 
 func tick(delta: float, enemy) -> void:
+	# Seed the charge RNG from the spawn id before any early return, so the
+	# stream is identical on every client regardless of when the dog aggroes.
+	_ensure_rng(enemy)
 	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
 		return
 	if is_charging:

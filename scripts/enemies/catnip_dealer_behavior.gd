@@ -48,10 +48,6 @@ var pending_fire_target = null
 var pending_burst_position = null
 
 var _fire_elapsed: float = 0.0
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
-
-func _init() -> void:
-	_rng.randomize()
 
 func is_overriding_motion() -> bool:
 	return false
@@ -104,11 +100,13 @@ func desired_direction(self_pos: Vector2, player_pos: Vector2) -> Vector2:
 func wants_to_fire() -> bool:
 	return _fire_elapsed >= FIRE_INTERVAL
 
-# Picks one of the three debuff type ids uniformly from the supplied RNG.
-# Exposed so tests can pin the random choice with seeded RNGs; runtime path
-# uses the internal _rng seeded on _init.
-func pick_debuff(rng: RandomNumberGenerator) -> String:
-	var idx := rng.randi_range(0, DEBUFF_TYPES.size() - 1)
+# Picks one of the three debuff type ids uniformly. Defaults to the
+# behaviour's own RNG, seeded from the enemy's stable spawn id (issue #534)
+# so the bag applies the same debuff on every co-op client. Exposed with an
+# explicit-RNG override so tests can pin the choice.
+func pick_debuff(rng: RandomNumberGenerator = null) -> String:
+	var r := rng if rng != null else _ensure_rng(null)
+	var idx := r.randi_range(0, DEBUFF_TYPES.size() - 1)
 	return DEBUFF_TYPES[idx]
 
 # Description of the debuff to push at the player — a (type_id, duration) pair
@@ -138,6 +136,9 @@ static func floating_text_label(debuff_type: String) -> String:
 	return ""
 
 func tick(delta: float, enemy) -> void:
+	# Seed the debuff RNG from the spawn id before any early return, so the
+	# stream is identical on every client regardless of when the dealer aggroes.
+	_ensure_rng(enemy)
 	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
 		return
 	# Aggro gate (issue #261): an IDLE dealer must not accrue fire cadence or

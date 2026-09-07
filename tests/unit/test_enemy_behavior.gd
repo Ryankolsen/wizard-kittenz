@@ -1193,3 +1193,157 @@ func test_boss_routes_through_the_same_factory_as_standard_mobs():
 	var b := EnemyBehavior.for_data(data)
 	assert_true(b is DogKnightBehavior,
 		"is_boss must not divert a kind away from its registered behavior")
+
+
+# ---------------------------------------------------------------------------
+# Co-op RNG determinism (issue #534 / PRD #518 "Co-op consistency"). Enemy AI
+# runs locally on every client and only death is synchronised, so a behavior
+# that randomises at construction makes each client fight a visibly different
+# enemy. Behavior RNG is seeded from the enemy's stable spawn id, which is
+# already derived from the shared dungeon seed, so every client rolls the same
+# sequence without a single new network packet.
+# ---------------------------------------------------------------------------
+
+class _MockSeededData:
+	var enemy_id: String = ""
+	var spawn_position: Vector2 = Vector2.ZERO
+
+class _MockSeededEnemy:
+	var global_position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var state: int = 1  # EnemyAIState.State.CHASE
+	var _player_ref: Node2D = null
+	var data = _MockSeededData.new()
+
+
+# Mock enemy carrying `enemy_id`; pass null to model a spawn whose data is
+# missing entirely (pre-spawn-layer fixtures, the legacy static enemy).
+func _seeded_enemy(enemy_id) -> _MockSeededEnemy:
+	var e := _MockSeededEnemy.new()
+	if enemy_id == null:
+		e.data = null
+	else:
+		e.data.enemy_id = enemy_id
+	return e
+
+
+# Drives a dog knight past its charge cooldown so its RNG is seeded from the
+# enemy the same way the Enemy node's ability pump seeds it in play.
+func _dog_ready_to_charge(enemy) -> DogKnightBehavior:
+	var b := DogKnightBehavior.new()
+	for _i in range(5):
+		b.tick(1.0, enemy)
+	return b
+
+
+func test_dog_knight_same_enemy_id_charges_in_the_same_direction():
+	# Acceptance #1/#2 (core wiring): this is the co-op bug stated as an
+	# assertion. Two clients build their own behavior for the same spawn; the
+	# dog must charge the same way on both screens.
+	var b_client_a := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
+	var b_client_b := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
+	b_client_a.begin_charge(b_client_a.pick_charge_direction())
+	b_client_b.begin_charge(b_client_b.pick_charge_direction())
+	assert_eq(b_client_a.charge_direction, b_client_b.charge_direction,
+		"same enemy_id must charge in the same direction on every client")
+
+
+func test_dog_knight_different_enemy_ids_do_not_share_one_sequence():
+	# Acceptance #3 (distinctness): seeding must not collapse every dog on the
+	# floor onto one direction. Three rolls apiece so a single coincidental
+	# collision can't make this pass.
+	var b_one := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
+	var b_two := _dog_ready_to_charge(_seeded_enemy("f2-r3-e2"))
+	var differs := false
+	for _i in range(3):
+		if b_one.pick_charge_direction() != b_two.pick_charge_direction():
+			differs = true
+	assert_true(differs, "different enemy_ids must not roll identical directions")
+
+
+func test_dog_knight_seeded_rolls_match_beyond_the_first():
+	# Acceptance #4 (sequence stability): the whole stream is reproducible, not
+	# just the opening value, so a dog that charges twice stays in sync.
+	var b_client_a := _dog_ready_to_charge(_seeded_enemy("f5-r1-e7"))
+	var b_client_b := _dog_ready_to_charge(_seeded_enemy("f5-r1-e7"))
+	b_client_a.pick_charge_direction()
+	b_client_b.pick_charge_direction()
+	assert_eq(b_client_a.pick_charge_direction(), b_client_b.pick_charge_direction(),
+		"second roll should match across clients")
+	assert_eq(b_client_a.pick_charge_direction(), b_client_b.pick_charge_direction(),
+		"third roll should match across clients")
+
+
+func test_catnip_dealer_same_enemy_id_picks_the_same_debuff():
+	# Acceptance #2 (content details): the catnip bag must apply the same
+	# debuff on every client, and it must still be one of the three declared
+	# types rather than whatever the seeding happens to produce.
+	var b_client_a := CatnipDealerBehavior.new()
+	var b_client_b := CatnipDealerBehavior.new()
+	b_client_a.tick(0.1, _seeded_enemy("f3-r2-e4"))
+	b_client_b.tick(0.1, _seeded_enemy("f3-r2-e4"))
+	var debuff_a: String = b_client_a.pick_debuff()
+	assert_eq(debuff_a, b_client_b.pick_debuff(),
+		"same enemy_id must apply the same debuff on every client")
+	assert_true(CatnipDealerBehavior.DEBUFF_TYPES.has(debuff_a),
+		"the seeded pick must still be one of the three declared debuff types")
+
+
+func test_catnip_dealer_seeded_debuff_sequence_is_stable():
+	# Acceptance #4 (sequence stability) on the content side: a dealer that
+	# fires repeatedly stays in sync for every bag, not only the first.
+	var b_client_a := CatnipDealerBehavior.new()
+	var b_client_b := CatnipDealerBehavior.new()
+	b_client_a.tick(0.1, _seeded_enemy("f3-r2-e9"))
+	b_client_b.tick(0.1, _seeded_enemy("f3-r2-e9"))
+	b_client_a.pick_debuff()
+	b_client_b.pick_debuff()
+	assert_eq(b_client_a.pick_debuff(), b_client_b.pick_debuff(),
+		"second debuff roll should match across clients")
+	assert_eq(b_client_a.pick_debuff(), b_client_b.pick_debuff(),
+		"third debuff roll should match across clients")
+
+
+func test_behavior_with_empty_enemy_id_ticks_safely():
+	# Acceptance #5 (edge case): test fixtures and the legacy static enemy
+	# carry no spawn id. Seeding must degrade to a safe roll, not a crash.
+	var b := _dog_ready_to_charge(_seeded_enemy(""))
+	assert_almost_eq(b.pick_charge_direction().length(), 1.0, 0.0001,
+		"an empty enemy_id should still yield a usable unit direction")
+
+
+func test_empty_enemy_ids_do_not_all_share_one_seed():
+	# Acceptance #5: falling back to a constant seed would make every
+	# unidentified enemy roll identically, which is worse than the bug.
+	var b_one := _dog_ready_to_charge(_seeded_enemy(""))
+	var b_two := _dog_ready_to_charge(_seeded_enemy(""))
+	var differs := false
+	for _i in range(3):
+		if b_one.pick_charge_direction() != b_two.pick_charge_direction():
+			differs = true
+	assert_true(differs, "empty enemy_ids must not collapse onto a single seed")
+
+
+func test_behavior_with_null_data_ticks_safely():
+	# Acceptance #5 (edge case): a mock enemy whose `data` is null must tick
+	# without reaching into it.
+	var b := _dog_ready_to_charge(_seeded_enemy(null))
+	assert_false(b.is_charging, "a null-data enemy should tick without charging on its own")
+
+
+func test_behavior_with_enemy_missing_data_field_ticks_safely():
+	# Acceptance #5 (edge case): _MockDogEnemy has no `data` property at all —
+	# the seeding lookup must be duck-typed, matching the wander profile's.
+	var b := DogKnightBehavior.new()
+	var e := _MockDogEnemy.new()
+	for _i in range(5):
+		b.tick(1.0, e)
+	assert_true(b.wants_to_charge(), "an enemy with no data field should still tick normally")
+
+
+func test_catnip_dealer_with_null_data_ticks_safely():
+	# Acceptance #5 (edge case) on the content side.
+	var b := CatnipDealerBehavior.new()
+	b.tick(0.1, _seeded_enemy(null))
+	assert_true(CatnipDealerBehavior.DEBUFF_TYPES.has(b.pick_debuff()),
+		"a null-data dealer should still pick a declared debuff type")
