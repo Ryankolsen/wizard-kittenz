@@ -259,6 +259,7 @@ class _MockDogEnemy:
 	var global_position: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
 	var state: int = 1  # EnemyAIState.State.CHASE
+	var _player_ref: Node2D = null
 
 func test_dog_knight_has_raised_base_defense():
 	# Acceptance #1: DOG_KNIGHT base defense is strictly greater than all
@@ -270,58 +271,6 @@ func test_dog_knight_has_raised_base_defense():
 			continue
 		assert_gt(dk, EnemyData.base_defense_for(k),
 			"DOG_KNIGHT defense should exceed kind %d" % k)
-
-
-func test_dog_knight_charge_timer_fires():
-	# Acceptance #2: after the ~5s cooldown elapses, wants_to_charge() is true
-	# and begin_charge() (called by _drive_dog_knight in enemy.gd) starts it.
-	var b := DogKnightBehavior.new()
-	var e := _MockDogEnemy.new()
-	for _i in range(5):
-		b.tick(1.0, e)
-	assert_true(b.wants_to_charge(), "wants_to_charge should be true after 5s cooldown")
-	b.begin_charge(Vector2.RIGHT)
-	assert_true(b.is_charging, "charge should begin when begin_charge is called")
-
-
-func test_dog_knight_pick_charge_direction_varies_with_seed():
-	# Acceptance #3: direction is randomized per charge. Two distinct seeds
-	# should produce two distinct unit vectors. Seeds chosen empirically to
-	# diverge — change in lockstep if the RNG algorithm changes.
-	var b := DogKnightBehavior.new()
-	var rng_a := RandomNumberGenerator.new()
-	rng_a.seed = 1
-	var rng_b := RandomNumberGenerator.new()
-	rng_b.seed = 2
-	var dir_a := b.pick_charge_direction(rng_a)
-	var dir_b := b.pick_charge_direction(rng_b)
-	assert_ne(dir_a, dir_b, "different seeds should produce different directions")
-	assert_almost_eq(dir_a.length(), 1.0, 0.0001, "direction should be a unit vector")
-
-
-func test_dog_knight_wobble_offset_varies_over_time():
-	# Acceptance #4: lateral wobble is sinusoidal, not flat. Three sample
-	# points across a charge should not all match.
-	var w0 := DogKnightBehavior.wobble_offset(0.0)
-	var w1 := DogKnightBehavior.wobble_offset(0.25)
-	var w2 := DogKnightBehavior.wobble_offset(0.5)
-	var all_equal := (
-		is_equal_approx(w0, w1)
-		and is_equal_approx(w1, w2)
-	)
-	assert_false(all_equal, "wobble offset should vary over time (sinusoidal)")
-
-
-func test_dog_knight_burp_pending_after_charge_ends():
-	# Acceptance #4 (BURP side): pending_burp flips true on the tick the
-	# charge completes, so the Enemy-side observer spawns the FloatingText.
-	var b := DogKnightBehavior.new()
-	var e := _MockDogEnemy.new()
-	b.begin_charge(Vector2.RIGHT)
-	# CHARGE_DURATION = 1.0; one tick at 1.1s overshoots cleanly.
-	b.tick(1.1, e)
-	assert_false(b.is_charging, "charge should have ended after CHARGE_DURATION")
-	assert_true(b.pending_burp, "pending_burp should be set on charge completion")
 
 
 func test_dog_knight_mead_drop_on_death():
@@ -366,30 +315,47 @@ func test_dog_knight_reports_pacer_idle_style_and_fraction():
 		"dog knight should idle at ~50% of chase speed")
 
 
-func test_dog_knight_idle_velocity_suppressed_while_charging():
-	# Acceptance: while mid-charge (is_overriding_motion true), the idle pacer
-	# path must not drive motion — the override takes exclusive control.
+func test_dog_knight_idle_velocity_suppressed_while_charge_ability_is_dashing():
+	# Ported from the pre-migration is_charging assertion (issue #581): the
+	# behaviour idle motion is suppressed while the enemy is mid-commitment
+	# is still true, now driven by the composed TelegraphedChargeAbility
+	# rather than a behaviour-owned is_charging flag. is_overriding_motion is
+	# EnemyBehavior's base aggregation over b.abilities, so wiring the ability
+	# in is enough to prove the suppression still holds.
 	var b := DogKnightBehavior.new()
+	var ability = AbilityLoadout.dog_knight_loadout()[0]
+	b.abilities = [ability]
 	var e := _MockIdleEnemy.new()
 	e.data = _MockIdleData.new()
-	# Mid-charge: begin_charge flips is_charging true → is_overriding_motion true.
-	b.begin_charge(Vector2.RIGHT)
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	# Advance into the commit phase (windup=1.0s), where is_overriding_motion
+	# must be true.
+	for _i in range(21):
+		ability.tick(0.05, e)
 	assert_true(b.is_overriding_motion(),
-		"precondition: charge should make is_overriding_motion true")
-	for _i in range(20):
+		"precondition: the committed charge should make is_overriding_motion true")
+	for _i in range(5):
 		var v: Vector2 = b.idle_velocity(e, 0.05)
 		assert_eq(v, Vector2.ZERO,
-			"idle velocity must be zero while charge override is active")
+			"idle velocity must be zero while the charge ability owns motion")
 
 
-func test_dog_knight_dead_enemy_skips_charge():
-	var b := DogKnightBehavior.new()
+func test_dog_knight_dead_enemy_charge_ability_skips_charge():
+	# Ported from the pre-migration wants_to_charge/is_charging assertion: a
+	# dead dog knight must never wind up or commit a charge. DEAD is neither
+	# CHASE nor ATTACK, so EnemyAbility's shared aggro gate (is_aggroed)
+	# already blocks it — this pins that the migrated Dog Knight still gets
+	# that guarantee through its composed ability.
+	var ability = AbilityLoadout.dog_knight_loadout()[0]
 	var e := _MockDogEnemy.new()
 	e.state = 3  # DEAD
 	for _i in range(6):
-		b.tick(1.0, e)
-	assert_false(b.wants_to_charge(), "dead dog knight should never want to charge")
-	assert_false(b.is_charging, "dead dog knight should never be charging")
+		ability.tick(1.0, e)
+	assert_false(ability.wants_to_fire(), "a dead dog knight should never want to charge")
+	assert_null(ability.active_zone, "a dead dog knight should never produce a charge lane")
 
 
 # ---------------------------------------------------------------------------
@@ -784,26 +750,27 @@ func test_angry_pigeon_committed_charge_completes_after_leaving_range():
 	assert_true(b.charge_completed, "charge_completed should be set on arrival")
 
 
-func test_dog_knight_idle_does_not_charge():
-	# Same pattern as pigeon: IDLE dog accrues no cooldown, so wants_to_charge
-	# never trips and _drive_dog_knight (the begin_charge caller) is gated.
-	var b := DogKnightBehavior.new()
+func test_dog_knight_charge_ability_idle_does_not_charge():
+	# Ported from the pre-migration behaviour-owned gate (issue #581): same
+	# pattern as pigeon, now enforced by EnemyAbility's shared aggro gate
+	# instead of a bespoke wants_to_charge on DogKnightBehavior.
+	var ability = AbilityLoadout.dog_knight_loadout()[0]
 	var e := _MockDogEnemy.new()
 	e.state = 0  # IDLE
 	for _i in range(6):
-		b.tick(1.0, e)
-	assert_false(b.wants_to_charge(), "IDLE dog must not accrue charge cooldown")
-	assert_false(b.is_charging, "IDLE dog must not begin a charge")
+		ability.tick(1.0, e)
+	assert_false(ability.wants_to_fire(), "IDLE dog must not accrue charge cooldown")
+	assert_null(ability.active_zone, "IDLE dog must not begin a charge")
 
 
-func test_dog_knight_chase_still_wants_charge():
+func test_dog_knight_charge_ability_chase_still_wants_charge():
 	# Regression: cooldown still accrues in CHASE so the existing trigger fires.
-	var b := DogKnightBehavior.new()
+	var ability = AbilityLoadout.dog_knight_loadout()[0]
 	var e := _MockDogEnemy.new()
 	e.state = 1  # CHASE
 	for _i in range(5):
-		b.tick(1.0, e)
-	assert_true(b.wants_to_charge(), "CHASE dog should still want to charge after cooldown")
+		ability.tick(1.0, e)
+	assert_true(ability.wants_to_fire(), "CHASE dog should still want to charge after cooldown")
 
 
 func test_catnip_dealer_idle_does_not_fire():
@@ -861,6 +828,7 @@ class _MockIdleEnemy:
 	var velocity: Vector2 = Vector2.ZERO
 	var state: int = 0  # EnemyAIState.State.IDLE
 	var move_speed: float = EnemyAIState.CHASE_SPEED
+	var _player_ref: Node2D = null
 	var data = null
 
 
@@ -1207,6 +1175,128 @@ func test_old_lady_pearl_loadout_is_summon_plus_retreat_and_fire():
 		"Old Lady Pearl's second archetype is Retreat and fire")
 
 
+# ---------------------------------------------------------------------------
+# Dog Knight telegraphed-charge migration (PRD #518 / issue #581). The one
+# standard-mob special players reliably notice — kept at its original cadence
+# and speed, re-expressed in the shared amber-to-red lane.
+# ---------------------------------------------------------------------------
+
+func test_dog_knight_loadout_is_exactly_one_telegraphed_charge():
+	# Test 1 (core wiring / loadout): mirrors the Pickleton/Pearl loadout
+	# assertions above. The Dog Knight's kind resolves through
+	# AbilityLoadout.for_enemy to exactly one ability, a TelegraphedChargeAbility.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.DOG_KNIGHT, false)
+	assert_eq(abilities.size(), 1, "the Dog Knight composes exactly one archetype")
+	assert_true(abilities[0] is TelegraphedChargeAbility,
+		"the Dog Knight's one archetype is the telegraphed charge")
+
+
+func test_dog_knight_charge_tuning_restates_the_pre_migration_values():
+	# Test 2 (tuning preserved): the retired DogKnightBehavior declared
+	# CHARGE_COOLDOWN = 5.0 and CHARGE_SPEED = 140.0 px/s sustained over its
+	# CHARGE_DURATION = 1.0s charge. The migration must restate those numbers,
+	# not retune them.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	assert_almost_eq(ability.cooldown(), 5.0, 0.0001,
+		"charge cooldown must restate the retired CHARGE_COOLDOWN")
+	assert_almost_eq(ability.commit_duration(), 1.0, 0.0001,
+		"commit duration must restate the retired CHARGE_DURATION")
+	assert_almost_eq(ability.lane_width(), 48.0, 0.0001,
+		"lane width should be the tuning this migration commits to")
+
+	# Dash speed has no dedicated field — TelegraphedChargeAbility.drive_motion
+	# paces the dash as lane_length / commit_duration — so measure it directly:
+	# fire the charge and see how far the enemy actually travels over the
+	# whole commit window.
+	var e := _MockDogEnemy.new()
+	e.global_position = Vector2.ZERO
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	# Advance to the end of the 1.0s wind-up (commit has not started yet),
+	# driving motion each tick the same way the Enemy node's ability pump
+	# does (tick, then drive_motion while the ability owns motion). Small
+	# 0.01s steps keep discretization error well under the assert tolerance.
+	for _i in range(100):
+		ability.tick(0.01, e)
+		if ability.is_overriding_motion():
+			ability.drive_motion(0.01, e)
+	var commit_start_position: Vector2 = e.global_position
+	# Advance across the full 1.0s commit window.
+	for _i in range(100):
+		ability.tick(0.01, e)
+		if ability.is_overriding_motion():
+			ability.drive_motion(0.01, e)
+	var travelled := e.global_position.distance_to(commit_start_position)
+	assert_almost_eq(travelled / ability.commit_duration(), 140.0, 2.0,
+		"dash speed (distance travelled / commit_duration) must restate CHARGE_SPEED")
+
+
+func test_dog_knight_charge_zone_is_the_hitbox():
+	# Test 3 (zone is the hitbox): a player standing on the lane at commit is
+	# hit; the same player offset beyond the half-width is not. Mirrors
+	# test_player_standing_in_the_lane_is_hit_once_at_commit /
+	# test_player_who_walks_clear_of_the_lane_takes_no_damage in
+	# test_enemy_ability.gd.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	var e := _MockDogEnemy.new()
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	for _i in range(60):
+		ability.tick(0.05, e)
+	assert_eq(ability.pending_hit_target, p,
+		"a player standing in the drawn lane must be hit when the charge commits")
+
+	var ability2: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	var e2 := _MockDogEnemy.new()
+	var p2: Node2D = autofree(Node2D.new())
+	p2.global_position = Vector2(100.0, 0.0)
+	e2._player_ref = p2
+	ability2.begin(e2)
+	p2.global_position = Vector2(100.0, ability2.lane_width() * 0.5 + 20.0)
+	for _i in range(60):
+		ability2.tick(0.05, e2)
+	assert_null(ability2.pending_hit_target,
+		"a player outside the drawn lane's half-width must not be hit")
+
+
+func test_dog_knight_charge_idle_enemy_publishes_no_zone():
+	# Test 4 (edge case, aggro gate): an IDLE dog knight must not telegraph.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	var e := _MockDogEnemy.new()
+	e.state = 0  # IDLE
+	for _i in range(10):
+		ability.tick(1.0, e)
+	assert_null(ability.active_zone, "an IDLE Dog Knight must not produce a danger zone")
+
+
+func test_dog_knight_charge_null_player_does_not_crash():
+	# Test 4 (edge case): no _player_ref set — begin must not crash and must
+	# not produce a zone (there is nothing to aim it at).
+	var ability: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	var e := _MockDogEnemy.new()
+	ability.begin(e)
+	assert_null(ability.active_zone, "a charge with no player target must not produce a zone")
+
+
+func test_dog_knight_charge_zero_length_heading_does_not_produce_a_degenerate_lane():
+	# Test 4 (edge case): the player standing exactly on the enemy's own
+	# position gives a zero-length heading; _build_zone must refuse rather
+	# than construct a degenerate zero-length lane.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.dog_knight_loadout()[0]
+	var e := _MockDogEnemy.new()
+	e.global_position = Vector2(40.0, 40.0)
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(40.0, 40.0)
+	e._player_ref = p
+	ability.begin(e)
+	assert_null(ability.active_zone,
+		"a zero-length heading must not produce a degenerate lane")
+
+
 func test_is_vacuum_predicate_is_true_only_for_boss_rogue_roomba():
 	# Issue #567 test 1 (core wiring): the thinnest statement that one authority
 	# exists for "the boss-tier Rogue Roomba is the Vacuum".
@@ -1309,53 +1399,6 @@ func _seeded_enemy(enemy_id) -> _MockSeededEnemy:
 	return e
 
 
-# Drives a dog knight past its charge cooldown so its RNG is seeded from the
-# enemy the same way the Enemy node's ability pump seeds it in play.
-func _dog_ready_to_charge(enemy) -> DogKnightBehavior:
-	var b := DogKnightBehavior.new()
-	for _i in range(5):
-		b.tick(1.0, enemy)
-	return b
-
-
-func test_dog_knight_same_enemy_id_charges_in_the_same_direction():
-	# Acceptance #1/#2 (core wiring): this is the co-op bug stated as an
-	# assertion. Two clients build their own behavior for the same spawn; the
-	# dog must charge the same way on both screens.
-	var b_client_a := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
-	var b_client_b := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
-	b_client_a.begin_charge(b_client_a.pick_charge_direction())
-	b_client_b.begin_charge(b_client_b.pick_charge_direction())
-	assert_eq(b_client_a.charge_direction, b_client_b.charge_direction,
-		"same enemy_id must charge in the same direction on every client")
-
-
-func test_dog_knight_different_enemy_ids_do_not_share_one_sequence():
-	# Acceptance #3 (distinctness): seeding must not collapse every dog on the
-	# floor onto one direction. Three rolls apiece so a single coincidental
-	# collision can't make this pass.
-	var b_one := _dog_ready_to_charge(_seeded_enemy("f2-r3-e1"))
-	var b_two := _dog_ready_to_charge(_seeded_enemy("f2-r3-e2"))
-	var differs := false
-	for _i in range(3):
-		if b_one.pick_charge_direction() != b_two.pick_charge_direction():
-			differs = true
-	assert_true(differs, "different enemy_ids must not roll identical directions")
-
-
-func test_dog_knight_seeded_rolls_match_beyond_the_first():
-	# Acceptance #4 (sequence stability): the whole stream is reproducible, not
-	# just the opening value, so a dog that charges twice stays in sync.
-	var b_client_a := _dog_ready_to_charge(_seeded_enemy("f5-r1-e7"))
-	var b_client_b := _dog_ready_to_charge(_seeded_enemy("f5-r1-e7"))
-	b_client_a.pick_charge_direction()
-	b_client_b.pick_charge_direction()
-	assert_eq(b_client_a.pick_charge_direction(), b_client_b.pick_charge_direction(),
-		"second roll should match across clients")
-	assert_eq(b_client_a.pick_charge_direction(), b_client_b.pick_charge_direction(),
-		"third roll should match across clients")
-
-
 func test_catnip_dealer_same_enemy_id_picks_the_same_debuff():
 	# Acceptance #2 (content details): the catnip bag must apply the same
 	# debuff on every client, and it must still be one of the three declared
@@ -1384,43 +1427,6 @@ func test_catnip_dealer_seeded_debuff_sequence_is_stable():
 		"second debuff roll should match across clients")
 	assert_eq(b_client_a.pick_debuff(), b_client_b.pick_debuff(),
 		"third debuff roll should match across clients")
-
-
-func test_behavior_with_empty_enemy_id_ticks_safely():
-	# Acceptance #5 (edge case): test fixtures and the legacy static enemy
-	# carry no spawn id. Seeding must degrade to a safe roll, not a crash.
-	var b := _dog_ready_to_charge(_seeded_enemy(""))
-	assert_almost_eq(b.pick_charge_direction().length(), 1.0, 0.0001,
-		"an empty enemy_id should still yield a usable unit direction")
-
-
-func test_empty_enemy_ids_do_not_all_share_one_seed():
-	# Acceptance #5: falling back to a constant seed would make every
-	# unidentified enemy roll identically, which is worse than the bug.
-	var b_one := _dog_ready_to_charge(_seeded_enemy(""))
-	var b_two := _dog_ready_to_charge(_seeded_enemy(""))
-	var differs := false
-	for _i in range(3):
-		if b_one.pick_charge_direction() != b_two.pick_charge_direction():
-			differs = true
-	assert_true(differs, "empty enemy_ids must not collapse onto a single seed")
-
-
-func test_behavior_with_null_data_ticks_safely():
-	# Acceptance #5 (edge case): a mock enemy whose `data` is null must tick
-	# without reaching into it.
-	var b := _dog_ready_to_charge(_seeded_enemy(null))
-	assert_false(b.is_charging, "a null-data enemy should tick without charging on its own")
-
-
-func test_behavior_with_enemy_missing_data_field_ticks_safely():
-	# Acceptance #5 (edge case): _MockDogEnemy has no `data` property at all —
-	# the seeding lookup must be duck-typed, matching the wander profile's.
-	var b := DogKnightBehavior.new()
-	var e := _MockDogEnemy.new()
-	for _i in range(5):
-		b.tick(1.0, e)
-	assert_true(b.wants_to_charge(), "an enemy with no data field should still tick normally")
 
 
 func test_catnip_dealer_with_null_data_ticks_safely():

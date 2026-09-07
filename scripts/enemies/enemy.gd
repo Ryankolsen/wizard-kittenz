@@ -143,12 +143,10 @@ func _physics_process(delta: float) -> void:
 		_drive_rogue_roomba(delta)
 		_drive_catnip_dealer(delta)
 		_drive_haunted_spray_bottle(delta)
-		_drive_dog_knight()
 		_behavior.tick(delta, self)
 		_pump_abilities(delta)
 		_observe_angry_pigeon()
 		_observe_rogue_roomba()
-		_observe_dog_knight()
 		_observe_catnip_dealer()
 		_observe_haunted_spray_bottle()
 	if state != EnemyAIState.State.DEAD:
@@ -509,31 +507,14 @@ func _observe_rogue_roomba() -> void:
 		move_speed *= RogueRoombaBehavior.BERSERK_SPEED_MULTIPLIER
 		FloatingText.spawn(self, "BERSERK", Color(1.0, 0.2, 0.2))
 
-# Supplies the player direction to DogKnightBehavior before its tick fires so
-# the charge targets the player rather than a random angle.
-func _drive_dog_knight() -> void:
-	if not (_behavior is DogKnightBehavior):
-		return
-	# Aggro gate (issue #261). Belt-and-suspenders alongside the in-tick
-	# cooldown gate: even if a stale cooldown carried over from a previous
-	# aggro window, _drive_dog_knight refuses to begin a charge while IDLE.
-	if not EnemyBehavior.is_aggroed(self):
-		return
-	var dkb := _behavior as DogKnightBehavior
-	if not dkb.wants_to_charge():
-		return
-	var player := _find_player()
-	var dir := Vector2.RIGHT
-	if player != null:
-		var to_player := player.global_position - global_position
-		if to_player != Vector2.ZERO:
-			dir = to_player.normalized()
-	dkb.begin_charge(dir)
-
 # Bridges DogKnightBehavior state edges to scene-tree side effects: "BURP"
 # FloatingText on charge end, mead PowerUpPickup parented to the dungeon root
 # at the death position. No-op when the active behavior is not the dog
-# knight's.
+# knight's. The charge itself is now the composed TelegraphedChargeAbility
+# (issue #581), driven by the generic ability pump rather than a per-kind
+# drive branch here; this observer is only reached from the death edge in
+# apply_state_update now, so pending_burp (never set post-migration) is
+# effectively dormant while the mead-drop path it shares keeps working.
 func _observe_dog_knight() -> void:
 	if not (_behavior is DogKnightBehavior):
 		return

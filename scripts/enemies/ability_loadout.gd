@@ -35,6 +35,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return pickleton_loadout()
 	if kind == EnemyData.EnemyKind.OLD_LADY_PEARL:
 		return pearl_loadout()
+	if kind == EnemyData.EnemyKind.DOG_KNIGHT:
+		return dog_knight_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -68,4 +70,19 @@ static func pearl_loadout() -> Array:
 	return [
 		SummonAddsAbility.new(),
 		RetreatAndFireAbility.new(),
+	]
+
+
+# Dog Knight (floor-1 standard mob / issue #581). The one standard-mob special
+# players reliably notice today, because it's the only one with a big visible
+# commitment — the migration keeps that commitment and speed exactly as they
+# were (the retired DogKnightBehavior.CHARGE_COOLDOWN was 5.0s and
+# CHARGE_SPEED was 140.0 px/s over a 1.0s CHARGE_DURATION, so a 1.0s commit
+# over a 140.0 lane restates the same dash), while adding the uniform amber-
+# to-red telegraph lane every other archetype already draws. Wind-up/fade/
+# width are new legibility tuning the hand-rolled charge never had — the old
+# charge fired instantly and hit on physical contact, not a drawn lane.
+static func dog_knight_loadout() -> Array:
+	return [
+		TelegraphedChargeAbility.new(5.0, 1.0, 1.0, 0.3, 140.0, 48.0),
 	]
