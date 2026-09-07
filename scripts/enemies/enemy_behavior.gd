@@ -208,10 +208,12 @@ static func for_data(data) -> EnemyBehavior:
 
 
 static func for_kind(kind: int, is_boss: bool = false) -> EnemyBehavior:
-	# The floor-1 Vacuum shares ROGUE_ROOMBA's kind (see BossRoster), so the
-	# boss flag is what separates its archetype loadout from the standard
-	# roomba's bounce-and-trail behavior.
-	if is_boss and kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
+	# The floor-1 Vacuum shares ROGUE_ROOMBA's kind (see BossRoster); the boss
+	# flag is what separates its archetype loadout from the standard roomba's
+	# bounce-and-trail behavior. AbilityLoadout.is_vacuum is the single
+	# authority for that fact (issue #567) — this site consults it rather
+	# than re-deriving the check.
+	if AbilityLoadout.is_vacuum(kind, is_boss):
 		return VacuumBossBehavior.new()
 	match kind:
 		EnemyData.EnemyKind.ANGRY_PIGEON:

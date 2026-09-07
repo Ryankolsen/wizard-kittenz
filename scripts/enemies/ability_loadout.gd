@@ -15,8 +15,19 @@ extends RefCounted
 # already drives its moves" — the list is never empty, so the Enemy node's
 # generic pump always has something to drive and never needs a per-kind branch.
 
+# Single authority for "is this (kind, is_boss) pair the Vacuum?" (issue
+# #567). BossRoster reuses EnemyKind.ROGUE_ROOMBA for the floor-1 Vacuum boss,
+# so the standard roomba and the Vacuum share an enum value and are told
+# apart only by is_boss. Before this, that fact was re-derived independently
+# in three files (here, EnemyBehavior.for_kind, and VacuumBossBehavior._init);
+# all three now consult this predicate instead, so a future dual-use kind (or
+# a change to this one) is a one-line change, not three.
+static func is_vacuum(kind: int, is_boss: bool) -> bool:
+	return is_boss and kind == EnemyData.EnemyKind.ROGUE_ROOMBA
+
+
 static func for_enemy(kind: int, is_boss: bool) -> Array:
-	if is_boss and kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
+	if is_vacuum(kind, is_boss):
 		return vacuum_loadout()
 	# SIR_PICKLETON is a dedicated kind (unlike ROGUE_ROOMBA, it's never
 	# reused for a standard mob), so it's keyed on kind alone.

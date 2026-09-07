@@ -1207,6 +1207,66 @@ func test_old_lady_pearl_loadout_is_summon_plus_retreat_and_fire():
 		"Old Lady Pearl's second archetype is Retreat and fire")
 
 
+func test_is_vacuum_predicate_is_true_only_for_boss_rogue_roomba():
+	# Issue #567 test 1 (core wiring): the thinnest statement that one authority
+	# exists for "the boss-tier Rogue Roomba is the Vacuum".
+	assert_true(AbilityLoadout.is_vacuum(EnemyData.EnemyKind.ROGUE_ROOMBA, true),
+		"boss-flagged ROGUE_ROOMBA must be the Vacuum")
+	assert_false(AbilityLoadout.is_vacuum(EnemyData.EnemyKind.ROGUE_ROOMBA, false),
+		"non-boss ROGUE_ROOMBA must not be the Vacuum")
+
+
+func test_is_vacuum_predicate_governs_loadout_content():
+	# Issue #567 test 2 (content details): the behaviour the refactor must
+	# preserve. Boss-flagged ROGUE_ROOMBA gets exactly Pull + telegraphed
+	# charge; the standard roomba does not.
+	var vacuum_abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ROGUE_ROOMBA, true)
+	assert_eq(vacuum_abilities.size(), 2, "the Vacuum composes exactly two archetypes")
+	assert_true(vacuum_abilities[0] is PullAbility, "the Vacuum's first archetype is Pull")
+	assert_true(vacuum_abilities[1] is TelegraphedChargeAbility,
+		"the Vacuum's second archetype is the telegraphed charge")
+
+	var standard_abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ROGUE_ROOMBA, false)
+	var has_pull := false
+	var has_charge := false
+	for a in standard_abilities:
+		if a is PullAbility:
+			has_pull = true
+		if a is TelegraphedChargeAbility:
+			has_charge = true
+	assert_false(has_pull, "the standard roomba must not get Pull")
+	assert_false(has_charge, "the standard roomba must not get the telegraphed charge")
+
+
+func test_is_vacuum_predicate_agrees_with_for_kind_dispatch():
+	# Issue #567 test 3 (agreement across sites): EnemyBehavior.for_kind must
+	# return a VacuumBossBehavior for exactly the case the predicate calls the
+	# Vacuum — the two authorities cannot disagree.
+	for kind in EnemyData.EnemyKind.values():
+		for is_boss in [true, false]:
+			var b := EnemyBehavior.for_kind(kind, is_boss)
+			var expected_vacuum := AbilityLoadout.is_vacuum(kind, is_boss)
+			assert_eq(b is VacuumBossBehavior, expected_vacuum,
+				"for_kind(%d, %s) VacuumBossBehavior-ness must match is_vacuum" % [kind, is_boss])
+
+
+func test_is_vacuum_predicate_is_false_for_every_other_kind_and_out_of_range():
+	# Issue #567 test 4 (edge cases): every other EnemyKind answers false at
+	# both is_boss settings, and an out-of-range kind integer answers false
+	# without crashing.
+	for kind in EnemyData.EnemyKind.values():
+		if kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
+			continue
+		assert_false(AbilityLoadout.is_vacuum(kind, true),
+			"kind %d with is_boss=true must not be the Vacuum" % kind)
+		assert_false(AbilityLoadout.is_vacuum(kind, false),
+			"kind %d with is_boss=false must not be the Vacuum" % kind)
+	assert_false(AbilityLoadout.is_vacuum(9999, true),
+		"an out-of-range kind integer must answer false without crashing")
+	assert_false(AbilityLoadout.is_vacuum(-1, false),
+		"a negative out-of-range kind integer must answer false without crashing")
+
+
 func test_boss_routes_through_the_same_factory_as_standard_mobs():
 	# Acceptance #10 (routing): boss-ness no longer short-circuits the factory,
 	# so a boss of a kind with a registered subclass gets that subclass.

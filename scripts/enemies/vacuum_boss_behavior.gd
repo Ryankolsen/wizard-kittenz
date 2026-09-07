@@ -11,4 +11,8 @@ extends EnemyBehavior
 # bounce/trail logic onto the boss.
 
 func _init() -> void:
+	# AbilityLoadout.vacuum_loadout() is the tuning; AbilityLoadout.is_vacuum
+	# (issue #567) is the single authority for "am I actually the Vacuum" that
+	# EnemyBehavior.for_kind and AbilityLoadout.for_enemy both consult before
+	# routing here — this class never re-derives that check itself.
 	abilities = AbilityLoadout.vacuum_loadout()
