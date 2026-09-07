@@ -293,8 +293,10 @@ func _pump_abilities(delta: float) -> void:
 
 
 # Parents a renderer for a freshly telegraphed zone. The renderer is handed the
-# very shape object the ability will query for damage, and reads the ability's
-# own clock, so what is drawn and what hits cannot drift.
+# very shape object the ability will query for damage — what is drawn and what
+# hits cannot drift — but keeps its own elapsed clock (see
+# DangerZoneRenderer._elapsed) rather than reading the ability's, since the
+# ability recycles that field for its next firing.
 func _consume_ability_zone(ability) -> void:
 	if ability.pending_zone == null:
 		return
@@ -305,7 +307,7 @@ func _consume_ability_zone(ability) -> void:
 		return
 	var renderer := DangerZoneRenderer.new()
 	parent.add_child(renderer)
-	renderer.configure(zone, Callable(ability, "zone_elapsed"))
+	renderer.configure(zone)
 
 
 # Applies what an ability committed: damage on the caught player, and a cue for

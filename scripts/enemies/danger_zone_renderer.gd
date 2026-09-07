@@ -11,15 +11,21 @@ extends Node2D
 # (the geometry it draws is covered by test_danger_zone_shape.gd).
 
 var zone: DangerZoneShape = null
-# Drawn on the shape's own clock, supplied by the ability that owns it, so the
-# flash-to-red frame is the frame the damage lands.
-var _clock: Callable = Callable()
+# Elapsed time is tracked locally per renderer instance rather than read off
+# the ability that owns the zone. A fresh renderer is parented on every
+# firing, but the ability has only one `_zone_elapsed` field that it resets
+# to 0 the moment the *next* zone begins — so a renderer reading that field
+# for its own (already-finished) zone would see elapsed jump back to 0 and
+# read as freshly-started rather than expired, leaving the old zone visibly
+# stuck on screen until the new cycle happened to reach the old zone's
+# duration. Each renderer's own clock starts and ends with its own zone, so
+# it can never be confused by a later firing resetting a field it doesn't
+# share.
 var _elapsed: float = 0.0
 
 
-func configure(shape: DangerZoneShape, clock: Callable = Callable()) -> void:
+func configure(shape: DangerZoneShape) -> void:
 	zone = shape
-	_clock = clock
 	# Zone coordinates are world-space (locked at telegraph start), so the
 	# renderer must not inherit the enemy's transform as it walks or dashes.
 	top_level = true
@@ -32,22 +38,16 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	_elapsed += delta
-	if zone.is_expired(_time()):
+	if zone.is_expired(_elapsed):
 		queue_free()
 		return
 	queue_redraw()
 
 
-func _time() -> float:
-	if _clock.is_valid():
-		return float(_clock.call())
-	return _elapsed
-
-
 func _draw() -> void:
 	if zone == null:
 		return
-	var t := _time()
+	var t := _elapsed
 	var corners := zone.outline()
 	if corners.size() < 3:
 		return
