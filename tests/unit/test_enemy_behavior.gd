@@ -1423,3 +1423,69 @@ func test_big_bruiser_buster_loadout_is_exactly_ground_slam_and_knockback_shove(
 			fail_test("Buster's loadout must not contain any archetype besides ground slam and knockback shove")
 	assert_true(has_ground_slam, "Big Bruiser Buster's loadout must include ground slam")
 	assert_true(has_knockback_shove, "Big Bruiser Buster's loadout must include knockback shove")
+
+
+# ---------------------------------------------------------------------------
+# Last Call Larry / zone-denial + enrage archetypes (PRD #518 / issue #575).
+# Zone denial is Tyrone's archetype reused with tighter tuning (see
+# test_zone_denial_ability.gd's second-consumer test); enrage is new here.
+# ---------------------------------------------------------------------------
+
+func test_last_call_larry_loadout_resolves_to_exactly_zone_denial_and_enrage():
+	# Test 7 (loadout, issue #575): mirrors the Pickleton/Pearl/Tyrone/Buster
+	# loadout assertions above. Last Call Larry's kind resolves through
+	# AbilityLoadout.for_enemy to exactly a ZoneDenialAbility and an
+	# EnrageAbility -- nothing else.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.LAST_CALL_LARRY, true)
+	assert_eq(abilities.size(), 2, "Larry's loadout must contain exactly two abilities")
+	var has_zone_denial := false
+	var has_enrage := false
+	for ability in abilities:
+		if ability is ZoneDenialAbility:
+			has_zone_denial = true
+		elif ability is EnrageAbility:
+			has_enrage = true
+		else:
+			fail_test("Larry's loadout must not contain any archetype besides zone denial and enrage")
+	assert_true(has_zone_denial, "Last Call Larry's loadout must include zone denial")
+	assert_true(has_enrage, "Last Call Larry's loadout must include enrage")
+
+
+func test_enrage_is_confined_to_the_two_allowed_boss_kinds():
+	# Test 8 (roster constraint, issue #575). The PRD is explicit that a
+	# universal rage state was considered and rejected -- enrage is
+	# deliberately restricted to exactly two bosses across the whole roster,
+	# Last Call Larry and DJ Dubstep, so a later slice can't quietly hand it
+	# to a third.
+	#
+	# Sequencing note: DJ Dubstep's own enrage slice is issue #579, a
+	# separate, not-yet-built issue blocked behind this one -- so at the
+	# point this issue lands, Larry is genuinely the *only* boss with enrage
+	# in his loadout, not two. Asserting a literal "exactly two" here today
+	# would fail until #579 lands, and there is currently no other enrage
+	# user anywhere in AbilityLoadout to make two true. The interim
+	# assertion below is worded to hold both now (one user: Larry) and after
+	# #579 lands (two users: Larry + Dubstep) without needing to change --
+	# it names the closed allowlist {Larry, Dubstep} the roster's enrage
+	# users must stay a subset of (the scarcity rule this test exists to
+	# hold), and separately requires Larry present today. It does *not*
+	# assert Dubstep's absence, so #579 flips this from "one of two allowed"
+	# to "two of two allowed" with zero edits to this test.
+	var enrage_kinds: Array = []
+	for floor_number in range(1, BossRoster.roster_size() + 1):
+		var info := BossRoster.boss_for_floor(floor_number)
+		var abilities := AbilityLoadout.for_enemy(info.kind, true)
+		var has_enrage := false
+		for ability in abilities:
+			if ability is EnrageAbility:
+				has_enrage = true
+		if has_enrage:
+			enrage_kinds.append(info.kind)
+	var allowed := [EnemyData.EnemyKind.LAST_CALL_LARRY, EnemyData.EnemyKind.DJ_DUBSTEP]
+	for kind in enrage_kinds:
+		assert_true(allowed.has(kind),
+			"enrage must never be handed to a boss kind besides Last Call Larry or DJ Dubstep")
+	assert_true(enrage_kinds.has(EnemyData.EnemyKind.LAST_CALL_LARRY),
+		"Last Call Larry must carry enrage")
+	assert_lte(enrage_kinds.size(), 2,
+		"enrage must never be carried by more than the two allowed boss kinds")

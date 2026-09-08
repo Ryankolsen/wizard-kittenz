@@ -43,6 +43,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return trash_panda_tyrone_loadout()
 	if kind == EnemyData.EnemyKind.BIG_BRUISER_BUSTER:
 		return big_bruiser_buster_loadout()
+	if kind == EnemyData.EnemyKind.LAST_CALL_LARRY:
+		return larry_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -139,4 +141,30 @@ static func big_bruiser_buster_loadout() -> Array:
 	return [
 		GroundSlamAbility.new(),
 		KnockbackShoveAbility.new(),
+	]
+
+
+# Last Call Larry (floor-6 boss / issue #575). Zone denial is Tyrone's
+# archetype reused unchanged, tuned to more/longer-lived bottle puddles so
+# the safe floor genuinely closes in as the fight drags on (shorter cooldown,
+# longer hazard duration, a higher cap than Tyrone's defaults). Enrage is the
+# fight's other half: once Larry drops low he speeds up and hits harder, so
+# outlasting the shrinking floor without bursting him down first gets
+# punished twice over. Enrage is deliberately rare across the roster --
+# see AbilityLoadout.for_enemy's exhaustiveness and
+# test_enemy_behavior.gd's roster-constraint test -- DJ Dubstep is the only
+# other planned user (issue #579), and no third kind may ever compose it.
+static func larry_loadout() -> Array:
+	return [
+		ZoneDenialAbility.new(
+			4.0,                        # cooldown_seconds: shorter than Tyrone's 6.0
+			0.7, 0.2, 0.3,              # windup/commit/fade: unchanged from Tyrone's
+			36.0,                       # zone_radius: unchanged from Tyrone's
+			6.0,                        # hazard_duration: longer than Tyrone's 4.0
+			0.35, 4.0, 32.0,            # slow/damage/radius: unchanged from Tyrone's
+			Color(0.85, 0.65, 0.15, 0.45),  # amber bottle-puddle tint
+			5,                          # cap: more puddles alive at once than Tyrone's 3
+			90.0                        # placement_radius: unchanged from Tyrone's
+		),
+		EnrageAbility.new(),
 	]

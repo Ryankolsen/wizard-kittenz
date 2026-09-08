@@ -133,3 +133,42 @@ func test_null_enemy_does_not_crash():
 	var b := ZoneDenialAbility.new()
 	b.tick(1.0, null)
 	assert_true(true, "tick with a null enemy must not crash")
+
+
+# --- 6. Second consumer (Last Call Larry, PRD #518 / issue #575) -------------
+# Larry reuses this archetype unchanged -- his difference is tuning only, so
+# the floor genuinely closes in as the fight goes on: puddles land more often
+# and linger longer than Tyrone's.
+
+func test_larry_zone_denial_is_more_frequent_and_longer_lived_than_tyrones():
+	var tyrone_ability: ZoneDenialAbility = null
+	for a in AbilityLoadout.trash_panda_tyrone_loadout():
+		if a is ZoneDenialAbility:
+			tyrone_ability = a
+	var larry_ability: ZoneDenialAbility = null
+	for a in AbilityLoadout.larry_loadout():
+		if a is ZoneDenialAbility:
+			larry_ability = a
+	assert_not_null(tyrone_ability, "Tyrone's loadout must include a zone-denial ability")
+	assert_not_null(larry_ability, "Larry's loadout must include a zone-denial ability")
+	assert_lt(larry_ability.cooldown(), tyrone_ability.cooldown(),
+		"Larry's puddles must spawn on a shorter interval than Tyrone's")
+	assert_gt(larry_ability.hazard_duration(), tyrone_ability.hazard_duration(),
+		"Larry's puddles must linger longer than Tyrone's")
+	# The hazard cap is tracked per-instance -- driving Tyrone's copy full
+	# must not affect Larry's independent count. Checked right after a
+	# firing (not after the whole drive loop), since a hazard decays back
+	# out on its own duration and the loop otherwise risks landing on a gap
+	# between one hazard expiring and the next firing.
+	var e := _seeded("f6-r1-e0")
+	var tyrone_ever_had_a_hazard := false
+	for _i in range(400):
+		tyrone_ability.tick(0.5, e)
+		if tyrone_ability.wants_to_fire():
+			tyrone_ability.begin(e)
+		if tyrone_ability.alive_hazard_count() > 0:
+			tyrone_ever_had_a_hazard = true
+	assert_true(tyrone_ever_had_a_hazard,
+		"sanity: Tyrone's ability should have accrued some alive hazards")
+	assert_eq(larry_ability.alive_hazard_count(), 0,
+		"Larry's hazard cap/count must be tracked independently of Tyrone's")
