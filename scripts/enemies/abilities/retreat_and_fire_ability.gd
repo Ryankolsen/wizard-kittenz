@@ -161,26 +161,32 @@ func desired_direction(self_pos: Vector2, player_pos: Vector2) -> Vector2:
 
 # Claims motion whenever this ability is actively kiting (set each tick by
 # `tick`), so the Enemy node's base chase/attack block steps aside and
-# `drive_motion` below writes position directly — the archetype refuses melee
-# outright rather than merely preferring range.
+# `drive_motion` below drives velocity/move_and_slide itself — the archetype
+# refuses melee outright rather than merely preferring range.
 func is_overriding_motion() -> bool:
 	return _kiting
 
 
-func drive_motion(delta: float, enemy) -> void:
+func drive_motion(_delta: float, enemy) -> void:
 	if enemy == null:
 		return
 	var player = enemy.get("_player_ref")
 	if player == null or not (player is Node2D):
+		enemy.velocity = Vector2.ZERO
+		enemy.move_and_slide()
 		return
 	var move_speed: float = EnemyAIState.CHASE_SPEED
 	var ms = enemy.get("move_speed")
 	if ms != null:
 		move_speed = float(ms)
 	var dir := desired_direction(enemy.global_position, (player as Node2D).global_position)
-	if dir == Vector2.ZERO:
-		return
-	enemy.global_position += dir * move_speed * delta
+	# Route through velocity + move_and_slide, same as the base chase/attack
+	# path, so kiting respects the dungeon's wall collision instead of
+	# phasing through it via a raw global_position write (issue #582
+	# follow-up: the player's counter to this archetype is "corner it",
+	# which requires walls to actually stop it).
+	enemy.velocity = dir * move_speed
+	enemy.move_and_slide()
 
 
 func tick(delta: float, enemy) -> void:
