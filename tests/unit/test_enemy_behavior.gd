@@ -160,12 +160,16 @@ func test_angry_pigeon_dead_enemy_skips_charge():
 class _MockRoombaData:
 	var hp: int = 10
 	var max_hp: int = 10
+	var attack: int = 4
+	var enemy_id: String = ""
 
 class _MockRoombaEnemy:
 	var global_position: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
 	var state: int = 1  # EnemyAIState.State.CHASE
+	var move_speed: float = 100.0
 	var data: _MockRoombaData = _MockRoombaData.new()
+	var _player_ref = null
 
 func test_rogue_roomba_homes_toward_player():
 	# Issue #262 acceptance #1: per-frame homing — desired_direction is a unit
@@ -192,63 +196,212 @@ func test_rogue_roomba_no_longer_overrides_motion_with_bounce():
 	assert_false(b.is_overriding_motion(), "roomba no longer overrides base motion")
 
 
-func test_rogue_roomba_trail_timer_fires_periodically():
-	# Acceptance #2: a trail segment is requested every ~0.3s while moving.
-	# After 0.35s of ticks the behavior should set pending_trail_spawn; the
-	# observer consumes it by clearing the flag back to false.
-	var b := RogueRoombaBehavior.new()
-	var e := _MockRoombaEnemy.new()
-	b.tick(0.35, e)
-	assert_true(b.pending_trail_spawn, "trail spawn should be requested after 0.35s")
-	# Observer-side consumption.
-	b.pending_trail_spawn = false
-	b.tick(0.35, e)
-	assert_true(b.pending_trail_spawn, "second trail spawn should fire 0.35s later")
-
-
-func test_rogue_roomba_berserk_triggers_at_threshold():
-	# Acceptance #4: at ≤30% HP berserk activates. 3/10 HP = 30% — equal-to
-	# the threshold should trigger.
-	var b := RogueRoombaBehavior.new()
-	var e := _MockRoombaEnemy.new()
-	e.data.hp = 3
-	e.data.max_hp = 10
-	b.tick(0.05, e)
-	assert_true(b.is_berserk, "berserk should activate at ≤30% HP")
-	assert_eq(b.berserk_entry_count, 1, "berserk entry counter should record one entry")
-
-
-func test_rogue_roomba_berserk_fires_once_per_encounter():
-	# Acceptance #6: berserk entry fires exactly once even if HP drops further.
-	# The observer applies tint / speed / FloatingText off berserk_entry_count
-	# crossing 0→1, so re-firing on subsequent ticks would double-apply the buff.
-	var b := RogueRoombaBehavior.new()
-	var e := _MockRoombaEnemy.new()
-	e.data.hp = 3
-	e.data.max_hp = 10
-	b.tick(0.05, e)
-	e.data.hp = 1
-	for _i in range(5):
-		b.tick(0.05, e)
-	assert_eq(b.berserk_entry_count, 1, "berserk should fire exactly once per encounter")
-
-
-func test_rogue_roomba_no_berserk_above_threshold():
-	# Acceptance: 50% HP is above the 30% threshold — no berserk.
-	var b := RogueRoombaBehavior.new()
-	var e := _MockRoombaEnemy.new()
-	e.data.hp = 5
-	e.data.max_hp = 10
-	b.tick(0.05, e)
-	assert_false(b.is_berserk, "berserk should not activate above 30% HP")
-	assert_eq(b.berserk_entry_count, 0, "no berserk entry above threshold")
-
-
 func test_rogue_roomba_for_kind_dispatches_subclass():
 	# The for_kind factory should hand back a RogueRoombaBehavior for the
 	# ROGUE_ROOMBA kind so Enemy._ready picks it up without per-kind branching.
 	var b := EnemyBehavior.for_kind(EnemyData.EnemyKind.ROGUE_ROOMBA)
 	assert_true(b is RogueRoombaBehavior, "ROGUE_ROOMBA kind must dispatch to RogueRoombaBehavior")
+
+
+# ---------------------------------------------------------------------------
+# RogueRoombaBehavior migration onto zone-denial + enrage archetypes (PRD
+# #518 / issue #584). The hand-rolled damage trail and one-shot berserk are
+# retired in favor of the shared archetypes; this section covers the loadout
+# wiring, the Vacuum-unaffected regression, and the tuning restated from the
+# retired TRAIL_*/BERSERK_* constants (removed from RogueRoombaBehavior
+# itself -- see AbilityLoadout.rogue_roomba_loadout's own comment for the
+# retired values). Idle wander (desired_direction, idle_* tuning) is
+# untouched and still tested above.
+# ---------------------------------------------------------------------------
+
+func test_rogue_roomba_loadout_resolves_to_exactly_zone_denial_and_enrage():
+	# Test 1 (core wiring / loadout, issue #584): the standard (non-boss)
+	# Rogue Roomba's kind resolves through AbilityLoadout.for_enemy to exactly
+	# a ZoneDenialAbility and an EnrageAbility -- nothing else.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ROGUE_ROOMBA, false)
+	assert_eq(abilities.size(), 2, "the standard roomba's loadout must contain exactly two abilities")
+	var has_zone_denial := false
+	var has_enrage := false
+	for ability in abilities:
+		if ability is ZoneDenialAbility:
+			has_zone_denial = true
+		elif ability is EnrageAbility:
+			has_enrage = true
+		else:
+			fail_test("the roomba's loadout must not contain any archetype besides zone denial and enrage")
+	assert_true(has_zone_denial, "the standard roomba's loadout must include zone denial")
+	assert_true(has_enrage, "the standard roomba's loadout must include enrage")
+
+
+func test_rogue_roomba_migration_leaves_the_vacuum_untouched():
+	# Test 2 (Vacuum unaffected, issue #584): the boss-tier ROGUE_ROOMBA is a
+	# different loadout entirely (the Vacuum) sharing the same enum value --
+	# AbilityLoadout.is_vacuum is the single authority for_enemy already
+	# consults, but this asserts the concrete regression this slice is most
+	# likely to cause directly, rather than only through the shared predicate.
+	var vacuum_abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ROGUE_ROOMBA, true)
+	assert_eq(vacuum_abilities.size(), 2, "the Vacuum must still compose exactly two archetypes")
+	assert_true(vacuum_abilities[0] is PullAbility, "the Vacuum's first archetype must still be Pull")
+	assert_true(vacuum_abilities[1] is TelegraphedChargeAbility,
+		"the Vacuum's second archetype must still be the telegraphed charge")
+
+
+func test_rogue_roomba_zone_denial_and_enrage_tuning_restates_pre_migration_values():
+	# Test 3 (tuning preserved, issue #584): the retired RogueRoombaBehavior
+	# declared TRAIL_INTERVAL = 0.3, TRAIL_DURATION = 2.0,
+	# TRAIL_DAMAGE_PER_SEC = 3.0, TRAIL_RADIUS = 20.0,
+	# TRAIL_COLOR = Color(0.7, 0.4, 0.4, 0.4), BERSERK_HP_FRACTION = 0.3 and
+	# BERSERK_SPEED_MULTIPLIER = 1.5. The migration must restate those numbers
+	# on the composed archetypes, not retune them.
+	var zone_denial: ZoneDenialAbility = null
+	var enrage: EnrageAbility = null
+	for a in AbilityLoadout.rogue_roomba_loadout():
+		if a is ZoneDenialAbility:
+			zone_denial = a
+		elif a is EnrageAbility:
+			enrage = a
+	assert_not_null(zone_denial, "the roomba's loadout must include a zone-denial ability")
+	assert_not_null(enrage, "the roomba's loadout must include an enrage ability")
+
+	assert_almost_eq(zone_denial.cooldown(), 0.3, 0.0001,
+		"zone-denial cooldown must restate the retired TRAIL_INTERVAL")
+	assert_almost_eq(zone_denial.hazard_duration(), 2.0, 0.0001,
+		"hazard duration must restate the retired TRAIL_DURATION")
+	assert_almost_eq(zone_denial.hazard_damage_per_sec(), 3.0, 0.0001,
+		"hazard damage per second must restate the retired TRAIL_DAMAGE_PER_SEC")
+	assert_almost_eq(zone_denial.hazard_radius(), 20.0, 0.0001,
+		"hazard radius must restate the retired TRAIL_RADIUS")
+	assert_eq(zone_denial.hazard_color(), Color(0.7, 0.4, 0.4, 0.4),
+		"hazard colour must restate the retired TRAIL_COLOR")
+
+	assert_almost_eq(enrage.hp_fraction(), 0.3, 0.0001,
+		"enrage threshold must restate the retired BERSERK_HP_FRACTION")
+	assert_almost_eq(enrage.speed_multiplier(), 1.5, 0.0001,
+		"enrage speed multiplier must restate the retired BERSERK_SPEED_MULTIPLIER")
+
+
+func test_rogue_roomba_trail_telegraphs_before_the_hazard_persists():
+	# The zone-denial disc is drawn (wind-up) before the hazard-spawn request
+	# publishes on commit -- the whole point of migrating off the untelegraphed
+	# hand-rolled trail (issue #584's motivating example).
+	var zone_denial: ZoneDenialAbility = null
+	for a in AbilityLoadout.rogue_roomba_loadout():
+		if a is ZoneDenialAbility:
+			zone_denial = a
+	var e := _MockRoombaEnemy.new()
+	e.data.enemy_id = "roomba-telegraph-1"
+	for _i in range(int(ceil(zone_denial.cooldown())) + 5):
+		zone_denial.tick(0.05, e)
+		if zone_denial.wants_to_fire():
+			zone_denial.begin(e)
+			break
+	assert_not_null(zone_denial.active_zone, "a firing must produce a telegraphed disc")
+	assert_null(zone_denial.pending_hazard_spawn,
+		"the hazard must not yet be requested during wind-up")
+	var step := 0.01
+	var elapsed := 0.0
+	while elapsed < zone_denial.windup_duration() + 0.02:
+		zone_denial.tick(step, e)
+		elapsed += step
+	assert_not_null(zone_denial.pending_hazard_spawn,
+		"the hazard-spawn request must publish once wind-up ends")
+
+
+func test_rogue_roomba_enrage_fires_once_and_never_refires_after_hp_recovery():
+	# Test 4 (berserk semantics survive, issue #584): ports the retired
+	# RogueRoombaBehavior berserk one-shot assertions onto the composed
+	# EnrageAbility -- fires once at the threshold, never refires even after
+	# HP recovers and drops again.
+	var enrage: EnrageAbility = null
+	for a in AbilityLoadout.rogue_roomba_loadout():
+		if a is EnrageAbility:
+			enrage = a
+	var e := _MockRoombaEnemy.new()
+	e.data.hp = 10
+	e.data.max_hp = 10
+	e.move_speed = 100.0
+	enrage.tick(0.05, e)
+	assert_false(enrage.has_enraged, "enrage must not fire while HP is above the threshold")
+	e.data.hp = 3  # 30% of 10, exactly at the threshold
+	enrage.tick(0.05, e)
+	assert_true(enrage.has_enraged, "enrage must fire once HP falls to or below the threshold")
+	assert_eq(enrage.enrage_entry_count, 1, "enrage entry counter should record exactly one entry")
+	assert_almost_eq(e.move_speed, 150.0, 0.001,
+		"speed must be multiplied by the retired BERSERK_SPEED_MULTIPLIER")
+	e.data.hp = 10  # HP recovers back above the threshold
+	enrage.tick(0.05, e)
+	e.data.hp = 1  # and falls below the threshold again
+	for _i in range(5):
+		enrage.tick(0.05, e)
+	assert_eq(enrage.enrage_entry_count, 1,
+		"enrage must never refire, even after HP rises back above the threshold and falls again")
+	assert_almost_eq(e.move_speed, 150.0, 0.001, "speed must not compound across subsequent ticks")
+
+
+func test_rogue_roomba_no_longer_exposes_retired_berserk_and_trail_state():
+	# Test 5 (retire bespoke state, issue #584): berserk_entry_count and
+	# pending_trail_spawn must be gone from the behavior -- the enrage
+	# archetype and zone-denial archetype own that state now.
+	var b := RogueRoombaBehavior.new()
+	assert_false("berserk_entry_count" in b, "berserk_entry_count must no longer exist on RogueRoombaBehavior")
+	assert_false("pending_trail_spawn" in b, "pending_trail_spawn must no longer exist on RogueRoombaBehavior")
+	assert_false("is_berserk" in b, "is_berserk must no longer exist on RogueRoombaBehavior")
+
+
+func test_rogue_roomba_idle_enemy_lays_no_trail():
+	# Test 6 (edge case, issue #584): an IDLE roomba must not accrue cooldown
+	# or telegraph a trail hazard -- mirrors ZoneDenialAbility's own aggro
+	# gate, exercised here through the roomba's specific tuning.
+	var zone_denial: ZoneDenialAbility = null
+	for a in AbilityLoadout.rogue_roomba_loadout():
+		if a is ZoneDenialAbility:
+			zone_denial = a
+	var e := _MockRoombaEnemy.new()
+	e.data.enemy_id = "roomba-idle-1"
+	e.state = 0  # EnemyAIState.State.IDLE
+	for _i in range(50):
+		zone_denial.tick(0.1, e)
+		if zone_denial.wants_to_fire():
+			zone_denial.begin(e)
+	assert_null(zone_denial.pending_zone, "an IDLE roomba must not publish a trail telegraph")
+	assert_eq(zone_denial.alive_hazard_count(), 0, "an IDLE roomba must never accrue a live trail hazard")
+
+
+func test_rogue_roomba_trail_hazard_cap_honored_under_dense_cadence():
+	# Test 6 (edge case, issue #584): TRAIL_INTERVAL's dense 0.3s cadence must
+	# still respect the archetype's alive-hazard cap (3, per
+	# AbilityLoadout.rogue_roomba_loadout) rather than letting the floor fill
+	# unbounded.
+	var zone_denial: ZoneDenialAbility = null
+	for a in AbilityLoadout.rogue_roomba_loadout():
+		if a is ZoneDenialAbility:
+			zone_denial = a
+	var e := _MockRoombaEnemy.new()
+	e.data.enemy_id = "roomba-cap-1"
+	for _i in range(2000):
+		zone_denial.tick(0.02, e)
+		if zone_denial.wants_to_fire():
+			zone_denial.begin(e)
+		assert_true(zone_denial.alive_hazard_count() <= 3,
+			"alive hazard count must never exceed the roomba's configured cap")
+
+
+func test_rogue_roomba_null_player_does_not_crash():
+	# Test 6 (edge case, issue #584): no _player_ref set on the mock enemy --
+	# neither archetype needs a player target to fire (zone denial targets its
+	# own position; enrage reads only HP), so ticking through many firings
+	# with no player reference must not crash.
+	var abilities := AbilityLoadout.rogue_roomba_loadout()
+	var e := _MockRoombaEnemy.new()
+	e.data.enemy_id = "roomba-null-player-1"
+	e.data.hp = 1
+	e.data.max_hp = 10
+	for _i in range(50):
+		for a in abilities:
+			a.tick(0.1, e)
+			if a.wants_to_fire():
+				a.begin(e)
+	assert_true(true, "ticking with no player reference must not crash")
 
 
 # ---------------------------------------------------------------------------
