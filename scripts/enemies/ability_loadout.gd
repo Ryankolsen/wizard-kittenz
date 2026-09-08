@@ -43,6 +43,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return trash_panda_tyrone_loadout()
 	if kind == EnemyData.EnemyKind.BIG_BRUISER_BUSTER:
 		return big_bruiser_buster_loadout()
+	if kind == EnemyData.EnemyKind.KARAOKE_KAREN:
+		return karaoke_karen_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -138,4 +140,18 @@ static func trash_panda_tyrone_loadout() -> Array:
 static func big_bruiser_buster_loadout() -> Array:
 	return [
 		GroundSlamAbility.new(),
+	]
+
+
+# Karaoke Karen (floor-3 standard mob / issue #576). Completes her kit: a
+# sustained cone-spray screech (facing locked at telegraph start, so flanking
+# behind her is the counter) alongside the summon-adds archetype Old Lady
+# Pearl already uses, unmodified — Karen's called-in help closes in while her
+# screech covers the cone in front of her, so the player solves both spacing
+# problems at once. SummonAddsAbility.CAP/SUMMON_COOLDOWN defaults are reused
+# as-is; only the cone-spray tuning is Karen's own.
+static func karaoke_karen_loadout() -> Array:
+	return [
+		ConeSprayAbility.new(),
+		SummonAddsAbility.new(),
 	]
