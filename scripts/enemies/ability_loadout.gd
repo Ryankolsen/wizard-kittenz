@@ -117,15 +117,16 @@ static func catnip_dealer_loadout() -> Array:
 	]
 
 
-# Trash Panda Tyrone (floor-2 standard mob / issue #571). First of two slices
-# (the steal archetype + gold theft is the next one, deliberately deferred):
-# for now Tyrone composes just the zone-denial disc, dropping trash-hazard
-# discs to deny space and teach spacing/cornering the way the other
-# archetypes teach their own counters. Defaults inherited from
-# ZoneDenialAbility's own tuning — nothing here is Tyrone-specific yet.
+# Trash Panda Tyrone (floor-2 standard mob / issues #571 + #572). Complete:
+# zone-denial drops trash-hazard discs to deny space and teach spacing/
+# cornering, and steal grabs the player's gold and flees, teaching priority —
+# corner him before he escapes, since the theft is only undone by killing
+# him. Defaults inherited from each archetype's own tuning — nothing here is
+# Tyrone-specific yet.
 static func trash_panda_tyrone_loadout() -> Array:
 	return [
 		ZoneDenialAbility.new(),
+		StealAbility.new(),
 	]
 
 

@@ -1377,21 +1377,27 @@ func test_catnip_dealer_with_null_data_ticks_safely():
 
 
 # ---------------------------------------------------------------------------
-# Trash Panda Tyrone / zone-denial archetype (PRD #518 / issue #571). Steal
-# and Tyrone's gold theft are the next slice — this loadout is deliberately
-# incomplete until then.
+# Trash Panda Tyrone / zone-denial + steal archetypes (PRD #518 / issues
+# #571 + #572). Complete as of #572: the disc plus the gold theft.
 # ---------------------------------------------------------------------------
 
-func test_trash_panda_tyrone_loadout_includes_zone_denial():
-	# Test 10 (loadout, issue #571): mirrors the Pickleton/Pearl loadout
-	# assertions above. Trash Panda Tyrone's kind resolves through
-	# AbilityLoadout.for_enemy to a loadout including a ZoneDenialAbility.
+func test_trash_panda_tyrone_loadout_resolves_to_exactly_steal_and_zone_denial():
+	# Test 9 (loadout, issue #572): Trash Panda Tyrone's kind resolves through
+	# AbilityLoadout.for_enemy to exactly a StealAbility and a
+	# ZoneDenialAbility — nothing else.
 	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.TRASH_PANDA_TYRONE, false)
+	assert_eq(abilities.size(), 2, "Tyrone's loadout must contain exactly two abilities")
 	var has_zone_denial := false
+	var has_steal := false
 	for ability in abilities:
 		if ability is ZoneDenialAbility:
 			has_zone_denial = true
+		elif ability is StealAbility:
+			has_steal = true
+		else:
+			fail_test("Tyrone's loadout must not contain any archetype besides steal and zone denial")
 	assert_true(has_zone_denial, "Trash Panda Tyrone's loadout must include zone denial")
+	assert_true(has_steal, "Trash Panda Tyrone's loadout must include steal")
 
 
 # ---------------------------------------------------------------------------

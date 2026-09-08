@@ -28,6 +28,11 @@ var _pigeon_was_charging: bool = false
 # it prevents the berserk tint/speed buff from re-applying once the entry
 # count crosses 0→1.
 var _roomba_berserk_applied: bool = false
+# Steal archetype (issue #572). Mirrors StealAbility.stolen_amount whenever a
+# theft lands, so the kill path (Player._handle_enemy_killed) has a plain
+# field to read rather than reaching back into the ability list — killing
+# this enemy while it's carrying gold returns exactly this much.
+var carried_gold: int = 0
 
 const _TEXTURE_BY_KIND := {
 	EnemyData.EnemyKind.ANGRY_PIGEON:         "res://assets/sprites/angry_pigeon_right.png",
@@ -358,6 +363,17 @@ func _consume_ability_payload(ability) -> void:
 		if hazard_spawn != null:
 			ability.set("pending_hazard_spawn", null)
 			_spawn_zone_denial_hazard(hazard_spawn, ability)
+	# Steal (issue #572). Duck-typed the same way -- only StealAbility
+	# declares pending_steal_target. The ability already applied the theft
+	# itself (it's the only object with both the caught player and the gold
+	# authority); this node's job is just carrying the running total forward
+	# for the kill path and playing the reaction VFX.
+	var steal_target = ability.get("pending_steal_target")
+	if steal_target != null:
+		ability.set("pending_steal_target", null)
+		carried_gold = ability.get("stolen_amount")
+		if steal_target is Node:
+			FloatingText.spawn(steal_target, "GOLD STOLEN!", Color(1.0, 0.85, 0.2))
 
 
 # Applies petrify through the same debuff seam the catnip bag / spray bottle

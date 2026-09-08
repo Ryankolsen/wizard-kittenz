@@ -950,7 +950,23 @@ func _apply_spell_effect(spell: Spell) -> void:
 
 func _handle_enemy_killed(node: Enemy, killing_blow_damage: int = 0) -> void:
 	_award_kill_xp(node.data, killing_blow_damage)
+	_return_carried_gold(node)
 	node.queue_free()
+
+# Steal archetype recovery (issue #572 acceptance: "killing Tyrone returns
+# the stolen gold to the player"). Enemy.carried_gold mirrors whatever
+# StealAbility has actually taken over its life; crediting it back through
+# the same CurrencyLedger authority the theft debited from keeps the two
+# sides of the counter — steal it, kill him to get it back — on one number.
+func _return_carried_gold(node: Enemy) -> void:
+	if node.carried_gold <= 0:
+		return
+	var ledger := _currency_ledger()
+	if ledger == null:
+		return
+	ledger.credit(node.carried_gold, CurrencyLedger.Currency.GOLD)
+	FloatingText.spawn(self, "+" + str(node.carried_gold) + "g", Color(1.0, 0.85, 0.2))
+	node.carried_gold = 0
 
 # Issue #478: kicks off the VFX sequence (smoke arrival, thought-bubble
 # lines, full-screen flash). The floor-wipe kill effect itself is deferred
@@ -1169,6 +1185,33 @@ func _offline_xp_tracker() -> OfflineXPTracker:
 
 func _currency_ledger() -> CurrencyLedger:
 	return _game_state.currency_ledger if _game_state != null else null
+
+# Read side of the steal archetype's gold authority (issue #572). Exposed so
+# an ability can gate "does this player even have gold worth stealing"
+# without knowing the ledger exists — same duck-typed shape the test double's
+# gold_balance() uses.
+func gold_balance() -> int:
+	var ledger := _currency_ledger()
+	return ledger.balance(CurrencyLedger.Currency.GOLD) if ledger != null else 0
+
+# Steal archetype's write side (issue #572). Routes through CurrencyLedger —
+# the same authority KillRewardRouter.gold_for_kill credits and
+# KittenSaveData.gold_balance persists — rather than mutating any balance
+# field directly, so a mid-run theft can never fork the number already on
+# the HUD. Clamped to the current balance (never negative) and returns the
+# amount actually taken, so the caller (StealAbility) knows exactly how much
+# to carry for the kill-path recovery.
+func take_gold(amount: int) -> int:
+	if amount <= 0:
+		return 0
+	var ledger := _currency_ledger()
+	if ledger == null:
+		return 0
+	var take: int = mini(amount, ledger.balance(CurrencyLedger.Currency.GOLD))
+	if take <= 0:
+		return 0
+	ledger.debit(take, CurrencyLedger.Currency.GOLD)
+	return take
 
 func _play_spell_flash() -> void:
 	if _spell_light == null:
