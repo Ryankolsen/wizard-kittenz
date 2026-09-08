@@ -45,6 +45,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return big_bruiser_buster_loadout()
 	if kind == EnemyData.EnemyKind.LAST_CALL_LARRY:
 		return larry_loadout()
+	if kind == EnemyData.EnemyKind.WARDEN_WRETCHED:
+		return warden_wretched_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -167,4 +169,54 @@ static func larry_loadout() -> Array:
 			90.0                        # placement_radius: unchanged from Tyrone's
 		),
 		EnrageAbility.new(),
+	]
+
+
+# Warden Wretched (floor-10 boss / issue #580). The two archetypes already
+# exist -- Pull from the tracer slice (#533), zone denial from Tyrone's
+# slice (#571) -- so this loadout is composition and tuning only, exactly
+# the claim PRD #518 makes: adding a boss is naming two archetypes and a set
+# of numbers, not a new AI class.
+#
+# The trap is the two firing in sequence, not just coincidentally overlapping:
+# hazards accrue on a short cadence (3.0s cooldown, the shortest of any
+# zone-denial user) so puddles are already dotting the floor well before the
+# pull's own longer cooldown (7.0s) elapses. The pull's 1.0s wind-up gives a
+# 60 px/s walker double the margin to clear its 26px-wide tether (matching
+# every other Pull/charge user's escapability margin), and its committed
+# hazard's 5.0s lingering duration comfortably outlasts the gap to the pull's
+# own commit, so the first puddle laid is still live when the tether drags
+# the player across it. Reach is the longest of any Pull user (see
+# enemy_data.gd's stat-table comment: "the pull needs the longest reach") so
+# the tether can span the whole puddle field rather than clipping short of
+# it, and pull_distance is longer than the Vacuum's so a caught player is
+# dragged across a hazard rather than stopping at its edge.
+static func warden_wretched_loadout() -> Array:
+	return [
+		PullAbility.new(
+			7.0,    # cooldown_seconds: slower than the Vacuum's 5.0, giving
+			        # the floor time to fill between pulls
+			1.0,    # windup_seconds: a full second to read and break the tether
+			0.3,    # commit_seconds
+			0.3,    # fade_seconds
+			220.0,  # max_reach: longest of any Pull user, spans the puddle field
+			26.0,   # tether_width
+			60.0    # pull_distance: longer than the Vacuum's 48.0, far enough
+			        # to cross a hazard rather than stop at its edge
+		),
+		ZoneDenialAbility.new(
+			3.0,                           # cooldown_seconds: shortest of the
+			                               # three zone-denial users, so hazards
+			                               # are already down before the pull fires
+			0.6, 0.2, 0.3,                 # windup/commit/fade
+			34.0,                          # zone_radius
+			5.0,                           # hazard_duration: between Tyrone's
+			                               # 4.0 and Larry's 6.0
+			0.35, 4.0, 32.0,               # slow/damage/radius: unchanged defaults
+			Color(0.5, 0.15, 0.55, 0.45),  # violet puddle tint, distinct from
+			                               # Tyrone's default and Larry's amber
+			4,                             # cap: distinct from Tyrone's 3 and Larry's 5
+			110.0                          # placement_radius: wider spread than
+			                               # Tyrone's/Larry's 90.0
+		),
 	]
