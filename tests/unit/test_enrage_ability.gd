@@ -119,3 +119,36 @@ func test_null_enemy_is_safe():
 	var b := EnrageAbility.new(0.3, 1.5, 1.5)
 	b.tick(0.1, null)
 	assert_false(b.has_enraged, "a null enemy must not fire and must not crash")
+
+
+# --- 8. Second consumer (issue #579) ------------------------------------------
+
+func test_dubstep_enrage_tuning_applies_independently_of_larrys():
+	# DJ Dubstep is the second and final consumer of this unmodified archetype
+	# (PRD #518 / issue #579). Two separate EnrageAbility instances, tuned
+	# differently, must not share any state -- Larry enraging must never flip
+	# Dubstep's own flag, and vice versa.
+	var larry := EnrageAbility.new(0.3, 1.5, 1.5)
+	var dubstep := EnrageAbility.new(0.25, 1.4, 1.5)
+	var larry_enemy := _MockEnemy.new()
+	larry_enemy.data.hp = 3
+	larry_enemy.data.max_hp = 10  # 30% -- crosses Larry's threshold, not Dubstep's
+
+	larry.tick(0.1, larry_enemy)
+	assert_true(larry.has_enraged, "Larry must enrage once his own threshold is crossed")
+	assert_false(dubstep.has_enraged,
+		"a separate EnrageAbility instance (Dubstep's) must not be affected by Larry's firing")
+
+	var dubstep_enemy := _MockEnemy.new()
+	dubstep_enemy.move_speed = 100.0
+	dubstep_enemy.data.attack = 4
+	dubstep_enemy.data.hp = 2
+	dubstep_enemy.data.max_hp = 10  # 20% -- crosses Dubstep's own threshold
+
+	dubstep.tick(0.1, dubstep_enemy)
+	assert_true(dubstep.has_enraged, "Dubstep must enrage through the same unmodified archetype")
+	assert_almost_eq(dubstep_enemy.move_speed, 140.0, 0.001,
+		"Dubstep's own tuning must apply, independent of Larry's")
+	assert_almost_eq(float(dubstep_enemy.data.attack), 6.0, 0.001,
+		"Dubstep's own damage multiplier must apply, independent of Larry's")
+	assert_eq(larry.enrage_entry_count, 1, "Larry's enrage state must stay unaffected by Dubstep's firing")

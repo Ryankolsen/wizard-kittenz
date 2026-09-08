@@ -1489,3 +1489,50 @@ func test_enrage_is_confined_to_the_two_allowed_boss_kinds():
 		"Last Call Larry must carry enrage")
 	assert_lte(enrage_kinds.size(), 2,
 		"enrage must never be carried by more than the two allowed boss kinds")
+
+
+# ---------------------------------------------------------------------------
+# DJ Dubstep / beat-locked slam + enrage archetypes (PRD #518 / issue #579).
+# ---------------------------------------------------------------------------
+
+func test_dj_dubstep_loadout_resolves_to_exactly_beat_locked_slam_and_enrage():
+	# Test 9 (loadout, issue #579): mirrors the Pickleton/Pearl/Tyrone/Buster/
+	# Larry loadout assertions above. DJ Dubstep's kind resolves through
+	# AbilityLoadout.for_enemy to exactly a BeatLockedSlamAbility and an
+	# EnrageAbility -- nothing else.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.DJ_DUBSTEP, true)
+	assert_eq(abilities.size(), 2, "Dubstep's loadout must contain exactly two abilities")
+	var has_beat_locked_slam := false
+	var has_enrage := false
+	for ability in abilities:
+		if ability is BeatLockedSlamAbility:
+			has_beat_locked_slam = true
+		elif ability is EnrageAbility:
+			has_enrage = true
+		else:
+			fail_test("Dubstep's loadout must not contain any archetype besides beat-locked slam and enrage")
+	assert_true(has_beat_locked_slam, "DJ Dubstep's loadout must include the beat-locked slam")
+	assert_true(has_enrage, "DJ Dubstep's loadout must include enrage")
+
+
+func test_enrage_is_confined_to_exactly_larry_and_dubstep():
+	# Test 10 (roster constraint, issue #579). Now that Dubstep's slice has
+	# landed, the interim "at most two, Larry present" assertion above tightens
+	# into the literal closed pair the PRD names: enrage belongs to Larry and
+	# Dubstep, and to exactly those two -- no more, no fewer.
+	var enrage_kinds: Array = []
+	for floor_number in range(1, BossRoster.roster_size() + 1):
+		var info := BossRoster.boss_for_floor(floor_number)
+		var abilities := AbilityLoadout.for_enemy(info.kind, true)
+		var has_enrage := false
+		for ability in abilities:
+			if ability is EnrageAbility:
+				has_enrage = true
+		if has_enrage:
+			enrage_kinds.append(info.kind)
+	assert_eq(enrage_kinds.size(), 2,
+		"exactly two boss kinds across the roster must include enrage")
+	assert_true(enrage_kinds.has(EnemyData.EnemyKind.LAST_CALL_LARRY),
+		"Last Call Larry must carry enrage")
+	assert_true(enrage_kinds.has(EnemyData.EnemyKind.DJ_DUBSTEP),
+		"DJ Dubstep must carry enrage")
