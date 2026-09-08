@@ -39,6 +39,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return dog_knight_loadout()
 	if kind == EnemyData.EnemyKind.CATNIP_DEALER:
 		return catnip_dealer_loadout()
+	if kind == EnemyData.EnemyKind.TRASH_PANDA_TYRONE:
+		return trash_panda_tyrone_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -110,4 +112,16 @@ static func catnip_dealer_loadout() -> Array:
 			CatnipDealerBehavior.PROJECTILE_MAX_RANGE,
 			true
 		),
+	]
+
+
+# Trash Panda Tyrone (floor-2 standard mob / issue #571). First of two slices
+# (the steal archetype + gold theft is the next one, deliberately deferred):
+# for now Tyrone composes just the zone-denial disc, dropping trash-hazard
+# discs to deny space and teach spacing/cornering the way the other
+# archetypes teach their own counters. Defaults inherited from
+# ZoneDenialAbility's own tuning — nothing here is Tyrone-specific yet.
+static func trash_panda_tyrone_loadout() -> Array:
+	return [
+		ZoneDenialAbility.new(),
 	]

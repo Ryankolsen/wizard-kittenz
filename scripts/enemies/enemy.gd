@@ -350,6 +350,14 @@ func _consume_ability_payload(ability) -> void:
 		ability.set("pending_summons", [])
 		for entry in summons:
 			_spawn_summoned_add(entry, ability)
+		# Zone denial (issue #571). Duck-typed the same way -- only
+		# ZoneDenialAbility declares this field. Same publish/consume shape as
+		# pending_summons above: the ability owns the cap/cooldown bookkeeping,
+		# this node owns the one scene-side act of parenting the FloorHazard.
+		var hazard_spawn = ability.get("pending_hazard_spawn")
+		if hazard_spawn != null:
+			ability.set("pending_hazard_spawn", null)
+			_spawn_zone_denial_hazard(hazard_spawn, ability)
 
 
 # Applies petrify through the same debuff seam the catnip bag / spray bottle
@@ -484,6 +492,26 @@ func _spawn_pigeon_hazard(pos: Vector2) -> void:
 		0.0,
 		AngryPigeonBehavior.HAZARD_RADIUS,
 		AngryPigeonBehavior.HAZARD_COLOR
+	)
+	hazard.global_position = pos
+	parent.add_child(hazard)
+
+# Zone denial (PRD #518 / issue #571). Parents a FloorHazard at the position
+# ZoneDenialAbility published, configured from the tuning the ability itself
+# reports -- so the node's own expiry timer (which frees the scene object)
+# and the ability's internal alive-count countdown always agree on how long
+# this hazard lives.
+func _spawn_zone_denial_hazard(pos: Vector2, ability) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var hazard := FloorHazard.new()
+	hazard.configure(
+		ability.hazard_duration(),
+		ability.hazard_slow_percent(),
+		ability.hazard_damage_per_sec(),
+		ability.hazard_radius(),
+		ability.hazard_color()
 	)
 	hazard.global_position = pos
 	parent.add_child(hazard)

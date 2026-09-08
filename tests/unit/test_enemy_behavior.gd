@@ -1374,3 +1374,21 @@ func test_catnip_dealer_with_null_data_ticks_safely():
 	b.tick(0.1, _seeded_enemy(null))
 	assert_true(CatnipDealerBehavior.DEBUFF_TYPES.has(b.pick_debuff()),
 		"a null-data dealer should still pick a declared debuff type")
+
+
+# ---------------------------------------------------------------------------
+# Trash Panda Tyrone / zone-denial archetype (PRD #518 / issue #571). Steal
+# and Tyrone's gold theft are the next slice — this loadout is deliberately
+# incomplete until then.
+# ---------------------------------------------------------------------------
+
+func test_trash_panda_tyrone_loadout_includes_zone_denial():
+	# Test 10 (loadout, issue #571): mirrors the Pickleton/Pearl loadout
+	# assertions above. Trash Panda Tyrone's kind resolves through
+	# AbilityLoadout.for_enemy to a loadout including a ZoneDenialAbility.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.TRASH_PANDA_TYRONE, false)
+	var has_zone_denial := false
+	for ability in abilities:
+		if ability is ZoneDenialAbility:
+			has_zone_denial = true
+	assert_true(has_zone_denial, "Trash Panda Tyrone's loadout must include zone denial")

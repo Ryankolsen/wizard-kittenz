@@ -139,6 +139,71 @@ func test_outline_corners_bound_exactly_what_contains_reports():
 	assert_eq(corners[3], Vector2(0.0, 10.0), "near-right corner")
 
 
+func test_disc_contains_centre_point_during_commit():
+	# Test 1 (core wiring, issue #571): a disc built from an origin + radius
+	# contains its own centre once it commits.
+	var disc := DangerZoneShape.make_disc(Vector2(20.0, 30.0), 40.0, 0.7, 0.2, 0.3)
+	assert_true(disc.contains(Vector2(20.0, 30.0), 0.8),
+		"the disc's centre must be inside the zone at commit")
+
+
+func test_disc_boundary_is_inclusive():
+	# Test 2 (boundary, issue #571): a point just inside the radius is
+	# contained, one just outside is not, and a point exactly on the radius
+	# resolves consistently. Boundary is inclusive, matching the lane's own
+	# inclusive half-width boundary above.
+	var disc := DangerZoneShape.make_disc(Vector2.ZERO, 50.0, 0.7, 0.2, 0.3)
+	var commit_t := 0.8
+	assert_true(disc.contains(Vector2(49.0, 0.0), commit_t),
+		"a point just inside the radius must be inside the zone")
+	assert_false(disc.contains(Vector2(51.0, 0.0), commit_t),
+		"a point just outside the radius must be outside the zone")
+	assert_true(disc.contains(Vector2(50.0, 0.0), commit_t),
+		"a point exactly on the radius must count as inside (inclusive boundary)")
+
+
+func test_disc_is_harmless_during_windup_and_fade():
+	# Test 3 (phase gating, issue #571): the "drawn but harmless" rule the lane
+	# already holds — the centre point must not be contained during wind-up or
+	# fade, only during commit.
+	var disc := DangerZoneShape.make_disc(Vector2.ZERO, 40.0, 0.7, 0.2, 0.3)
+	var centre := Vector2.ZERO
+	assert_false(disc.contains(centre, 0.3),
+		"a disc winding up must not damage its centre")
+	assert_true(disc.contains(centre, 0.8),
+		"the same centre must be inside once the disc commits")
+	assert_false(disc.contains(centre, 1.0),
+		"a disc that has committed and moved into fade must no longer damage")
+
+
+func test_disc_edge_cases_zero_radius_negative_radius_and_expiry():
+	# Test 4 (edge cases, issue #571): zero radius, negative radius (clamped
+	# like make_lane clamps its inputs), and is_expired past total_duration.
+	var zero_radius := DangerZoneShape.make_disc(Vector2.ZERO, 0.0, 0.7, 0.2, 0.3)
+	assert_false(zero_radius.contains(Vector2(1.0, 0.0), 0.8),
+		"a zero-radius disc must not contain a point off its exact centre")
+	var negative_radius := DangerZoneShape.make_disc(Vector2.ZERO, -10.0, 0.7, 0.2, 0.3)
+	assert_eq(negative_radius.radius, 0.0,
+		"a negative radius must clamp to zero, matching make_lane's clamping style")
+	var disc := DangerZoneShape.make_disc(Vector2.ZERO, 40.0, 0.7, 0.2, 0.3)
+	assert_true(disc.is_expired(1.3), "a disc past total_duration must report expired")
+
+
+func test_disc_outline_is_a_polygon_the_renderer_can_draw():
+	# Disc joins lane/tether in reporting an outline() the renderer draws, using
+	# the same shared amber wind-up / red commit colours.
+	var disc := DangerZoneShape.make_disc(Vector2(10.0, 10.0), 40.0, 0.7, 0.2, 0.3)
+	var points: PackedVector2Array = disc.outline()
+	assert_gt(points.size(), 3, "a disc must outline as a many-sided polygon, not a degenerate shape")
+	for p in points:
+		assert_almost_eq(p.distance_to(Vector2(10.0, 10.0)), 40.0, 0.5,
+			"every outline point must sit on the disc's own radius")
+	var windup: Color = disc.color_at(0.3)
+	var commit: Color = disc.color_at(0.8)
+	assert_gt(windup.g, windup.b, "the disc's wind-up colour is the shared amber, not blue")
+	assert_gt(commit.r, commit.g, "the disc's commit colour is the shared red flash")
+
+
 func test_colour_language_is_amber_during_windup_and_red_at_commit():
 	# Acceptance (colour language, uniform across every enemy): amber while
 	# winding up, red once it commits, and transparent once it has faded out.

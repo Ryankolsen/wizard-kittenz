@@ -14,6 +14,7 @@ extends RefCounted
 enum Kind {
 	LANE,   # straight corridor: origin -> origin + heading * length, `width` wide
 	TETHER, # line from the enemy to a locked target point, dragging the player in
+	DISC,   # circle of `radius` around `origin` — the zone-denial archetype
 }
 
 enum Phase {
@@ -27,6 +28,7 @@ var origin: Vector2 = Vector2.ZERO
 var heading: Vector2 = Vector2.RIGHT
 var length: float = 0.0
 var width: float = 0.0
+var radius: float = 0.0
 var windup_duration: float = 0.0
 var commit_duration: float = 0.0
 var fade_duration: float = 0.0
@@ -77,12 +79,36 @@ func contains(point: Vector2, t: float) -> bool:
 
 
 func _contains_geometry(point: Vector2) -> bool:
+	if kind == Kind.DISC:
+		# Inclusive boundary, matching the lane's own inclusive half-width edge
+		# above: the outermost pixel the renderer fills still counts as hit.
+		return point.distance_squared_to(origin) <= radius * radius
 	var to_point := point - origin
 	var along := to_point.dot(heading)
 	if along < 0.0 or along > length:
 		return false
 	var perpendicular := absf(to_point.cross(heading))
 	return perpendicular <= width * 0.5
+
+
+# Disc of `radius` around `origin` (zone-denial archetype, issue #571). Unlike
+# the lane/tether, a disc has no heading or length — it is just an origin and
+# a radius, clamped the same way `make_lane` clamps its inputs.
+static func make_disc(
+	disc_origin: Vector2,
+	disc_radius: float,
+	windup: float,
+	commit: float,
+	fade: float
+) -> DangerZoneShape:
+	var s := DangerZoneShape.new()
+	s.kind = Kind.DISC
+	s.origin = disc_origin
+	s.radius = maxf(0.0, disc_radius)
+	s.windup_duration = maxf(0.0, windup)
+	s.commit_duration = maxf(0.0, commit)
+	s.fade_duration = maxf(0.0, fade)
+	return s
 
 
 # Tether from the enemy to a locked target point (Pull archetype). Same segment
@@ -131,7 +157,15 @@ func is_expired(t: float) -> bool:
 
 # Corner ring of the zone in the same world space `contains` is queried with,
 # wound near-left -> far-left -> far-right -> near-right.
+const DISC_OUTLINE_SEGMENTS: int = 24
+
 func outline() -> PackedVector2Array:
+	if kind == Kind.DISC:
+		var points := PackedVector2Array()
+		for i in range(DISC_OUTLINE_SEGMENTS):
+			var angle := TAU * float(i) / float(DISC_OUTLINE_SEGMENTS)
+			points.append(origin + Vector2(cos(angle), sin(angle)) * radius)
+		return points
 	# Left-hand normal of the heading, so the winding is stable for any heading.
 	var side := Vector2(-heading.y, heading.x) * (width * 0.5)
 	var far := endpoint()
