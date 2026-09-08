@@ -130,13 +130,13 @@ static func trash_panda_tyrone_loadout() -> Array:
 	]
 
 
-# Big Bruiser Buster (floor-4 boss / issue #573). First of two slices (the
-# knockback-shove archetype is the next one, deliberately deferred): for now
-# Buster composes just the ground-slam ring, teaching "get outside the ring"
-# as a spacing counter distinct from the disc's "don't stand here at all".
-# Defaults inherited from GroundSlamAbility's own tuning — nothing here is
-# Buster-specific yet.
+# Big Bruiser Buster (floor-4 boss / issues #573 + #574). Complete: ground
+# slam teaches "get outside the ring" as a spacing counter distinct from the
+# disc's "don't stand here at all", and knockback shove teaches "don't stand
+# in his face" — fighting at range is the counter to both. Defaults inherited
+# from each archetype's own tuning — nothing here is Buster-specific yet.
 static func big_bruiser_buster_loadout() -> Array:
 	return [
 		GroundSlamAbility.new(),
+		KnockbackShoveAbility.new(),
 	]

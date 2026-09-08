@@ -1401,18 +1401,25 @@ func test_trash_panda_tyrone_loadout_resolves_to_exactly_steal_and_zone_denial()
 
 
 # ---------------------------------------------------------------------------
-# Big Bruiser Buster / ground-slam archetype (PRD #518 / issue #573). The
-# knockback-shove archetype is the next slice — this loadout is deliberately
-# incomplete until then.
+# Big Bruiser Buster / ground-slam + knockback-shove archetypes (PRD #518 /
+# issues #573 + #574). Complete: ground slam teaches "get outside the ring"
+# and knockback shove teaches "don't stand in his face".
 # ---------------------------------------------------------------------------
 
-func test_big_bruiser_buster_loadout_includes_ground_slam():
-	# Test 12 (loadout, issue #573): mirrors the Pickleton/Pearl/Tyrone loadout
+func test_big_bruiser_buster_loadout_is_exactly_ground_slam_and_knockback_shove():
+	# Test 8 (loadout, issue #574): mirrors the Pickleton/Pearl/Tyrone loadout
 	# assertions above. Big Bruiser Buster's kind resolves through
-	# AbilityLoadout.for_enemy to a loadout including a GroundSlamAbility.
+	# AbilityLoadout.for_enemy to exactly a GroundSlamAbility and a
+	# KnockbackShoveAbility — nothing else.
 	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.BIG_BRUISER_BUSTER, false)
 	var has_ground_slam := false
+	var has_knockback_shove := false
 	for ability in abilities:
 		if ability is GroundSlamAbility:
 			has_ground_slam = true
+		elif ability is KnockbackShoveAbility:
+			has_knockback_shove = true
+		else:
+			fail_test("Buster's loadout must not contain any archetype besides ground slam and knockback shove")
 	assert_true(has_ground_slam, "Big Bruiser Buster's loadout must include ground slam")
+	assert_true(has_knockback_shove, "Big Bruiser Buster's loadout must include knockback shove")
