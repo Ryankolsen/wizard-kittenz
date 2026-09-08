@@ -41,6 +41,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return catnip_dealer_loadout()
 	if kind == EnemyData.EnemyKind.TRASH_PANDA_TYRONE:
 		return trash_panda_tyrone_loadout()
+	if kind == EnemyData.EnemyKind.BIG_BRUISER_BUSTER:
+		return big_bruiser_buster_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -124,4 +126,16 @@ static func catnip_dealer_loadout() -> Array:
 static func trash_panda_tyrone_loadout() -> Array:
 	return [
 		ZoneDenialAbility.new(),
+	]
+
+
+# Big Bruiser Buster (floor-4 boss / issue #573). First of two slices (the
+# knockback-shove archetype is the next one, deliberately deferred): for now
+# Buster composes just the ground-slam ring, teaching "get outside the ring"
+# as a spacing counter distinct from the disc's "don't stand here at all".
+# Defaults inherited from GroundSlamAbility's own tuning — nothing here is
+# Buster-specific yet.
+static func big_bruiser_buster_loadout() -> Array:
+	return [
+		GroundSlamAbility.new(),
 	]

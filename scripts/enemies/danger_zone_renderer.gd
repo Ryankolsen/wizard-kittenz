@@ -48,7 +48,10 @@ func _draw() -> void:
 	if zone == null:
 		return
 	var t := _elapsed
-	var corners := zone.outline()
+	# The ring's outline changes shape across the commit window (issue #573),
+	# so it needs this renderer's own elapsed clock the same way color_at
+	# already does below — lane/tether/disc ignore the argument.
+	var corners := zone.outline(t)
 	if corners.size() < 3:
 		return
 	var color := zone.color_at(t)

@@ -204,6 +204,96 @@ func test_disc_outline_is_a_polygon_the_renderer_can_draw():
 	assert_gt(commit.r, commit.g, "the disc's commit colour is the shared red flash")
 
 
+func test_ring_outer_radius_is_contained_once_the_expanding_edge_reaches_it():
+	# Test 1 (core wiring, issue #573): a ring built from an origin + max
+	# radius contains a point once the expanding edge sweeps out to it. Using
+	# windup 0.7 / commit 1.0, the edge reaches 95 of a 100 max radius at
+	# t = 1.65 (95% of the way through the commit window).
+	var ring := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 1.0, 0.3)
+	assert_true(ring.contains(Vector2(95.0, 0.0), 1.65),
+		"a point the expanding edge has just reached must be inside the zone")
+
+
+func test_ring_mid_radius_point_is_safe_early_and_caught_later():
+	# Test 2 (expansion over time, issue #573): this is what separates the ring
+	# from the disc. A point at a mid radius (50 of a 100 max radius, 20 wide
+	# band) is not yet inside the zone shortly after commit begins (edge at 5),
+	# but is inside once the edge has grown out to meet it (edge at 50, t=1.2).
+	var ring := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 1.0, 0.3)
+	var mid_point := Vector2(50.0, 0.0)
+	assert_false(ring.contains(mid_point, 0.75),
+		"a mid-radius point must not be hit before the expanding edge reaches it")
+	assert_true(ring.contains(mid_point, 1.2),
+		"the same mid-radius point must be hit once the expanding edge reaches it")
+
+
+func test_ring_inner_point_is_safe_once_the_wave_has_passed():
+	# Test 3 (inner safety, issue #573): standing at the boss's own feet after
+	# the wave has swept outward past that point must be safe.
+	var ring := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 1.0, 0.3)
+	var near_origin := Vector2(2.0, 0.0)
+	assert_false(ring.contains(near_origin, 1.6),
+		"a point near the boss's feet must be safe once the expanding edge has passed it")
+
+
+func test_ring_is_harmless_during_windup_and_fade():
+	# Test 4 (phase gating, issue #573): drawn-but-harmless during wind-up, and
+	# harmless again once it fades, matching every other shape's rule.
+	var ring := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 1.0, 0.3)
+	var outer_point := Vector2(95.0, 0.0)
+	assert_false(ring.contains(outer_point, 0.3),
+		"a ring winding up must not damage any point")
+	assert_false(ring.contains(outer_point, 1.8),
+		"a ring that has committed and moved into fade must no longer damage")
+
+
+func test_ring_threading_does_not_regress_lane_tether_or_disc():
+	# Test 5 (no regression, issue #573): threading time through
+	# _contains_geometry must not disturb the existing shapes' own containment.
+	var lane := DangerZoneShape.make_lane(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 20.0, 0.7, 0.2, 0.3)
+	assert_true(lane.contains(Vector2(50.0, 0.0), 0.8),
+		"lane containment must be unaffected by the ring's time threading")
+	var tether := DangerZoneShape.make_tether(
+		Vector2(10.0, 10.0), Vector2(110.0, 10.0), 16.0, 0.7, 0.2, 0.3)
+	assert_true(tether.contains(Vector2(60.0, 10.0), 0.8),
+		"tether containment must be unaffected by the ring's time threading")
+	var disc := DangerZoneShape.make_disc(Vector2(20.0, 30.0), 40.0, 0.7, 0.2, 0.3)
+	assert_true(disc.contains(Vector2(20.0, 30.0), 0.8),
+		"disc containment must be unaffected by the ring's time threading")
+
+
+func test_ring_edge_cases_zero_radius_zero_commit_and_past_total_duration():
+	# Test 6 (edge cases, issue #573): zero max radius, zero commit duration,
+	# and a query past total_duration.
+	var zero_radius := DangerZoneShape.make_ring(Vector2.ZERO, 0.0, 20.0, 0.7, 1.0, 0.3)
+	assert_false(zero_radius.contains(Vector2(100.0, 0.0), 1.2),
+		"a zero max-radius ring must not contain a point far from the origin")
+	var zero_commit := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 0.0, 0.3)
+	assert_false(zero_commit.contains(Vector2(50.0, 0.0), 0.75),
+		"a zero commit duration never enters the damage window, so nothing is ever hit")
+	var ring := DangerZoneShape.make_ring(Vector2.ZERO, 100.0, 20.0, 0.7, 1.0, 0.3)
+	assert_true(ring.is_expired(2.5), "a ring queried past total_duration must report expired")
+	assert_false(ring.contains(Vector2(95.0, 0.0), 2.5),
+		"a ring past its total_duration must never damage")
+
+
+func test_ring_outline_can_be_drawn_at_both_start_and_end_of_expansion():
+	# The ring reports an outline() the renderer can draw across the whole
+	# expansion, not just its final size.
+	var ring := DangerZoneShape.make_ring(Vector2(10.0, 10.0), 100.0, 20.0, 0.7, 1.0, 0.3)
+	var early: PackedVector2Array = ring.outline(0.75)  # edge at 5
+	var late: PackedVector2Array = ring.outline(1.65)  # edge at 95
+	assert_gt(early.size(), 3, "the ring must outline as a many-sided polygon early in expansion")
+	assert_gt(late.size(), 3, "the ring must outline as a many-sided polygon late in expansion")
+	for p in early:
+		assert_almost_eq(p.distance_to(Vector2(10.0, 10.0)), 5.0, 0.5,
+			"early outline points must sit on the edge's current (small) radius")
+	for p in late:
+		assert_almost_eq(p.distance_to(Vector2(10.0, 10.0)), 95.0, 0.5,
+			"late outline points must sit on the edge's current (large) radius")
+
+
 func test_colour_language_is_amber_during_windup_and_red_at_commit():
 	# Acceptance (colour language, uniform across every enemy): amber while
 	# winding up, red once it commits, and transparent once it has faded out.

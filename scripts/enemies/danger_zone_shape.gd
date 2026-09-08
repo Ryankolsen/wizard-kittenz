@@ -15,6 +15,9 @@ enum Kind {
 	LANE,   # straight corridor: origin -> origin + heading * length, `width` wide
 	TETHER, # line from the enemy to a locked target point, dragging the player in
 	DISC,   # circle of `radius` around `origin` — the zone-denial archetype
+	RING,   # expanding shockwave: an annulus of `width` around a radius that
+	        # grows from 0 to `radius` across the commit window — the
+	        # ground-slam archetype (issue #573)
 }
 
 enum Phase {
@@ -75,10 +78,20 @@ func phase_at(t: float) -> int:
 func contains(point: Vector2, t: float) -> bool:
 	if phase_at(t) != Phase.COMMIT:
 		return false
-	return _contains_geometry(point)
+	return _contains_geometry(point, t)
 
 
-func _contains_geometry(point: Vector2) -> bool:
+# `t` is only ever consulted by the ring branch below — lane, tether and disc
+# containment is a pure function of geometry and ignores it, so threading time
+# through this signature (needed for the ring's radius-at-time containment)
+# leaves those three shapes' own results unchanged.
+func _contains_geometry(point: Vector2, t: float = 0.0) -> bool:
+	if kind == Kind.RING:
+		var edge := _ring_edge_radius(t)
+		var dist := point.distance_to(origin)
+		# Inclusive band edges, matching the lane's and disc's own inclusive
+		# boundaries: the outermost pixel the renderer fills still counts.
+		return absf(dist - edge) <= width * 0.5
 	if kind == Kind.DISC:
 		# Inclusive boundary, matching the lane's own inclusive half-width edge
 		# above: the outermost pixel the renderer fills still counts as hit.
@@ -89,6 +102,45 @@ func _contains_geometry(point: Vector2) -> bool:
 		return false
 	var perpendicular := absf(to_point.cross(heading))
 	return perpendicular <= width * 0.5
+
+
+# The expanding wave's current radius at time t: 0 at commit start, growing
+# linearly to `radius` (the ring's max radius) at commit end. Shared by
+# containment and outline() so the drawn ring and the hit ring never drift
+# apart. A zero commit_duration never reaches Phase.COMMIT at all (phase_at
+# skips straight from WINDUP to FADE), so contains() never calls this for
+# that case — the radius reported here doesn't matter, but `radius` itself
+# (the fully-expanded size) is the least surprising fallback.
+func _ring_edge_radius(t: float) -> float:
+	if commit_duration <= 0.0:
+		return radius
+	var commit_t := clampf(t - windup_duration, 0.0, commit_duration)
+	return radius * (commit_t / commit_duration)
+
+
+# Ring of `radius` max extent and `width` band thickness around `origin`,
+# expanding outward across the commit window (ground-slam archetype, issue
+# #573). Unlike the disc's static area, the ring's dangerous region is the
+# sweeping edge itself — a point the edge has already passed is safe again,
+# which is what makes "get outside the ring" a real counter rather than
+# "stand anywhere but the centre".
+static func make_ring(
+	ring_origin: Vector2,
+	max_radius: float,
+	band_width: float,
+	windup: float,
+	commit: float,
+	fade: float
+) -> DangerZoneShape:
+	var s := DangerZoneShape.new()
+	s.kind = Kind.RING
+	s.origin = ring_origin
+	s.radius = maxf(0.0, max_radius)
+	s.width = maxf(0.0, band_width)
+	s.windup_duration = maxf(0.0, windup)
+	s.commit_duration = maxf(0.0, commit)
+	s.fade_duration = maxf(0.0, fade)
+	return s
 
 
 # Disc of `radius` around `origin` (zone-denial archetype, issue #571). Unlike
@@ -159,7 +211,16 @@ func is_expired(t: float) -> bool:
 # wound near-left -> far-left -> far-right -> near-right.
 const DISC_OUTLINE_SEGMENTS: int = 24
 
-func outline() -> PackedVector2Array:
+# `t` is only consulted by the ring branch (its polygon radius changes across
+# the commit window); lane/tether/disc outlines are static and ignore it.
+func outline(t: float = 0.0) -> PackedVector2Array:
+	if kind == Kind.RING:
+		var points := PackedVector2Array()
+		var edge := _ring_edge_radius(t)
+		for i in range(DISC_OUTLINE_SEGMENTS):
+			var angle := TAU * float(i) / float(DISC_OUTLINE_SEGMENTS)
+			points.append(origin + Vector2(cos(angle), sin(angle)) * edge)
+		return points
 	if kind == Kind.DISC:
 		var points := PackedVector2Array()
 		for i in range(DISC_OUTLINE_SEGMENTS):

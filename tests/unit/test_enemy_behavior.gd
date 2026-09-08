@@ -1392,3 +1392,21 @@ func test_trash_panda_tyrone_loadout_includes_zone_denial():
 		if ability is ZoneDenialAbility:
 			has_zone_denial = true
 	assert_true(has_zone_denial, "Trash Panda Tyrone's loadout must include zone denial")
+
+
+# ---------------------------------------------------------------------------
+# Big Bruiser Buster / ground-slam archetype (PRD #518 / issue #573). The
+# knockback-shove archetype is the next slice — this loadout is deliberately
+# incomplete until then.
+# ---------------------------------------------------------------------------
+
+func test_big_bruiser_buster_loadout_includes_ground_slam():
+	# Test 12 (loadout, issue #573): mirrors the Pickleton/Pearl/Tyrone loadout
+	# assertions above. Big Bruiser Buster's kind resolves through
+	# AbilityLoadout.for_enemy to a loadout including a GroundSlamAbility.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.BIG_BRUISER_BUSTER, false)
+	var has_ground_slam := false
+	for ability in abilities:
+		if ability is GroundSlamAbility:
+			has_ground_slam = true
+	assert_true(has_ground_slam, "Big Bruiser Buster's loadout must include ground slam")
