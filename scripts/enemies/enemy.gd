@@ -327,7 +327,14 @@ func _consume_ability_payload(ability) -> void:
 		var pulled = ability.pending_pull_target
 		ability.pending_pull_target = null
 		if pulled is Node:
-			FloatingText.spawn(pulled, "PULL", Color(0.6, 0.8, 1.0))
+			# KnockbackShoveAbility (issue #574) reuses this same field for its
+			# outward displacement — the node-side consumption is identical, only
+			# the label differs, so branch on type here rather than adding a
+			# second field for a one-word difference.
+			if ability is KnockbackShoveAbility:
+				FloatingText.spawn(pulled, "SHOVED", Color(1.0, 0.6, 0.3))
+			else:
+				FloatingText.spawn(pulled, "PULL", Color(0.6, 0.8, 1.0))
 	# Ambush/petrify (issue #536). Duck-typed via get() — only AmbushAbility
 	# declares this field, so every other archetype's ability.get() here is a
 	# safe no-op null (same pattern as _game_state.get("achievement_service")
@@ -355,14 +362,17 @@ func _consume_ability_payload(ability) -> void:
 		ability.set("pending_summons", [])
 		for entry in summons:
 			_spawn_summoned_add(entry, ability)
-		# Zone denial (issue #571). Duck-typed the same way -- only
-		# ZoneDenialAbility declares this field. Same publish/consume shape as
-		# pending_summons above: the ability owns the cap/cooldown bookkeeping,
-		# this node owns the one scene-side act of parenting the FloorHazard.
-		var hazard_spawn = ability.get("pending_hazard_spawn")
-		if hazard_spawn != null:
-			ability.set("pending_hazard_spawn", null)
-			_spawn_zone_denial_hazard(hazard_spawn, ability)
+	# Zone denial (issue #571). Duck-typed the same way -- only
+	# ZoneDenialAbility declares this field. Same publish/consume shape as
+	# pending_summons above: the ability owns the cap/cooldown bookkeeping,
+	# this node owns the one scene-side act of parenting the FloorHazard.
+	# Was nested inside the pending_summons block above until #572's review
+	# caught it -- that meant a zone-denial-only kind (Tyrone, Larry) never
+	# spawned a hazard, since neither composes SummonAddsAbility.
+	var hazard_spawn = ability.get("pending_hazard_spawn")
+	if hazard_spawn != null:
+		ability.set("pending_hazard_spawn", null)
+		_spawn_zone_denial_hazard(hazard_spawn, ability)
 	# Steal (issue #572). Duck-typed the same way -- only StealAbility
 	# declares pending_steal_target. The ability already applied the theft
 	# itself (it's the only object with both the caught player and the gold
