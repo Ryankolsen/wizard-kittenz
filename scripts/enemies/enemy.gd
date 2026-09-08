@@ -17,12 +17,6 @@ var _behavior: EnemyBehavior
 # RemoteKitten target produces a pursuit-only state (no damage on touch).
 var _player_ref: Node2D = null
 var _died_emitted: bool = false
-# Angry Pigeon dive-bomb VFX (issue #161). Lazily-created Line2D parented to
-# the enemy and populated each frame during a charge; cleared on completion.
-# Kept on Enemy (not the behavior) so the pure-data behavior stays SceneTree-
-# free and trivially testable — same separation as Player._apply_wet_tint.
-var _pigeon_trail: Line2D = null
-var _pigeon_was_charging: bool = false
 # Rogue Roomba state (issue #162, retuned #262). Homing chase via the base
 # _chase path; this flag is the only persistent roomba-side bookkeeping —
 # it prevents the berserk tint/speed buff from re-applying once the entry
@@ -144,7 +138,6 @@ func _physics_process(delta: float) -> void:
 		_drive_haunted_spray_bottle(delta)
 		_behavior.tick(delta, self)
 		_pump_abilities(delta)
-		_observe_angry_pigeon()
 		_observe_rogue_roomba()
 		_observe_catnip_dealer_burst()
 		_observe_haunted_spray_bottle()
@@ -317,7 +310,27 @@ func _consume_ability_payload(ability) -> void:
 	if ability.pending_hit_target != null:
 		var hit = ability.pending_hit_target
 		ability.pending_hit_target = null
-		_apply_ability_damage(hit)
+		# The Angry Pigeon's dive bomb never dealt direct contact damage
+		# pre-migration (issue #161 / #583) — _advance_charge only ever moved
+		# global_position, and the motion-override branch skipped the
+		# ATTACK-state contact-damage call while it ran. Only the hazard it
+		# dropped affected the player, and that hazard was always slow-only
+		# (0 damage-per-second). TelegraphedChargeAbility's own commit always
+		# resolves a hit for the lane's telegraph/geometry (Test 3 "zone is
+		# the hitbox" still exercises that at the ability level), but routing
+		# it into damage here for this one kind would be a retune the
+		# legibility-only migration must not make. Keyed by kind the same way
+		# the fire_target routing below tells Old Lady Pearl and the Catnip
+		# Dealer apart — every other TelegraphedChargeAbility consumer (Dog
+		# Knight, the Vacuum, Sir Pickleton) already dealt contact damage
+		# pre-migration, so this discard is scoped to the pigeon alone.
+		var is_pigeon_charge := (
+			data != null
+			and data.kind == EnemyData.EnemyKind.ANGRY_PIGEON
+			and ability is TelegraphedChargeAbility
+		)
+		if not is_pigeon_charge:
+			_apply_ability_damage(hit)
 	if ability.pending_pull_target != null:
 		var pulled = ability.pending_pull_target
 		ability.pending_pull_target = null
@@ -440,61 +453,6 @@ func flash_hit() -> void:
 	var tween := create_tween()
 	tween.tween_property(sprite, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.0)
 	tween.tween_property(sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
-
-# Bridges AngryPigeonBehavior state edges to scene-tree side effects: motion
-# trail Line2D during charge, FloorHazard slow zone and SPLAT FloatingText
-# on completion. No-ops when the active behavior is not the pigeon's.
-func _observe_angry_pigeon() -> void:
-	if not (_behavior is AngryPigeonBehavior):
-		return
-	var apb := _behavior as AngryPigeonBehavior
-	if apb.is_charging and not _pigeon_was_charging:
-		_start_pigeon_trail()
-	if apb.is_charging and _pigeon_trail != null:
-		_pigeon_trail.add_point(global_position)
-	if not apb.is_charging and _pigeon_was_charging:
-		_end_pigeon_trail()
-	_pigeon_was_charging = apb.is_charging
-	if apb.pending_hazard_position != null:
-		_spawn_pigeon_hazard(apb.pending_hazard_position)
-		apb.pending_hazard_position = null
-		FloatingText.spawn(self, "SPLAT")
-
-func _start_pigeon_trail() -> void:
-	if _pigeon_trail != null:
-		return
-	_pigeon_trail = Line2D.new()
-	_pigeon_trail.width = 3.0
-	_pigeon_trail.default_color = Color(1.0, 0.7, 0.7, 0.6)
-	_pigeon_trail.top_level = true
-	add_child(_pigeon_trail)
-	_pigeon_trail.add_point(global_position)
-
-func _end_pigeon_trail() -> void:
-	if _pigeon_trail == null:
-		return
-	# Fade-out tween so the trail lingers briefly post-impact. queue_free is
-	# called via the tween's finished signal so we don't strand a Line2D.
-	var trail := _pigeon_trail
-	_pigeon_trail = null
-	var tween := create_tween()
-	tween.tween_property(trail, "modulate:a", 0.0, 0.25)
-	tween.tween_callback(trail.queue_free)
-
-func _spawn_pigeon_hazard(pos: Vector2) -> void:
-	var parent := get_parent()
-	if parent == null:
-		return
-	var hazard := FloorHazard.new()
-	hazard.configure(
-		AngryPigeonBehavior.HAZARD_DURATION,
-		AngryPigeonBehavior.HAZARD_SLOW_PERCENT,
-		0.0,
-		AngryPigeonBehavior.HAZARD_RADIUS,
-		AngryPigeonBehavior.HAZARD_COLOR
-	)
-	hazard.global_position = pos
-	parent.add_child(hazard)
 
 # Zone denial (PRD #518 / issue #571). Parents a FloorHazard at the position
 # ZoneDenialAbility published, configured from the tuning the ability itself

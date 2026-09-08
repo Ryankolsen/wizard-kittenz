@@ -60,7 +60,11 @@ func test_for_kind_returns_independent_instances():
 
 
 # ---------------------------------------------------------------------------
-# AngryPigeonBehavior (issue #161) — dive-bomb charge state machine.
+# AngryPigeonBehavior (issue #161, migrated onto archetypes at #583) — the
+# hand-rolled dive-bomb charge state machine is gone. What's left of the
+# behavior itself is idle wander only; the dive and the hazard drop are now
+# the composed TelegraphedChargeAbility + ZoneDenialAbility (see the
+# "Angry Pigeon archetype migration" section near the end of this file).
 # ---------------------------------------------------------------------------
 
 class _MockEnemy:
@@ -75,17 +79,6 @@ class _MockEnemy:
 class _MockPlayer extends Node2D:
 	pass
 
-func test_angry_pigeon_charge_timer_counts_down():
-	# Issue #161 acceptance #1: charge ~every 4 seconds. Driving four 1.0s
-	# ticks against a mock without a player ref accrues the cooldown without
-	# auto-triggering the charge — wants_to_charge flips true at the threshold.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	for _i in range(4):
-		b.tick(1.0, e)
-	assert_true(b.wants_to_charge(), "cooldown should have elapsed after 4 ticks of 1.0s")
-
-
 func test_angry_pigeon_for_kind_dispatches_subclass():
 	# The for_kind factory should hand back an AngryPigeonBehavior for the
 	# ANGRY_PIGEON kind so the Enemy node's _ready wiring picks it up without
@@ -94,63 +87,17 @@ func test_angry_pigeon_for_kind_dispatches_subclass():
 	assert_true(b is AngryPigeonBehavior, "ANGRY_PIGEON kind must dispatch to AngryPigeonBehavior")
 
 
-func test_angry_pigeon_begin_charge_locks_target():
-	# Acceptance #2: charge locks a target position. begin_charge captures
-	# the coord and flips is_charging so the next tick advances toward it.
+func test_angry_pigeon_bespoke_charge_state_is_gone():
+	# Test 4 (retire the bespoke state machine, issue #583): the hand-rolled
+	# charge machinery is fully replaced by the composed archetypes — none of
+	# the old fields/methods should still exist on the behavior.
 	var b := AngryPigeonBehavior.new()
-	var target := Vector2(200.0, 50.0)
-	b.begin_charge(target)
-	assert_eq(b.charge_target, target, "charge_target should match the position passed in")
-	assert_true(b.is_charging, "is_charging should be true after begin_charge")
-	assert_false(b.charge_completed, "charge_completed should be reset at charge start")
-
-
-func test_angry_pigeon_charge_ends_on_arrival():
-	# Acceptance #3: charge completes when the enemy reaches the target.
-	# Drive ticks at a fixed delta and let the behavior step global_position
-	# toward charge_target — the arrival check inside tick should flip
-	# is_charging false once we're within ARRIVAL_DIST.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	e.global_position = Vector2.ZERO
-	b.begin_charge(Vector2(120.0, 0.0))
-	# CHARGE_SPEED=120 → 1.0s of travel covers the full 120 px in one tick.
-	# Add a couple of extra ticks as a safety net against floating-point drift.
-	for _i in range(3):
-		b.tick(0.5, e)
-		if not b.is_charging:
-			break
-	assert_false(b.is_charging, "charge should have ended after arrival")
-	assert_true(b.charge_completed, "charge_completed should be set on arrival")
-	assert_eq(e.global_position, Vector2(120.0, 0.0), "enemy should be snapped to target on completion")
-
-
-func test_angry_pigeon_pending_hazard_position_set_on_completion():
-	# Acceptance #4: on charge completion the impact point is published as
-	# `pending_hazard_position` so the Enemy-side observer can spawn the
-	# FloorHazard. The data handoff is what we test here; the scene-tree
-	# spawn lives in the integration layer.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	var impact := Vector2(80.0, 80.0)
-	b.begin_charge(impact)
-	# One tick at 1.0s covers 120 px > 80*sqrt(2) ≈ 113 px, so arrival
-	# triggers and pending_hazard_position should be the impact point.
-	b.tick(1.0, e)
-	assert_not_null(b.pending_hazard_position, "pending_hazard_position should be set after completion")
-	assert_eq(b.pending_hazard_position, impact, "pending_hazard_position should equal the impact point")
-
-
-func test_angry_pigeon_dead_enemy_skips_charge():
-	# Acceptance #6: a dead pigeon must not accrue cooldown or begin a
-	# charge — the DEAD state is the sink the rest of the AI honors.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	e.state = 3  # EnemyAIState.State.DEAD
-	for _i in range(6):
-		b.tick(1.0, e)
-	assert_false(b.wants_to_charge(), "dead enemy should never want to charge")
-	assert_false(b.is_charging, "dead enemy should never be charging")
+	assert_false(b.has_method("begin_charge"), "begin_charge should be removed")
+	assert_false(b.has_method("wants_to_charge"), "wants_to_charge should be removed")
+	assert_null(b.get("charge_target"), "charge_target field should be removed")
+	assert_null(b.get("charge_completed"), "charge_completed field should be removed")
+	assert_null(b.get("is_charging"), "is_charging field should be removed")
+	assert_null(b.get("pending_hazard_position"), "pending_hazard_position field should be removed")
 
 
 # ---------------------------------------------------------------------------
@@ -669,57 +616,6 @@ func test_aggro_gate_predicate():
 	assert_false(EnemyBehavior.is_aggroed(null), "null enemy must not count as aggroed")
 
 
-func test_angry_pigeon_idle_does_not_charge():
-	# Cooldown elapses with a player ref present but state IDLE — the dive
-	# must not initiate, and wants_to_charge must stay false because cooldown
-	# never accrues outside aggro.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	e.state = 0  # IDLE
-	var p := _MockPlayer.new()
-	p.global_position = Vector2(40.0, 0.0)
-	e._player_ref = p
-	for _i in range(6):
-		b.tick(1.0, e)
-	assert_false(b.is_charging, "IDLE pigeon must not begin a dive bomb")
-	assert_false(b.wants_to_charge(), "IDLE pigeon must not accrue charge cooldown")
-
-
-func test_angry_pigeon_chase_still_charges():
-	# Regression guard: with the gate in place, the existing CHASE-state path
-	# still initiates the dive once cooldown elapses and a player ref is set.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	e.state = 1  # CHASE
-	var p := _MockPlayer.new()
-	p.global_position = Vector2(40.0, 0.0)
-	e._player_ref = p
-	# 4 ticks of 1.0s lands exactly on CHARGE_COOLDOWN; begin_charge fires on
-	# tick 4 and a 5th tick would advance/complete the charge (player is only
-	# 40px away vs. 120px/s step), so cap the loop short of completion.
-	for _i in range(4):
-		b.tick(1.0, e)
-	assert_true(b.is_charging, "CHASE pigeon should still initiate dive after cooldown")
-
-
-func test_angry_pigeon_committed_charge_completes_after_leaving_range():
-	# Acceptance: a charge begun while aggroed completes even if the player
-	# leaves detection range mid-dive. Begin charge in CHASE, flip to IDLE,
-	# and the in-progress charge must still advance to completion.
-	var b := AngryPigeonBehavior.new()
-	var e := _MockEnemy.new()
-	e.state = 1  # CHASE
-	e.global_position = Vector2.ZERO
-	b.begin_charge(Vector2(120.0, 0.0))
-	e.state = 0  # IDLE — player left range mid-dive
-	for _i in range(3):
-		b.tick(0.5, e)
-		if not b.is_charging:
-			break
-	assert_false(b.is_charging, "in-progress charge must complete even after de-aggro")
-	assert_true(b.charge_completed, "charge_completed should be set on arrival")
-
-
 func test_dog_knight_charge_ability_idle_does_not_charge():
 	# Ported from the pre-migration behaviour-owned gate (issue #581): same
 	# pattern as pigeon, now enforced by EnemyAbility's shared aggro gate
@@ -890,19 +786,30 @@ func test_angry_pigeon_idle_velocity_produces_motion_in_idle():
 		"pacer idle hook should produce non-zero motion over time")
 
 
-func test_angry_pigeon_idle_velocity_suppressed_during_dive():
-	# Edge case #4: when the pigeon is mid-dive (is_overriding_motion true), the
-	# idle pacer path must not drive motion — the dive owns global_position.
+func test_angry_pigeon_idle_velocity_suppressed_while_charge_ability_is_dashing():
+	# Ported from the pre-migration is_charging assertion (issue #583): the
+	# idle pacer path must not drive motion while the composed
+	# TelegraphedChargeAbility owns motion — same pattern as the Dog Knight's
+	# equivalent post-migration test.
 	var b := AngryPigeonBehavior.new()
+	var ability = AbilityLoadout.angry_pigeon_loadout()[0]
+	b.abilities = [ability]
 	var e := _MockIdleEnemy.new()
 	e.data = _MockIdleData.new()
-	b.begin_charge(Vector2(200.0, 0.0))
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	# Advance into the commit phase (windup=1.0s), where is_overriding_motion
+	# must be true.
+	for _i in range(21):
+		ability.tick(0.05, e)
 	assert_true(b.is_overriding_motion(),
-		"precondition: dive should make is_overriding_motion true")
-	for _i in range(20):
+		"precondition: the committed charge should make is_overriding_motion true")
+	for _i in range(5):
 		var v: Vector2 = b.idle_velocity(e, 0.05)
 		assert_eq(v, Vector2.ZERO,
-			"idle velocity must be zero while dive override is active")
+			"idle velocity must be zero while the charge ability owns motion")
 
 
 func test_angry_pigeon_idle_velocity_is_zero_when_aggroed():
@@ -1410,3 +1317,197 @@ func test_big_bruiser_buster_loadout_includes_ground_slam():
 		if ability is GroundSlamAbility:
 			has_ground_slam = true
 	assert_true(has_ground_slam, "Big Bruiser Buster's loadout must include ground slam")
+
+
+# ---------------------------------------------------------------------------
+# Angry Pigeon telegraphed-charge + zone-denial migration (PRD #518 / issue
+# #583). The retired AngryPigeonBehavior declared CHARGE_COOLDOWN = 4.0,
+# CHARGE_SPEED = 120.0 px/s, HAZARD_DURATION = 3.0, HAZARD_SLOW_PERCENT = 0.5,
+# HAZARD_RADIUS = 32.0 and HAZARD_COLOR = Color(0.6, 0.5, 0.7, 0.4) (with an
+# implicit 0.0 hazard damage-per-second — the hazard only ever slowed, it
+# never dealt damage). The migration restates all of those numbers on the
+# composed TelegraphedChargeAbility + ZoneDenialAbility rather than retuning
+# them; only the wind-up/fade/lane-width/zone-radius/cap tuning is new
+# legibility the hand-rolled dive never had.
+# ---------------------------------------------------------------------------
+
+func test_angry_pigeon_loadout_is_exactly_charge_and_zone_denial():
+	# Test 1 (core wiring / loadout): mirrors the Dog Knight/Tyrone loadout
+	# assertions above. The Angry Pigeon's kind resolves through
+	# AbilityLoadout.for_enemy to exactly a telegraphed charge and a
+	# zone-denial archetype, in that order.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ANGRY_PIGEON, false)
+	assert_eq(abilities.size(), 2, "the Angry Pigeon composes exactly two archetypes")
+	assert_true(abilities[0] is TelegraphedChargeAbility,
+		"the Angry Pigeon's first archetype is the telegraphed charge")
+	assert_true(abilities[1] is ZoneDenialAbility,
+		"the Angry Pigeon's second archetype is zone denial")
+
+
+func test_angry_pigeon_charge_tuning_restates_the_pre_migration_values():
+	# Test 2 (tuning preserved): the retired CHARGE_COOLDOWN and CHARGE_SPEED
+	# must be restated, not retuned.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	assert_almost_eq(ability.cooldown(), 4.0, 0.0001,
+		"charge cooldown must restate the retired CHARGE_COOLDOWN")
+
+	# Dash speed has no dedicated field — TelegraphedChargeAbility.drive_motion
+	# paces the dash as lane_length / commit_duration — so measure it directly,
+	# same technique as the Dog Knight's post-migration tuning test.
+	var e := _MockEnemy.new()
+	e.global_position = Vector2.ZERO
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	for _i in range(100):
+		ability.tick(0.01, e)
+		if ability.is_overriding_motion():
+			ability.drive_motion(0.01, e)
+	var commit_start_position: Vector2 = e.global_position
+	for _i in range(100):
+		ability.tick(0.01, e)
+		if ability.is_overriding_motion():
+			ability.drive_motion(0.01, e)
+	var travelled := e.global_position.distance_to(commit_start_position)
+	assert_almost_eq(travelled / ability.commit_duration(), 120.0, 2.0,
+		"dash speed (distance travelled / commit_duration) must restate CHARGE_SPEED")
+
+
+func test_angry_pigeon_hazard_tuning_restates_the_pre_migration_values():
+	# Test 2 continued: the retired hazard duration/slow/damage/radius/color
+	# must survive unchanged onto the composed ZoneDenialAbility.
+	var ability: ZoneDenialAbility = AbilityLoadout.angry_pigeon_loadout()[1]
+	assert_almost_eq(ability.hazard_duration(), 3.0, 0.0001,
+		"hazard duration must restate the retired HAZARD_DURATION")
+	assert_almost_eq(ability.hazard_slow_percent(), 0.5, 0.0001,
+		"hazard slow percent must restate the retired HAZARD_SLOW_PERCENT")
+	assert_almost_eq(ability.hazard_damage_per_sec(), 0.0, 0.0001,
+		"hazard damage per second must restate the retired (zero) value")
+	assert_almost_eq(ability.hazard_radius(), 32.0, 0.0001,
+		"hazard radius must restate the retired HAZARD_RADIUS")
+	assert_eq(ability.hazard_color(), Color(0.6, 0.5, 0.7, 0.4),
+		"hazard color must restate the retired HAZARD_COLOR")
+
+
+func test_angry_pigeon_charge_zone_is_the_hitbox():
+	# Test 3 (zone is the hitbox): a player standing on the lane at commit is
+	# hit; the same player offset beyond the half-width is not. This asserts
+	# the ability's own lane geometry/resolve_hit — the same mechanism every
+	# other TelegraphedChargeAbility consumer relies on for its telegraph —
+	# not that the pigeon deals player damage. Enemy._consume_ability_payload
+	# is what discards this hit for ANGRY_PIGEON specifically so the migration
+	# doesn't introduce contact damage the hand-rolled dive never had; see
+	# test_angry_pigeon_charge_does_not_deal_direct_hit_damage in
+	# test_enemy_ai.gd for that node-level guarantee.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	for _i in range(60):
+		ability.tick(0.05, e)
+	assert_eq(ability.pending_hit_target, p,
+		"a player standing in the drawn lane must be hit when the charge commits")
+
+	var ability2: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e2 := _MockEnemy.new()
+	var p2: Node2D = autofree(Node2D.new())
+	p2.global_position = Vector2(100.0, 0.0)
+	e2._player_ref = p2
+	ability2.begin(e2)
+	p2.global_position = Vector2(100.0, ability2.lane_width() * 0.5 + 20.0)
+	for _i in range(60):
+		ability2.tick(0.05, e2)
+	assert_null(ability2.pending_hit_target,
+		"a player outside the drawn lane's half-width must not be hit")
+
+
+func test_angry_pigeon_charge_ability_cooldown_counts_down():
+	# Test 5 (behaviour survives): the ~4s dive cadence the retired
+	# wants_to_charge/tick pairing described is now the composed
+	# TelegraphedChargeAbility's own cooldown clock. Ported from the retired
+	# test_angry_pigeon_charge_timer_counts_down.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	for _i in range(4):
+		ability.tick(1.0, e)
+	assert_true(ability.wants_to_fire(), "cooldown should have elapsed after 4 ticks of 1.0s")
+
+
+func test_angry_pigeon_charge_ability_arrives_at_lane_end_by_commit():
+	# Test 5 (behaviour survives), continued: the retired _advance_charge
+	# snapped the enemy onto the locked target on arrival. The composed
+	# TelegraphedChargeAbility instead sweeps the locked lane and lands the
+	# enemy on its endpoint by the end of the commit window — same "arrival"
+	# concept, now expressed against the archetype's own lane geometry.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	e.global_position = Vector2.ZERO
+	var p: Node2D = autofree(Node2D.new())
+	p.global_position = Vector2(120.0, 0.0)
+	e._player_ref = p
+	ability.begin(e)
+	var expected_endpoint: Vector2 = ability.active_zone.endpoint()
+	# drive_motion is only called while the zone is still in its COMMIT phase
+	# (is_overriding_motion() flips false the instant it rolls into FADE), so
+	# the last 0.01s step of granularity is inherently left short of the exact
+	# endpoint — a wider tolerance here, not more ticks, is what accounts for
+	# that quantization (same discretization the Dog Knight's speed-ratio
+	# tuning test sidesteps by measuring distance/time instead of endpoint).
+	for _i in range(200):
+		ability.tick(0.01, e)
+		if ability.is_overriding_motion():
+			ability.drive_motion(0.01, e)
+	assert_almost_eq(e.global_position.x, expected_endpoint.x, 2.0,
+		"the dive should land the pigeon at the lane's endpoint by commit end")
+	assert_almost_eq(e.global_position.y, expected_endpoint.y, 2.0,
+		"the dive should land the pigeon at the lane's endpoint by commit end")
+
+
+func test_angry_pigeon_charge_ability_idle_enemy_publishes_no_zone():
+	# Test 6 (edge case): an IDLE Angry Pigeon must not telegraph.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	e.state = 0  # IDLE
+	for _i in range(10):
+		ability.tick(1.0, e)
+	assert_null(ability.active_zone, "an IDLE Angry Pigeon must not produce a danger zone")
+
+
+func test_angry_pigeon_charge_ability_dead_enemy_skips_charge():
+	# Test 6 (edge case), same shape as the Dog Knight's post-migration DEAD
+	# guard: DEAD is neither CHASE nor ATTACK, so EnemyAbility's shared aggro
+	# gate already blocks it.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	e.state = 3  # DEAD
+	for _i in range(6):
+		ability.tick(1.0, e)
+	assert_false(ability.wants_to_fire(), "a dead pigeon should never want to charge")
+	assert_null(ability.active_zone, "a dead pigeon should never produce a charge lane")
+
+
+func test_angry_pigeon_charge_ability_null_player_does_not_crash():
+	# Test 6 (edge case): no _player_ref set — begin must not crash and must
+	# not produce a zone.
+	var ability: TelegraphedChargeAbility = AbilityLoadout.angry_pigeon_loadout()[0]
+	var e := _MockEnemy.new()
+	ability.begin(e)
+	assert_null(ability.active_zone, "a charge with no player target must not produce a zone")
+
+
+func test_angry_pigeon_zone_denial_hazard_cap_honoured():
+	# Test 6 (edge case): the composed ZoneDenialAbility's own cap must be
+	# respected even under the pigeon's tuning — mirrors
+	# test_zone_denial_ability.gd's cap test, driven through the pigeon's
+	# actual loadout config rather than the archetype's bare defaults.
+	var ability: ZoneDenialAbility = AbilityLoadout.angry_pigeon_loadout()[1]
+	var e := _MockEnemy.new()
+	for _i in range(400):
+		ability.tick(0.5, e)
+		if ability.wants_to_fire():
+			ability.begin(e)
+		assert_true(ability.alive_hazard_count() <= 3,
+			"alive hazard count must never exceed the configured cap, got %d" % ability.alive_hazard_count())
