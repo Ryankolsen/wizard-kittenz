@@ -23,11 +23,6 @@ var _died_emitted: bool = false
 # free and trivially testable — same separation as Player._apply_wet_tint.
 var _pigeon_trail: Line2D = null
 var _pigeon_was_charging: bool = false
-# Rogue Roomba state (issue #162, retuned #262). Homing chase via the base
-# _chase path; this flag is the only persistent roomba-side bookkeeping —
-# it prevents the berserk tint/speed buff from re-applying once the entry
-# count crosses 0→1.
-var _roomba_berserk_applied: bool = false
 # Steal archetype (issue #572). Mirrors StealAbility.stolen_amount whenever a
 # theft lands, so the kill path (Player._handle_enemy_killed) has a plain
 # field to read rather than reaching back into the ability list — killing
@@ -145,12 +140,10 @@ func _physics_process(delta: float) -> void:
 	# velocity, spawn projectiles, drop hazards, etc. Default base impl no-ops.
 	# Skipped on DEAD so behaviors don't tick a freed node.
 	if _behavior != null and state != EnemyAIState.State.DEAD:
-		_drive_rogue_roomba(delta)
 		_drive_haunted_spray_bottle(delta)
 		_behavior.tick(delta, self)
 		_pump_abilities(delta)
 		_observe_angry_pigeon()
-		_observe_rogue_roomba()
 		_observe_catnip_dealer_burst()
 		_observe_haunted_spray_bottle()
 	if state != EnemyAIState.State.DEAD:
@@ -542,32 +535,6 @@ func _spawn_zone_denial_hazard(pos: Vector2, ability) -> void:
 	hazard.global_position = pos
 	parent.add_child(hazard)
 
-# Roomba motion driver (issue #162, retuned #262). Wall-bounce removed —
-# homing chase is handled by the base CHASE path's `_chase(player)` call,
-# which re-steers toward the player every physics frame using `move_speed`.
-# Berserk's speed bump just scales move_speed (see _observe_rogue_roomba),
-# which flows through `_chase` naturally. Hook retained as a no-op stub for
-# symmetry with the other per-kind drivers / future hooks.
-func _drive_rogue_roomba(_delta: float) -> void:
-	pass
-
-# Bridges RogueRoombaBehavior state edges to scene-tree side effects: damage
-# trail FloorHazard spawn, berserk tint / speed buff / FloatingText.
-func _observe_rogue_roomba() -> void:
-	if not (_behavior is RogueRoombaBehavior):
-		return
-	var rrb := _behavior as RogueRoombaBehavior
-	if rrb.pending_trail_spawn:
-		_spawn_roomba_trail()
-		rrb.pending_trail_spawn = false
-	if rrb.berserk_entry_count > 0 and not _roomba_berserk_applied:
-		_roomba_berserk_applied = true
-		var sprite := get_node_or_null("Sprite2D") as Sprite2D
-		if sprite != null:
-			sprite.modulate = RogueRoombaBehavior.BERSERK_TINT
-		move_speed *= RogueRoombaBehavior.BERSERK_SPEED_MULTIPLIER
-		FloatingText.spawn(self, "BERSERK", Color(1.0, 0.2, 0.2))
-
 # Bridges DogKnightBehavior state edges to scene-tree side effects: "BURP"
 # FloatingText on charge end, mead PowerUpPickup parented to the dungeon root
 # at the death position. No-op when the active behavior is not the dog
@@ -601,21 +568,6 @@ func _spawn_mead_pickup(pos: Vector2) -> void:
 	pickup.power_up_type = mead_type
 	pickup.global_position = pos
 	parent.call_deferred("add_child", pickup)
-
-func _spawn_roomba_trail() -> void:
-	var parent := get_parent()
-	if parent == null:
-		return
-	var hazard := FloorHazard.new()
-	hazard.configure(
-		RogueRoombaBehavior.TRAIL_DURATION,
-		0.0,
-		RogueRoombaBehavior.TRAIL_DAMAGE_PER_SEC,
-		RogueRoombaBehavior.TRAIL_RADIUS,
-		RogueRoombaBehavior.TRAIL_COLOR
-	)
-	hazard.global_position = global_position
-	parent.add_child(hazard)
 
 # Catnip Dealer kiting/fire cadence moved onto the composed
 # RetreatAndFireAbility (issue #582) — the pre-migration `_drive_catnip_dealer`

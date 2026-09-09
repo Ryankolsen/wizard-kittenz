@@ -49,6 +49,10 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return dj_dubstep_loadout()
 	if kind == EnemyData.EnemyKind.WARDEN_WRETCHED:
 		return warden_wretched_loadout()
+	if kind == EnemyData.EnemyKind.ROGUE_ROOMBA:
+		# is_vacuum already claimed the boss-flagged case above, so this only
+		# ever runs for the standard mob.
+		return rogue_roomba_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -249,4 +253,55 @@ static func warden_wretched_loadout() -> Array:
 			110.0                          # placement_radius: wider spread than
 			                               # Tyrone's/Larry's 90.0
 		),
+	]
+
+
+# Rogue Roomba (floor-1 standard mob / issue #584). Retires the hand-rolled
+# damage trail and one-shot berserk onto the shared archetypes -- the trail
+# was the clearest untelegraphed mechanic in the game (a FloorHazard strip
+# with no tell at all), so zone denial's draw-before-persist disc fixes that
+# for free; berserk is RogueRoombaBehavior's own precedent for enrage, so this
+# migration is the generalisation completing its own origin story.
+#
+# The retired RogueRoombaBehavior declared (values read off it before
+# deletion, restated here rather than retuned):
+#   TRAIL_INTERVAL = 0.3s, TRAIL_DURATION = 2.0s, TRAIL_DAMAGE_PER_SEC = 3.0,
+#   TRAIL_RADIUS = 20.0px, TRAIL_COLOR = Color(0.7, 0.4, 0.4, 0.4)
+#   BERSERK_HP_FRACTION = 0.3, BERSERK_SPEED_MULTIPLIER = 1.5
+# (no damage multiplier existed on the old berserk, so enrage's damage
+# multiplier is pinned to 1.0 here -- attack is untouched, matching the
+# retired behavior exactly).
+#
+# Placement radius is pinned to 0.0: the old trail always dropped directly
+# under the roomba (hazard.global_position = global_position, no offset), and
+# ZoneDenialAbility.roll_zone_origin rolls its offset in [0, placement_radius]
+# regardless of angle, so 0.0 reproduces "always exactly here" deterministically.
+#
+# Cadence-vs-legibility tension (flagged per the issue, not silently
+# resolved): TRAIL_INTERVAL's 0.3s cooldown is far denser than any other
+# zone-denial consumer's (Tyrone 6.0s, Larry 4.0s). A real disc telegraph
+# needs a nonzero wind-up to read as amber-to-red at all, so the true
+# steady-state gap between hazards is cooldown + windup + commit + fade, not
+# a bare 0.3s -- restating TRAIL_INTERVAL as the *cooldown* value (rather than
+# silently stretching it to make the full cycle equal 0.3s, which would be a
+# retune the issue puts out of scope) means the roomba's trail now drops at
+# roughly half its old real-world density once the minimal legible telegraph
+# (0.15s windup / 0.05s commit / 0.1s fade below) is added on top. See this
+# issue's final report for the explicit flag -- resolving the tension either
+# way is a tuning decision left to a follow-up, not this migration.
+static func rogue_roomba_loadout() -> Array:
+	return [
+		ZoneDenialAbility.new(
+			0.3,                            # cooldown_seconds: retired TRAIL_INTERVAL
+			0.15, 0.05, 0.1,                # windup/commit/fade: minimal legible telegraph
+			20.0,                           # zone_radius: matches the retired TRAIL_RADIUS footprint
+			2.0,                            # hazard_duration: retired TRAIL_DURATION
+			0.0,                            # hazard_slow_percent: the old trail never slowed
+			3.0,                            # hazard_damage_per_sec: retired TRAIL_DAMAGE_PER_SEC
+			20.0,                           # hazard_radius: retired TRAIL_RADIUS
+			Color(0.7, 0.4, 0.4, 0.4),      # hazard_color: retired TRAIL_COLOR
+			3,                              # cap: alive-hazard ceiling under the dense cadence
+			0.0                             # placement_radius: always directly under the roomba
+		),
+		EnrageAbility.new(0.3, 1.5, 1.0),  # BERSERK_HP_FRACTION, BERSERK_SPEED_MULTIPLIER, no damage change
 	]
