@@ -4,20 +4,20 @@ extends RefCounted
 # Pure mob-population module (#371). Given a seeded RNG and a Room type,
 # returns the list of enemy kinds the generator should stamp on that room.
 #
-# Rules (per PRD #369):
+# Rules (per PRD #369, floor-tier-gated per PRD #589 / issue #594):
 #   - TYPE_STANDARD: ~50% single-mob, ~50% multi-mob. Multi rolls a count
-#     uniformly in [MULTI_MIN, MULTI_MAX]. Each kind is drawn from the
-#     standard enemy roster.
+#     uniformly in [tier.mob_min, tier.mob_max] where tier is
+#     DungeonFloorTier.for_floor(floor_number). Each kind is drawn from
+#     tier.kind_pool.
 #   - TYPE_BOSS: exactly one kind. The actual boss kind is later overwritten
 #     by DungeonGenerator from BossRoster (per-floor lookup) — the planner
-#     just establishes the slot.
+#     just establishes the slot. This placeholder draw is NOT tier-gated; it
+#     always draws from the full DungeonGenerator.STANDARD_ENEMY_KINDS roster
+#     regardless of floor_number.
 #   - TYPE_START / TYPE_BAR / TYPE_POWERUP: empty list (no mobs).
 #
 # Pure / RNG-driven: same RNG state in -> same kinds out. The generator owns
 # RNG seeding so per-room population is deterministic per dungeon seed.
-
-const MULTI_MIN := 2
-const MULTI_MAX := 6
 
 # Elite roll (PRD #376 / issue #380). Each standard-mob spawn rolls
 # independently against this chance from the shared RNG. Bosses are never
@@ -31,32 +31,33 @@ const ELITE_LEVEL_BONUS_MAX: int = 5
 # Legacy kinds-only entry point. Kept for callers / tests that only need the
 # kind list; the dungeon generator uses plan_full_for_room_type (#380) so the
 # elite roll uses the same RNG without disturbing this function's contract.
-static func plan_for_room_type(rng: RandomNumberGenerator, room_type: String) -> Array:
+static func plan_for_room_type(rng: RandomNumberGenerator, room_type: String, floor_number: int = 1) -> Array:
 	var kinds: Array = []
 	if rng == null:
 		return kinds
 	match room_type:
 		Room.TYPE_STANDARD:
+			var tier := DungeonFloorTier.for_floor(floor_number)
 			var count := 1
 			# 50/50 single vs multi. randi() & 1 keeps the RNG sequence
 			# advancement minimal and avoids float bias from randf().
 			if (rng.randi() & 1) == 1:
-				count = rng.randi_range(MULTI_MIN, MULTI_MAX)
+				count = rng.randi_range(tier.mob_min, tier.mob_max)
 			for _i in range(count):
-				kinds.append(_pick_standard_kind(rng))
+				kinds.append(_pick_standard_kind(rng, tier.kind_pool))
 		Room.TYPE_BOSS:
 			# Placeholder slot — DungeonGenerator overwrites this with the
-			# per-floor BossRoster kind. Drawing from the standard roster
-			# here keeps the planner self-contained and the count == 1
-			# contract testable without coupling to BossRoster.
-			kinds.append(_pick_standard_kind(rng))
+			# per-floor BossRoster kind. Drawing from the full standard
+			# roster (not tier-gated) here keeps the planner self-contained
+			# and the count == 1 contract testable without coupling to
+			# BossRoster.
+			kinds.append(_pick_standard_kind(rng, DungeonGenerator.STANDARD_ENEMY_KINDS))
 		_:
 			pass
 	return kinds
 
-static func _pick_standard_kind(rng: RandomNumberGenerator) -> int:
-	var roster: Array = DungeonGenerator.STANDARD_ENEMY_KINDS
-	return roster[rng.randi_range(0, roster.size() - 1)]
+static func _pick_standard_kind(rng: RandomNumberGenerator, pool: Array) -> int:
+	return pool[rng.randi_range(0, pool.size() - 1)]
 
 # Returns {kinds: Array[int], elites: Array[bool], elite_bonuses: Array[int]}
 # parallel arrays of length N (one entry per spawn). Used by DungeonGenerator
@@ -67,7 +68,7 @@ static func _pick_standard_kind(rng: RandomNumberGenerator) -> int:
 # (if elite) bonus_roll. Bosses skip both elite rolls entirely so they don't
 # consume RNG state and shift the next room's rolls. Non-combat rooms return
 # empty arrays without consuming RNG (matches plan_for_room_type).
-static func plan_full_for_room_type(rng: RandomNumberGenerator, room_type: String) -> Dictionary:
+static func plan_full_for_room_type(rng: RandomNumberGenerator, room_type: String, floor_number: int = 1) -> Dictionary:
 	var kinds: Array = []
 	var elites: Array = []
 	var bonuses: Array = []
@@ -75,11 +76,12 @@ static func plan_full_for_room_type(rng: RandomNumberGenerator, room_type: Strin
 		return {"kinds": kinds, "elites": elites, "elite_bonuses": bonuses}
 	match room_type:
 		Room.TYPE_STANDARD:
+			var tier := DungeonFloorTier.for_floor(floor_number)
 			var count := 1
 			if (rng.randi() & 1) == 1:
-				count = rng.randi_range(MULTI_MIN, MULTI_MAX)
+				count = rng.randi_range(tier.mob_min, tier.mob_max)
 			for _i in range(count):
-				kinds.append(_pick_standard_kind(rng))
+				kinds.append(_pick_standard_kind(rng, tier.kind_pool))
 				if rng.randf() < ELITE_CHANCE:
 					elites.append(true)
 					bonuses.append(rng.randi_range(ELITE_LEVEL_BONUS_MIN, ELITE_LEVEL_BONUS_MAX))
@@ -87,7 +89,7 @@ static func plan_full_for_room_type(rng: RandomNumberGenerator, room_type: Strin
 					elites.append(false)
 					bonuses.append(0)
 		Room.TYPE_BOSS:
-			kinds.append(_pick_standard_kind(rng))
+			kinds.append(_pick_standard_kind(rng, DungeonGenerator.STANDARD_ENEMY_KINDS))
 			elites.append(false)
 			bonuses.append(0)
 		_:

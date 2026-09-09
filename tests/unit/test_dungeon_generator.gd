@@ -337,8 +337,10 @@ func test_room_type_sequence_starts_with_start_ends_with_boss():
 # --- #371: per-room enemy_kinds list ---
 
 func test_room_enemy_kinds_populated_per_type_across_seeds():
-	# Standard rooms hold 1..MULTI_MAX kinds, boss exactly 1, non-combat empty.
-	# Across a single large dungeon there must be both single and multi rooms.
+	# Standard rooms hold 1..tier.mob_max kinds (floor 1, tier 1), boss
+	# exactly 1, non-combat empty. Across a single large dungeon there must
+	# be both single and multi rooms.
+	var tier := DungeonFloorTier.for_floor(1)
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
 		var d := DungeonGenerator.generate(s)
 		var saw_single := false
@@ -353,7 +355,7 @@ func test_room_enemy_kinds_populated_per_type_across_seeds():
 						"seed %d: boss enemy_kinds should be exactly 1" % s)
 				Room.TYPE_STANDARD:
 					var n: int = r.enemy_kinds.size()
-					assert_between(n, 1, RoomPopulationPlanner.MULTI_MAX,
+					assert_between(n, 1, tier.mob_max,
 						"seed %d: standard room %d kinds out of range" % [s, r.id])
 					for k in r.enemy_kinds:
 						assert_true(DungeonGenerator.STANDARD_ENEMY_KINDS.has(k),
@@ -364,6 +366,22 @@ func test_room_enemy_kinds_populated_per_type_across_seeds():
 						saw_multi = true
 		assert_true(saw_single, "seed %d: at least one single-mob standard room" % s)
 		assert_true(saw_multi, "seed %d: at least one multi-mob standard room" % s)
+
+func test_standard_room_kinds_respect_floor_tier_end_to_end():
+	# #594: standard-room enemy_kinds generated end-to-end via
+	# DungeonGenerator.generate() must respect the floor's tier kind_pool,
+	# not just the full 5-kind roster (which every tier's pool is trivially
+	# a subset of).
+	for floor_number in [3, 8, 15]:
+		var tier := DungeonFloorTier.for_floor(floor_number)
+		for s in [1, 2, 3, 7, 42]:
+			var d := DungeonGenerator.generate(s, floor_number)
+			for r in d.rooms:
+				if r.type != Room.TYPE_STANDARD:
+					continue
+				for k in r.enemy_kinds:
+					assert_true(tier.kind_pool.has(k),
+						"floor %d seed %d: standard room %d kind %s in tier pool" % [floor_number, s, r.id, k])
 
 func test_start_adjacent_standard_rooms_have_a_single_mob():
 	# Rooms directly connected to the start are the player's first encounters;

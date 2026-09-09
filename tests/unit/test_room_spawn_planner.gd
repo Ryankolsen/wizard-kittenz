@@ -823,12 +823,13 @@ func test_standard_rooms_never_emit_old_kind_names():
 func test_all_five_kinds_reachable_in_standard_pool():
 	# Probabilistic coverage: across many seeded dungeons, every one of the
 	# 5 new display names appears at least once as a standard-room enemy.
-	# The generator picks uniformly from STANDARD_ENEMY_KINDS, so 30 seeds
+	# Floor 15 (tier 3, #594) is the lowest floor whose kind_pool includes
+	# all 5 kinds; the generator picks uniformly from that pool, so 30 seeds
 	# x ~5 standard rooms each (~150 draws) gives effectively zero chance
 	# of a missed kind unless the pool itself is wrong.
 	var seen := {}
 	for seed in range(1, 60):
-		var dungeon := DungeonGenerator.generate(seed)
+		var dungeon := DungeonGenerator.generate(seed, 15)
 		for room in dungeon.rooms:
 			if room.type != Room.TYPE_STANDARD:
 				continue
