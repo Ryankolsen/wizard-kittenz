@@ -3,26 +3,47 @@ extends GutTest
 # --- Issue tests (5 acceptance scenarios) ---
 
 func test_generate_returns_min_to_max_rooms():
-	# Issue test 1: DungeonGenerator.generate() returns a graph with between
-	# MIN_ROOMS and MAX_ROOMS nodes inclusive. Run a handful of seeds to cover
-	# the range, not just one draw.
+	# Issue test 1: DungeonGenerator.generate() returns a graph within the
+	# floor-1 tier's room band (DungeonFloorTier is now the source of truth,
+	# not flat class constants). Run a handful of seeds to cover the range,
+	# not just one draw.
+	var tier := DungeonFloorTier.for_floor(1)
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
 		var d := DungeonGenerator.generate(s)
-		assert_between(d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS,
-			"seed %d produced %d rooms (expected %d..%d)" % [s, d.size(), DungeonGenerator.MIN_ROOMS, DungeonGenerator.MAX_ROOMS])
+		assert_between(d.size(), tier.min_rooms, tier.max_rooms,
+			"seed %d produced %d rooms (expected %d..%d)" % [s, d.size(), tier.min_rooms, tier.max_rooms])
 
-func test_room_count_band_is_100_to_150():
-	# #370: scaled dungeon lives in the ~100–150 room band.
-	assert_gte(DungeonGenerator.MIN_ROOMS, 100,
-		"MIN_ROOMS %d should be >= 100" % DungeonGenerator.MIN_ROOMS)
-	assert_lte(DungeonGenerator.MAX_ROOMS, 150,
-		"MAX_ROOMS %d should be <= 150" % DungeonGenerator.MAX_ROOMS)
+func test_room_count_scales_across_tiers():
+	# #591: room count is drawn from DungeonFloorTier.for_floor(floor_number)
+	# rather than a flat band, verified with one representative floor per
+	# tier across several seeds.
+	for floor_number in [3, 8, 15, 25]:
+		var tier := DungeonFloorTier.for_floor(floor_number)
+		for s in [1, 2, 3, 7, 42, 123, 9999]:
+			var d := DungeonGenerator.generate(s, floor_number)
+			assert_between(d.size(), tier.min_rooms, tier.max_rooms,
+				"floor %d seed %d produced %d rooms (expected %d..%d)" % [floor_number, s, d.size(), tier.min_rooms, tier.max_rooms])
+
+func test_room_count_scales_down_at_low_floors():
+	# #591: floor 3 (tier 1-5) produces the smallest room band, 25-40.
+	for s in [1, 2, 3, 7, 42]:
+		var d := DungeonGenerator.generate(s, 3)
+		assert_between(d.size(), 25, 40,
+			"seed %d at floor 3 produced %d rooms (expected 25..40)" % [s, d.size()])
+
+func test_room_count_scales_up_at_high_floors():
+	# #591: floor 25 (tier 20+) produces the largest room band, 170-220.
+	for s in [1, 2, 3, 7, 42]:
+		var d := DungeonGenerator.generate(s, 25)
+		assert_between(d.size(), 170, 220,
+			"seed %d at floor 25 produced %d rooms (expected 170..220)" % [s, d.size()])
 
 func test_structural_guarantees_at_scale():
-	# #370: across seeds, large dungeons still have exactly 1 start, 1 bar,
-	# 3 power-up, 1 boss, with growth landing in standard combat rooms.
+	# #370: across seeds, large dungeons (floor 15, tier 11-19) still have
+	# exactly 1 start, 1 bar, 3 power-up, 1 boss, with growth landing in
+	# standard combat rooms.
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
-		var d := DungeonGenerator.generate(s)
+		var d := DungeonGenerator.generate(s, 15)
 		var counts := {Room.TYPE_START: 0, Room.TYPE_BAR: 0, Room.TYPE_POWERUP: 0, Room.TYPE_BOSS: 0, Room.TYPE_STANDARD: 0}
 		for r in d.rooms:
 			counts[r.type] = counts.get(r.type, 0) + 1
@@ -35,14 +56,27 @@ func test_structural_guarantees_at_scale():
 
 func test_full_reachability_and_terminal_boss_at_scale():
 	# #370: every room reachable from start and boss has no outgoing edges
-	# at the larger scale.
+	# at the larger scale (floor 15, tier 11-19).
 	for s in [1, 2, 3, 7, 42, 123, 9999]:
-		var d := DungeonGenerator.generate(s)
+		var d := DungeonGenerator.generate(s, 15)
 		var visited := d.bfs_from_start()
 		assert_eq(visited.size(), d.size(),
 			"seed %d: BFS visited %d / %d rooms" % [s, visited.size(), d.size()])
 		assert_eq(d.boss_room().connections.size(), 0,
 			"seed %d: boss is terminal" % s)
+
+func test_smallest_tier_still_meets_minimum_standard_room_count():
+	# #591: the smallest tier (floor 3, ~25-40 rooms) still meets the
+	# minimum standard-combat-room invariant, to catch a regression if the
+	# tier-1 band were ever set too low.
+	for s in [1, 2, 3, 7, 42]:
+		var d := DungeonGenerator.generate(s, 3)
+		var standard_count := 0
+		for r in d.rooms:
+			if r.type == Room.TYPE_STANDARD:
+				standard_count += 1
+		assert_gte(standard_count, 4,
+			"seed %d at floor 3 produced only %d standard rooms (minimum 4 required)" % [s, standard_count])
 
 func test_every_dungeon_has_at_least_four_standard_combat_rooms():
 	# Minimum mob requirement: every dungeon must have at least 4 standard

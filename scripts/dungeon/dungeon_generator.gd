@@ -7,7 +7,8 @@ extends RefCounted
 # unseeded `generate()` calls diverge.
 #
 # Algorithm (random spanning tree with terminal boss + guaranteed bar):
-#   1. Pick room count N in [MIN_ROOMS, MAX_ROOMS] from the RNG.
+#   1. Pick room count N in [tier.min_rooms, tier.max_rooms] from the RNG,
+#      where tier is DungeonFloorTier.for_floor(floor_number) (#591).
 #   2. Room 0 is the start.
 #   3. The bar slot bar_id is always 1, so its only valid parent is the
 #      start room (0) — the bar is guaranteed one corridor-hop from the
@@ -30,9 +31,6 @@ extends RefCounted
 #      #151). Boss "difficulty" comes from the RoomSpawnPlanner boss stat
 #      multipliers, not from a separate stronger pool. A future per-dungeon
 #      data-driven enemy config will replace the constants below.
-
-const MIN_ROOMS := 100
-const MAX_ROOMS := 150
 
 # Standard rooms still draw a random kind from the full 5-kind roster
 # (PRD #151). All kinds share equal base stats this phase; per-room
@@ -59,7 +57,8 @@ static func generate(seed: int = -1, floor_number: int = 1) -> Dungeon:
 	else:
 		rng.seed = seed
 
-	var room_count := rng.randi_range(MIN_ROOMS, MAX_ROOMS)
+	var tier := DungeonFloorTier.for_floor(floor_number)
+	var room_count := rng.randi_range(tier.min_rooms, tier.max_rooms)
 	var dungeon := Dungeon.new()
 
 	# Room 0: start.
