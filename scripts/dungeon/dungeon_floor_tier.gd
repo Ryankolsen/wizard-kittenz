@@ -15,8 +15,8 @@ extends RefCounted
 #   floors 11-19 -> min_rooms 100, max_rooms 150, mob_min 2, mob_max 6,
 #     (matches today's DungeonGenerator.MIN_ROOMS/MAX_ROOMS and
 #     RoomPopulationPlanner.MULTI_MIN/MULTI_MAX exactly — a no-op tier)
-#                   kind_pool + DOG_KNIGHT (all 5 kinds — matches
-#                   DungeonGenerator.STANDARD_ENEMY_KINDS)
+#                   kind_pool + DOG_KNIGHT, in canonical roster position
+#                   (all 5 kinds — matches DungeonGenerator.STANDARD_ENEMY_KINDS)
 #   floors 20+   -> min_rooms 170, max_rooms 220, mob_min 3, mob_max 8
 #     (no upper bound)
 #                   kind_pool: same 5 kinds as floors 11-19
@@ -67,9 +67,9 @@ static func for_floor(floor_number: int) -> TierInfo:
 		info.kind_pool = [
 			EnemyData.EnemyKind.ANGRY_PIGEON,
 			EnemyData.EnemyKind.ROGUE_ROOMBA,
+			EnemyData.EnemyKind.DOG_KNIGHT,
 			EnemyData.EnemyKind.CATNIP_DEALER,
 			EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
-			EnemyData.EnemyKind.DOG_KNIGHT,
 		]
 	else:
 		info.min_rooms = 170
@@ -79,8 +79,8 @@ static func for_floor(floor_number: int) -> TierInfo:
 		info.kind_pool = [
 			EnemyData.EnemyKind.ANGRY_PIGEON,
 			EnemyData.EnemyKind.ROGUE_ROOMBA,
+			EnemyData.EnemyKind.DOG_KNIGHT,
 			EnemyData.EnemyKind.CATNIP_DEALER,
 			EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE,
-			EnemyData.EnemyKind.DOG_KNIGHT,
 		]
 	return info
