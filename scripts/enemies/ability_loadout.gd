@@ -55,6 +55,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return rogue_roomba_loadout()
 	if kind == EnemyData.EnemyKind.KARAOKE_KAREN:
 		return karaoke_karen_loadout()
+	if kind == EnemyData.EnemyKind.ANGRY_PIGEON:
+		return angry_pigeon_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -320,4 +322,43 @@ static func karaoke_karen_loadout() -> Array:
 	return [
 		ConeSprayAbility.new(),
 		SummonAddsAbility.new(),
+	]
+
+
+# Angry Pigeon (floor-1 standard mob / issue #583). Legibility pass only, not a
+# retune: the retired AngryPigeonBehavior's hand-rolled dive bomb committed
+# with no wind-up the player could read, then dropped a slow-only floor
+# hazard on impact. The migration keeps the same cadence and speed (retired
+# CHARGE_COOLDOWN = 4.0, CHARGE_SPEED = 120.0 px/s) and the same hazard
+# (retired HAZARD_DURATION = 3.0, HAZARD_SLOW_PERCENT = 0.5, HAZARD_RADIUS =
+# 32.0, HAZARD_COLOR = Color(0.6, 0.5, 0.7, 0.4), and an implicit 0.0
+# damage-per-second — the hazard only ever slowed, it never dealt damage)
+# while adding the uniform amber-to-red lane telegraph and disc telegraph
+# every other archetype already draws. Wind-up/fade/lane-width (a 1.0s
+# wind-up, a 1.0s commit sized so a 120.0 lane over that commit restates the
+# same 120.0 px/s dash, and a 24.0 lane width) are new legibility tuning the
+# hand-rolled dive never had, chosen the same way the Dog Knight's migration
+# (issue #581) restated its own retired speed. The zone-denial half keeps its
+# own cooldown/wind-up/commit/zone-radius/cap at ZoneDenialAbility's defaults
+# — same "nothing here is kind-specific yet beyond the hazard itself" stance
+# Trash Panda Tyrone's loadout took (issue #571) — only the hazard's own
+# duration/slow/damage/radius/color are the pigeon's preserved numbers.
+#
+# Direct-hit damage parity (issue #583 fix-mode round 2): unlike Dog Knight's
+# pre-migration charge (which already dealt contact damage, so composing
+# TelegraphedChargeAbility there was like-for-like), the pigeon's dive bomb
+# never damaged the player on the dive itself — only the dropped hazard did,
+# and that hazard dealt 0 damage. TelegraphedChargeAbility's shared commit
+# still resolves a hit against the lane (needed for the lane telegraph and
+# for Test 3's "zone is the hitbox" geometry assertion), but Enemy._consume_
+# ability_payload discards that hit for exactly (ANGRY_PIGEON, this ability)
+# rather than routing it into damage, so the migration cannot introduce a hit
+# the hand-rolled dive never had.
+static func angry_pigeon_loadout() -> Array:
+	return [
+		TelegraphedChargeAbility.new(4.0, 1.0, 1.0, 0.3, 120.0, 24.0),
+		ZoneDenialAbility.new(
+			6.0, 0.7, 0.2, 0.3, 36.0,
+			3.0, 0.5, 0.0, 32.0, Color(0.6, 0.5, 0.7, 0.4)
+		),
 	]

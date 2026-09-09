@@ -450,3 +450,31 @@ func test_boss_enemy_pumps_its_abilities_and_parents_a_danger_zone_renderer():
 			# nothing runs _process here, so tidy them up by hand.
 			child.queue_free()
 	assert_gt(renderers, 0, "a pumped boss ability must parent a danger-zone renderer")
+
+
+func test_angry_pigeon_charge_does_not_deal_direct_hit_damage():
+	# Regression (issue #583 fix-mode round 2): the retired AngryPigeonBehavior's
+	# hand-rolled dive bomb never dealt contact damage on the dive itself — only
+	# its dropped hazard affected the player, and that hazard was 0 damage-per-
+	# second. TelegraphedChargeAbility's shared commit always resolves a hit for
+	# the lane telegraph (proven at the ability level by
+	# test_angry_pigeon_charge_zone_is_the_hitbox in test_enemy_behavior.gd),
+	# but the migration must not let that hit reach the player as damage for
+	# this kind. Drives the real Enemy node's ability pump end to end — same
+	# shape as test_boss_enemy_pumps_its_abilities_and_parents_a_danger_zone_
+	# renderer above — with a real Player standing in the lane, and asserts hp
+	# is untouched even once the charge has committed.
+	var e := _make_enemy()  # ANGRY_PIGEON by default
+	add_child_autofree(e)
+	e.global_position = Vector2.ZERO
+	var char_data := CharacterData.make_new(CharacterData.CharacterClass.CHONK_KITTEN, "Target")
+	var player := _make_player_with(char_data)
+	player.global_position = Vector2(30.0, 0.0)
+	e._player_ref = player
+	e.state = _State.CHASE
+	var starting_hp: int = char_data.hp
+	assert_gt(starting_hp, 0, "precondition: the target must start alive")
+	for _i in range(600):
+		e._pump_abilities(1.0 / 60.0)
+	assert_eq(char_data.hp, starting_hp,
+		"the Angry Pigeon's charge must not deal direct hit damage to a player standing in its lane")
