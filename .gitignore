@@ -36,3 +36,7 @@ nakama.env
 
 # Local screenshot working files / skill
 /screenshots/
+
+# Nested IntelliJ project IntelliJ creates when .claude/ is opened/browsed
+# as its own module root — unrelated to the tracked top-level .idea/.
+/.claude/.idea/
