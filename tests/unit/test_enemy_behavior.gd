@@ -1888,3 +1888,73 @@ func test_the_bouncer_loadout_resolves_to_exactly_shielded_front_and_knockback_s
 			fail_test("The Bouncer's loadout must not contain any archetype besides shielded front and knockback shove")
 	assert_true(has_shielded_front, "The Bouncer's loadout must include shielded front")
 	assert_true(has_knockback_shove, "The Bouncer's loadout must include knockback shove")
+
+
+# ---------------------------------------------------------------------------
+# Retiring the pre-archetype placeholder ability shim (PRD #518 / issue
+# #586). With Dog Knight (#581), Catnip Dealer (#582), Angry Pigeon (#583),
+# Rogue Roomba (#584) and Haunted Spray Bottle (#585) all migrated, no
+# EnemyKind should resolve to the shim any more, and every kind must produce
+# a real, non-empty archetype list. The shim class itself is deleted (issue
+# #586), so "not the shim" is asserted structurally here -- every returned
+# ability must respond to the same "tick/is_overriding_motion/wants_to_fire"
+# ability contract every real archetype implements -- rather than by an `is`
+# check against the now-deleted class.
+# Tests 1-2 sweep the whole enum (both is_boss settings) in one assertion,
+# matching test_for_kind_returns_non_null_for_every_enum_value's enum-driven
+# shape. Test 3 is user story 42 (bosses route through the identical
+# factory, no is_boss short-circuit). Test 4 covers the out-of-range edge
+# case.
+# ---------------------------------------------------------------------------
+
+func test_ability_loadout_never_returns_an_empty_list_for_any_kind():
+	# Tests 1 + 2 (core wiring + non-empty): every EnemyKind at both is_boss
+	# settings must resolve to a real, non-empty archetype list. Deleting the
+	# placeholder ability shim (issue #586) removed the only path that could
+	# ever have left a kind with nothing to pump -- so an empty list here
+	# would mean some kind fell through every real branch.
+	for kind in EnemyData.EnemyKind.values():
+		for is_boss in [false, true]:
+			var abilities := AbilityLoadout.for_enemy(kind, is_boss)
+			assert_false(abilities.is_empty(),
+				"AbilityLoadout.for_enemy(%d, %s) must not return an empty list" % [kind, is_boss])
+			for ability in abilities:
+				assert_true(ability.has_method("wants_to_fire"),
+					"AbilityLoadout.for_enemy(%d, %s) must return real archetype instances" % [kind, is_boss])
+
+
+func test_bosses_and_standard_mobs_share_the_identical_ability_loadout_factory():
+	# Test 3 (user story 42): a boss kind (THE_BOUNCER, is_boss=true) and a
+	# standard kind (ANGRY_PIGEON, is_boss=false) both resolve through the same
+	# AbilityLoadout.for_enemy call path -- no separate is_boss branch forces
+	# either onto a base/legacy behavior. Both must return real, non-empty
+	# loadouts, proving there is no special-cased short-circuit for bosses
+	# that bypasses the loadout table.
+	var boss_abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.THE_BOUNCER, true)
+	var mob_abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.ANGRY_PIGEON, false)
+	assert_false(boss_abilities.is_empty(), "the boss kind must resolve to a real loadout")
+	assert_false(mob_abilities.is_empty(), "the standard kind must resolve to a real loadout")
+	# EnemyBehavior.for_data (the Enemy node's own call site) also stamps its
+	# ability loadout from the identical AbilityLoadout.for_enemy factory for
+	# both, rather than a boss-only or mob-only code path.
+	var boss_data := EnemyData.make_new(EnemyData.EnemyKind.THE_BOUNCER)
+	boss_data.is_boss = true
+	var mob_data := EnemyData.make_new(EnemyData.EnemyKind.ANGRY_PIGEON)
+	mob_data.is_boss = false
+	var boss_behavior := EnemyBehavior.for_data(boss_data)
+	var mob_behavior := EnemyBehavior.for_data(mob_data)
+	assert_false(boss_behavior.abilities.is_empty(), "for_data must stamp a real loadout for the boss")
+	assert_false(mob_behavior.abilities.is_empty(), "for_data must stamp a real loadout for the standard mob")
+
+
+func test_ability_loadout_out_of_range_kind_resolves_without_crashing():
+	# Test 4 (edge case): an out-of-range kind integer must not crash
+	# AbilityLoadout.for_enemy and must still return a non-empty list, at
+	# either is_boss setting.
+	var out_of_range_kind: int = int(EnemyData.EnemyKind.values().max()) + 1000
+	var abilities_standard := AbilityLoadout.for_enemy(out_of_range_kind, false)
+	assert_false(abilities_standard.is_empty(),
+		"an out-of-range kind must still resolve to a non-empty loadout")
+	var abilities_boss := AbilityLoadout.for_enemy(out_of_range_kind, true)
+	assert_false(abilities_boss.is_empty(),
+		"an out-of-range kind must still resolve to a non-empty loadout at is_boss=true")

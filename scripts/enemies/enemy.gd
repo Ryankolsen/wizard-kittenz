@@ -265,10 +265,13 @@ func _apply_routed_damage(player: Player) -> void:
 # The pump owns only the scene-side work an ability cannot do from a RefCounted:
 # parenting the telegraph renderer and routing damage through CoopRouter.
 #
-# The per-kind _drive_* / _observe_* helpers below are the pre-archetype
-# mechanics of the five standard mobs; issues #534-#545 convert them into
-# archetypes and delete them. Until then their loadout is a single inert
-# LegacyBehaviorAbility, so this loop is a no-op for them.
+# The per-kind _drive_* / _observe_* helpers below are NOT hand-rolled AI
+# decision logic (issue #586 confirmed no such branch pair remains): every
+# kind's move/target/cooldown decisions are made by the composed archetypes
+# above and driven by this one generic loop. What remains is scene-tree glue
+# a RefCounted ability cannot do for itself -- spawning a projectile/pickup
+# node, routing a payload into a kind's own debuff, or bridging a behavior's
+# death-edge state -- documented at each helper's own definition.
 func _pump_abilities(delta: float) -> void:
 	if _behavior == null or _behavior.abilities.is_empty():
 		return

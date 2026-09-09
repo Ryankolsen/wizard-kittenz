@@ -9,11 +9,13 @@ extends RefCounted
 # floor-1 Vacuum: the standard roomba keeps its own moves, the Vacuum composes
 # Pull + Telegraphed charge.
 #
-# Exhaustive over EnemyKind, mirroring EnemyBehavior.for_kind. Kinds whose
-# archetype conversion lands in later issues (#534-#545) answer with a single
-# LegacyBehaviorAbility standing for "this kind's existing bespoke behavior
-# already drives its moves" — the list is never empty, so the Enemy node's
-# generic pump always has something to drive and never needs a per-kind branch.
+# Exhaustive over EnemyKind, mirroring EnemyBehavior.for_kind. Every kind now
+# returns a real, non-empty archetype list (issue #586 retired the tracer
+# slice's inert placeholder shim once the last five standard mobs -- Dog
+# Knight #581, Catnip Dealer #582, Angry Pigeon #583, Rogue Roomba #584,
+# Haunted Spray Bottle #585 -- migrated off hand-rolled behavior). The list
+# is never empty, so the Enemy node's generic pump always has something to
+# drive and never needs a per-kind branch.
 
 # Single authority for "is this (kind, is_boss) pair the Vacuum?" (issue
 # #567). BossRoster reuses EnemyKind.ROGUE_ROOMBA for the floor-1 Vacuum boss,
@@ -61,7 +63,16 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return haunted_spray_bottle_loadout()
 	if kind == EnemyData.EnemyKind.THE_BOUNCER:
 		return the_bouncer_loadout()
-	return [LegacyBehaviorAbility.new()]
+	# Every valid EnemyKind is handled explicitly above (issue #586 retired the
+	# tracer slice's inert placeholder shim once the last five standard mobs
+	# migrated).
+	# This is unreachable for any real EnemyKind value; it exists only so a
+	# corrupted/out-of-range kind integer (e.g. a stale save) still resolves
+	# to a real, non-empty loadout instead of crashing the ability pump.
+	# ANGRY_PIGEON is the codebase's established default kind for exactly this
+	# situation (see Enemy._ready's EnemyData.make_new fallback and
+	# _TEXTURE_BY_KIND.get's default texture).
+	return angry_pigeon_loadout()
 
 
 # The Vacuum (floor 1). Pull teaches spacing, the telegraphed charge teaches
