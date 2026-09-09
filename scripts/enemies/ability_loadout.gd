@@ -45,6 +45,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return big_bruiser_buster_loadout()
 	if kind == EnemyData.EnemyKind.LAST_CALL_LARRY:
 		return larry_loadout()
+	if kind == EnemyData.EnemyKind.THE_BOUNCER:
+		return the_bouncer_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -167,4 +169,24 @@ static func larry_loadout() -> Array:
 			90.0                        # placement_radius: unchanged from Tyrone's
 		),
 		EnrageAbility.new(),
+	]
+
+
+# The Bouncer (floor-7 boss / issues #577 + #578). Complete: shielded front is
+# the roster's only directional weakness -- getting behind him is the whole
+# fight -- and knockback shove is Buster's archetype reused unmodified with
+# the Bouncer's own tuning: harder (more displacement) and more frequent
+# (shorter cooldown) than Buster's defaults, because the shove is what keeps
+# pushing the player back around to the shielded front, so the flank has to
+# be re-earned. Defaults inherited from ShieldedFrontAbility's own tuning --
+# nothing there is Bouncer-specific yet.
+static func the_bouncer_loadout() -> Array:
+	return [
+		ShieldedFrontAbility.new(),
+		KnockbackShoveAbility.new(
+			2.5,   # cooldown_seconds: shorter than Buster's default 4.0
+			0.35, 0.15, 0.2,  # windup/commit/fade: unchanged from Buster's
+			70.0,  # melee_range: unchanged from Buster's
+			130.0  # knockback_distance: harder than Buster's default 90.0
+		),
 	]

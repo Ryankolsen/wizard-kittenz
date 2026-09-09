@@ -826,6 +826,11 @@ func _apply_melee_damage() -> void:
 		var node := area.get_parent()
 		if node is Enemy and node.data != null and node.data.is_alive():
 			var dealt := DamageResolver.apply(data, node.data)
+			# Shielded-front (issue #578): a hit landing inside The Bouncer's
+			# frontal shield is refunded back down to the reduced amount.
+			# No-op for every enemy kind but him (see Enemy.apply_shield_reduction).
+			if dealt > 0:
+				dealt = (node as Enemy).apply_shield_reduction(dealt, global_position)
 			# PRD #85 / issue #91: surface "Miss" on a failed physical hit.
 			# DamageResolver returns 0 on miss (HitResolver) or evade
 			# (target.evasion); both render the same indicator. Skip when
@@ -886,6 +891,11 @@ func _apply_spell_basic_damage() -> void:
 		var node := area.get_parent()
 		if node is Enemy and node.data != null and node.data.is_alive():
 			var dealt := DamageResolver.apply(data, node.data)
+			# Shielded-front (issue #578): see _apply_melee_damage above —
+			# this is the wizard basic/auto-CAST half of the three paths that
+			# converge on Enemy.apply_shield_reduction.
+			if dealt > 0:
+				dealt = (node as Enemy).apply_shield_reduction(dealt, global_position)
 			if dealt == 0 and data != null and data.attack > 0:
 				FloatingText.spawn(node, "Miss")
 			elif dealt > 0:
@@ -937,6 +947,14 @@ func _apply_spell_effect(spell: Spell) -> void:
 		if n.data == null:
 			continue
 		var dealt: int = hp_before[i] - n.data.hp
+		# Shielded-front (issue #578): see _apply_melee_damage above — this is
+		# the cast-quickbar-spell half of the three paths that converge on
+		# Enemy.apply_shield_reduction. SpellEffectResolver.apply already
+		# subtracted `dealt` from n.data.hp via the hp_before/hp_after diff
+		# above; refund the shielded portion the same way the other two call
+		# sites do before it's shown/broadcast/used for the kill check.
+		if dealt > 0:
+			dealt = n.apply_shield_reduction(dealt, global_position)
 		if dealt > 0:
 			FloatingText.spawn_at(n, str(dealt), DamageKind.color_for(DamageKind.Kind.MAGIC))
 			_broadcast_damage(n.data.enemy_id, dealt, DamageKind.Kind.MAGIC)

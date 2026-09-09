@@ -1489,3 +1489,30 @@ func test_enrage_is_confined_to_the_two_allowed_boss_kinds():
 		"Last Call Larry must carry enrage")
 	assert_lte(enrage_kinds.size(), 2,
 		"enrage must never be carried by more than the two allowed boss kinds")
+
+
+# ---------------------------------------------------------------------------
+# The Bouncer / shielded-front + knockback-shove archetypes (PRD #518 /
+# issues #577 + #578). Complete: shielded front is the roster's only
+# directional weakness, and knockback shove (Buster's archetype, retuned)
+# keeps undoing the flank so it has to be re-earned.
+# ---------------------------------------------------------------------------
+
+func test_the_bouncer_loadout_resolves_to_exactly_shielded_front_and_knockback_shove():
+	# Test 9 (loadout, issue #578): mirrors the Pickleton/Pearl/Tyrone/Buster/
+	# Larry loadout assertions above. The Bouncer's kind resolves through
+	# AbilityLoadout.for_enemy to exactly a ShieldedFrontAbility and a
+	# KnockbackShoveAbility -- nothing else.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.THE_BOUNCER, true)
+	assert_eq(abilities.size(), 2, "The Bouncer's loadout must contain exactly two abilities")
+	var has_shielded_front := false
+	var has_knockback_shove := false
+	for ability in abilities:
+		if ability is ShieldedFrontAbility:
+			has_shielded_front = true
+		elif ability is KnockbackShoveAbility:
+			has_knockback_shove = true
+		else:
+			fail_test("The Bouncer's loadout must not contain any archetype besides shielded front and knockback shove")
+	assert_true(has_shielded_front, "The Bouncer's loadout must include shielded front")
+	assert_true(has_knockback_shove, "The Bouncer's loadout must include knockback shove")

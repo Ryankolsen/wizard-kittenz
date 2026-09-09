@@ -467,6 +467,36 @@ func flash_hit() -> void:
 	tween.tween_property(sprite, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.0)
 	tween.tween_property(sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
 
+
+# Shielded-front reduction hook (PRD #518 / issue #578). `dealt` has already
+# been subtracted from data.hp by DamageResolver.apply by the time either
+# caller reaches this — DamageResolver's signature is shared by every actor
+# in the game that takes damage (Player, Hooman, thorns reflection...) and
+# has no concept of attacker position, so threading one through would widen
+# that contract for everyone rather than just The Bouncer. Refunding the
+# shielded portion back onto data.hp after the fact lands on the identical
+# final number without touching DamageResolver at all. This is the one place
+# every one of the player's damage-dealing paths against an enemy converges —
+# Player._apply_melee_damage ("contact"), Player._apply_spell_basic_damage
+# (the wizard's basic/auto CAST attack), and Player._apply_spell_effect (a
+# cast quickbar spell — DAMAGE/AREA, via SpellEffectResolver.apply, which
+# itself calls EnemyData.take_damage directly with no attacker-position
+# concept, same reasoning as DamageResolver above) — all three call this
+# exact method, mirroring the single-choke-point shape issue #566 gave the
+# enemy's own outgoing damage, applied here to damage the enemy receives
+# instead. A kind without a ShieldedFrontAbility in its loadout (i.e.
+# everyone but The Bouncer) falls through unchanged.
+func apply_shield_reduction(dealt: int, attacker_position: Vector2) -> int:
+	if data == null or dealt <= 0 or _behavior == null:
+		return dealt
+	for ability in _behavior.abilities:
+		if ability is ShieldedFrontAbility:
+			var reduced: int = (ability as ShieldedFrontAbility).reduce_damage(self, attacker_position, dealt)
+			if reduced < dealt:
+				data.hp = mini(data.max_hp, data.hp + (dealt - reduced))
+			return reduced
+	return dealt
+
 # Bridges AngryPigeonBehavior state edges to scene-tree side effects: motion
 # trail Line2D during charge, FloorHazard slow zone and SPLAT FloatingText
 # on completion. No-ops when the active behavior is not the pigeon's.
