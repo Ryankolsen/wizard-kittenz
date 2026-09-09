@@ -55,6 +55,8 @@ func test_floor_zero_and_negative_clamp_to_floor_one():
 	assert_eq(floor_zero.mob_max, floor_one.mob_max)
 	assert_eq(floor_negative.mob_min, floor_one.mob_min)
 	assert_eq(floor_negative.mob_max, floor_one.mob_max)
+	assert_eq(floor_zero.kind_pool, floor_one.kind_pool)
+	assert_eq(floor_negative.kind_pool, floor_one.kind_pool)
 
 func test_floor_one_returns_tier_one_mob_density():
 	var info := DungeonFloorTier.for_floor(1)
@@ -75,3 +77,34 @@ func test_tier_four_mob_density():
 	var info := DungeonFloorTier.for_floor(25)
 	assert_eq(info.mob_min, 3)
 	assert_eq(info.mob_max, 8)
+
+func test_floor_one_returns_tier_one_kind_pool():
+	var info := DungeonFloorTier.for_floor(1)
+	assert_eq(info.kind_pool.size(), 3)
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.ANGRY_PIGEON))
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.ROGUE_ROOMBA))
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.CATNIP_DEALER))
+	assert_false(info.kind_pool.has(EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE))
+	assert_false(info.kind_pool.has(EnemyData.EnemyKind.DOG_KNIGHT))
+
+func test_tier_two_kind_pool_adds_spray_bottle():
+	var info := DungeonFloorTier.for_floor(8)
+	assert_eq(info.kind_pool.size(), 4)
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.ANGRY_PIGEON))
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.ROGUE_ROOMBA))
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.CATNIP_DEALER))
+	assert_true(info.kind_pool.has(EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE))
+	assert_false(info.kind_pool.has(EnemyData.EnemyKind.DOG_KNIGHT))
+
+func test_tier_three_kind_pool_is_all_five():
+	var info := DungeonFloorTier.for_floor(15)
+	assert_eq(info.kind_pool.size(), 5)
+	for kind in DungeonGenerator.STANDARD_ENEMY_KINDS:
+		assert_true(info.kind_pool.has(kind))
+
+func test_tier_four_kind_pool_matches_tier_three():
+	var tier_three := DungeonFloorTier.for_floor(15)
+	var tier_four := DungeonFloorTier.for_floor(25)
+	assert_eq(tier_four.kind_pool.size(), tier_three.kind_pool.size())
+	for kind in tier_three.kind_pool:
+		assert_true(tier_four.kind_pool.has(kind))
