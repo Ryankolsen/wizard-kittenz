@@ -53,6 +53,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		# is_vacuum already claimed the boss-flagged case above, so this only
 		# ever runs for the standard mob.
 		return rogue_roomba_loadout()
+	if kind == EnemyData.EnemyKind.KARAOKE_KAREN:
+		return karaoke_karen_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -304,4 +306,18 @@ static func rogue_roomba_loadout() -> Array:
 			0.0                             # placement_radius: always directly under the roomba
 		),
 		EnrageAbility.new(0.3, 1.5, 1.0),  # BERSERK_HP_FRACTION, BERSERK_SPEED_MULTIPLIER, no damage change
+	]
+
+
+# Karaoke Karen (floor-3 standard mob / issue #576). Completes her kit: a
+# sustained cone-spray screech (facing locked at telegraph start, so flanking
+# behind her is the counter) alongside the summon-adds archetype Old Lady
+# Pearl already uses, unmodified — Karen's called-in help closes in while her
+# screech covers the cone in front of her, so the player solves both spacing
+# problems at once. SummonAddsAbility.CAP/SUMMON_COOLDOWN defaults are reused
+# as-is; only the cone-spray tuning is Karen's own.
+static func karaoke_karen_loadout() -> Array:
+	return [
+		ConeSprayAbility.new(),
+		SummonAddsAbility.new(),
 	]

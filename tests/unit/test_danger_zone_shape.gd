@@ -294,6 +294,99 @@ func test_ring_outline_can_be_drawn_at_both_start_and_end_of_expansion():
 			"late outline points must sit on the edge's current (large) radius")
 
 
+func test_cone_contains_a_point_ahead_within_length_during_commit():
+	# Test 1 (core wiring, issue #576): a cone built from an origin + facing +
+	# length + half-angle contains a point directly ahead, inside its length,
+	# once it commits.
+	var cone := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 30.0, 0.7, 0.2, 0.3)
+	var commit_t := 0.8
+	assert_true(cone.contains(Vector2(80.0, 0.0), commit_t),
+		"a point directly ahead within the cone's length must be inside the zone at commit")
+
+
+func test_cone_angle_boundary_is_inclusive_and_behind_is_never_contained():
+	# Test 2 (angle boundary, issue #576): a point just inside the half-angle
+	# is contained, one just outside is not, and a point directly behind the
+	# origin — the case that makes flanking a real counter — is never
+	# contained regardless of half-angle.
+	var cone := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 30.0, 0.7, 0.2, 0.3)
+	var commit_t := 0.8
+	var inside_angle := deg_to_rad(29.0)
+	var outside_angle := deg_to_rad(31.0)
+	var inside_point := Vector2(50.0, 0.0).rotated(inside_angle)
+	var outside_point := Vector2(50.0, 0.0).rotated(outside_angle)
+	assert_true(cone.contains(inside_point, commit_t),
+		"a point just inside the half-angle must be inside the zone")
+	assert_false(cone.contains(outside_point, commit_t),
+		"a point just outside the half-angle must be outside the zone")
+	assert_false(cone.contains(Vector2(-50.0, 0.0), commit_t),
+		"a point directly behind the origin must never be contained, which is what makes flanking work")
+
+
+func test_cone_length_boundary_excludes_points_beyond_it():
+	# Test 3 (length boundary, issue #576): a point on the centre line beyond
+	# the cone's length is not contained.
+	var cone := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 30.0, 0.7, 0.2, 0.3)
+	assert_false(cone.contains(Vector2(150.0, 0.0), 0.8),
+		"a point on the centre line beyond the cone's length must be outside the zone")
+
+
+func test_cone_is_harmless_during_windup_and_fade():
+	# Test 4 (phase gating, issue #576): the "drawn but harmless" rule every
+	# other shape holds — a point straight ahead is not contained during
+	# wind-up or fade, only during commit.
+	var cone := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 30.0, 0.7, 0.2, 0.3)
+	var point := Vector2(50.0, 0.0)
+	assert_false(cone.contains(point, 0.3),
+		"a cone winding up must not damage a point ahead of it")
+	assert_true(cone.contains(point, 0.8),
+		"the same point must be inside once the cone commits")
+	assert_false(cone.contains(point, 1.0),
+		"a cone that has committed and moved into fade must no longer damage")
+
+
+func test_cone_edge_cases_zero_half_angle_wide_half_angle_zero_length_and_zero_facing():
+	# Test 5 (edge cases, issue #576): zero half-angle collapses the cone to
+	# its centre line; a half-angle at or above 180 degrees must still never
+	# contain a point directly behind the origin; zero length excludes every
+	# point but the origin itself; and a zero-length facing vector falls back
+	# to a stable default the way make_lane falls back to Vector2.RIGHT.
+	var zero_half_angle := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 0.0, 0.7, 0.2, 0.3)
+	assert_true(zero_half_angle.contains(Vector2(50.0, 0.0), 0.8),
+		"a zero half-angle cone must still contain a point exactly on its centre line")
+	var wide_half_angle := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 100.0, 200.0, 0.7, 0.2, 0.3)
+	assert_false(wide_half_angle.contains(Vector2(-50.0, 0.0), 0.8),
+		"a half-angle at or above 180 degrees must still never contain a point directly behind the origin")
+	var zero_length := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.RIGHT, 0.0, 30.0, 0.7, 0.2, 0.3)
+	assert_false(zero_length.contains(Vector2(1.0, 0.0), 0.8),
+		"a zero-length cone must not contain a point ahead of its exact origin")
+	var zero_facing := DangerZoneShape.make_cone(
+		Vector2.ZERO, Vector2.ZERO, 100.0, 30.0, 0.7, 0.2, 0.3)
+	assert_eq(zero_facing.heading, Vector2.RIGHT,
+		"a zero-length facing vector must fall back to Vector2.RIGHT, matching make_lane's fallback")
+
+
+func test_cone_outline_is_a_polygon_the_renderer_can_draw():
+	# The cone reports an outline() the renderer can draw, approximating the
+	# arc as a polygon, using the same shared amber wind-up / red commit
+	# colours every other shape reports.
+	var cone := DangerZoneShape.make_cone(
+		Vector2(10.0, 10.0), Vector2.RIGHT, 100.0, 30.0, 0.7, 0.2, 0.3)
+	var points: PackedVector2Array = cone.outline()
+	assert_gt(points.size(), 3, "a cone must outline as a many-sided polygon, not a degenerate shape")
+	var windup: Color = cone.color_at(0.3)
+	var commit: Color = cone.color_at(0.8)
+	assert_gt(windup.g, windup.b, "the cone's wind-up colour is the shared amber, not blue")
+	assert_gt(commit.r, commit.g, "the cone's commit colour is the shared red flash")
+
+
 func test_colour_language_is_amber_during_windup_and_red_at_commit():
 	# Acceptance (colour language, uniform across every enemy): amber while
 	# winding up, red once it commits, and transparent once it has faded out.

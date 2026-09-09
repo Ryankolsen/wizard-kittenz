@@ -1764,3 +1764,20 @@ func test_warden_wretched_pull_reach_differs_from_vacuum_and_hazard_cadence_diff
 			tyrone_zone = a
 	assert_ne(warden_zone.cooldown(), tyrone_zone.cooldown(),
 		"Warden's hazard cadence must differ from Tyrone's")
+
+
+# ---------------------------------------------------------------------------
+# Karaoke Karen / cone-spray archetype completion (PRD #518 / issue #576).
+# The last of Karen's two named archetypes lands here — cone spray plus the
+# summon-adds archetype she reuses unmodified from Old Lady Pearl.
+# ---------------------------------------------------------------------------
+
+func test_karaoke_karen_loadout_is_cone_spray_plus_summon_adds():
+	# Test 12 (loadout, issue #576): mirrors the Pickleton/Pearl loadout
+	# assertions above. Karaoke Karen composes exactly two archetypes — a
+	# cone spray and the summon-adds archetype Old Lady Pearl already uses.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.KARAOKE_KAREN, false)
+	assert_eq(abilities.size(), 2, "Karaoke Karen composes exactly two archetypes")
+	assert_true(abilities[0] is ConeSprayAbility, "Karaoke Karen's first archetype is cone spray")
+	assert_true(abilities[1] is SummonAddsAbility,
+		"Karaoke Karen's second archetype is summon adds")

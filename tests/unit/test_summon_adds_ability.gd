@@ -116,3 +116,37 @@ func test_null_enemy_does_not_crash():
 	var b := SummonAddsAbility.new()
 	b.tick(1.0, null)
 	assert_true(b.pending_summons.is_empty(), "null enemy must not crash and must not publish")
+
+
+# --- 6. Second consumer (issue #576) ---------------------------------------------
+
+func test_karaoke_karen_reuses_the_unmodified_archetype_with_an_independent_cap():
+	# Test 11 (second consumer, issue #576): Karaoke Karen composes this same
+	# archetype unmodified (AbilityLoadout.karaoke_karen_loadout), and her
+	# alive-add cap must be tracked on her own instance, independent of
+	# whatever Old Lady Pearl's own summoner has already summoned.
+	var karen_summoner := SummonAddsAbility.new()
+	var e := _seeded("karen-e0")
+	for _i in range(int(ceil(karen_summoner.cooldown())) + 1):
+		karen_summoner.tick(1.0, e)
+	assert_true(
+		karen_summoner.pending_summons.size() >= 2 and karen_summoner.pending_summons.size() <= 3,
+		"Karen's summon tuning must still produce a valid 2-3 entry batch through the unmodified archetype")
+
+	var pearl_summoner := SummonAddsAbility.new()
+	var pearl_enemy := _seeded("pearl-e0")
+	for _i in range(400):
+		pearl_summoner.tick(1.0, pearl_enemy)
+	assert_eq(pearl_summoner.alive_add_count(), SummonAddsAbility.CAP,
+		"precondition: Pearl's own summoner should have filled her own cap")
+	assert_lt(karen_summoner.alive_add_count(), SummonAddsAbility.CAP + 1,
+		"precondition: Karen's cap tracking is sane on its own")
+	assert_ne(karen_summoner.alive_add_count(), 0,
+		"precondition: Karen's summoner should have summoned something by now")
+	# The two summoners never share bookkeeping: driving Pearl's instance to
+	# its cap must not have moved Karen's independent count.
+	var karen_count_before_pearl_drive := karen_summoner.alive_add_count()
+	for _i in range(400):
+		pearl_summoner.tick(1.0, pearl_enemy)
+	assert_eq(karen_summoner.alive_add_count(), karen_count_before_pearl_drive,
+		"driving Pearl's summoner further must not change Karen's independently-tracked cap")

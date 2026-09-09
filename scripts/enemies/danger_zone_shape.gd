@@ -18,6 +18,9 @@ enum Kind {
 	RING,   # expanding shockwave: an annulus of `width` around a radius that
 	        # grows from 0 to `radius` across the commit window — the
 	        # ground-slam archetype (issue #573)
+	CONE,   # a wedge from `origin` along `heading`, out to `length`, spanning
+	        # `half_angle` degrees to either side — the cone-spray archetype
+	        # (issue #576)
 }
 
 enum Phase {
@@ -32,6 +35,7 @@ var heading: Vector2 = Vector2.RIGHT
 var length: float = 0.0
 var width: float = 0.0
 var radius: float = 0.0
+var half_angle: float = 0.0  # cone only, degrees to either side of `heading`
 var windup_duration: float = 0.0
 var commit_duration: float = 0.0
 var fade_duration: float = 0.0
@@ -86,6 +90,20 @@ func contains(point: Vector2, t: float) -> bool:
 # through this signature (needed for the ring's radius-at-time containment)
 # leaves those three shapes' own results unchanged.
 func _contains_geometry(point: Vector2, t: float = 0.0) -> bool:
+	if kind == Kind.CONE:
+		var to_point := point - origin
+		var dist := to_point.length()
+		if dist > length:
+			return false
+		if dist <= 0.0001:
+			# The origin itself: any facing/angle is degenerate here, and
+			# "standing on the enemy" is the least surprising case to call
+			# caught rather than special-cased safe.
+			return true
+		var direction := to_point / dist
+		var half_angle_rad := deg_to_rad(half_angle)
+		# Inclusive boundary, matching every other shape's own inclusive edge.
+		return direction.dot(heading) >= cos(half_angle_rad)
 	if kind == Kind.RING:
 		var edge := _ring_edge_radius(t)
 		var dist := point.distance_to(origin)
@@ -163,6 +181,41 @@ static func make_disc(
 	return s
 
 
+# A half-angle at or above this is clamped down to it. Kept strictly below
+# 180 degrees so cos(half_angle_rad) never reaches -1.0 exactly: a point
+# directly behind the origin has a dot product of exactly -1.0 against
+# `heading`, so clamping short of true 180 guarantees "behind is never
+# contained" holds even for a caller that asks for a full circle.
+const MAX_HALF_ANGLE_DEGREES: float = 179.9
+
+
+# Wedge of `half_angle_degrees` to either side of `cone_facing`, out to
+# `cone_length` (cone-spray archetype, issue #576). Unlike the lane, there is
+# no width — the boundary is angular, not a perpendicular offset — and unlike
+# the disc/ring, direction matters: a point behind the origin is never
+# contained no matter how wide the half-angle gets, which is what makes
+# flanking a real counter to this shape.
+static func make_cone(
+	cone_origin: Vector2,
+	cone_facing: Vector2,
+	cone_length: float,
+	half_angle_degrees: float,
+	windup: float,
+	commit: float,
+	fade: float
+) -> DangerZoneShape:
+	var s := DangerZoneShape.new()
+	s.kind = Kind.CONE
+	s.origin = cone_origin
+	s.heading = cone_facing.normalized() if cone_facing != Vector2.ZERO else Vector2.RIGHT
+	s.length = maxf(0.0, cone_length)
+	s.half_angle = clampf(half_angle_degrees, 0.0, MAX_HALF_ANGLE_DEGREES)
+	s.windup_duration = maxf(0.0, windup)
+	s.commit_duration = maxf(0.0, commit)
+	s.fade_duration = maxf(0.0, fade)
+	return s
+
+
 # Tether from the enemy to a locked target point (Pull archetype). Same segment
 # containment as a lane — the distinction is what the ability does on commit,
 # which is why the tether also answers `pull_direction`.
@@ -214,6 +267,20 @@ const DISC_OUTLINE_SEGMENTS: int = 24
 # `t` is only consulted by the ring branch (its polygon radius changes across
 # the commit window); lane/tether/disc outlines are static and ignore it.
 func outline(t: float = 0.0) -> PackedVector2Array:
+	if kind == Kind.CONE:
+		# Fan polygon: the origin, then a strip of points along the arc at
+		# `length` from -half_angle to +half_angle. Not literally an arc (the
+		# renderer draws straight polygon edges), but with enough segments it
+		# reads as one, the same approximation the disc/ring make for a circle.
+		var points := PackedVector2Array()
+		points.append(origin)
+		var half_angle_rad := deg_to_rad(half_angle)
+		var base_angle := heading.angle()
+		for i in range(DISC_OUTLINE_SEGMENTS + 1):
+			var frac := float(i) / float(DISC_OUTLINE_SEGMENTS)
+			var angle := base_angle - half_angle_rad + frac * (2.0 * half_angle_rad)
+			points.append(origin + Vector2(cos(angle), sin(angle)) * length)
+		return points
 	if kind == Kind.RING:
 		var points := PackedVector2Array()
 		var edge := _ring_edge_radius(t)
