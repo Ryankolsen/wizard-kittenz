@@ -45,6 +45,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return big_bruiser_buster_loadout()
 	if kind == EnemyData.EnemyKind.LAST_CALL_LARRY:
 		return larry_loadout()
+	if kind == EnemyData.EnemyKind.DJ_DUBSTEP:
+		return dj_dubstep_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -165,6 +167,34 @@ static func larry_loadout() -> Array:
 			Color(0.85, 0.65, 0.15, 0.45),  # amber bottle-puddle tint
 			5,                          # cap: more puddles alive at once than Tyrone's 3
 			90.0                        # placement_radius: unchanged from Tyrone's
+		),
+		EnrageAbility.new(),
+	]
+
+
+# DJ Dubstep (floor-9 boss / issue #579). His shockwave rings land on a fixed,
+# steady tempo (BeatLockedSlamAbility) rather than a free-running cooldown, so
+# the interval is something a player can actually learn and dance through.
+# Enrage is Larry's archetype reused unmodified: once Dubstep drops low, his
+# own move speed and damage spike exactly the way Larry's do, and separately
+# (inside BeatLockedSlamAbility itself) his beat speeds up to the tuned
+# enraged interval at the same HP threshold -- "same dance, faster" rather
+# than a different move replacing the slam. The enraged interval (2.2s) still
+# clears the escapability floor: windup (0.4s) + a 60 px/s walker crossing the
+# ring's 90px max radius (1.5s) = 1.9s, comfortably under the 2.2s beat.
+# Dubstep is the second and final planned enrage user (see the roster-
+# constraint test in test_enemy_behavior.gd) -- no third kind may compose it.
+static func dj_dubstep_loadout() -> Array:
+	return [
+		BeatLockedSlamAbility.new(
+			3.0,   # interval_seconds: the base tempo the player learns
+			2.2,   # enraged_interval_seconds: shortened, still escapable
+			0.3,   # enrage_hp_fraction: matches EnrageAbility's own threshold below
+			0.4,   # windup_seconds
+			1.0,   # commit_seconds
+			0.2,   # fade_seconds
+			90.0,  # max_radius
+			22.0   # band_width
 		),
 		EnrageAbility.new(),
 	]
