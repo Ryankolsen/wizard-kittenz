@@ -1536,3 +1536,78 @@ func test_enrage_is_confined_to_exactly_larry_and_dubstep():
 		"Last Call Larry must carry enrage")
 	assert_true(enrage_kinds.has(EnemyData.EnemyKind.DJ_DUBSTEP),
 		"DJ Dubstep must carry enrage")
+
+
+# ---------------------------------------------------------------------------
+# Warden Wretched / pull + zone-denial composition (PRD #518 / issue #580).
+# Both archetypes already exist -- pull from the tracer slice (#533), zone
+# denial from Tyrone's slice (#571) -- so this loadout is composition and
+# tuning only, no new archetype code.
+# ---------------------------------------------------------------------------
+
+func test_warden_wretched_loadout_resolves_to_exactly_pull_and_zone_denial():
+	# Test 1 (core wiring / loadout): mirrors the Pickleton/Pearl/Tyrone/
+	# Buster/Larry loadout assertions above. Warden Wretched's kind resolves
+	# through AbilityLoadout.for_enemy to exactly a PullAbility and a
+	# ZoneDenialAbility -- nothing else.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.WARDEN_WRETCHED, true)
+	assert_eq(abilities.size(), 2, "Warden Wretched's loadout must contain exactly two abilities")
+	var has_pull := false
+	var has_zone_denial := false
+	for ability in abilities:
+		if ability is PullAbility:
+			has_pull = true
+		elif ability is ZoneDenialAbility:
+			has_zone_denial = true
+		else:
+			fail_test("Warden Wretched's loadout must not contain any archetype besides pull and zone denial")
+	assert_true(has_pull, "Warden Wretched's loadout must include pull")
+	assert_true(has_zone_denial, "Warden Wretched's loadout must include zone denial")
+
+
+func test_warden_wretched_pull_reach_differs_from_vacuum_and_hazard_cadence_differs_from_tyrone():
+	# Test 2 (tuning distinct): proves the loadout table is doing the
+	# differentiating rather than a shared default -- Warden's pull reach
+	# must differ from the Vacuum's, and his hazard cadence must differ from
+	# Tyrone's.
+	var warden_pull: PullAbility = null
+	var warden_zone: ZoneDenialAbility = null
+	for a in AbilityLoadout.warden_wretched_loadout():
+		if a is PullAbility:
+			warden_pull = a
+		elif a is ZoneDenialAbility:
+			warden_zone = a
+	assert_not_null(warden_pull, "Warden Wretched's loadout must include a pull ability")
+	assert_not_null(warden_zone, "Warden Wretched's loadout must include a zone-denial ability")
+
+	# Measure reach by aiming each pull at a target far beyond any plausible
+	# cap and reading the tether length _build_zone actually produced
+	# (clamped to that ability's own max_reach) -- no private field access
+	# needed.
+	var vacuum_pull: PullAbility = AbilityLoadout.vacuum_loadout()[0]
+	var far_target := Vector2(100000.0, 0.0)
+
+	var e_warden := _MockEnemy.new()
+	var p_warden := _MockPlayer.new()
+	add_child_autofree(p_warden)
+	p_warden.global_position = far_target
+	e_warden._player_ref = p_warden
+	warden_pull.begin(e_warden)
+	var warden_reach: float = warden_pull.active_zone.length
+
+	var e_vacuum := _MockEnemy.new()
+	var p_vacuum := _MockPlayer.new()
+	add_child_autofree(p_vacuum)
+	p_vacuum.global_position = far_target
+	e_vacuum._player_ref = p_vacuum
+	vacuum_pull.begin(e_vacuum)
+	var vacuum_reach: float = vacuum_pull.active_zone.length
+
+	assert_ne(warden_reach, vacuum_reach, "Warden's pull reach must differ from the Vacuum's")
+
+	var tyrone_zone: ZoneDenialAbility = null
+	for a in AbilityLoadout.trash_panda_tyrone_loadout():
+		if a is ZoneDenialAbility:
+			tyrone_zone = a
+	assert_ne(warden_zone.cooldown(), tyrone_zone.cooldown(),
+		"Warden's hazard cadence must differ from Tyrone's")

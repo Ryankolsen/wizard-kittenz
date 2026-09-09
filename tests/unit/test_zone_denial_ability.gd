@@ -172,3 +172,58 @@ func test_larry_zone_denial_is_more_frequent_and_longer_lived_than_tyrones():
 		"sanity: Tyrone's ability should have accrued some alive hazards")
 	assert_eq(larry_ability.alive_hazard_count(), 0,
 		"Larry's hazard cap/count must be tracked independently of Tyrone's")
+
+
+# --- 7. Third consumer (Warden Wretched, PRD #518 / issue #580) -------------
+# Warden reuses this archetype unchanged, paired with Pull so hazards are
+# already on the floor when the tether commits. His tuning (cooldown, cap)
+# must differ from both other consumers, and his hazard count must be
+# tracked independently of either.
+
+func test_warden_wretched_zone_denial_is_a_third_consumer_with_an_independent_cap():
+	var warden_ability: ZoneDenialAbility = null
+	for a in AbilityLoadout.warden_wretched_loadout():
+		if a is ZoneDenialAbility:
+			warden_ability = a
+	assert_not_null(warden_ability, "Warden Wretched's loadout must include a zone-denial ability")
+
+	# Produces a valid disc batch through the unmodified archetype.
+	var e := _seeded("f10-r1-e0")
+	for _i in range(int(ceil(warden_ability.cooldown())) + 1):
+		warden_ability.tick(1.0, e)
+		if warden_ability.wants_to_fire():
+			warden_ability.begin(e)
+	assert_not_null(warden_ability.pending_zone,
+		"Warden's tuning must still publish a disc zone through the shared archetype")
+	assert_eq(warden_ability.pending_zone.kind, DangerZoneShape.Kind.DISC,
+		"Warden's telegraph must be a disc, same shape every zone-denial consumer draws")
+
+	var tyrone_ability: ZoneDenialAbility = null
+	for a in AbilityLoadout.trash_panda_tyrone_loadout():
+		if a is ZoneDenialAbility:
+			tyrone_ability = a
+	var larry_ability: ZoneDenialAbility = null
+	for a in AbilityLoadout.larry_loadout():
+		if a is ZoneDenialAbility:
+			larry_ability = a
+	assert_ne(warden_ability.cooldown(), tyrone_ability.cooldown(),
+		"Warden's hazard cadence must differ from Tyrone's")
+	assert_ne(warden_ability.cooldown(), larry_ability.cooldown(),
+		"Warden's hazard cadence must differ from Larry's")
+
+	# The cap/count is tracked per-instance -- driving Warden's own copy full
+	# must not affect either other consumer's independent count.
+	var e2 := _seeded("f10-r1-e1")
+	var warden_ever_had_a_hazard := false
+	for _i in range(400):
+		warden_ability.tick(0.5, e2)
+		if warden_ability.wants_to_fire():
+			warden_ability.begin(e2)
+		if warden_ability.alive_hazard_count() > 0:
+			warden_ever_had_a_hazard = true
+	assert_true(warden_ever_had_a_hazard,
+		"sanity: Warden's ability should have accrued some alive hazards")
+	assert_eq(tyrone_ability.alive_hazard_count(), 0,
+		"Warden's hazard batch must not affect Tyrone's independently-tracked count")
+	assert_eq(larry_ability.alive_hazard_count(), 0,
+		"Warden's hazard batch must not affect Larry's independently-tracked count")
