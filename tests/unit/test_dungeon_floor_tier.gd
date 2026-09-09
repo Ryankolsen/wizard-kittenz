@@ -51,3 +51,27 @@ func test_floor_zero_and_negative_clamp_to_floor_one():
 	assert_eq(floor_zero.max_rooms, floor_one.max_rooms)
 	assert_eq(floor_negative.min_rooms, floor_one.min_rooms)
 	assert_eq(floor_negative.max_rooms, floor_one.max_rooms)
+	assert_eq(floor_zero.mob_min, floor_one.mob_min)
+	assert_eq(floor_zero.mob_max, floor_one.mob_max)
+	assert_eq(floor_negative.mob_min, floor_one.mob_min)
+	assert_eq(floor_negative.mob_max, floor_one.mob_max)
+
+func test_floor_one_returns_tier_one_mob_density():
+	var info := DungeonFloorTier.for_floor(1)
+	assert_eq(info.mob_min, 1)
+	assert_eq(info.mob_max, 3)
+
+func test_tier_two_mob_density():
+	var info := DungeonFloorTier.for_floor(8)
+	assert_eq(info.mob_min, 2)
+	assert_eq(info.mob_max, 4)
+
+func test_tier_three_mob_density():
+	var info := DungeonFloorTier.for_floor(15)
+	assert_eq(info.mob_min, 2)
+	assert_eq(info.mob_max, 6)
+
+func test_tier_four_mob_density():
+	var info := DungeonFloorTier.for_floor(25)
+	assert_eq(info.mob_min, 3)
+	assert_eq(info.mob_max, 8)
