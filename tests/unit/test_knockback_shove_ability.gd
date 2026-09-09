@@ -214,3 +214,29 @@ func test_null_player_does_not_crash():
 		if b.wants_to_fire():
 			b.begin(e)
 	assert_null(b.active_zone, "a null player reference must not crash and must publish nothing")
+
+
+# --- 8. Second consumer (issue #578) -------------------------------------------
+
+func test_the_bouncers_tuning_is_harder_and_more_frequent_than_busters():
+	# The Bouncer reuses this archetype unmodified (out of scope to touch this
+	# file for him) -- only AbilityLoadout's tuning differs. His shove is what
+	# keeps pushing the player back around to his shielded front, so it must
+	# hit harder (more displacement) and recur more often (shorter cooldown)
+	# than Buster's own tuning of the same archetype.
+	var buster := AbilityLoadout.big_bruiser_buster_loadout()
+	var bouncer := AbilityLoadout.the_bouncer_loadout()
+	var buster_shove: KnockbackShoveAbility = null
+	var bouncer_shove: KnockbackShoveAbility = null
+	for ability in buster:
+		if ability is KnockbackShoveAbility:
+			buster_shove = ability
+	for ability in bouncer:
+		if ability is KnockbackShoveAbility:
+			bouncer_shove = ability
+	assert_not_null(buster_shove, "Buster's loadout must carry a knockback shove")
+	assert_not_null(bouncer_shove, "The Bouncer's loadout must carry a knockback shove")
+	assert_gt(bouncer_shove.knockback_distance(), buster_shove.knockback_distance(),
+		"The Bouncer's shove must displace farther than Buster's")
+	assert_lt(bouncer_shove.cooldown(), buster_shove.cooldown(),
+		"The Bouncer's shove must recur more often than Buster's")
