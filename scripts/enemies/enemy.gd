@@ -22,6 +22,13 @@ var _died_emitted: bool = false
 # field to read rather than reaching back into the ability list — killing
 # this enemy while it's carrying gold returns exactly this much.
 var carried_gold: int = 0
+# Cone-spray migration (issue #585). True once this firing's cone has already
+# spawned its 3 projectiles, so _observe_haunted_spray_bottle's WINDUP ->
+# COMMIT watch fires exactly once per commit rather than every frame the
+# composed ConeSprayAbility's zone spends in COMMIT. Reset back to false the
+# moment the ability goes dormant (active_zone == null) so the next firing
+# can fire again.
+var _spray_bottle_fired_this_zone: bool = false
 
 const _TEXTURE_BY_KIND := {
 	EnemyData.EnemyKind.ANGRY_PIGEON:         "res://assets/sprites/angry_pigeon_right.png",
@@ -327,7 +334,21 @@ func _consume_ability_payload(ability) -> void:
 			and data.kind == EnemyData.EnemyKind.ANGRY_PIGEON
 			and ability is TelegraphedChargeAbility
 		)
-		if not is_pigeon_charge:
+		# Haunted Spray Bottle's cone-spray migration (issue #585) keeps the
+		# pre-migration mechanic of 3 discrete travelling projectiles rather
+		# than adopting ConeSprayAbility's own sustained tick-damage — see
+		# AbilityLoadout.haunted_spray_bottle_loadout's comment for the
+		# judgement call. The composed ability still ticks resolve_hit against
+		# the cone shape every _tick_interval through COMMIT (it's the same
+		# archetype Karaoke Karen uses unmodified), so that hit is discarded
+		# here rather than routed into damage; the wet-debuff-dealing hit
+		# instead comes from _observe_haunted_spray_bottle's projectiles.
+		var is_spray_bottle_cone := (
+			data != null
+			and data.kind == EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE
+			and ability is ConeSprayAbility
+		)
+		if not is_pigeon_charge and not is_spray_bottle_cone:
 			_apply_ability_damage(hit)
 	if ability.pending_pull_target != null:
 		var pulled = ability.pending_pull_target
@@ -612,21 +633,36 @@ func _apply_catnip_debuff(player_node, debuff_type: String) -> void:
 func _drive_haunted_spray_bottle(_delta: float) -> void:
 	pass
 
-# Bridges HauntedSprayBottleBehavior state edges to scene-tree side effects:
-# spawns the 3-projectile cone of EnemyProjectiles, the blue Line2D cone VFX,
-# and the "WET" FloatingText on hit (via the on_hit callback).
+# Bridges the composed ConeSprayAbility's WINDUP -> COMMIT edge to the
+# scene-tree side effect the bottle has always had: 3 EnemyProjectiles fired
+# center + ±CONE_ANGLE_DEG, applying the wet debuff on hit (via the on_hit
+# callback). The wind-up telegraph itself is drawn generically by
+# _consume_ability_zone/DangerZoneRenderer like every other archetype — this
+# only fires the projectiles, once, the first frame the zone reaches COMMIT
+# (issue #585; see AbilityLoadout.haunted_spray_bottle_loadout and
+# _consume_ability_payload's is_spray_bottle_cone discard for why the
+# ability's own sustained cone-damage is not what deals the hit here).
 func _observe_haunted_spray_bottle() -> void:
 	if not (_behavior is HauntedSprayBottleBehavior):
 		return
-	var hsb := _behavior as HauntedSprayBottleBehavior
-	if hsb.pending_fire_aim != null:
-		var aim: Vector2 = hsb.pending_fire_aim
-		var origin: Vector2 = hsb.pending_cone_origin if hsb.pending_cone_origin != null else global_position
-		for d in HauntedSprayBottleBehavior.compute_cone_directions(aim):
-			_spawn_spray_projectile(origin, d)
-		_spawn_spray_cone_vfx(origin, aim)
-		hsb.pending_fire_aim = null
-		hsb.pending_cone_origin = null
+	var cone_ability: ConeSprayAbility = null
+	for ability in _behavior.abilities:
+		if ability is ConeSprayAbility:
+			cone_ability = ability
+			break
+	if cone_ability == null:
+		return
+	if cone_ability.active_zone == null:
+		_spray_bottle_fired_this_zone = false
+		return
+	var zone: DangerZoneShape = cone_ability.active_zone
+	if zone.phase_at(cone_ability.zone_elapsed()) != DangerZoneShape.Phase.COMMIT:
+		return
+	if _spray_bottle_fired_this_zone:
+		return
+	_spray_bottle_fired_this_zone = true
+	for d in HauntedSprayBottleBehavior.compute_cone_directions(zone.heading):
+		_spawn_spray_projectile(zone.origin, d)
 
 func _spawn_spray_projectile(origin: Vector2, direction: Vector2) -> void:
 	var parent := get_parent()
@@ -656,26 +692,6 @@ func _apply_spray_wet(player_node) -> void:
 		player_node.apply_debuff(description)
 	if player_node is Node:
 		FloatingText.spawn(player_node, "WET", HauntedSprayBottleBehavior.PROJECTILE_COLOR)
-
-func _spawn_spray_cone_vfx(origin: Vector2, aim: Vector2) -> void:
-	var parent := get_parent()
-	if parent == null:
-		return
-	var cone := Line2D.new()
-	cone.top_level = true
-	cone.width = 3.0
-	cone.default_color = HauntedSprayBottleBehavior.CONE_VFX_COLOR
-	var dirs := HauntedSprayBottleBehavior.compute_cone_directions(aim)
-	var length := HauntedSprayBottleBehavior.CONE_VFX_LENGTH
-	# Draw a fan: outer edge → origin → other outer edge so the segment forms
-	# the cone silhouette in one Line2D node.
-	cone.add_point(origin + dirs[1] * length)
-	cone.add_point(origin)
-	cone.add_point(origin + dirs[2] * length)
-	parent.add_child(cone)
-	var tween := cone.create_tween()
-	tween.tween_property(cone, "modulate:a", 0.0, HauntedSprayBottleBehavior.CONE_VFX_DURATION)
-	tween.tween_callback(cone.queue_free)
 
 func _spawn_catnip_burst(pos: Vector2) -> void:
 	var parent := get_parent()

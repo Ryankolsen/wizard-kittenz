@@ -1,12 +1,23 @@
 class_name HauntedSprayBottleBehavior
 extends EnemyBehavior
 
-# Haunted Spray Bottle (issue #165). Holds ~PREFERRED_RANGE from the player,
-# fires a 3-projectile cone (center + ±CONE_ANGLE_DEG) every FIRE_INTERVAL
-# seconds, applies WetEffect on hit, and floats over terrain (Enemy node sets
-# collision_mask = 0 when ignores_wall_collision is true). Pure-data
-# RefCounted; the Enemy-side observer spawns projectiles + cone VFX + the
-# debuff-name FloatingText, same separation as the prior four kinds.
+# Haunted Spray Bottle (issue #165; migrated onto the shared cone-spray
+# archetype by issue #585 — the last of the five standard mobs). Holds
+# ~PREFERRED_RANGE from the player and fires a 3-projectile cone (center +
+# ±CONE_ANGLE_DEG) every FIRE_INTERVAL seconds, applies WetEffect on hit, and
+# floats over terrain (Enemy node sets collision_mask = 0 when
+# ignores_wall_collision is true).
+#
+# The fire cadence itself (the retired _fire_elapsed/wants_to_fire/tick and
+# the pending_fire_aim/pending_cone_origin handoff) is gone — it now lives on
+# the composed ConeSprayAbility (AbilityLoadout.haunted_spray_bottle_loadout),
+# whose wind-up draws the cone in the uniform amber-to-red telegraph before
+# the spray commits, rather than flashing it at the shot the way the retired
+# cadence did. compute_cone_directions and make_wet_description stay here —
+# Enemy._observe_haunted_spray_bottle still calls both, on the ability's
+# WINDUP -> COMMIT edge, to fire the same 3 projectiles as before. Pure-data
+# RefCounted; the Enemy-side observer spawns projectiles + the debuff-name
+# FloatingText, same separation as the prior four kinds.
 
 const PREFERRED_RANGE: float = 100.0
 const RANGE_DEADBAND: float = 8.0
@@ -17,9 +28,6 @@ const PROJECTILE_RADIUS: float = 6.0
 const PROJECTILE_COLOR: Color = Color(0.4, 0.75, 1.0, 1.0)
 const PROJECTILE_MAX_RANGE: float = 320.0
 const WET_DURATION: float = 3.0
-const CONE_VFX_COLOR: Color = Color(0.55, 0.85, 1.0, 0.55)
-const CONE_VFX_LENGTH: float = 60.0
-const CONE_VFX_DURATION: float = 0.3
 
 # Idle wander tuning (PRD #391 / slice #392). Stationary-ish: tiny shuffle
 # at ~10% of chase speed within a small tether around the spawn point.
@@ -36,15 +44,6 @@ const IDLE_PAUSE_LENGTH: float = 1.5
 # bottle floats through dungeon walls (acceptance #6). Read once at spawn
 # time, no per-frame check needed.
 var ignores_wall_collision: bool = true
-
-# Variant null sentinel — Vector2 aim direction (unit length) once a fire is
-# queued and the Enemy-side observer has not yet consumed the spawn request.
-var pending_fire_aim = null
-# Variant null sentinel — Vector2 origin once a fire is queued so the cone VFX
-# spawns at the bottle's position at fire time.
-var pending_cone_origin = null
-
-var _fire_elapsed: float = 0.0
 
 func is_overriding_motion() -> bool:
 	return false
@@ -95,30 +94,3 @@ static func compute_cone_directions(aim_dir: Vector2) -> Array:
 # require touching enemy scripts. Same shape as CatnipDealerBehavior.
 static func make_wet_description() -> Dictionary:
 	return {"type_id": PowerUpEffect.TYPE_WET, "duration": WET_DURATION}
-
-func wants_to_fire() -> bool:
-	return _fire_elapsed >= FIRE_INTERVAL
-
-func tick(delta: float, enemy) -> void:
-	if enemy != null and enemy.get("state") == 3:  # EnemyAIState.State.DEAD
-		return
-	# Aggro gate (issue #261): IDLE spray bottle must not accrue fire cadence
-	# or queue a cone, even with cooldown elapsed and player reference set.
-	if not EnemyBehavior.is_aggroed(enemy):
-		return
-	_fire_elapsed += delta
-	if enemy == null:
-		return
-	var player = enemy.get("_player_ref")
-	if player == null or not (player is Node2D):
-		return
-	if not wants_to_fire():
-		return
-	var player_node := player as Node2D
-	var origin: Vector2 = enemy.global_position
-	var to_player: Vector2 = player_node.global_position - origin
-	if to_player == Vector2.ZERO:
-		return
-	pending_fire_aim = to_player.normalized()
-	pending_cone_origin = origin
-	_fire_elapsed = 0.0

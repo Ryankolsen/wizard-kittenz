@@ -57,6 +57,8 @@ static func for_enemy(kind: int, is_boss: bool) -> Array:
 		return karaoke_karen_loadout()
 	if kind == EnemyData.EnemyKind.ANGRY_PIGEON:
 		return angry_pigeon_loadout()
+	if kind == EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE:
+		return haunted_spray_bottle_loadout()
 	return [LegacyBehaviorAbility.new()]
 
 
@@ -360,5 +362,51 @@ static func angry_pigeon_loadout() -> Array:
 		ZoneDenialAbility.new(
 			6.0, 0.7, 0.2, 0.3, 36.0,
 			3.0, 0.5, 0.0, 32.0, Color(0.6, 0.5, 0.7, 0.4)
+		),
+	]
+
+
+# Haunted Spray Bottle (floor-1 standard mob / issue #585). Last of the five
+# standard mobs to migrate. Reuses ConeSprayAbility (Karaoke Karen's own
+# archetype, issue #576) unmodified rather than a new mechanic: the retired
+# hand-rolled fire cadence flashed its cone VFX *at* the shot, so a player
+# never had the wind-up telegraph the legibility pass exists to give them.
+# Composing the shared archetype puts the same cone in the uniform amber-
+# to-red wind-up language every other kind already draws, for free.
+#
+# Judgement call flagged per the issue rather than decided silently: this
+# loadout keeps the pre-migration mechanic of 3 discrete travelling
+# EnemyProjectiles (center + ±CONE_ANGLE_DEG) rather than switching to a true
+# swept cone that damages by containment alone. ConeSprayAbility's own
+# sustained tick-damage (ticking `resolve_hit` against the cone shape every
+# `_tick_interval` through COMMIT) is discarded for this kind specifically —
+# see Enemy._consume_ability_payload's `is_spray_bottle_cone` branch — so the
+# cone here does exactly one job: telegraph, during WINDUP, where the three
+# projectiles are about to fly. Enemy._observe_haunted_spray_bottle fires
+# them once, on the WINDUP -> COMMIT edge, reading the zone's locked
+# `origin`/`heading` so the aim matches whatever the telegraph showed. A true
+# swept cone would have been the simpler archetype composition (no discard,
+# no commit-edge watch needed) — flagged here, not chosen silently, exactly
+# per the issue's instruction to keep projectiles unless a swept cone was
+# clearly simpler; it isn't clearly simpler enough to trade away the
+# projectile mechanic the issue asks to preserve.
+#
+# Tuning restates the retired HauntedSprayBottleBehavior constants exactly:
+# cooldown = FIRE_INTERVAL (2.0s), half_angle = CONE_ANGLE_DEG (15deg), and
+# the cone's telegraph reach = PROJECTILE_MAX_RANGE (320.0) so the wind-up
+# shows the player the true distance the projectiles can travel. Wind-up
+# (0.6s) / commit (0.3s) / fade (0.3s) are new legibility tuning the
+# hand-rolled cadence never had — same precedent as Dog Knight's (#581) and
+# the Angry Pigeon's (#583) migrations restating a bare cadence/speed while
+# adding new wind-up/fade numbers.
+static func haunted_spray_bottle_loadout() -> Array:
+	return [
+		ConeSprayAbility.new(
+			HauntedSprayBottleBehavior.FIRE_INTERVAL,          # cooldown_seconds
+			0.6,                                               # windup_seconds
+			0.3,                                               # commit_seconds
+			0.3,                                               # fade_seconds
+			HauntedSprayBottleBehavior.PROJECTILE_MAX_RANGE,   # cone_length
+			HauntedSprayBottleBehavior.CONE_ANGLE_DEG           # half_angle_degrees
 		),
 	]

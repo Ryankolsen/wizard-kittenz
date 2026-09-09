@@ -600,15 +600,6 @@ func test_haunted_spray_bottle_cone_spread_angles():
 	assert_true(dirs[2].y < 0.0, "second off-axis direction should be the -15° rotation")
 
 
-func test_haunted_spray_bottle_fire_timer_fires():
-	# Acceptance #2 (tests #2): wants_to_fire trips after ~2.0s.
-	var b := HauntedSprayBottleBehavior.new()
-	var e := _MockSprayEnemy.new()
-	for _i in range(21):
-		b.tick(0.1, e)
-	assert_true(b.wants_to_fire(), "wants_to_fire should be true after 2.1s")
-
-
 func test_haunted_spray_bottle_make_wet_description():
 	# PRD #284 Slice 2 test 5 — seam returns a (type_id, duration) description,
 	# not a WetEffect instance.
@@ -710,33 +701,6 @@ func test_haunted_spray_bottle_for_kind_dispatches_subclass():
 		"HAUNTED_SPRAY_BOTTLE kind must dispatch to HauntedSprayBottleBehavior")
 
 
-func test_haunted_spray_bottle_dead_enemy_skips_fire():
-	var b := HauntedSprayBottleBehavior.new()
-	var e := _MockSprayEnemy.new()
-	e.state = 3  # DEAD
-	for _i in range(25):
-		b.tick(0.1, e)
-	assert_false(b.wants_to_fire(), "dead spray bottle should never want to fire")
-	assert_eq(b.pending_fire_aim, null, "dead spray bottle should never queue a fire")
-
-
-func test_haunted_spray_bottle_fire_publishes_aim_when_in_range():
-	var b := HauntedSprayBottleBehavior.new()
-	var e := _MockSprayEnemy.new()
-	var p := _MockSprayPlayer.new()
-	p.global_position = Vector2(100.0, 0.0)
-	e._player_ref = p
-	for _i in range(21):
-		b.tick(0.1, e)
-	assert_not_null(b.pending_fire_aim,
-		"fire should be queued once cooldown elapses and player ref is set")
-	assert_almost_eq(b.pending_fire_aim.x, 1.0, 0.0001,
-		"aim should point along the player vector")
-	assert_almost_eq(b.pending_fire_aim.y, 0.0, 0.0001)
-	assert_eq(b.pending_cone_origin, Vector2.ZERO,
-		"cone origin should be the bottle's position at fire time")
-
-
 func test_haunted_spray_bottle_preferred_range_hold():
 	# Outside preferred range → approach; inside → back away.
 	var b := HauntedSprayBottleBehavior.new()
@@ -790,21 +754,6 @@ func test_dog_knight_charge_ability_chase_still_wants_charge():
 	for _i in range(5):
 		ability.tick(1.0, e)
 	assert_true(ability.wants_to_fire(), "CHASE dog should still want to charge after cooldown")
-
-
-func test_spray_bottle_idle_does_not_fire():
-	var b := HauntedSprayBottleBehavior.new()
-	var e := _MockSprayEnemy.new()
-	e.state = 0  # IDLE
-	var p := _MockSprayPlayer.new()
-	p.global_position = Vector2(100.0, 0.0)
-	e._player_ref = p
-	for _i in range(25):
-		b.tick(0.1, e)
-	assert_eq(b.pending_fire_aim, null,
-		"IDLE spray bottle must not queue a cone even with player in range")
-	assert_false(b.wants_to_fire(),
-		"IDLE spray bottle must not accrue fire cadence")
 
 
 # ---------------------------------------------------------------------------
@@ -1097,19 +1046,6 @@ func test_idle_velocity_pulls_displaced_mob_back_toward_anchor():
 	# the leash never mutates position directly — only the velocity does.
 	assert_eq(e.global_position, displaced,
 		"idle velocity must not snap-teleport the mob home")
-
-
-func test_spray_bottle_chase_still_fires():
-	var b := HauntedSprayBottleBehavior.new()
-	var e := _MockSprayEnemy.new()
-	e.state = 1  # CHASE
-	var p := _MockSprayPlayer.new()
-	p.global_position = Vector2(100.0, 0.0)
-	e._player_ref = p
-	for _i in range(21):
-		b.tick(0.1, e)
-	assert_not_null(b.pending_fire_aim,
-		"CHASE spray bottle should still queue a cone after cooldown")
 
 
 # ---------------------------------------------------------------------------
@@ -1688,6 +1624,49 @@ func test_karaoke_karen_loadout_is_cone_spray_plus_summon_adds():
 	assert_true(abilities[0] is ConeSprayAbility, "Karaoke Karen's first archetype is cone spray")
 	assert_true(abilities[1] is SummonAddsAbility,
 		"Karaoke Karen's second archetype is summon adds")
+
+
+# ---------------------------------------------------------------------------
+# Haunted Spray Bottle cone-spray migration (PRD #518 / issue #585). Last of
+# the five standard mobs. Reuses ConeSprayAbility (#576) unmodified — the
+# retired hand-rolled fire cadence (pending_fire_aim/_fire_elapsed) is gone
+# and the wind-up-first cone telegraph now comes from the shared archetype's
+# own DangerZoneShape.Kind.CONE. See test_haunted_spray_bottle_behavior.gd
+# for the telegraph/flank/wet/float/edge-case assertions.
+# ---------------------------------------------------------------------------
+
+func test_haunted_spray_bottle_loadout_is_exactly_cone_spray():
+	# Test 1 (core wiring / loadout): the bottle's kind resolves to exactly a
+	# cone-spray archetype, mirroring Karaoke Karen's loadout assertion above.
+	var abilities := AbilityLoadout.for_enemy(EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE, false)
+	assert_eq(abilities.size(), 1, "the Haunted Spray Bottle composes exactly one archetype")
+	assert_true(abilities[0] is ConeSprayAbility,
+		"the Haunted Spray Bottle's archetype is cone spray")
+
+
+func test_haunted_spray_bottle_cone_spray_tuning_restates_pre_migration_values():
+	# Test 2 (tuning preserved): cone half-angle, fire interval, preferred
+	# range and max projectile range must equal CONE_ANGLE_DEG, FIRE_INTERVAL,
+	# PREFERRED_RANGE and PROJECTILE_MAX_RANGE — no retune, legibility only.
+	var ability: ConeSprayAbility = AbilityLoadout.for_enemy(
+		EnemyData.EnemyKind.HAUNTED_SPRAY_BOTTLE, false)[0]
+	assert_almost_eq(ability.cooldown(), HauntedSprayBottleBehavior.FIRE_INTERVAL, 0.0001,
+		"cone-spray cooldown must restate the pre-migration FIRE_INTERVAL")
+	var e := _MockSprayEnemy.new()
+	var p := _MockSprayPlayer.new()
+	p.global_position = Vector2(100.0, 0.0)
+	e._player_ref = p
+	for _i in range(int(ceil(ability.cooldown())) + 1):
+		ability.tick(1.0, e)
+		if ability.wants_to_fire():
+			ability.begin(e)
+	assert_not_null(ability.pending_zone, "a cone zone should have been published")
+	assert_almost_eq(ability.pending_zone.half_angle, HauntedSprayBottleBehavior.CONE_ANGLE_DEG,
+		0.0001, "cone half-angle must restate the pre-migration CONE_ANGLE_DEG")
+	assert_almost_eq(ability.pending_zone.length, HauntedSprayBottleBehavior.PROJECTILE_MAX_RANGE,
+		0.0001, "the cone's telegraph reach must restate the pre-migration PROJECTILE_MAX_RANGE")
+	assert_eq(HauntedSprayBottleBehavior.PREFERRED_RANGE, 100.0,
+		"preferred range must remain the pre-migration 100.0")
 
 
 # ---------------------------------------------------------------------------
