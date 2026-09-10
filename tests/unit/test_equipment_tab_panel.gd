@@ -43,6 +43,20 @@ func test_bag_items_render_with_equip_button():
 	var btn := panel.find_child("EquipButton_0", true, false) as Button
 	assert_not_null(btn, "bag row 0 must have an Equip button")
 
+# equip_gear tutorial target groups (issue #606, PRD #596). The equip_gear
+# topic's two steps resolve tutorial_target_equip_slot and
+# tutorial_target_bag_item via get_first_node_in_group, so refresh() must tag
+# the first-built slot tile and the first-built bag row into those groups.
+func test_equip_slot_and_bag_item_in_tutorial_groups_when_present():
+	var inv := ItemInventory.new()
+	inv.add_to_bag(ItemCatalog.find("iron_sword"))
+	var panel := _make_panel()
+	panel.refresh(inv, _make_char())
+	var equip_slot := panel.get_tree().get_first_node_in_group("tutorial_target_equip_slot")
+	var bag_item := panel.get_tree().get_first_node_in_group("tutorial_target_bag_item")
+	assert_not_null(equip_slot, "an equip slot tile must be tagged tutorial_target_equip_slot")
+	assert_not_null(bag_item, "a bag row must be tagged tutorial_target_bag_item")
+
 func test_equip_from_bag_moves_to_slot_and_applies_stat():
 	var inv := ItemInventory.new()
 	inv.add_to_bag(ItemCatalog.find("iron_sword"))

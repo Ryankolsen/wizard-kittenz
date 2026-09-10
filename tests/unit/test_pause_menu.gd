@@ -333,3 +333,72 @@ func test_close_after_tutorial_finished_still_unpauses():
 	scene.close()
 	assert_false(get_tree().paused,
 		"closing the pause menu after the tutorial already finished must still leave the tree unpaused")
+
+# equip_gear tutorial auto-trigger wiring (issue #606, PRD #596). Mirrors the
+# pause_menu wiring tests above (#605): first inventory-tab open with an
+# empty tutorial_seen_topics fires the overlay, a second open after it's
+# marked seen does not. pause_menu is pre-seeded as already-seen in these
+# tests so only the equip_gear trigger is under test.
+
+func test_first_inventory_tab_open_triggers_equip_gear_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_null(_find_tutorial_overlay(scene),
+		"opening the pause menu itself must not fire the equip_gear tutorial")
+	scene._on_inventory_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "the first Inventory tab open must auto-show the equip_gear tutorial overlay")
+	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+func test_already_seen_equip_gear_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_inventory_tab_pressed()
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, opening the Inventory tab must not re-trigger the equip_gear tutorial")
+	get_tree().paused = false
+
+func test_equip_gear_tutorial_finished_marks_seen():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_inventory_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay)
+	overlay.finished.emit("equip_gear")
+	assert_true(gs.tutorial_seen_topics.has("equip_gear"),
+		"finishing the overlay must mark equip_gear seen")
+	get_tree().paused = false
+
+func test_empty_bag_falls_back_to_text_only_second_step():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	gs.item_inventory = ItemInventory.new()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_inventory_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay)
+	overlay.advance()
+	var box := overlay.find_child("HighlightBox", true, false) as Control
+	assert_false(box.visible,
+		"an empty bag must fall back to a text-only bubble on the bag-item step, not crash")
+	get_tree().paused = false

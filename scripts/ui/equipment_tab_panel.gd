@@ -171,8 +171,16 @@ func _build_equipped_section() -> void:
 	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	heading.add_theme_font_size_override("font_size", _SECTION_FONT_SIZE)
 	strip.add_child(heading)
+	# Tag only the first slot tile built this refresh (issue #606, PRD #596)
+	# as the equip_gear tutorial's highlight target — not every tile, so a
+	# rebuild never leaves more than one live member in the group.
+	var first_tile := true
 	for entry in SLOTS:
-		strip.add_child(_make_slot_tile(entry["slot"], entry["label"]))
+		var tile := _make_slot_tile(entry["slot"], entry["label"])
+		if first_tile:
+			tile.add_to_group("tutorial_target_equip_slot")
+			first_tile = false
+		strip.add_child(tile)
 	_equipped_box.add_child(strip)
 	for entry in SLOTS:
 		var slot: int = entry["slot"]
@@ -334,7 +342,12 @@ func _make_bag_list() -> Control:
 	var groups := _group_bag_items(items)
 	for i in groups.size():
 		var g: Dictionary = groups[i]
-		list.add_child(_make_bag_row(g["item"], i, int(g["count"])))
+		var row := _make_bag_row(g["item"], i, int(g["count"]))
+		if i == 0:
+			# Tag only the first bag row this refresh (issue #606, PRD #596)
+			# as the equip_gear tutorial's second-step target.
+			row.add_to_group("tutorial_target_bag_item")
+		list.add_child(row)
 	return list
 
 # Collapses duplicate bag items (same id) into one entry preserving the

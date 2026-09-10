@@ -250,6 +250,32 @@ func _on_tutorial_finished(topic_id: String) -> void:
 	gs.tutorial_seen_topics = TutorialProgress.mark_seen(gs.tutorial_seen_topics, topic_id)
 	SaveManager.save_from_state()
 
+# equip_gear tutorial auto-trigger (issue #606, PRD #596). Fires the first
+# time the Inventory tab is shown (_show_inventory_tab, called both from the
+# tab button and from open_character_submenu's default landing view),
+# touring the first equip slot then the first bag item. Reuses
+# _on_tutorial_finished — that handler already reads the topic_id off the
+# `finished` signal rather than assuming "pause_menu", so it works unchanged
+# for any topic. If the bag is empty, the overlay's own target-not-found
+# handling (#601) falls back to a plain text bubble for the second step.
+#
+# Solo-only, same invariant as #605's _maybe_show_tutorial: TutorialOverlay.
+# open() unconditionally sets get_tree().paused = true, which would violate
+# co-op's personal-pause contract (#43 — local player must stay vulnerable,
+# get_tree().paused must never flip) if this fired during a multiplayer
+# session. Deferring the co-op equip_gear tour is out of scope here.
+func _maybe_show_equip_gear_tutorial() -> void:
+	if is_multiplayer():
+		return
+	var gs := get_node_or_null("/root/GameState")
+	var seen: Array = gs.tutorial_seen_topics if gs != null else []
+	if not TutorialTrigger.should_trigger("equip_gear", seen, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("equip_gear")
+
 # Pauses MusicManager independently of get_tree().paused (#488, parent PRD
 # #485) so co-op's personal pause — which deliberately never sets tree-pause,
 # leaving the local player vulnerable — still silences music while the menu
@@ -348,7 +374,6 @@ func open_character_submenu() -> void:
 	if submenu != null:
 		submenu.visible = true
 	_show_inventory_tab()
-	_refresh_equipment_panel()
 	_refresh_character_stats()
 
 # Opens the pause menu in dungeon-transition mode (PRD #52 / #61). Lands
@@ -643,6 +668,12 @@ func _show_inventory_tab() -> void:
 	_set_tab_visible("InventoryTab", true)
 	_set_tab_visible("ItemsPanel", false)
 	_set_tab_visible("AchievementsPanel", false)
+	# Refresh before the tutorial check (issue #606, PRD #596) so the equip
+	# slot / bag item groups are already populated when the overlay resolves
+	# its highlight targets — TutorialOverlay.open() looks them up
+	# synchronously on the first step.
+	_refresh_equipment_panel()
+	_maybe_show_equip_gear_tutorial()
 
 func _show_items_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -928,7 +959,6 @@ func _on_skills_tab_pressed() -> void:
 
 func _on_inventory_tab_pressed() -> void:
 	_show_inventory_tab()
-	_refresh_equipment_panel()
 
 func _on_items_tab_pressed() -> void:
 	_show_items_tab()
