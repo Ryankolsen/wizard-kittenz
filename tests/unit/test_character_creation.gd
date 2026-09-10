@@ -506,3 +506,57 @@ func test_character_creation_ready_is_safe_when_music_already_stopped():
 	assert_false(_music_player().playing,
 		"stop_music() call on an already-silent MusicManager must be a safe no-op")
 
+# --- main_menu tutorial auto-trigger wiring (issue #603, PRD #596) ---
+
+func _find_tutorial_overlay(scene: Node) -> Node:
+	return scene.find_child("TutorialOverlay", true, false)
+
+func test_fresh_install_triggers_main_menu_tutorial():
+	GameState.tutorial_seen_topics = []
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "a fresh install must auto-show the main_menu tutorial overlay")
+	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+func test_already_seen_topic_does_not_retrigger():
+	GameState.tutorial_seen_topics = ["main_menu"]
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_null(_find_tutorial_overlay(scene),
+		"a topic already marked seen must not re-trigger the overlay")
+
+func test_tutorial_finished_marks_topic_seen_and_saves():
+	GameState.tutorial_seen_topics = []
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay)
+	overlay.finished.emit("main_menu")
+	get_tree().paused = false
+	assert_true(GameState.tutorial_seen_topics.has("main_menu"),
+		"finishing the overlay must mark main_menu seen")
+
+	# A subsequent _ready of the same scene must not re-trigger.
+	var scene_b := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_null(_find_tutorial_overlay(scene_b),
+		"once seen, a fresh scene instance must not re-trigger the tutorial")
+
+func test_target_groups_wired():
+	var scene := _instantiate_creation_scene()
+	var grid := scene.get_node("MainMenu/VBox/CharacterGrid")
+	assert_true(grid.is_in_group("tutorial_target_character_grid"),
+		"CharacterGrid must be in the tutorial_target_character_grid group")
+	var multi_btn := scene.get_node("MainMenu/VBox/TopButtons/MultiplayerButton")
+	assert_true(multi_btn.is_in_group("tutorial_target_multiplayer_button"),
+		"Multiplayer button must be in the tutorial_target_multiplayer_button group")
+	var shop_btn := scene.get_node("MainMenu/VBox/TopButtons/ShopButton")
+	assert_true(shop_btn.is_in_group("tutorial_target_shop_button"),
+		"Shop button must be in the tutorial_target_shop_button group")
+

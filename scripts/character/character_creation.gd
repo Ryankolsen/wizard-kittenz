@@ -87,6 +87,10 @@ func _ready() -> void:
 	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
 	_shop_button.pressed.connect(_show_shop)
 
+	$MainMenu/VBox/CharacterGrid.add_to_group("tutorial_target_character_grid")
+	_multiplayer_button.add_to_group("tutorial_target_multiplayer_button")
+	_shop_button.add_to_group("tutorial_target_shop_button")
+
 	_slot_continue_button.pressed.connect(_on_slot_continue_pressed)
 	_slot_new_game_button.pressed.connect(_on_slot_new_game_pressed)
 	_slot_customize_button.pressed.connect(_on_slot_customize_pressed)
@@ -116,12 +120,33 @@ func _ready() -> void:
 	_show_main_menu()
 	_wire_scroll_hint()
 
+	# Main-menu tutorial overlay (PRD #596 / issue #603). Deferred, and
+	# checked before the daily-login popup below, so a brand-new install
+	# that could in principle trigger both on the same frame shows the
+	# tutorial first. The two are independent and both may still appear —
+	# this ordering only decides which shows first, not whether the other
+	# runs at all.
+	_maybe_show_tutorial.call_deferred()
+
 	# Daily login streak popup (PRD #237 / issue #244). Deferred so the rest
 	# of _ready (menu visibility, button wiring) completes before the popup
 	# mounts — matches the PRD's "after load, NOT mid-load" trigger. Gated on
 	# current_character so brand-new installs see the popup only after their
 	# first character is created and the save round-trips.
 	_maybe_show_daily_login_popup.call_deferred()
+
+func _maybe_show_tutorial() -> void:
+	if not TutorialTrigger.should_trigger(
+		"main_menu", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("main_menu")
+
+func _on_tutorial_finished(topic_id: String) -> void:
+	GameState.tutorial_seen_topics = TutorialProgress.mark_seen(GameState.tutorial_seen_topics, topic_id)
+	SaveManager.save_from_state()
 
 func _maybe_show_daily_login_popup() -> void:
 	if GameState.current_character == null:
