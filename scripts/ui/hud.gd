@@ -43,6 +43,8 @@ func _ready() -> void:
 	give_up.pressed.connect(_on_give_up_pressed)
 	_pause_btn = $PauseButton
 	_pause_btn.pressed.connect(_on_pause_pressed)
+	# Tutorial target for the pause_menu topic (issue #605, PRD #596).
+	_pause_btn.add_to_group("tutorial_target_pause_button")
 	_stat_points_badge = $StatPointsBadge
 	_achievement_badge = $PauseButton/AchievementBadge
 	_player = _find_player()

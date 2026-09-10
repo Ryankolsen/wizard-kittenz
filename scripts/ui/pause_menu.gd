@@ -100,18 +100,24 @@ func _ready() -> void:
 	var stats_tab := find_child("StatsTabButton", true, false) as Button
 	if stats_tab != null:
 		stats_tab.pressed.connect(_on_stats_tab_pressed)
+		# Tutorial target for the pause_menu topic (issue #605, PRD #596).
+		stats_tab.add_to_group("tutorial_target_stats_tab")
 	var skills_tab := find_child("SkillsTabButton", true, false) as Button
 	if skills_tab != null:
 		skills_tab.pressed.connect(_on_skills_tab_pressed)
+		skills_tab.add_to_group("tutorial_target_skills_tab")
 	var inventory_tab := find_child("InventoryTabButton", true, false) as Button
 	if inventory_tab != null:
 		inventory_tab.pressed.connect(_on_inventory_tab_pressed)
+		inventory_tab.add_to_group("tutorial_target_inventory_tab")
 	var items_tab := find_child("ItemsTabButton", true, false) as Button
 	if items_tab != null:
 		items_tab.pressed.connect(_on_items_tab_pressed)
+		items_tab.add_to_group("tutorial_target_items_tab")
 	var achievements_tab := find_child("AchievementsTabButton", true, false) as Button
 	if achievements_tab != null:
 		achievements_tab.pressed.connect(_on_achievements_tab_pressed)
+		achievements_tab.add_to_group("tutorial_target_achievements_tab")
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)
@@ -212,6 +218,37 @@ func open() -> void:
 	_pause_music()
 	if not is_multiplayer():
 		get_tree().paused = true
+		_maybe_show_tutorial()
+
+# pause_menu tutorial auto-trigger (issue #605, PRD #596). Tours the pause
+# button and all 5 tab buttons the first time the pause menu is opened.
+# Added as a child of this node so it renders on top of the already-open
+# menu. TutorialOverlay.open() also sets get_tree().paused = true, which is
+# already true at this point — idempotent, so no conflict.
+#
+# Solo-only: gated behind the same `not is_multiplayer()` branch as the
+# tree-pause above. Co-op's personal pause deliberately never touches
+# get_tree().paused (#43) so the local player stays vulnerable while the
+# menu is open; TutorialOverlay.open() unconditionally pauses the tree, so
+# firing it during an active co-op session would silently violate that
+# contract. Deferring the co-op tour to a future slice keeps this change
+# from reaching into the multiplayer branch beyond the existing pause check.
+func _maybe_show_tutorial() -> void:
+	var gs := get_node_or_null("/root/GameState")
+	var seen: Array = gs.tutorial_seen_topics if gs != null else []
+	if not TutorialTrigger.should_trigger("pause_menu", seen, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("pause_menu")
+
+func _on_tutorial_finished(topic_id: String) -> void:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return
+	gs.tutorial_seen_topics = TutorialProgress.mark_seen(gs.tutorial_seen_topics, topic_id)
+	SaveManager.save_from_state()
 
 # Pauses MusicManager independently of get_tree().paused (#488, parent PRD
 # #485) so co-op's personal pause — which deliberately never sets tree-pause,
