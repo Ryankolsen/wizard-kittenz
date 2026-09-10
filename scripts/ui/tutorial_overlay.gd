@@ -25,6 +25,10 @@ var _steps: Array[Dictionary] = []
 var _step_index: int = 0
 
 const _HIGHLIGHT_PADDING := 6.0
+# Node2D targets (e.g. Bartender, issue #609) have no natural bounding rect
+# the way a Control does, so the highlight box is a fixed-size square
+# centered on the target's projected screen position.
+const _NODE2D_HIGHLIGHT_SIZE := Vector2(64.0, 64.0)
 
 func _ready() -> void:
 	visible = false
@@ -82,18 +86,34 @@ func _show_step(index: int) -> void:
 	_position_for_target(String(step.get("target_group", "")))
 	step_shown.emit(_topic_id, index)
 
-# Resolves target_group to a Control via get_first_node_in_group and either
+# Resolves target_group to a node via get_first_node_in_group and either
 # positions the highlight box around it (with small padding) or, when the
-# group is empty / resolves to nothing / isn't a Control, hides the
-# highlight box and falls back to the centered text bubble.
+# group is empty / resolves to nothing / resolves to an unsupported node
+# type, hides the highlight box and falls back to the centered text bubble.
+#
+# Two target shapes are supported:
+# - Control: uses its own global_rect as the highlight rect directly.
+# - Node2D (issue #609 — e.g. Bartender, a world-space sprite with no
+#   Control bounding rect of its own): projects global_position through the
+#   viewport's active canvas transform (which already folds in the current
+#   Camera2D's offset/zoom) to a screen-space point, then draws a fixed-size
+#   box centered on that point.
 func _position_for_target(target_group: String) -> void:
 	var box := find_child("HighlightBox", true, false) as Control
 	var bubble := find_child("Bubble", true, false) as Control
 	var target: Node = null
 	if target_group != "":
 		target = get_tree().get_first_node_in_group(target_group)
+	var rect: Rect2
+	var has_rect := false
 	if target != null and target is Control:
-		var rect: Rect2 = (target as Control).get_global_rect()
+		rect = (target as Control).get_global_rect()
+		has_rect = true
+	elif target != null and target is Node2D:
+		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * (target as Node2D).global_position
+		rect = Rect2(screen_pos - _NODE2D_HIGHLIGHT_SIZE / 2.0, _NODE2D_HIGHLIGHT_SIZE)
+		has_rect = true
+	if has_rect:
 		if box != null:
 			box.global_position = rect.position - Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING)
 			box.size = rect.size + Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING) * 2

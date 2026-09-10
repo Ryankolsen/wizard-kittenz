@@ -65,12 +65,36 @@ func _ready() -> void:
 	if bartender != null and bartender.has_signal("hooman_rented") \
 			and not bartender.hooman_rented.is_connected(_on_hooman_rented):
 		bartender.hooman_rented.connect(_on_hooman_rented)
+	# Tutorial target group (issue #609, PRD #596): TutorialOverlay resolves
+	# the "tavern" topic's first step target via get_tree().get_first_node_in_group.
+	if bartender != null:
+		bartender.add_to_group("tutorial_target_bartender")
 	# One-off achievement (issue #471): Wait, There's a Bar? fires on every
 	# BarRoom instantiation, but record_event's own idempotency (issue #447)
 	# means only the true first entry actually unlocks it.
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState")
 	if gs != null:
 		gs.achievement_service.record_event("bar_entered")
+	_maybe_show_tutorial()
+
+
+# tavern tutorial auto-trigger (issue #609, PRD #596): highlights the
+# bartender, then a text-only second step explains the Shop/beer/hooman/exit
+# option menu (target_group == "" per #597, so it renders as a plain text
+# bubble with no live NPCOptionList interaction).
+func _maybe_show_tutorial() -> void:
+	if not TutorialTrigger.should_trigger(
+		"tavern", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("tavern")
+
+
+func _on_tutorial_finished(topic_id: String) -> void:
+	GameState.tutorial_seen_topics = TutorialProgress.mark_seen(GameState.tutorial_seen_topics, topic_id)
+	SaveManager.save_from_state()
 
 
 # Returns the ExitZone children in the order they appear in the scene
