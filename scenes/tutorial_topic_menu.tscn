@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3 uid="uid://dqx7t8k3vw2mn"]
+
+[ext_resource type="Script" path="res://scripts/ui/tutorial_topic_menu.gd" id="1_topic_menu"]
+
+[node name="TutorialTopicMenu" type="PanelContainer"]
+script = ExtResource("1_topic_menu")
+
+[node name="MainVBox" type="VBoxContainer" parent="."]
+
+[node name="TopRow" type="HBoxContainer" parent="MainVBox"]
+
+[node name="Title" type="Label" parent="MainVBox/TopRow"]
+text = "Help Topics"
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="MainVBox/TopRow"]
+text = "×"
+
+[node name="TopicList" type="VBoxContainer" parent="MainVBox"]
