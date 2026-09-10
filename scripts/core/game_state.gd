@@ -107,6 +107,11 @@ var dungeon_run_controller: DungeonRunController = null
 # from KittenSaveData in apply_merged_save; reset in clear().
 var streak_day: int = 0
 var last_login_date: String = ""
+# Tutorial/help overlay "seen" topic ids (issue #599, PRD #596). Live mirror of
+# the save field so the tutorial overlay engine (#598) can read/write it
+# through GameState and save_from_state can persist it without an extra
+# round-trip. Hydrated in _hydrate_account; reset in clear().
+var tutorial_seen_topics: Array = []
 # Achievements engine (PRD #446 / issue #449). Bound to a live AccountSaveData
 # whose achievement_state is the account-wide unlock ledger — rebuilt in
 # _hydrate_account so unlocks recorded in a prior session carry forward.
@@ -183,6 +188,7 @@ func _hydrate_account(account: AccountSaveData) -> void:
 			meta_tracker.cleared_dungeons.append(s_id)
 	streak_day = account.streak_day
 	last_login_date = account.last_login_date
+	tutorial_seen_topics = account.tutorial_seen_topics.duplicate()
 	var achievement_account := AccountSaveData.new()
 	achievement_account.achievement_state = account.achievement_state.duplicate(true)
 	achievement_service = AchievementService.new(achievement_account)
@@ -424,6 +430,7 @@ func clear() -> void:
 	dungeon_run_controller = null
 	streak_day = 0
 	last_login_date = ""
+	tutorial_seen_topics = []
 	hooman_rental_service = HoomanRentalService.new()
 	hooman_spawned = false
 

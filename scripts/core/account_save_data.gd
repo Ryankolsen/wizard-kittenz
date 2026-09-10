@@ -16,6 +16,10 @@ var dungeons_completed: int = 0
 var cleared_dungeons: Array = []
 var streak_day: int = 0
 var last_login_date: String = ""
+# Tutorial/help overlay "seen" topic ids (issue #599, PRD #596). Account-wide
+# like streak_day/cleared_dungeons — seeing a topic on one character slot
+# marks it seen for the other 3. Read/written via TutorialProgress (#598).
+var tutorial_seen_topics: Array = []
 # Achievement id -> {unlocked_at: float, claimed: bool, earned_by_slot: String}
 # (PRD #446). Account-wide like skill_unlocks/cleared_dungeons — earning an
 # achievement on one character slot locks it out for the other 3.
@@ -28,7 +32,7 @@ var achievement_counters: Dictionary = {}
 # assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
 # meta_tracker carries the cleared_dungeons / dungeons_completed / max_level
 # fields that previously rode on KittenSaveData.
-static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "", achievement_state: Dictionary = {}) -> AccountSaveData:
+static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "", achievement_state: Dictionary = {}, tutorial_seen_topics: Array = []) -> AccountSaveData:
 	var a := AccountSaveData.new()
 	a.achievement_state = achievement_state.duplicate(true)
 	if currency_ledger != null:
@@ -46,6 +50,7 @@ static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: Cos
 		a.cleared_dungeons = meta_tracker.cleared_dungeons.duplicate()
 	a.streak_day = streak_day
 	a.last_login_date = last_login_date
+	a.tutorial_seen_topics = tutorial_seen_topics.duplicate()
 	return a
 
 func to_dict() -> Dictionary:
@@ -62,6 +67,7 @@ func to_dict() -> Dictionary:
 		"last_login_date": last_login_date,
 		"achievement_state": achievement_state.duplicate(true),
 		"achievement_counters": achievement_counters.duplicate(true),
+		"tutorial_seen_topics": tutorial_seen_topics.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> AccountSaveData:
@@ -110,4 +116,10 @@ static func from_dict(d: Dictionary) -> AccountSaveData:
 	if counters is Dictionary:
 		for k in counters.keys():
 			a.achievement_counters[String(k)] = int(counters[k])
+	var tutorial_topics = d.get("tutorial_seen_topics", [])
+	if tutorial_topics is Array:
+		for raw in tutorial_topics:
+			var topic_id := String(raw)
+			if topic_id != "" and not a.tutorial_seen_topics.has(topic_id):
+				a.tutorial_seen_topics.append(topic_id)
 	return a
