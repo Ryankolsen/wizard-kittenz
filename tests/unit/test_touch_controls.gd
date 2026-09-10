@@ -202,6 +202,19 @@ func test_cluster_does_not_overlap_attack_button_right_hand():
 	assert_true(potion.offset_bottom <= attack.offset_top,
 		"potion column bottom edge must not overlap the attack button (right-hand layout)")
 
+func test_touch_controls_joystick_and_attack_in_tutorial_groups():
+	# Issue #604 (PRD #596): TutorialOverlay resolves the "movement_attack"
+	# step targets via get_tree().get_first_node_in_group, so the joystick
+	# and attack button must self-register into those groups on _ready.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var joystick: Node = inst.get_node("Joystick")
+	var attack: Node = inst.get_node("AttackButton")
+	assert_true(joystick.is_in_group("tutorial_target_joystick"),
+		"Joystick must be in the tutorial_target_joystick group")
+	assert_true(attack.is_in_group("tutorial_target_attack_button"),
+		"AttackButton must be in the tutorial_target_attack_button group")
+
 func test_main_scene_includes_touch_controls():
 	# Regression guard: the wire-up into main.tscn is the only thing
 	# that makes the controls actually visible in-game. If a future edit

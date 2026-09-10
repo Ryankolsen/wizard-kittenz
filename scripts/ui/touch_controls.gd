@@ -23,6 +23,16 @@ const PAUSE_HIDEABLE_GROUP := &"touch_controls"
 
 func _ready() -> void:
 	add_to_group(PAUSE_HIDEABLE_GROUP)
+	# Tutorial target groups (issue #604, PRD #596): TutorialOverlay resolves
+	# its "movement_attack" step targets via get_tree().get_first_node_in_group,
+	# so the joystick and attack button register themselves directly here
+	# rather than requiring hud.gd to hold a TouchControls reference.
+	var joystick := get_node_or_null("Joystick") as Node
+	if joystick != null:
+		joystick.add_to_group("tutorial_target_joystick")
+	var attack := get_node_or_null("AttackButton") as Node
+	if attack != null:
+		attack.add_to_group("tutorial_target_attack_button")
 	visible = should_show(force_visible)
 	apply_layout(ControlsSettings.load_layout())
 

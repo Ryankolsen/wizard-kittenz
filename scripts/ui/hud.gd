@@ -71,6 +71,24 @@ func _ready() -> void:
 	# hides otherwise. EnemyHealthBar.attach skips bosses, so this bar owns
 	# boss presentation without a double-render.
 	BossHealthBar.attach(self)
+	# movement_attack tutorial auto-trigger (issue #604, PRD #596). Touch-only
+	# topic (per TutorialCatalog/TutorialTrigger) — on desktop
+	# is_touch_platform() is always false, so this is a no-op there and no
+	# separate desktop fallback is added (see PRD Out of Scope).
+	_maybe_show_tutorial()
+
+func _maybe_show_tutorial() -> void:
+	if not TutorialTrigger.should_trigger(
+		"movement_attack", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("movement_attack")
+
+func _on_tutorial_finished(topic_id: String) -> void:
+	GameState.tutorial_seen_topics = TutorialProgress.mark_seen(GameState.tutorial_seen_topics, topic_id)
+	SaveManager.save_from_state()
 
 func _spawn_host_pause_overlay() -> void:
 	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
