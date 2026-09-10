@@ -215,6 +215,40 @@ func test_touch_controls_joystick_and_attack_in_tutorial_groups():
 	assert_true(attack.is_in_group("tutorial_target_attack_button"),
 		"AttackButton must be in the tutorial_target_attack_button group")
 
+func test_touch_controls_has_help_button():
+	# Issue #611 (PRD #596): TouchControls owns its own HelpButton copy so
+	# the topic-menu affordance is reachable on touch, mirroring the
+	# HUD-side hide-on-touch copy in hud.tscn.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var help_btn: Node = inst.get_node_or_null("HelpButton")
+	assert_not_null(help_btn, "TouchControls must have a HelpButton child")
+	assert_true(help_btn is Button, "HelpButton must be a Button")
+
+func test_touch_controls_help_button_opens_topic_menu():
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var help_btn := inst.get_node("HelpButton") as Button
+	help_btn.pressed.emit()
+	var menu: Node = inst.find_child("TutorialTopicMenu", true, false)
+	assert_not_null(menu, "pressing TouchControls' HelpButton must instantiate TutorialTopicMenu as a child")
+
+func test_touch_controls_help_button_mirrors_with_layout():
+	# apply_layout()'s mirror set (PRD #42/#50) must include HelpButton
+	# alongside joystick/attack/quickbar/potion.
+	var inst = load("res://scenes/touch_controls.tscn").instantiate()
+	add_child_autofree(inst)
+	var help_btn: Control = inst.get_node("HelpButton") as Control
+	var left_before := help_btn.offset_left
+	var right_before := help_btn.offset_right
+	var width := right_before - left_before
+	var viewport_w := float(ProjectSettings.get_setting("display/window/size/viewport_width", 480))
+	inst.apply_layout("right_hand")
+	assert_almost_eq(help_btn.offset_left, viewport_w - right_before, 0.01,
+		"HelpButton must mirror its left offset across the viewport center")
+	assert_almost_eq(help_btn.offset_right - help_btn.offset_left, width, 0.01,
+		"mirror must preserve HelpButton width")
+
 func test_main_scene_includes_touch_controls():
 	# Regression guard: the wire-up into main.tscn is the only thing
 	# that makes the controls actually visible in-game. If a future edit

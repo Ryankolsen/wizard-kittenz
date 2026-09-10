@@ -27,6 +27,13 @@ offset_right = 476.0
 offset_bottom = 24.0
 text = "Pause"
 
+[node name="HelpButton" type="Button" parent="."]
+offset_left = 380.0
+offset_top = 4.0
+offset_right = 410.0
+offset_bottom = 24.0
+text = "?"
+
 [node name="AchievementBadge" type="Label" parent="PauseButton"]
 visible = false
 offset_left = 52.0

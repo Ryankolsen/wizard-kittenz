@@ -26,9 +26,11 @@ var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
 var _achievement_badge: Label
+var _help_btn: Button
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
+const TUTORIAL_TOPIC_MENU_SCENE := preload("res://scenes/tutorial_topic_menu.tscn")
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -48,6 +50,8 @@ func _ready() -> void:
 	_stat_points_badge = $StatPointsBadge
 	_achievement_badge = $PauseButton/AchievementBadge
 	_achievement_badge.add_to_group("tutorial_target_achievement_badge")
+	_help_btn = $HelpButton
+	_help_btn.pressed.connect(_on_help_pressed)
 	_player = _find_player()
 	_bind_player_item_drop()
 	# Slice 3 of PRD #210: HUD hosts the QuickbarHUD on desktop; on touch
@@ -63,6 +67,11 @@ func _ready() -> void:
 	var potion_belt_hud := get_node_or_null("PotionBeltHUD") as Control
 	if potion_belt_hud != null and TouchControls.is_touch_platform():
 		potion_belt_hud.visible = false
+	# Issue #611 (PRD #596): TouchControls owns its own HelpButton copy on
+	# touch, so hide the HUD-layer copy there to avoid a duplicate button —
+	# same rule as the quickbar/potion-belt hides above.
+	if _help_btn != null and TouchControls.is_touch_platform():
+		_help_btn.visible = false
 	# Host-pause overlay (#43). Eagerly instanced so a remote host-pause
 	# packet that arrives before the player presses their own pause button
 	# still has a surface to render the "Host has paused" banner on. The
@@ -391,6 +400,25 @@ func open_pause_menu_for_transition() -> CanvasLayer:
 	var pm := _ensure_pause_menu()
 	pm.open_for_dungeon_transition()
 	return pm
+
+# Help-icon topic picker (issue #611, PRD #596). Instantiates the already-
+# landed TutorialTopicMenu (#610) as a HUD child. Picking a topic calls
+# TutorialSequencer.replay_topic(topic_id) (#602), which force-shows that
+# topic's overlay regardless of seen-state; the menu then frees itself so a
+# second HelpButton press builds a fresh one rather than reusing a freed
+# instance. Closing without picking just frees the menu.
+func _on_help_pressed() -> void:
+	var menu := TUTORIAL_TOPIC_MENU_SCENE.instantiate()
+	add_child(menu)
+	menu.topic_selected.connect(_on_help_topic_selected.bind(menu))
+	menu.closed.connect(_on_help_menu_closed.bind(menu))
+
+func _on_help_topic_selected(topic_id: String, menu: Node) -> void:
+	TutorialSequencer.replay_topic(topic_id)
+	menu.queue_free()
+
+func _on_help_menu_closed(menu: Node) -> void:
+	menu.queue_free()
 
 func _find_player() -> Player:
 	var nodes := get_tree().get_nodes_in_group("player")

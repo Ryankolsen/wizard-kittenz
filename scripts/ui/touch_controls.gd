@@ -12,6 +12,7 @@ extends CanvasLayer
 # mirrors the two clusters around the viewport's horizontal center.
 
 const ControlsSettings := preload("res://scripts/core/controls_settings_manager.gd")
+const TUTORIAL_TOPIC_MENU_SCENE := preload("res://scenes/tutorial_topic_menu.tscn")
 
 @export var force_visible: bool = false
 
@@ -33,6 +34,11 @@ func _ready() -> void:
 	var attack := get_node_or_null("AttackButton") as Node
 	if attack != null:
 		attack.add_to_group("tutorial_target_attack_button")
+	# Issue #611 (PRD #596): TouchControls owns the visible HelpButton copy
+	# on touch; HUD hides its own copy there (see hud.gd's _ready).
+	var help_btn := get_node_or_null("HelpButton") as Button
+	if help_btn != null:
+		help_btn.pressed.connect(_on_help_pressed)
 	visible = should_show(force_visible)
 	apply_layout(ControlsSettings.load_layout())
 
@@ -59,6 +65,22 @@ static func should_show(force: bool) -> bool:
 static func is_touch_platform() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("android")
 
+# Help-icon topic picker (issue #611, PRD #596). Same wiring shape as
+# hud.gd's _on_help_pressed — each CanvasLayer gets its own TutorialTopicMenu
+# instance since HUD's copy is desktop-visible and this copy is touch-visible.
+func _on_help_pressed() -> void:
+	var menu := TUTORIAL_TOPIC_MENU_SCENE.instantiate()
+	add_child(menu)
+	menu.topic_selected.connect(_on_help_topic_selected.bind(menu))
+	menu.closed.connect(_on_help_menu_closed.bind(menu))
+
+func _on_help_topic_selected(topic_id: String, menu: Node) -> void:
+	TutorialSequencer.replay_topic(topic_id)
+	menu.queue_free()
+
+func _on_help_menu_closed(menu: Node) -> void:
+	menu.queue_free()
+
 # Mirrors the joystick / action-button clusters when the player picks
 # the right-hand layout. The .tscn ships the left-hand offsets, so the
 # swap is computed against the viewport width — keeps the spacing
@@ -77,6 +99,10 @@ func apply_layout(layout: String) -> void:
 	# the magic grid on the opposite side. Optional — older scenes without a
 	# PotionBeltHUD child still mirror the rest cleanly.
 	var potion := get_node_or_null("PotionBeltHUD") as Control
+	# Issue #611 (PRD #596): mirror the HelpButton alongside the rest of the
+	# cluster. Optional — older scenes without a HelpButton child still
+	# mirror the rest cleanly (same shape as the potion-belt optional guard).
+	var help_btn := get_node_or_null("HelpButton") as Control
 	var viewport_w := float(ProjectSettings.get_setting("display/window/size/viewport_width", 480))
 	if layout == ControlsSettings.LAYOUT_RIGHT_HAND:
 		_mirror_x(joystick, viewport_w)
@@ -84,6 +110,8 @@ func apply_layout(layout: String) -> void:
 		_mirror_x(quickbar, viewport_w)
 		if potion != null:
 			_mirror_x(potion, viewport_w)
+		if help_btn != null:
+			_mirror_x(help_btn, viewport_w)
 
 func _mirror_x(node: Control, viewport_w: float) -> void:
 	var new_left := viewport_w - node.offset_right
