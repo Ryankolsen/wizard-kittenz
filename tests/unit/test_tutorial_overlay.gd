@@ -108,3 +108,24 @@ func test_close_unpauses_tree():
 	scene.open("pause_menu")
 	scene.close()
 	assert_false(get_tree().paused, "close() must unpause the scene tree")
+
+# should_pause=false opt-out (issue #608): a topic that can trigger
+# mid-gameplay (achievements) must not freeze the tree, and must not stomp
+# a pause some other system is holding when it closes.
+
+func test_open_with_should_pause_false_does_not_pause_tree():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open("achievements", false)
+	assert_false(get_tree().paused, "should_pause=false must not pause the scene tree")
+	scene.close()
+
+func test_close_after_should_pause_false_does_not_unpause_preexisting_pause():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	get_tree().paused = true
+	scene.open("achievements", false)
+	scene.close()
+	assert_true(get_tree().paused,
+		"close() must not clear a pause it didn't set itself")
+	get_tree().paused = false
