@@ -1,0 +1,72 @@
+[gd_scene load_steps=4 format=3 uid="uid://c3n4x8h1qk2mw"]
+
+[ext_resource type="Script" path="res://scripts/ui/tutorial_overlay.gd" id="1_tutorial_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_highlight"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.85, 0.2, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bubble"]
+bg_color = Color(0.05, 0.07, 0.12, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.55, 0.75, 1)
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+
+[node name="TutorialOverlay" type="CanvasLayer"]
+layer = 3
+process_mode = 3
+script = ExtResource("1_tutorial_overlay")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="HighlightBox" type="Panel" parent="."]
+visible = false
+theme_override_styles/panel = SubResource("StyleBoxFlat_highlight")
+mouse_filter = 2
+
+[node name="Bubble" type="PanelContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -60.0
+offset_right = 160.0
+offset_bottom = 60.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bubble")
+
+[node name="BubbleVBox" type="VBoxContainer" parent="Bubble"]
+theme_override_constants/separation = 6
+
+[node name="TopRow" type="HBoxContainer" parent="Bubble/BubbleVBox"]
+
+[node name="TopRowSpacer" type="Control" parent="Bubble/BubbleVBox/TopRow"]
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="Bubble/BubbleVBox/TopRow"]
+text = "×"
+
+[node name="StepLabel" type="Label" parent="Bubble/BubbleVBox"]
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="ButtonRow" type="HBoxContainer" parent="Bubble/BubbleVBox"]
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="SkipButton" type="Button" parent="Bubble/BubbleVBox/ButtonRow"]
+text = "Skip"
