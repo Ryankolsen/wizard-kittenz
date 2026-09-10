@@ -46,9 +46,12 @@ static func apply_live_state(bundle: SaveBundle) -> bool:
 	bundle.account = AccountSaveData.from_state(
 		gs.currency_ledger, gs.cosmetic_inventory, gs.paid_unlocks,
 		gs.skill_inventory, gs.meta_tracker,
-		gs.streak_day, gs.last_login_date,
-		gs.achievement_service.account.achievement_state,
-		gs.tutorial_seen_topics
+		{
+			"streak_day": gs.streak_day,
+			"last_login_date": gs.last_login_date,
+			"achievement_state": gs.achievement_service.account.achievement_state,
+			"tutorial_seen_topics": gs.tutorial_seen_topics,
+		}
 	)
 	var run_state: Dictionary = {}
 	if gs.dungeon_run_controller != null:

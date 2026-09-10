@@ -32,8 +32,9 @@ var achievement_counters: Dictionary = {}
 # assemble the AccountSaveData portion of the SaveBundle (PRD #250 / slice 2).
 # meta_tracker carries the cleared_dungeons / dungeons_completed / max_level
 # fields that previously rode on KittenSaveData.
-static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, streak_day: int = 0, last_login_date: String = "", achievement_state: Dictionary = {}, tutorial_seen_topics: Array = []) -> AccountSaveData:
+static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: CosmeticInventory = null, paid_unlocks: PaidUnlockInventory = null, skill_inv = null, meta_tracker: MetaProgressionTracker = null, account_fields: Dictionary = {}) -> AccountSaveData:
 	var a := AccountSaveData.new()
+	var achievement_state: Dictionary = account_fields.get("achievement_state", {})
 	a.achievement_state = achievement_state.duplicate(true)
 	if currency_ledger != null:
 		a.gold_balance = currency_ledger.balance(CurrencyLedger.Currency.GOLD)
@@ -48,8 +49,9 @@ static func from_state(currency_ledger: CurrencyLedger = null, cosmetic_inv: Cos
 		a.dungeons_completed = meta_tracker.dungeons_completed
 		a.max_level_per_class = meta_tracker.max_level_per_class.duplicate()
 		a.cleared_dungeons = meta_tracker.cleared_dungeons.duplicate()
-	a.streak_day = streak_day
-	a.last_login_date = last_login_date
+	a.streak_day = account_fields.get("streak_day", 0)
+	a.last_login_date = account_fields.get("last_login_date", "")
+	var tutorial_seen_topics: Array = account_fields.get("tutorial_seen_topics", [])
 	a.tutorial_seen_topics = tutorial_seen_topics.duplicate()
 	return a
 

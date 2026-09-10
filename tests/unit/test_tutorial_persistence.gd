@@ -10,7 +10,7 @@ func after_each():
 		gs.clear()
 
 func test_account_save_data_round_trips_tutorial_seen_topics():
-	var account := AccountSaveData.from_state(null, null, null, null, null, 0, "", {}, ["pause_menu"])
+	var account := AccountSaveData.from_state(null, null, null, null, null, {"tutorial_seen_topics": ["pause_menu"]})
 	assert_eq(account.tutorial_seen_topics, ["pause_menu"])
 	var restored := AccountSaveData.from_dict(account.to_dict())
 	assert_eq(restored.tutorial_seen_topics, ["pause_menu"],
