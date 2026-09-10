@@ -239,3 +239,97 @@ func test_pause_menu_music_state_independent_of_tree_pause():
 		"co-op open() must pause music even though the tree never pauses")
 	assert_false(get_tree().paused,
 		"co-op personal pause must never set get_tree().paused")
+
+# pause_menu tutorial auto-trigger wiring (issue #605, PRD #596). Mirrors the
+# main_menu wiring tests (#603) and the movement_attack HUD wiring tests
+# (#604): first open() with an empty tutorial_seen_topics fires the overlay,
+# a second open() after it's marked seen does not.
+
+func _find_tutorial_overlay(scene: Node) -> Node:
+	return scene.find_child("TutorialOverlay", true, false)
+
+func test_first_open_triggers_pause_menu_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = []
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "first open() must auto-show the pause_menu tutorial overlay")
+	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+func test_pause_button_and_all_tabs_in_tutorial_groups():
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	var pause_btn: Node = hud.find_child("PauseButton", true, false)
+	assert_true(pause_btn.is_in_group("tutorial_target_pause_button"),
+		"HUD's PauseButton must be in tutorial_target_pause_button")
+
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	var stats_tab: Node = scene.find_child("StatsTabButton", true, false)
+	var skills_tab: Node = scene.find_child("SkillsTabButton", true, false)
+	var inventory_tab: Node = scene.find_child("InventoryTabButton", true, false)
+	var items_tab: Node = scene.find_child("ItemsTabButton", true, false)
+	var achievements_tab: Node = scene.find_child("AchievementsTabButton", true, false)
+	assert_true(stats_tab.is_in_group("tutorial_target_stats_tab"),
+		"StatsTabButton must be in tutorial_target_stats_tab")
+	assert_true(skills_tab.is_in_group("tutorial_target_skills_tab"),
+		"SkillsTabButton must be in tutorial_target_skills_tab")
+	assert_true(inventory_tab.is_in_group("tutorial_target_inventory_tab"),
+		"InventoryTabButton must be in tutorial_target_inventory_tab")
+	assert_true(items_tab.is_in_group("tutorial_target_items_tab"),
+		"ItemsTabButton must be in tutorial_target_items_tab")
+	assert_true(achievements_tab.is_in_group("tutorial_target_achievements_tab"),
+		"AchievementsTabButton must be in tutorial_target_achievements_tab")
+
+func test_already_seen_pause_menu_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, open() must not re-trigger the pause_menu tutorial")
+	get_tree().paused = false
+
+func test_tutorial_finished_marks_seen_and_prevents_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = []
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay)
+	overlay.finished.emit("pause_menu")
+	assert_true(gs.tutorial_seen_topics.has("pause_menu"),
+		"finishing the overlay must mark pause_menu seen")
+	scene.close()
+	get_tree().paused = false
+
+	var scene_b = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene_b)
+	scene_b.open()
+	assert_null(_find_tutorial_overlay(scene_b),
+		"once seen, a fresh open() must not re-trigger the pause_menu tutorial")
+	get_tree().paused = false
+
+func test_close_after_tutorial_finished_still_unpauses():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = []
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay)
+	overlay.skip()
+	assert_false(get_tree().paused,
+		"the overlay's own skip()/close() must unpause immediately")
+	scene.close()
+	assert_false(get_tree().paused,
+		"closing the pause menu after the tutorial already finished must still leave the tree unpaused")
