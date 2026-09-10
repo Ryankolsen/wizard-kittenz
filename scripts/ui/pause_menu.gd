@@ -68,6 +68,14 @@ var _achievement_service: AchievementService = null
 var _skills_legend_toggle: Button = null
 var _skills_legend: GridContainer = null
 
+# Guards for the assign_skills tutorial's group wiring (issue #607, PRD
+# #596). Reset to false at the top of _refresh_skills_panel(), then flipped
+# true by the first row / cluster _make_skill_row / _make_assign_cluster
+# build during that pass — so only one row and one cluster ever carry
+# tutorial_target_skill_node / tutorial_target_assign_slot at a time.
+var _skills_first_row_grouped: bool = false
+var _skills_first_cluster_grouped: bool = false
+
 const _SKILLS_LEGEND_ORDER: Array = [
 	SkillCategory.Category.ATTACK,
 	SkillCategory.Category.HEALING,
@@ -276,6 +284,30 @@ func _maybe_show_equip_gear_tutorial() -> void:
 	overlay.finished.connect(_on_tutorial_finished)
 	overlay.open("equip_gear")
 
+# assign_skills tutorial auto-trigger (issue #607, PRD #596). Fires the first
+# time the Skills tab is shown (_show_skills_tab, called both from the tab
+# button and from open_skills_panel), touring the first unlocked skill node
+# then the assign-to-slot control. Same shape as #606's
+# _maybe_show_equip_gear_tutorial: reuses _on_tutorial_finished, and if no
+# skill node is unlocked yet the overlay's own target-not-found handling
+# (#601) falls back to a plain text bubble for the first step rather than
+# crashing.
+#
+# Solo-only, same invariant as #605/#606: TutorialOverlay.open() unconditionally
+# sets get_tree().paused = true, which would violate co-op's personal-pause
+# contract (#43) if fired during a multiplayer session.
+func _maybe_show_assign_skills_tutorial() -> void:
+	if is_multiplayer():
+		return
+	var gs := get_node_or_null("/root/GameState")
+	var seen: Array = gs.tutorial_seen_topics if gs != null else []
+	if not TutorialTrigger.should_trigger("assign_skills", seen, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("assign_skills")
+
 # Pauses MusicManager independently of get_tree().paused (#488, parent PRD
 # #485) so co-op's personal pause — which deliberately never sets tree-pause,
 # leaving the local player vulnerable — still silences music while the menu
@@ -427,7 +459,6 @@ func open_skills_panel() -> void:
 	if submenu != null:
 		submenu.visible = true
 	_show_skills_tab()
-	_refresh_skills_panel()
 
 func close_character_submenu() -> void:
 	_show_main_menu()
@@ -661,6 +692,12 @@ func _show_skills_tab() -> void:
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
 	_set_tab_visible("AchievementsPanel", false)
+	# Refresh before the tutorial check (issue #607, PRD #596) so the skill
+	# node / assign-slot groups are already populated when the overlay
+	# resolves its highlight targets — TutorialOverlay.open() looks them up
+	# synchronously on the first step.
+	_refresh_skills_panel()
+	_maybe_show_assign_skills_tutorial()
 
 func _show_inventory_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -725,6 +762,13 @@ func _refresh_skills_panel() -> void:
 	var manager: SkillTreeManager = null
 	if c != null:
 		manager = SkillTreeManager.make(tree, c)
+	# Reset per-refresh so only the FIRST row / cluster built this pass joins
+	# the assign_skills tutorial groups (issue #607, PRD #596) — otherwise
+	# stale members from a prior refresh's freed rows would linger, or every
+	# row in a fresh refresh would join, both of which break the "exactly one
+	# highlight target" contract TutorialOverlay relies on.
+	_skills_first_row_grouped = false
+	_skills_first_cluster_grouped = false
 	for n in tree.all_nodes():
 		list.add_child(_make_skill_row(n, manager))
 
@@ -752,6 +796,15 @@ func _make_skill_row(node: SkillNode, _manager: SkillTreeManager) -> HBoxContain
 		label.text = "%s — %s" % [node.display_name, _assignment_label_text(node)]
 	else:
 		label.text = "%s — Unlocks at level %d" % [node.display_name, node.level_required]
+	# Tag only the first unlocked, assignable skill row built this refresh
+	# (issue #607, PRD #596) as the assign_skills tutorial's first-step
+	# target. Restricted to unlocked rows with a spell -- the same gate as
+	# the assign cluster below -- so a tree with nothing unlocked yet has
+	# no highlight target and the overlay falls back to a text-only
+	# bubble instead of pointing at a locked, unassignable row.
+	if node.unlocked and node.spell != null and not _skills_first_row_grouped:
+		label.add_to_group("tutorial_target_skill_node")
+		_skills_first_row_grouped = true
 	col.add_child(label)
 	if node.description != "":
 		var desc := Label.new()
@@ -785,6 +838,13 @@ func _make_assign_cluster(spell: Spell) -> HBoxContainer:
 		var slot_n := i
 		btn.pressed.connect(func() -> void: _on_assign_slot_pressed(slot_n, spell))
 		cluster.add_child(btn)
+	if not _skills_first_cluster_grouped:
+		# Tag only the first assign-cluster built this refresh (issue
+		# #607, PRD #596) as the assign_skills tutorial's second-step
+		# target -- not every cluster, for the same stale-duplicate-
+		# membership reason as the row label above.
+		cluster.add_to_group("tutorial_target_assign_slot")
+		_skills_first_cluster_grouped = true
 	return cluster
 
 # Returns the live "Slot N" / "Unassigned" suffix used in the unlocked-row
@@ -955,7 +1015,6 @@ func _on_stats_tab_pressed() -> void:
 
 func _on_skills_tab_pressed() -> void:
 	_show_skills_tab()
-	_refresh_skills_panel()
 
 func _on_inventory_tab_pressed() -> void:
 	_show_inventory_tab()

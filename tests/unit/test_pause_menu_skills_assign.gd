@@ -105,3 +105,80 @@ func test_assigning_to_occupied_slot_swaps():
 	whisker_row = scene.find_child("SkillRow_whisker_bolt", true, false)
 	assert_true((whisker_row.find_child("assign_slot_1", true, false) as Button).button_pressed,
 		"whisker row's slot 1 button must be highlighted post-swap")
+
+# assign_skills tutorial auto-trigger wiring (issue #607, PRD #596). Mirrors
+# #606's equip_gear wiring tests: first Skills tab open with an empty
+# tutorial_seen_topics fires the overlay, a second open after it's marked
+# seen does not. Uses the shared _open_wizard_pause_menu helper, whose
+# character (level 1 WIZARD_KITTEN) has hairball_hex auto-unlocked, so both
+# tutorial steps have a live target to resolve.
+
+func _find_tutorial_overlay(scene: Node) -> Node:
+	return scene.find_child("TutorialOverlay", true, false)
+
+func test_first_skills_tab_open_triggers_assign_skills_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear"]
+	var qb = _QuickbarScript.new()
+	var scene = _open_wizard_pause_menu(qb)
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "the first Skills tab open must auto-show the assign_skills tutorial overlay")
+	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+func test_only_first_skill_row_and_cluster_grouped():
+	var gs := get_node("/root/GameState")
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear", "assign_skills"]
+	var qb = _QuickbarScript.new()
+	var scene = _open_wizard_pause_menu(qb)
+	# The wizard tree has more than one unlocked node once whisker_bolt is
+	# flipped on, so a stale-duplicate-membership bug would show up here.
+	GameState.skill_tree.unlock("whisker_bolt")
+	scene._refresh_skills_panel()
+	assert_eq(get_tree().get_nodes_in_group("tutorial_target_skill_node").size(), 1,
+		"only the first skill row of a refresh may be in tutorial_target_skill_node")
+	assert_eq(get_tree().get_nodes_in_group("tutorial_target_assign_slot").size(), 1,
+		"only the first assign cluster of a refresh may be in tutorial_target_assign_slot")
+	get_tree().paused = false
+
+func test_no_unlocked_skills_falls_back_to_text_only():
+	var gs := get_node("/root/GameState")
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear"]
+	var tree := SkillTree.new()
+	var spell := Spell.make("locked_spell", "Locked Spell", Spell.EffectKind.DAMAGE, 5, 1.0)
+	tree.add_node(SkillNode.make("locked_spell", "Locked Spell", spell, [], 1, 999))
+	var c := CharacterData.make_new(CharacterData.CharacterClass.WIZARD_KITTEN)
+	gs.set_character(c)
+	gs.skill_tree = tree
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.bind_quickbar(_QuickbarScript.new())
+	scene.open_skills_panel()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "an empty unlocked-skill list must still open the overlay")
+	var box := overlay.find_child("HighlightBox", true, false) as Control
+	assert_false(box.visible,
+		"with no unlocked skill nodes, the first step must fall back to a text-only bubble, not crash")
+	get_tree().paused = false
+
+func test_already_seen_assign_skills_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear", "assign_skills"]
+	var qb = _QuickbarScript.new()
+	var scene = _open_wizard_pause_menu(qb)
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, opening the Skills tab must not re-trigger the assign_skills tutorial")
+	get_tree().paused = false
+
+func test_repeated_refresh_does_not_grow_group_membership():
+	var gs := get_node("/root/GameState")
+	gs.tutorial_seen_topics = ["pause_menu", "equip_gear", "assign_skills"]
+	var qb = _QuickbarScript.new()
+	var scene = _open_wizard_pause_menu(qb)
+	scene._refresh_skills_panel()
+	scene._refresh_skills_panel()
+	assert_eq(get_tree().get_nodes_in_group("tutorial_target_skill_node").size(), 1,
+		"repeated refreshes must not grow tutorial_target_skill_node membership")
+	assert_eq(get_tree().get_nodes_in_group("tutorial_target_assign_slot").size(), 1,
+		"repeated refreshes must not grow tutorial_target_assign_slot membership")
+	get_tree().paused = false
