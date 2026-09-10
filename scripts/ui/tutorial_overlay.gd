@@ -23,6 +23,10 @@ signal finished(topic_id: String)
 var _topic_id: String = ""
 var _steps: Array[Dictionary] = []
 var _step_index: int = 0
+# Tracks whether *this* open() call paused the tree, so close() only
+# unpauses when it owns that state — a should_pause=false caller (issue
+# #608) must never stomp a pause some other system is holding.
+var _paused_on_open: bool = false
 
 const _HIGHLIGHT_PADDING := 6.0
 
@@ -35,14 +39,20 @@ func _ready() -> void:
 	if skip_btn != null:
 		skip_btn.pressed.connect(_on_skip_pressed)
 
-# Loads the topic's steps and shows step 0. Pauses the tree, mirroring
-# PauseMenu.open() — tutorial callouts freeze gameplay while shown.
-func open(topic_id: String) -> void:
+# Loads the topic's steps and shows step 0. Pauses the tree by default,
+# mirroring PauseMenu.open() — tutorial callouts freeze gameplay while
+# shown. should_pause=false (issue #608) opts a topic out of that freeze
+# for triggers that can fire mid-gameplay (e.g. an achievement unlocking
+# mid-combat), where halting the tree would stall unrelated systems
+# (dungeon entrance detection, etc.) instead of just pausing input.
+func open(topic_id: String, should_pause: bool = true) -> void:
 	visible = true
 	_topic_id = topic_id
 	_steps = TutorialCatalog.steps_for(topic_id)
 	_step_index = 0
-	get_tree().paused = true
+	_paused_on_open = should_pause
+	if should_pause:
+		get_tree().paused = true
 	_show_step(_step_index)
 
 # Advances to the next step. Running off the end of the step list finishes
@@ -59,11 +69,14 @@ func advance() -> void:
 func skip() -> void:
 	_finish()
 
-# Internal: unpauses the tree and hides the overlay. Does not emit
-# `finished` on its own — callers that need the "topic ended" signal go
-# through _finish() (advance-past-end / skip), not close() directly.
+# Internal: unpauses the tree (only if this open() call paused it) and
+# hides the overlay. Does not emit `finished` on its own — callers that
+# need the "topic ended" signal go through _finish() (advance-past-end /
+# skip), not close() directly.
 func close() -> void:
-	get_tree().paused = false
+	if _paused_on_open:
+		get_tree().paused = false
+	_paused_on_open = false
 	visible = false
 
 func _finish() -> void:

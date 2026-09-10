@@ -45,6 +45,7 @@ func _ready() -> void:
 	_pause_btn.pressed.connect(_on_pause_pressed)
 	_stat_points_badge = $StatPointsBadge
 	_achievement_badge = $PauseButton/AchievementBadge
+	_achievement_badge.add_to_group("tutorial_target_achievement_badge")
 	_player = _find_player()
 	_bind_player_item_drop()
 	# Slice 3 of PRD #210: HUD hosts the QuickbarHUD on desktop; on touch
@@ -129,8 +130,29 @@ func _update_achievement_badge() -> void:
 	if gs == null or gs.achievement_service == null:
 		_achievement_badge.visible = false
 		return
+	var was_visible := _achievement_badge.visible
 	_achievement_badge.visible = AchievementBadge.should_show(
 		gs.achievement_service.account.achievement_state)
+	# achievements tutorial auto-trigger (issue #608, PRD #596). Edge-trigger:
+	# only fire on the not-visible->visible transition (mirrors
+	# _check_player_dead's alive->dead edge-trigger comment in this file), so
+	# the badge staying visible across subsequent polling frames doesn't
+	# re-open the overlay.
+	if _achievement_badge.visible and not was_visible:
+		_maybe_show_achievements_tutorial()
+
+func _maybe_show_achievements_tutorial() -> void:
+	if not TutorialTrigger.should_trigger(
+		"achievements", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	# should_pause=false: unlike movement_attack (only fires at session
+	# start), an achievement can unlock mid-combat. Freezing the tree here
+	# would halt unrelated systems still running under _process (dungeon
+	# entrance detection, etc.) instead of just pausing input.
+	overlay.open("achievements", false)
 
 func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:
