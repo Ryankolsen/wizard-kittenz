@@ -17,6 +17,11 @@ func before_each():
 		gs.coop_session = null
 		gs.dungeon_run_controller = null
 		gs.local_player_id = ""
+		# BarRoom now auto-fires the tavern tutorial on first mount (#609),
+		# which pauses the tree while open. These tests are about the
+		# scene-swap mechanics, not the tutorial overlay, so mark it seen up
+		# front to keep the mount path un-paused across the whole file.
+		gs.tutorial_seen_topics = ["tavern"]
 
 
 func after_each():
@@ -24,6 +29,7 @@ func after_each():
 	if gs != null:
 		gs.coop_session = null
 		gs.dungeon_run_controller = null
+	get_tree().paused = false
 
 
 func _find_child_of_type(node: Node, klass) -> Node:

@@ -78,6 +78,30 @@ func test_missing_target_group_renders_text_only():
 	assert_false(box.visible, "highlight box must stay hidden when there is no resolvable target")
 	get_tree().paused = false
 
+func test_node2d_target_shows_highlight_box_at_projected_position():
+	# Issue #609 (QA finding): Bartender is a Node2D, not a Control, so
+	# _position_for_target must support projecting a Node2D's world position
+	# through the viewport's canvas transform to screen space and drawing the
+	# highlight box centered on that projected point.
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Node2D.new()
+	add_child_autofree(target)
+	target.global_position = Vector2(100, 50)
+	target.add_to_group("tutorial_target_test_node2d")
+
+	scene._position_for_target("tutorial_target_test_node2d")
+
+	var box := scene.find_child("HighlightBox", true, false) as Control
+	assert_true(box.visible, "highlight box must show for a Node2D target")
+	var expected: Vector2 = scene.get_viewport().get_canvas_transform() * target.global_position
+	var box_center: Vector2 = box.global_position + box.size / 2.0
+	assert_almost_eq(box_center.x, expected.x, 1.0,
+		"highlight box must be centered on the projected screen position (x)")
+	assert_almost_eq(box_center.y, expected.y, 1.0,
+		"highlight box must be centered on the projected screen position (y)")
+
+
 func test_close_unpauses_tree():
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)

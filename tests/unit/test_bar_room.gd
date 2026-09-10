@@ -9,6 +9,16 @@ extends GutTest
 const BAR_ROOM_SCENE_PATH := "res://scenes/bar_room.tscn"
 
 
+# The tavern tutorial (#609) now auto-fires from BarRoom._ready() whenever
+# GameState.tutorial_seen_topics doesn't already contain "tavern". Default
+# to already-seen here so the many unrelated tests in this file (which
+# predate #609 and don't care about the tutorial overlay) keep exercising
+# only the behavior they're testing; the tutorial-specific tests below set
+# their own seen-state as needed.
+func before_each() -> void:
+	GameState.tutorial_seen_topics = ["tavern"]
+
+
 func _make_bar() -> BarRoom:
 	var bar: BarRoom = load(BAR_ROOM_SCENE_PATH).instantiate()
 	add_child_autofree(bar)
@@ -244,6 +254,44 @@ func test_shop_overlay_teardown_removes_scrim() -> void:
 	for child in bar.get_children():
 		assert_false(child is CanvasLayer,
 			"no leftover CanvasLayer scrim hanging around after close")
+
+
+# --- tavern tutorial auto-trigger (#609, PRD #596) --------------------------
+# Mirrors the movement_attack wiring into hud.gd (#604) and main_menu wiring
+# into character_creation (#603): the bar room fires its own tutorial the
+# first time it's entered, with GameState.tutorial_seen_topics as the
+# cross-scene seen-state gate.
+
+func _find_tutorial_overlay(scene: Node) -> Node:
+	return scene.find_child("TutorialOverlay", true, false)
+
+
+func test_first_bar_room_entry_triggers_tavern_tutorial():
+	GameState.tutorial_seen_topics = []
+	var bar := _make_bar()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var overlay := _find_tutorial_overlay(bar)
+	assert_not_null(overlay, "first bar room entry must auto-show the tavern overlay")
+	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+
+func test_bartender_in_tutorial_group():
+	var bar := _make_bar()
+	var bartender := bar.get_node_or_null("Bartender")
+	assert_not_null(bartender, "bar room has a Bartender node")
+	assert_true(bartender.is_in_group("tutorial_target_bartender"),
+		"Bartender must be in the tutorial_target_bartender group")
+
+
+func test_already_seen_tavern_does_not_retrigger():
+	GameState.tutorial_seen_topics = ["tavern"]
+	var bar := _make_bar()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_null(_find_tutorial_overlay(bar),
+		"once seen, re-entering the bar room must not retrigger the tavern tutorial")
 
 
 func test_shop_overlay_reopen_does_not_stack() -> void:
