@@ -44,6 +44,16 @@ if [ -z "$GODOT" ] || [ ! -x "$GODOT" ]; then
     exit 1
 fi
 
+# Godot only refreshes global_script_class_cache.cfg (where class_name
+# lookups resolve from) on a project scan; the editor does this automatically
+# but the headless test run below does not. A class_name added or renamed
+# since the cache was last written then reads as an undeclared identifier —
+# a real "Parse error" — even though the script itself is fine, and its test
+# file silently contributes 0 tests while the rest of the suite still prints
+# a healthy-looking Totals block. Reimporting first closes that gap.
+echo "pre-commit: reimporting project (refreshing class_name cache)..."
+"$GODOT" --headless --path "$REPO_ROOT" --import >/dev/null 2>&1
+
 echo "pre-commit: running GUT tests..."
 OUTPUT="$("$GODOT" --headless --path "$REPO_ROOT" -s addons/gut/gut_cmdln.gd \
     -gconfig=res://gut_config.json -gexit 2>&1)"

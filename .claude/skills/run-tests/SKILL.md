@@ -11,6 +11,30 @@ description: Run GUT unit tests for this Godot project. Use when the user wants 
 /Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot
 ```
 
+## Reimport before testing a newly-added `class_name`
+
+`res://.godot/global_script_class_cache.cfg` is where Godot registers every
+script's `class_name` for global lookup. It is only refreshed by a project
+scan — the editor does this automatically, but `-s addons/gut/gut_cmdln.gd`
+headless test runs do not, so a `class_name` added (or renamed) since the
+cache was last written resolves as an undeclared identifier even though the
+script is syntactically correct. This bit issues #597/#598/#613: two already
+green-verified test files silently contributed 0 tests for an entire session
+because nobody's headless invocation refreshed the cache after `TutorialCatalog`
+and `TutorialProgress` were added, and the resulting `Parse error` text never
+made it into any grep pattern being used to judge the run.
+
+The symptom is `Parse Error: Identifier "<ClassName>" not declared in the
+current scope` where `<ClassName>` genuinely has `class_name <ClassName>` in
+its script — this is a stale-cache problem, not a real GDScript error, so
+"fix the GDScript error" (below) is the wrong response to it. Reimporting is
+cheap and safe to run unconditionally before any test run that matters (a
+gate check, a qa-verifier pass, a pre-commit hook run):
+
+```bash
+/Users/ryankolsen/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --import
+```
+
 ## Run all tests
 
 `gut_config.json` (repo root) holds GUT's directory config, but GUT only
