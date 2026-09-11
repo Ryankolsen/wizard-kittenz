@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://dqx7t8k3vw2mn"]
+[gd_scene format=3 uid="uid://dqx7t8k3vw2mn"]
 
 [ext_resource type="Script" path="res://scripts/ui/tutorial_topic_menu.gd" id="1_topic_menu"]
 

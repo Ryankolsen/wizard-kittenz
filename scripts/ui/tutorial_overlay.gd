@@ -27,12 +27,26 @@ var _step_index: int = 0
 # unpauses when it owns that state — a should_pause=false caller (issue
 # #608) must never stomp a pause some other system is holding.
 var _paused_on_open: bool = false
+# The current step's unwrapped text, re-wrapped in _position_for_target once
+# the bubble's actual width for this frame is known (see _wrap_text).
+var _current_step_text: String = ""
 
 const _HIGHLIGHT_PADDING := 6.0
 # Node2D targets (e.g. Bartender, issue #609) have no natural bounding rect
 # the way a Control does, so the highlight box is a fixed-size square
 # centered on the target's projected screen position.
 const _NODE2D_HIGHLIGHT_SIZE := Vector2(64.0, 64.0)
+
+# The project's design canvas is only 480x270 (project.godot stretch/mode
+# "canvas_items"). A near-square bubble (previously 240x60-and-growing)
+# still ate a large chunk of that height. A wide, short banner docked at
+# the top uses the same text budget in far less vertical space, so it
+# never covers more than a thin strip of the screen regardless of target
+# position. Width is computed per-call as most of the viewport (see
+# _position_for_target); this is only the height floor/minimum.
+const _BUBBLE_MIN_HEIGHT := 40.0
+const _BUBBLE_MARGIN := 10.0
+const _BUBBLE_CONTENT_MARGIN := 12.0
 
 func _ready() -> void:
 	visible = false
@@ -93,9 +107,7 @@ func _show_step(index: int) -> void:
 		_finish()
 		return
 	var step: Dictionary = _steps[index]
-	var label := find_child("StepLabel", true, false) as Label
-	if label != null:
-		label.text = String(step.get("text", ""))
+	_current_step_text = String(step.get("text", ""))
 	_position_for_target(String(step.get("target_group", "")))
 	step_shown.emit(_topic_id, index)
 
@@ -126,19 +138,66 @@ func _position_for_target(target_group: String) -> void:
 		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * (target as Node2D).global_position
 		rect = Rect2(screen_pos - _NODE2D_HIGHLIGHT_SIZE / 2.0, _NODE2D_HIGHLIGHT_SIZE)
 		has_rect = true
-	if has_rect:
-		if box != null:
+	if box != null:
+		box.visible = has_rect
+		if has_rect:
 			box.global_position = rect.position - Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING)
 			box.size = rect.size + Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING) * 2
-			box.visible = true
-		if bubble != null:
-			bubble.set_anchors_preset(Control.PRESET_TOP_LEFT)
-			bubble.global_position = Vector2(rect.position.x, rect.position.y + rect.size.y + _HIGHLIGHT_PADDING * 2)
-	else:
-		if box != null:
-			box.visible = false
-		if bubble != null:
-			bubble.set_anchors_preset(Control.PRESET_CENTER)
+
+	if bubble == null:
+		return
+	bubble.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	# A wide banner rather than a near-square card -- most of the viewport
+	# width, kept short by wrapping to few lines instead of many.
+	var bubble_width: float = maxf(0.0, viewport_size.x - _BUBBLE_MARGIN * 2.0)
+	var content_width: float = maxf(0.0, bubble_width - _BUBBLE_CONTENT_MARGIN * 2.0)
+	var max_bubble_height: float = maxf(_BUBBLE_MIN_HEIGHT, viewport_size.y - _BUBBLE_MARGIN * 2.0)
+
+	var bubble_height := _BUBBLE_MIN_HEIGHT
+	var label := find_child("StepLabel", true, false) as Label
+	if label != null:
+		# Label's own *autowrap* minimum-size computation is unreliable
+		# before the control has gone through a real layout pass (it can
+		# report a wildly inflated height, dragging the whole bubble along
+		# via Godot's automatic clamp-to-minimum-size). Word-wrap the text
+		# ourselves with direct font metrics instead and turn autowrap off,
+		# which makes the label's (and therefore the bubble's) own reported
+		# minimum size a simple, reliable per-line calculation again.
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		var font: Font = label.get_theme_font("font")
+		var font_size: int = label.get_theme_font_size("font_size")
+		label.text = _wrap_text(_current_step_text, font, font_size, content_width)
+		bubble_height = clampf(bubble.get_combined_minimum_size().y, _BUBBLE_MIN_HEIGHT, max_bubble_height)
+
+	var bubble_size := Vector2(bubble_width, bubble_height)
+	bubble.size = bubble_size
+	# Always dock at the top of the screen as a banner, clear of the
+	# highlight box below it -- a fixed, predictable location that only
+	# ever covers a thin strip at the top rather than following the
+	# target and potentially landing over the player mid-gameplay.
+	bubble.global_position = Vector2(_BUBBLE_MARGIN, _BUBBLE_MARGIN)
+
+# Greedy word-wrap using the label's actual font metrics, breaking at
+# max_width. Bypasses Label's built-in autowrap so its minimum-size stays a
+# simple, reliable per-line calculation (see _position_for_target). A single
+# word wider than max_width is kept on its own line rather than split.
+func _wrap_text(text: String, font: Font, font_size: int, max_width: float) -> String:
+	if text == "" or font == null:
+		return text
+	var words := text.split(" ")
+	var lines: Array[String] = []
+	var current := ""
+	for word in words:
+		var candidate := word if current == "" else current + " " + word
+		if current != "" and font.get_string_size(candidate, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > max_width:
+			lines.append(current)
+			current = word
+		else:
+			current = candidate
+	if current != "":
+		lines.append(current)
+	return "\n".join(lines)
 
 func _on_close_pressed() -> void:
 	advance()
