@@ -33,7 +33,7 @@ func test_movement_attack_steps_have_correct_text_and_targets():
 func test_pause_menu_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("pause_menu")
 	assert_eq(steps.size(), 6)
-	assert_eq(steps[0].text, "The pause menu. Life's remote control, minus the fast-forward.")
+	assert_eq(steps[0].text, "Tap here to pause and manage your kitten — stats, skills, gear, items, achievements.")
 	assert_eq(steps[0].target_group, "tutorial_target_pause_button")
 	assert_false(steps[0].touch_only)
 	assert_eq(steps[1].text, "Stats tab — dump those points before you forget you have opposable thumbs.")
@@ -42,13 +42,13 @@ func test_pause_menu_steps_have_correct_text_and_targets():
 	assert_eq(steps[2].text, "Skills tab — where the actual fun spells live, assuming you remember to equip them.")
 	assert_eq(steps[2].target_group, "tutorial_target_skills_tab")
 	assert_false(steps[2].touch_only)
-	assert_eq(steps[3].text, "Inventory tab — your loot's waiting room. It's had a long day.")
+	assert_eq(steps[3].text, "Inventory tab — see everything you've picked up, ready to equip.")
 	assert_eq(steps[3].target_group, "tutorial_target_inventory_tab")
 	assert_false(steps[3].touch_only)
 	assert_eq(steps[4].text, "Items tab — potions, for when 'dodge better' stops being viable advice.")
 	assert_eq(steps[4].target_group, "tutorial_target_items_tab")
 	assert_false(steps[4].touch_only)
-	assert_eq(steps[5].text, "Achievements — meaningless internet points. Extremely shiny ones.")
+	assert_eq(steps[5].text, "Achievements tab — see your progress and claim rewards you've earned.")
 	assert_eq(steps[5].target_group, "tutorial_target_achievements_tab")
 	assert_false(steps[5].touch_only)
 
@@ -65,10 +65,10 @@ func test_equip_gear_steps_have_correct_text_and_targets():
 func test_assign_skills_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("assign_skills")
 	assert_eq(steps.size(), 2)
-	assert_eq(steps[0].text, "This is a spell. It's homeless. Fix that.")
+	assert_eq(steps[0].text, "An unlocked spell, just sitting there. Great personality, no stage time.")
 	assert_eq(steps[0].target_group, "tutorial_target_skill_node")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Drop it in a slot so you can actually cast it mid-fight, not just admire it.")
+	assert_eq(steps[1].text, "Tap a number to bind it to that hotbar slot. Tap again to unbind.")
 	assert_eq(steps[1].target_group, "tutorial_target_assign_slot")
 	assert_false(steps[1].touch_only)
 
@@ -78,7 +78,7 @@ func test_tavern_steps_have_correct_text_and_targets():
 	assert_eq(steps[0].text, "Walk up and hit attack to chat. He won't fight back — he's just thirsty. For gold, mostly.")
 	assert_eq(steps[0].target_group, "tutorial_target_bartender")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Shop, a beer, or renting a hooman to eat hits for you. Choose wisely, or don't, we're not your mom.")
+	assert_eq(steps[1].text, "Talk to him again for the menu: Shop, a beer (buffs your damage), or renting a Hooman to eat hits for you.")
 	assert_eq(steps[1].target_group, "")
 	assert_false(steps[1].touch_only)
 

@@ -69,17 +69,17 @@ static func _movement_attack_steps() -> Array[Dictionary]:
 
 static func _pause_menu_steps() -> Array[Dictionary]:
 	return [
-		_step("The pause menu. Life's remote control, minus the fast-forward.",
+		_step("Tap here to pause and manage your kitten — stats, skills, gear, items, achievements.",
 			"tutorial_target_pause_button", false),
 		_step("Stats tab — dump those points before you forget you have opposable thumbs.",
 			"tutorial_target_stats_tab", false),
 		_step("Skills tab — where the actual fun spells live, assuming you remember to equip them.",
 			"tutorial_target_skills_tab", false),
-		_step("Inventory tab — your loot's waiting room. It's had a long day.",
+		_step("Inventory tab — see everything you've picked up, ready to equip.",
 			"tutorial_target_inventory_tab", false),
 		_step("Items tab — potions, for when 'dodge better' stops being viable advice.",
 			"tutorial_target_items_tab", false),
-		_step("Achievements — meaningless internet points. Extremely shiny ones.",
+		_step("Achievements tab — see your progress and claim rewards you've earned.",
 			"tutorial_target_achievements_tab", false),
 	]
 
@@ -93,9 +93,9 @@ static func _equip_gear_steps() -> Array[Dictionary]:
 
 static func _assign_skills_steps() -> Array[Dictionary]:
 	return [
-		_step("This is a spell. It's homeless. Fix that.",
+		_step("An unlocked spell, just sitting there. Great personality, no stage time.",
 			"tutorial_target_skill_node", false),
-		_step("Drop it in a slot so you can actually cast it mid-fight, not just admire it.",
+		_step("Tap a number to bind it to that hotbar slot. Tap again to unbind.",
 			"tutorial_target_assign_slot", false),
 	]
 
@@ -103,7 +103,7 @@ static func _tavern_steps() -> Array[Dictionary]:
 	return [
 		_step("Walk up and hit attack to chat. He won't fight back — he's just thirsty. For gold, mostly.",
 			"tutorial_target_bartender", false),
-		_step("Shop, a beer, or renting a hooman to eat hits for you. Choose wisely, or don't, we're not your mom.",
+		_step("Talk to him again for the menu: Shop, a beer (buffs your damage), or renting a Hooman to eat hits for you.",
 			"", false),
 	]
 
