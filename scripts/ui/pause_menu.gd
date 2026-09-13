@@ -226,87 +226,94 @@ func open() -> void:
 	_pause_music()
 	if not is_multiplayer():
 		get_tree().paused = true
-		_maybe_show_tutorial()
 
-# pause_menu tutorial auto-trigger (issue #605, PRD #596). Tours the pause
-# button and all 5 tab buttons the first time the pause menu is opened.
+# Generic tutorial auto-trigger, shared by every per-tab tutorial below
+# (issues #605-607, PRD #596; re-split per-tab to fix the "whole pause_menu
+# topic fires at menu-open, before any tab is actually open" bug). The
+# pause-button tip itself no longer fires from here -- it now fires from
+# HUD before the menu is ever opened (see hud.gd's _maybe_show_pause_menu_
+# tutorial), since firing it here meant it always rendered over an
+# already-open menu describing a button the player had already clicked.
 # Added as a child of this node so it renders on top of the already-open
 # menu. TutorialOverlay.open() also sets get_tree().paused = true, which is
-# already true at this point — idempotent, so no conflict.
+# already true by the time any of these fire — idempotent, so no conflict.
 #
-# Solo-only: gated behind the same `not is_multiplayer()` branch as the
-# tree-pause above. Co-op's personal pause deliberately never touches
+# on_finished lets a caller chain a second, more detailed tutorial (e.g.
+# assign_skills) to run only after this one's overlay actually closes —
+# firing both immediately would stack two overlays on the same frame,
+# since should_trigger's "seen" check for the second topic doesn't depend
+# on the first topic's seen-state at all.
+#
+# Solo-only: co-op's personal pause deliberately never touches
 # get_tree().paused (#43) so the local player stays vulnerable while the
 # menu is open; TutorialOverlay.open() unconditionally pauses the tree, so
-# firing it during an active co-op session would silently violate that
-# contract. Deferring the co-op tour to a future slice keeps this change
-# from reaching into the multiplayer branch beyond the existing pause check.
-func _maybe_show_tutorial() -> void:
+# firing any of these during an active co-op session would silently
+# violate that contract. Deferring the co-op tour to a future slice keeps
+# this change from reaching into the multiplayer branch beyond the
+# existing pause check.
+func _show_tutorial_if_unseen(topic_id: String, on_finished: Callable = Callable()) -> bool:
+	if is_multiplayer():
+		return false
 	var gs := get_node_or_null("/root/GameState")
 	var seen: Array = gs.tutorial_seen_topics if gs != null else []
-	if not TutorialTrigger.should_trigger("pause_menu", seen, TouchControls.is_touch_platform()):
-		return
+	if not TutorialTrigger.should_trigger(topic_id, seen, TouchControls.is_touch_platform()):
+		return false
 	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child(overlay)
-	overlay.finished.connect(_on_tutorial_finished)
-	overlay.open("pause_menu")
+	overlay.finished.connect(_on_tutorial_finished.bind(on_finished))
+	overlay.open(topic_id)
+	return true
 
-func _on_tutorial_finished(topic_id: String) -> void:
+func _on_tutorial_finished(topic_id: String, on_finished: Callable = Callable()) -> void:
 	var gs := get_node_or_null("/root/GameState")
 	if gs == null:
 		return
 	gs.tutorial_seen_topics = TutorialProgress.mark_seen(gs.tutorial_seen_topics, topic_id)
 	SaveManager.save_from_state()
+	if on_finished.is_valid():
+		on_finished.call()
 
-# equip_gear tutorial auto-trigger (issue #606, PRD #596). Fires the first
-# time the Inventory tab is shown (_show_inventory_tab, called both from the
-# tab button and from open_character_submenu's default landing view),
-# touring the first equip slot then the first bag item. Reuses
-# _on_tutorial_finished — that handler already reads the topic_id off the
-# `finished` signal rather than assuming "pause_menu", so it works unchanged
-# for any topic. If the bag is empty, the overlay's own target-not-found
-# handling (#601) falls back to a plain text bubble for the second step.
-#
-# Solo-only, same invariant as #605's _maybe_show_tutorial: TutorialOverlay.
-# open() unconditionally sets get_tree().paused = true, which would violate
-# co-op's personal-pause contract (#43 — local player must stay vulnerable,
-# get_tree().paused must never flip) if this fired during a multiplayer
-# session. Deferring the co-op equip_gear tour is out of scope here.
+# Per-tab intro tutorials (issue #605 follow-up). Each fires only when its
+# own tab is actually shown, mirroring equip_gear/assign_skills below —
+# unlike the old monolithic pause_menu topic, none of these can render over
+# a screen that doesn't match what they describe.
+func _maybe_show_stats_tab_tutorial() -> void:
+	_show_tutorial_if_unseen("stats_tab")
+
+func _maybe_show_items_tab_tutorial() -> void:
+	_show_tutorial_if_unseen("items_tab")
+
+func _maybe_show_achievements_tab_tutorial() -> void:
+	_show_tutorial_if_unseen("achievements_tab")
+
+# skills_tab's intro chains into assign_skills's own detail tutorial once
+# the intro overlay closes (or immediately, if the intro was already seen)
+# so the two never stack on the same frame.
+func _maybe_show_skills_tab_tutorial() -> void:
+	if not _show_tutorial_if_unseen("skills_tab", _maybe_show_assign_skills_tutorial):
+		_maybe_show_assign_skills_tutorial()
+
+# inventory_tab's intro chains into equip_gear the same way skills_tab
+# chains into assign_skills above.
+func _maybe_show_inventory_tab_tutorial() -> void:
+	if not _show_tutorial_if_unseen("inventory_tab", _maybe_show_equip_gear_tutorial):
+		_maybe_show_equip_gear_tutorial()
+
+# equip_gear tutorial auto-trigger (issue #606, PRD #596). Fires after the
+# inventory_tab intro (or immediately if that's already seen), touring the
+# first equip slot then the first bag item. If the bag is empty, the
+# overlay's own target-not-found handling (#601) falls back to a plain
+# text bubble for the second step.
 func _maybe_show_equip_gear_tutorial() -> void:
-	if is_multiplayer():
-		return
-	var gs := get_node_or_null("/root/GameState")
-	var seen: Array = gs.tutorial_seen_topics if gs != null else []
-	if not TutorialTrigger.should_trigger("equip_gear", seen, TouchControls.is_touch_platform()):
-		return
-	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
-	add_child(overlay)
-	overlay.finished.connect(_on_tutorial_finished)
-	overlay.open("equip_gear")
+	_show_tutorial_if_unseen("equip_gear")
 
-# assign_skills tutorial auto-trigger (issue #607, PRD #596). Fires the first
-# time the Skills tab is shown (_show_skills_tab, called both from the tab
-# button and from open_skills_panel), touring the first unlocked skill node
-# then the assign-to-slot control. Same shape as #606's
-# _maybe_show_equip_gear_tutorial: reuses _on_tutorial_finished, and if no
-# skill node is unlocked yet the overlay's own target-not-found handling
-# (#601) falls back to a plain text bubble for the first step rather than
-# crashing.
-#
-# Solo-only, same invariant as #605/#606: TutorialOverlay.open() unconditionally
-# sets get_tree().paused = true, which would violate co-op's personal-pause
-# contract (#43) if fired during a multiplayer session.
+# assign_skills tutorial auto-trigger (issue #607, PRD #596). Fires after
+# the skills_tab intro (or immediately if that's already seen), touring the
+# first unlocked skill node then the assign-to-slot control. If no skill
+# node is unlocked yet, the overlay's own target-not-found handling (#601)
+# falls back to a plain text bubble for the first step rather than crashing.
 func _maybe_show_assign_skills_tutorial() -> void:
-	if is_multiplayer():
-		return
-	var gs := get_node_or_null("/root/GameState")
-	var seen: Array = gs.tutorial_seen_topics if gs != null else []
-	if not TutorialTrigger.should_trigger("assign_skills", seen, TouchControls.is_touch_platform()):
-		return
-	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
-	add_child(overlay)
-	overlay.finished.connect(_on_tutorial_finished)
-	overlay.open("assign_skills")
+	_show_tutorial_if_unseen("assign_skills")
 
 # Pauses MusicManager independently of get_tree().paused (#488, parent PRD
 # #485) so co-op's personal pause — which deliberately never sets tree-pause,
@@ -685,6 +692,7 @@ func _show_stats_tab() -> void:
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
 	_set_tab_visible("AchievementsPanel", false)
+	_maybe_show_stats_tab_tutorial()
 
 func _show_skills_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -697,7 +705,7 @@ func _show_skills_tab() -> void:
 	# resolves its highlight targets — TutorialOverlay.open() looks them up
 	# synchronously on the first step.
 	_refresh_skills_panel()
-	_maybe_show_assign_skills_tutorial()
+	_maybe_show_skills_tab_tutorial()
 
 func _show_inventory_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -710,7 +718,7 @@ func _show_inventory_tab() -> void:
 	# its highlight targets — TutorialOverlay.open() looks them up
 	# synchronously on the first step.
 	_refresh_equipment_panel()
-	_maybe_show_equip_gear_tutorial()
+	_maybe_show_inventory_tab_tutorial()
 
 func _show_items_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -718,6 +726,7 @@ func _show_items_tab() -> void:
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", true)
 	_set_tab_visible("AchievementsPanel", false)
+	_maybe_show_items_tab_tutorial()
 
 func _show_achievements_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -725,6 +734,7 @@ func _show_achievements_tab() -> void:
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
 	_set_tab_visible("AchievementsPanel", true)
+	_maybe_show_achievements_tab_tutorial()
 
 func _set_tab_visible(node_name: String, vis: bool) -> void:
 	var n := find_child(node_name, true, false) as Control

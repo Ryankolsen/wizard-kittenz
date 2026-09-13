@@ -12,10 +12,13 @@ extends CanvasLayer
 # TutorialProgress.mark_seen or know about TutorialTrigger. The caller (a
 # later wiring slice) listens for `finished` and marks the topic seen.
 #
-# Per-step "X" (CloseButton) advances to the next step — it dismisses only
-# the current step's bubble, not the whole topic. "Skip" is the only way to
-# abandon the remaining steps early. Both paths that end the topic (running
-# off the end of the step list, or Skip) emit `finished` exactly once.
+# The bubble's corner "×" (CloseButton) is the dismiss-everything action —
+# it reads as "close this" the way a corner × does everywhere else, so it
+# abandons the whole topic early. The prominent bottom button (SkipButton
+# node, despite its name) is the acknowledge-and-continue action: it reads
+# "Next" mid-topic and "Got it!" on the final step, and just advances one
+# step at a time. Both paths that end the topic (running off the end of the
+# step list, or the corner ×) emit `finished` exactly once.
 
 signal step_shown(topic_id: String, step_index: int)
 signal finished(topic_id: String)
@@ -47,15 +50,23 @@ const _NODE2D_HIGHLIGHT_SIZE := Vector2(64.0, 64.0)
 const _BUBBLE_MIN_HEIGHT := 40.0
 const _BUBBLE_MARGIN := 10.0
 const _BUBBLE_CONTENT_MARGIN := 12.0
+# How far down from the top margin counts as "the banner's row" for the
+# narrow-to-avoid-covering-the-target check above -- generous enough to
+# cover the banner's minimum height plus a couple of wrapped lines.
+const _TOP_BAND_HEIGHT := 80.0
+# Below this width a narrowed banner reads as a squeezed, barely-wrappable
+# sliver rather than a readable line -- skip narrowing (and just cover the
+# target) if there isn't at least this much room for it.
+const _MIN_NARROWED_BUBBLE_WIDTH := 120.0
 
 func _ready() -> void:
 	visible = false
 	var close_btn := find_child("CloseButton", true, false) as Button
 	if close_btn != null:
-		close_btn.pressed.connect(_on_close_pressed)
+		close_btn.pressed.connect(_on_skip_pressed)
 	var skip_btn := find_child("SkipButton", true, false) as Button
 	if skip_btn != null:
-		skip_btn.pressed.connect(_on_skip_pressed)
+		skip_btn.pressed.connect(_on_advance_pressed)
 
 # Loads the topic's steps and shows step 0. Pauses the tree by default,
 # mirroring PauseMenu.open() — tutorial callouts freeze gameplay while
@@ -109,6 +120,9 @@ func _show_step(index: int) -> void:
 	var step: Dictionary = _steps[index]
 	_current_step_text = String(step.get("text", ""))
 	_position_for_target(String(step.get("target_group", "")))
+	var skip_btn := find_child("SkipButton", true, false) as Button
+	if skip_btn != null:
+		skip_btn.text = "Got it!" if index == _steps.size() - 1 else "Next"
 	step_shown.emit(_topic_id, index)
 
 # Resolves target_group to a node via get_first_node_in_group and either
@@ -151,6 +165,16 @@ func _position_for_target(target_group: String) -> void:
 	# A wide banner rather than a near-square card -- most of the viewport
 	# width, kept short by wrapping to few lines instead of many.
 	var bubble_width: float = maxf(0.0, viewport_size.x - _BUBBLE_MARGIN * 2.0)
+	# The banner always docks at the top of the screen (see below), so a
+	# target that also sits near the top -- e.g. the HUD's PauseButton and
+	# its AchievementBadge child, both used by tutorial steps -- would
+	# otherwise be fully hidden underneath a full-width banner. When the
+	# target's rect falls in that same top band, stop the banner short of
+	# the target's left edge instead, so the target and its HighlightBox
+	# stay visible to the right of the text.
+	if has_rect and rect.position.y < _BUBBLE_MARGIN + _TOP_BAND_HEIGHT \
+			and rect.position.x > _BUBBLE_MARGIN + _MIN_NARROWED_BUBBLE_WIDTH:
+		bubble_width = maxf(0.0, rect.position.x - _HIGHLIGHT_PADDING - _BUBBLE_MARGIN)
 	var content_width: float = maxf(0.0, bubble_width - _BUBBLE_CONTENT_MARGIN * 2.0)
 	var max_bubble_height: float = maxf(_BUBBLE_MIN_HEIGHT, viewport_size.y - _BUBBLE_MARGIN * 2.0)
 
@@ -199,7 +223,7 @@ func _wrap_text(text: String, font: Font, font_size: int, max_width: float) -> S
 		lines.append(current)
 	return "\n".join(lines)
 
-func _on_close_pressed() -> void:
+func _on_advance_pressed() -> void:
 	advance()
 
 func _on_skip_pressed() -> void:

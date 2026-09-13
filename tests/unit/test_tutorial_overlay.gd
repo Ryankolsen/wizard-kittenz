@@ -39,12 +39,15 @@ func test_open_pauses_tree_and_shows_first_step():
 	get_tree().paused = false
 
 func test_advance_shows_next_step_text():
+	# Uses equip_gear (2 steps) rather than pause_menu (now a single step
+	# after the per-tab tutorial split) since this test specifically
+	# exercises advancing to a second step's text.
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)
-	scene.open("pause_menu")
+	scene.open("equip_gear")
 	scene.advance()
 	var label = scene.find_child("StepLabel", true, false) as Label
-	var steps = TutorialCatalog.steps_for("pause_menu")
+	var steps = TutorialCatalog.steps_for("equip_gear")
 	assert_eq(label.text.replace("\n", " "), steps[1]["text"], "advance() must show step index 1's text")
 	get_tree().paused = false
 
@@ -52,33 +55,36 @@ func test_advance_past_last_step_emits_finished():
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)
 	watch_signals(scene)
-	scene.open("pause_menu")
-	var steps = TutorialCatalog.steps_for("pause_menu")
+	scene.open("equip_gear")
+	var steps = TutorialCatalog.steps_for("equip_gear")
 	for i in range(steps.size()):
 		scene.advance()
 	assert_signal_emitted(scene, "finished", "advancing past the last step must emit finished")
 	assert_false(get_tree().paused, "finishing the topic must unpause the tree")
 
 func test_skip_emits_finished_from_any_step():
+	# Uses equip_gear (2 steps) so skip() genuinely fires mid-topic (after
+	# one advance()) rather than after the single pause_menu step has
+	# already finished the overlay on its own.
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)
 	watch_signals(scene)
-	scene.open("pause_menu")
+	scene.open("equip_gear")
 	scene.advance()
 	scene.skip()
 	assert_signal_emitted(scene, "finished", "skip() must emit finished")
 	assert_false(get_tree().paused, "skip() must unpause the tree")
 
 func test_missing_target_group_renders_text_only():
-	# "tavern" step 1 has target_group == "" (no group to resolve at all),
-	# which must fall back to the plain centered text bubble without crashing.
+	# An empty (or unresolvable) target_group must fall back to the plain
+	# centered text bubble without crashing. Exercised directly against
+	# _position_for_target rather than a real catalog topic/step, since no
+	# current topic happens to have an empty target_group step.
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)
-	scene.open("tavern")
-	scene.advance()
+	scene._position_for_target("")
 	var box = scene.find_child("HighlightBox", true, false) as Control
 	assert_false(box.visible, "highlight box must stay hidden when there is no resolvable target")
-	get_tree().paused = false
 
 func test_node2d_target_shows_highlight_box_at_projected_position():
 	# Issue #609 (QA finding): Bartender is a Node2D, not a Control, so

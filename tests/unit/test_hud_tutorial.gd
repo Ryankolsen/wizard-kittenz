@@ -122,3 +122,100 @@ func test_already_seen_achievements_does_not_retrigger():
 	await get_tree().process_frame
 	assert_null(_find_tutorial_overlay(hud),
 		"an already-seen achievements topic must not re-trigger on the badge's visibility edge")
+
+# pause_menu tutorial auto-trigger wiring (issue #605 follow-up, PRD #596).
+# The pause-button tip now fires from HUD, not from PauseMenu.open() (see
+# test_pause_menu.gd) -- either chained after the achievements tip finishes
+# (the common case: the achievements message tells the player to go claim
+# their reward in the pause menu, so this is the moment they most need to
+# be told how to open it) or from a fallback timer for players who never
+# earn an achievement early on. Both paths call the same
+# _maybe_show_pause_menu_tutorial, so the fallback timer is exercised by
+# calling it directly rather than waiting out the real delay.
+
+func test_achievements_finished_chains_into_pause_menu_tutorial():
+	GameState.tutorial_seen_topics = []
+	GameState.achievement_service.account.achievement_state["first_kill"] = {
+		"unlocked_at": 0, "claimed": false, "earned_by_slot": "",
+	}
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var achievements_overlay := _find_tutorial_overlay(hud)
+	assert_not_null(achievements_overlay)
+	achievements_overlay.finished.emit("achievements")
+	assert_true(GameState.tutorial_seen_topics.has("achievements"),
+		"finishing the achievements overlay must mark achievements seen")
+	var chained := _find_tutorial_overlay(hud)
+	assert_not_null(chained,
+		"finishing the achievements overlay must chain straight into the pause_menu tutorial")
+	assert_false(get_tree().paused,
+		"the chained pause_menu tip must not pause the tree -- it fires during live gameplay")
+
+func test_already_seen_pause_menu_does_not_chain_after_achievements():
+	# close()/skip() only hide a TutorialOverlay, they don't free it (see
+	# tutorial_overlay.gd), so the already-finished achievements overlay
+	# stays in the tree -- assert_null on _find_tutorial_overlay would find
+	# that stale node regardless of chaining, so this compares the overlay
+	# count before/after instead of null-checking a single lookup.
+	GameState.tutorial_seen_topics = ["pause_menu"]
+	GameState.achievement_service.account.achievement_state["first_kill"] = {
+		"unlocked_at": 0, "claimed": false, "earned_by_slot": "",
+	}
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var achievements_overlay := _find_tutorial_overlay(hud)
+	assert_not_null(achievements_overlay)
+	var before: int = hud.find_children("TutorialOverlay", "", true, false).size()
+	achievements_overlay.finished.emit("achievements")
+	var after: int = hud.find_children("TutorialOverlay", "", true, false).size()
+	assert_eq(after, before,
+		"once pause_menu is already seen, finishing achievements must not add a chained overlay")
+
+func test_fallback_timer_shows_pause_menu_tutorial_if_not_already_shown():
+	GameState.tutorial_seen_topics = []
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	hud._maybe_show_pause_menu_tutorial()
+	var overlay := _find_tutorial_overlay(hud)
+	assert_not_null(overlay, "the fallback trigger must auto-show the pause_menu tutorial overlay")
+	assert_false(get_tree().paused,
+		"the fallback pause_menu tip must not pause the tree -- it fires during live gameplay")
+
+func test_fallback_timer_does_not_retrigger_after_achievements_chain_fired():
+	# TutorialOverlay.close()/skip() only hide the node, they never free it
+	# (see tutorial_overlay.gd), and a second sibling with the same default
+	# name gets silently auto-renamed by Godot -- so neither a name-based
+	# lookup nor a name-pattern count can reliably detect a stacked second
+	# overlay here. Comparing child_count before/after is renaming-proof.
+	GameState.tutorial_seen_topics = []
+	GameState.achievement_service.account.achievement_state["first_kill"] = {
+		"unlocked_at": 0, "claimed": false, "earned_by_slot": "",
+	}
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var achievements_overlay := _find_tutorial_overlay(hud)
+	achievements_overlay.finished.emit("achievements")
+	var child_count_after_chain: int = hud.get_child_count()
+	var newest_child: Node = hud.get_child(child_count_after_chain - 1)
+	assert_true(newest_child is TutorialOverlay,
+		"the achievements chain must have added a pause_menu overlay as the newest child")
+	# Simulate the fallback timer also firing (e.g. a race between the two
+	# triggers) -- _pause_menu_tutorial_fired must prevent a second overlay
+	# from stacking on top of the one already open.
+	hud._maybe_show_pause_menu_tutorial()
+	assert_eq(hud.get_child_count(), child_count_after_chain,
+		"the fallback firing after the achievements chain must not add another overlay")
+
+func test_already_seen_pause_menu_does_not_retrigger_via_fallback():
+	GameState.tutorial_seen_topics = ["pause_menu"]
+	var hud = load("res://scenes/hud.tscn").instantiate()
+	add_child_autofree(hud)
+	hud._maybe_show_pause_menu_tutorial()
+	assert_null(_find_tutorial_overlay(hud),
+		"once seen, the fallback trigger must not re-show the pause_menu tutorial")

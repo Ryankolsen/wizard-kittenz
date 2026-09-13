@@ -548,6 +548,60 @@ func test_tutorial_finished_marks_topic_seen_and_saves():
 	assert_null(_find_tutorial_overlay(scene_b),
 		"once seen, a fresh scene instance must not re-trigger the tutorial")
 
+# --- multiplayer/shop button click-gated tutorials (issue reported: the
+# main_menu tutorial dumping all 3 steps on landing was overwhelming) -------
+
+func test_first_multiplayer_click_shows_tutorial_instead_of_toggling():
+	GameState.tutorial_seen_topics = ["main_menu"]
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var multi_btn := scene.get_node("MainMenu/VBox/TopButtons/MultiplayerButton") as Button
+	multi_btn.pressed.emit()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "first multiplayer click must show the multiplayer_button tutorial")
+	assert_eq(multi_btn.text, "Multiplayer",
+		"the click must not toggle co-op pick mode until the tutorial is dismissed")
+	get_tree().paused = false
+
+func test_multiplayer_tutorial_dismiss_then_toggles_pick_mode():
+	GameState.tutorial_seen_topics = ["main_menu"]
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var multi_btn := scene.get_node("MainMenu/VBox/TopButtons/MultiplayerButton") as Button
+	multi_btn.pressed.emit()
+	var overlay := _find_tutorial_overlay(scene)
+	overlay.finished.emit("multiplayer_button")
+	get_tree().paused = false
+	assert_eq(multi_btn.text, "Cancel co-op",
+		"dismissing the tutorial must fall through to the actual toggle action")
+	assert_true(GameState.tutorial_seen_topics.has("multiplayer_button"),
+		"dismissing must mark multiplayer_button seen")
+
+func test_already_seen_multiplayer_click_toggles_immediately():
+	GameState.tutorial_seen_topics = ["main_menu", "multiplayer_button"]
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var multi_btn := scene.get_node("MainMenu/VBox/TopButtons/MultiplayerButton") as Button
+	multi_btn.pressed.emit()
+	assert_null(_find_tutorial_overlay(scene),
+		"a topic already marked seen must not re-show the overlay")
+	assert_eq(multi_btn.text, "Cancel co-op",
+		"an already-seen topic must let the click through to its real action")
+
+func test_first_shop_click_shows_tutorial_instead_of_navigating():
+	GameState.tutorial_seen_topics = ["main_menu"]
+	var scene := _instantiate_creation_scene()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var shop_btn := scene.get_node("MainMenu/VBox/TopButtons/ShopButton") as Button
+	shop_btn.pressed.emit()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "first shop click must show the shop_button tutorial")
+	get_tree().paused = false
+
 func test_target_groups_wired():
 	var scene := _instantiate_creation_scene()
 	var grid := scene.get_node("MainMenu/VBox/CharacterGrid")

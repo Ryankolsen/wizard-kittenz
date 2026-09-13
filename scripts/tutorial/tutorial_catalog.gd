@@ -12,8 +12,15 @@ extends RefCounted
 
 const TOPIC_IDS: Array[String] = [
 	"main_menu",
+	"multiplayer_button",
+	"shop_button",
 	"movement_attack",
 	"pause_menu",
+	"stats_tab",
+	"skills_tab",
+	"inventory_tab",
+	"items_tab",
+	"achievements_tab",
 	"equip_gear",
 	"assign_skills",
 	"tavern",
@@ -27,10 +34,24 @@ static func steps_for(topic_id: String) -> Array[Dictionary]:
 	match topic_id:
 		"main_menu":
 			return _main_menu_steps()
+		"multiplayer_button":
+			return _multiplayer_button_steps()
+		"shop_button":
+			return _shop_button_steps()
 		"movement_attack":
 			return _movement_attack_steps()
 		"pause_menu":
 			return _pause_menu_steps()
+		"stats_tab":
+			return _stats_tab_steps()
+		"skills_tab":
+			return _skills_tab_steps()
+		"inventory_tab":
+			return _inventory_tab_steps()
+		"items_tab":
+			return _items_tab_steps()
+		"achievements_tab":
+			return _achievements_tab_steps()
 		"equip_gear":
 			return _equip_gear_steps()
 		"assign_skills":
@@ -53,8 +74,16 @@ static func _main_menu_steps() -> Array[Dictionary]:
 	return [
 		_step("Four kittens, infinite ways to die valiantly. Pick one.",
 			"tutorial_target_character_grid", false),
-		_step("Drag your friends into this mess with you — misery loves company, and so does loot-splitting.",
+	]
+
+static func _multiplayer_button_steps() -> Array[Dictionary]:
+	return [
+		_step("Drag your friends into this mess with you.",
 			"tutorial_target_multiplayer_button", false),
+	]
+
+static func _shop_button_steps() -> Array[Dictionary]:
+	return [
 		_step("Spend your gold here. Retail therapy, but for wizards.",
 			"tutorial_target_shop_button", false),
 	]
@@ -71,29 +100,49 @@ static func _pause_menu_steps() -> Array[Dictionary]:
 	return [
 		_step("Tap here to pause and manage your kitten — stats, skills, gear, items, achievements.",
 			"tutorial_target_pause_button", false),
+	]
+
+static func _stats_tab_steps() -> Array[Dictionary]:
+	return [
 		_step("Stats tab — dump those points before you forget you have opposable thumbs.",
 			"tutorial_target_stats_tab", false),
+	]
+
+static func _skills_tab_steps() -> Array[Dictionary]:
+	return [
 		_step("Skills tab — where the actual fun spells live, assuming you remember to equip them.",
 			"tutorial_target_skills_tab", false),
+	]
+
+static func _inventory_tab_steps() -> Array[Dictionary]:
+	return [
 		_step("Inventory tab — see everything you've picked up, ready to equip.",
 			"tutorial_target_inventory_tab", false),
-		_step("Items tab — potions, for when 'dodge better' stops being viable advice.",
+	]
+
+static func _items_tab_steps() -> Array[Dictionary]:
+	return [
+		_step("Items tab — use potions here to heal, restore mana, or shield yourself.",
 			"tutorial_target_items_tab", false),
+	]
+
+static func _achievements_tab_steps() -> Array[Dictionary]:
+	return [
 		_step("Achievements tab — see your progress and claim rewards you've earned.",
 			"tutorial_target_achievements_tab", false),
 	]
 
 static func _equip_gear_steps() -> Array[Dictionary]:
 	return [
-		_step("Click a slot, then click an item. Groundbreaking UX, we know.",
+		_step("Your equipped gear lives here. Tap a slot to inspect or unequip it.",
 			"tutorial_target_equip_slot", false),
-		_step("Tap loot here to shove it onto your kitten. Fashion optional, stats mandatory.",
+		_step("Hit Equip on an item down here to gear up. Fashion optional, stats mandatory.",
 			"tutorial_target_bag_item", false),
 	]
 
 static func _assign_skills_steps() -> Array[Dictionary]:
 	return [
-		_step("An unlocked spell, just sitting there. Great personality, no stage time.",
+		_step("An unlocked skill — assign it to a hotbar slot to actually use it.",
 			"tutorial_target_skill_node", false),
 		_step("Tap a number to bind it to that hotbar slot. Tap again to unbind.",
 			"tutorial_target_assign_slot", false),
@@ -101,16 +150,12 @@ static func _assign_skills_steps() -> Array[Dictionary]:
 
 static func _tavern_steps() -> Array[Dictionary]:
 	return [
-		_step("Walk up and hit attack to chat. He won't fight back — he's just thirsty. For gold, mostly.",
+		_step("Walk up and hit attack to talk. Use up/down to navigate the menu, attack to confirm: Shop, buffs, or hire a Hooman.",
 			"tutorial_target_bartender", false),
-		_step("Talk to him again for the menu: Shop, a beer (buffs your damage), or renting a Hooman to eat hits for you.",
-			"", false),
 	]
 
 static func _achievements_steps() -> Array[Dictionary]:
 	return [
-		_step("That glow means you did something right, for once. Go claim your reward before you forget it exists.",
+		_step("That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.",
 			"tutorial_target_achievement_badge", false),
-		_step("Click here to actually collect it. We don't do surprise deliveries.",
-			"", false),
 	]

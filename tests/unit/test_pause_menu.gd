@@ -240,25 +240,17 @@ func test_pause_menu_music_state_independent_of_tree_pause():
 	assert_false(get_tree().paused,
 		"co-op personal pause must never set get_tree().paused")
 
-# pause_menu tutorial auto-trigger wiring (issue #605, PRD #596). Mirrors the
-# main_menu wiring tests (#603) and the movement_attack HUD wiring tests
-# (#604): first open() with an empty tutorial_seen_topics fires the overlay,
-# a second open() after it's marked seen does not.
+# Pause-button / per-tab tutorial group wiring (issues #605-607, PRD #596).
+# Note the pause-button tip itself (topic "pause_menu") no longer
+# auto-triggers from PauseMenu.open() -- it now fires from HUD before the
+# menu is ever opened (see test_hud_tutorial.gd), since firing it here
+# always rendered the "tap here to pause" tip over an already-open menu
+# describing a button the player had already clicked. The group membership
+# assertion below still lives here since HUD's PauseButton and this scene's
+# tab buttons are what those tutorials actually highlight.
 
 func _find_tutorial_overlay(scene: Node) -> Node:
 	return scene.find_child("TutorialOverlay", true, false)
-
-func test_first_open_triggers_pause_menu_tutorial():
-	var gs := get_node("/root/GameState")
-	gs.clear()
-	gs.tutorial_seen_topics = []
-	var scene = load("res://scenes/pause_menu.tscn").instantiate()
-	add_child_autofree(scene)
-	scene.open()
-	var overlay := _find_tutorial_overlay(scene)
-	assert_not_null(overlay, "first open() must auto-show the pause_menu tutorial overlay")
-	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
-	get_tree().paused = false
 
 func test_pause_button_and_all_tabs_in_tutorial_groups():
 	var hud = load("res://scenes/hud.tscn").instantiate()
@@ -285,46 +277,18 @@ func test_pause_button_and_all_tabs_in_tutorial_groups():
 	assert_true(achievements_tab.is_in_group("tutorial_target_achievements_tab"),
 		"AchievementsTabButton must be in tutorial_target_achievements_tab")
 
-func test_already_seen_pause_menu_does_not_retrigger():
-	var gs := get_node("/root/GameState")
-	gs.clear()
-	gs.tutorial_seen_topics = ["pause_menu"]
-	var scene = load("res://scenes/pause_menu.tscn").instantiate()
-	add_child_autofree(scene)
-	scene.open()
-	assert_null(_find_tutorial_overlay(scene),
-		"once seen, open() must not re-trigger the pause_menu tutorial")
-	get_tree().paused = false
-
-func test_tutorial_finished_marks_seen_and_prevents_retrigger():
-	var gs := get_node("/root/GameState")
-	gs.clear()
-	gs.tutorial_seen_topics = []
-	var scene = load("res://scenes/pause_menu.tscn").instantiate()
-	add_child_autofree(scene)
-	scene.open()
-	var overlay := _find_tutorial_overlay(scene)
-	assert_not_null(overlay)
-	overlay.finished.emit("pause_menu")
-	assert_true(gs.tutorial_seen_topics.has("pause_menu"),
-		"finishing the overlay must mark pause_menu seen")
-	scene.close()
-	get_tree().paused = false
-
-	var scene_b = load("res://scenes/pause_menu.tscn").instantiate()
-	add_child_autofree(scene_b)
-	scene_b.open()
-	assert_null(_find_tutorial_overlay(scene_b),
-		"once seen, a fresh open() must not re-trigger the pause_menu tutorial")
-	get_tree().paused = false
-
 func test_close_after_tutorial_finished_still_unpauses():
+	# Uses the stats_tab intro (rather than the old pause_menu-on-open
+	# trigger, now removed) to exercise "closing after a per-tab tutorial
+	# already finished still unpauses" generically.
 	var gs := get_node("/root/GameState")
 	gs.clear()
 	gs.tutorial_seen_topics = []
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
 	scene.open()
+	scene._on_stats_tab_pressed()
 	var overlay := _find_tutorial_overlay(scene)
 	assert_not_null(overlay)
 	overlay.skip()
@@ -334,13 +298,16 @@ func test_close_after_tutorial_finished_still_unpauses():
 	assert_false(get_tree().paused,
 		"closing the pause menu after the tutorial already finished must still leave the tree unpaused")
 
-# equip_gear tutorial auto-trigger wiring (issue #606, PRD #596). Mirrors the
-# pause_menu wiring tests above (#605): first inventory-tab open with an
-# empty tutorial_seen_topics fires the overlay, a second open after it's
-# marked seen does not. pause_menu is pre-seeded as already-seen in these
-# tests so only the equip_gear trigger is under test.
+# inventory_tab / equip_gear tutorial auto-trigger wiring (issue #605
+# follow-up, #606, PRD #596). Splitting the old monolithic pause_menu topic
+# means opening the Inventory tab now shows its own intro (inventory_tab)
+# before chaining into the detailed equip_gear walkthrough -- the two must
+# never stack on the same frame, since equip_gear's own seen-state doesn't
+# depend on inventory_tab's. pause_menu is pre-seeded as already-seen in
+# these tests so only the inventory_tab / equip_gear triggers are under
+# test.
 
-func test_first_inventory_tab_open_triggers_equip_gear_tutorial():
+func test_first_inventory_tab_open_triggers_inventory_tab_tutorial():
 	var gs := get_node("/root/GameState")
 	gs.clear()
 	gs.tutorial_seen_topics = ["pause_menu"]
@@ -349,17 +316,49 @@ func test_first_inventory_tab_open_triggers_equip_gear_tutorial():
 	add_child_autofree(scene)
 	scene.open()
 	assert_null(_find_tutorial_overlay(scene),
-		"opening the pause menu itself must not fire the equip_gear tutorial")
+		"opening the pause menu itself must not fire the inventory_tab tutorial")
 	scene._on_inventory_tab_pressed()
 	var overlay := _find_tutorial_overlay(scene)
-	assert_not_null(overlay, "the first Inventory tab open must auto-show the equip_gear tutorial overlay")
+	assert_not_null(overlay, "the first Inventory tab open must auto-show the inventory_tab tutorial overlay")
 	assert_true(overlay.visible, "the overlay must be open, not just instantiated")
+	get_tree().paused = false
+
+func test_inventory_tab_tutorial_finished_chains_into_equip_gear():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_inventory_tab_pressed()
+	var intro := _find_tutorial_overlay(scene)
+	assert_not_null(intro)
+	intro.finished.emit("inventory_tab")
+	assert_true(gs.tutorial_seen_topics.has("inventory_tab"),
+		"finishing the intro overlay must mark inventory_tab seen")
+	var chained := _find_tutorial_overlay(scene)
+	assert_not_null(chained,
+		"finishing the inventory_tab intro must chain straight into the equip_gear tutorial")
+	get_tree().paused = false
+
+func test_already_seen_inventory_tab_skips_straight_to_equip_gear():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu", "inventory_tab"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_inventory_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "with inventory_tab already seen, opening the tab must go straight to equip_gear")
 	get_tree().paused = false
 
 func test_already_seen_equip_gear_does_not_retrigger():
 	var gs := get_node("/root/GameState")
 	gs.clear()
-	gs.tutorial_seen_topics = ["pause_menu", "equip_gear"]
+	gs.tutorial_seen_topics = ["pause_menu", "inventory_tab", "equip_gear"]
 	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
@@ -372,7 +371,7 @@ func test_already_seen_equip_gear_does_not_retrigger():
 func test_equip_gear_tutorial_finished_marks_seen():
 	var gs := get_node("/root/GameState")
 	gs.clear()
-	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.tutorial_seen_topics = ["pause_menu", "inventory_tab"]
 	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
@@ -388,7 +387,7 @@ func test_equip_gear_tutorial_finished_marks_seen():
 func test_empty_bag_falls_back_to_text_only_second_step():
 	var gs := get_node("/root/GameState")
 	gs.clear()
-	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.tutorial_seen_topics = ["pause_menu", "inventory_tab"]
 	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
 	gs.item_inventory = ItemInventory.new()
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
@@ -401,4 +400,87 @@ func test_empty_bag_falls_back_to_text_only_second_step():
 	var box := overlay.find_child("HighlightBox", true, false) as Control
 	assert_false(box.visible,
 		"an empty bag must fall back to a text-only bubble on the bag-item step, not crash")
+	get_tree().paused = false
+
+# stats_tab / items_tab / achievements_tab intro tutorials (issue #605
+# follow-up, PRD #596). These tabs have no detailed follow-up tutorial (no
+# equip_gear/assign_skills equivalent), so opening the tab shows their intro
+# directly with nothing to chain into afterward.
+
+func test_first_stats_tab_open_triggers_stats_tab_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_stats_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "the first Stats tab open must auto-show the stats_tab tutorial overlay")
+	get_tree().paused = false
+
+func test_already_seen_stats_tab_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu", "stats_tab"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_stats_tab_pressed()
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, opening the Stats tab must not re-trigger the stats_tab tutorial")
+	get_tree().paused = false
+
+func test_first_items_tab_open_triggers_items_tab_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_items_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "the first Items tab open must auto-show the items_tab tutorial overlay")
+	get_tree().paused = false
+
+func test_already_seen_items_tab_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu", "items_tab"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_items_tab_pressed()
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, opening the Items tab must not re-trigger the items_tab tutorial")
+	get_tree().paused = false
+
+func test_first_achievements_tab_open_triggers_achievements_tab_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_achievements_tab_pressed()
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "the first Achievements tab open must auto-show the achievements_tab tutorial overlay")
+	get_tree().paused = false
+
+func test_already_seen_achievements_tab_does_not_retrigger():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["pause_menu", "achievements_tab"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	scene._on_achievements_tab_pressed()
+	assert_null(_find_tutorial_overlay(scene),
+		"once seen, opening the Achievements tab must not re-trigger the achievements_tab tutorial")
 	get_tree().paused = false

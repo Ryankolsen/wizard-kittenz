@@ -84,8 +84,8 @@ func _ready() -> void:
 	_wizard_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_WIZARD))
 	_sleepy_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_SLEEPY))
 	_chonk_card.pressed.connect(_on_card_pressed.bind(SaveBundle.SLOT_CHONK))
-	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
-	_shop_button.pressed.connect(_show_shop)
+	_multiplayer_button.pressed.connect(_on_multiplayer_button_pressed)
+	_shop_button.pressed.connect(_on_shop_button_pressed)
 
 	$MainMenu/VBox/CharacterGrid.add_to_group("tutorial_target_character_grid")
 	_multiplayer_button.add_to_group("tutorial_target_multiplayer_button")
@@ -136,17 +136,28 @@ func _ready() -> void:
 	_maybe_show_daily_login_popup.call_deferred()
 
 func _maybe_show_tutorial() -> void:
+	_show_tutorial_if_unseen("main_menu")
+
+# Shows topic_id's overlay now if it hasn't been seen yet, marking it seen
+# once the overlay closes. Returns true if the overlay was opened (caller
+# should wait for on_finished rather than act immediately), false if the
+# topic was already seen (or has no touch-relevant content) and the caller
+# should just proceed with its normal action.
+func _show_tutorial_if_unseen(topic_id: String, on_finished: Callable = Callable()) -> bool:
 	if not TutorialTrigger.should_trigger(
-		"main_menu", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
-		return
+		topic_id, GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return false
 	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child(overlay)
-	overlay.finished.connect(_on_tutorial_finished)
-	overlay.open("main_menu")
+	overlay.finished.connect(_on_tutorial_finished.bind(on_finished))
+	overlay.open(topic_id)
+	return true
 
-func _on_tutorial_finished(topic_id: String) -> void:
+func _on_tutorial_finished(topic_id: String, on_finished: Callable) -> void:
 	GameState.tutorial_seen_topics = TutorialProgress.mark_seen(GameState.tutorial_seen_topics, topic_id)
 	SaveManager.save_from_state()
+	if on_finished.is_valid():
+		on_finished.call()
 
 func _maybe_show_daily_login_popup() -> void:
 	if GameState.current_character == null:
@@ -224,7 +235,16 @@ func _show_main_menu() -> void:
 	_overwrite_confirm_panel.visible = false
 
 # Toggles the grid between solo and co-op picker modes. Pressing Multiplayer a
-# second time (while still on the grid) cancels back to solo.
+# second time (while still on the grid) cancels back to solo. The first ever
+# press shows the multiplayer_button tutorial instead of toggling immediately
+# -- issue reported the main_menu tutorial dumping all 3 steps on landing was
+# overwhelming, so this step now only appears in response to the actual click
+# it explains, same as shop_button below.
+func _on_multiplayer_button_pressed() -> void:
+	if _show_tutorial_if_unseen("multiplayer_button", _on_multiplayer_pressed):
+		return
+	_on_multiplayer_pressed()
+
 func _on_multiplayer_pressed() -> void:
 	_set_multiplayer_pick_mode(not _multiplayer_pick_mode)
 
@@ -294,6 +314,13 @@ func _show_multi_menu() -> void:
 	_customize_panel.visible = false
 	_multi_menu.visible = true
 	_multi_status_label.text = ""
+
+# First ever press shows the shop_button tutorial instead of navigating
+# immediately -- see _on_multiplayer_button_pressed above for why.
+func _on_shop_button_pressed() -> void:
+	if _show_tutorial_if_unseen("shop_button", _show_shop):
+		return
+	_show_shop()
 
 func _show_shop() -> void:
 	get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")

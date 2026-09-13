@@ -19,8 +19,15 @@ signal closed()
 
 const TOPIC_LABELS := {
 	"main_menu": "Main Menu",
+	"multiplayer_button": "Multiplayer",
+	"shop_button": "Shop",
 	"movement_attack": "Movement & Attack",
 	"pause_menu": "Pause Menu",
+	"stats_tab": "Stats Tab",
+	"skills_tab": "Skills Tab",
+	"inventory_tab": "Inventory Tab",
+	"items_tab": "Items Tab",
+	"achievements_tab": "Achievements Tab",
 	"equip_gear": "Equipping Gear",
 	"assign_skills": "Assigning Skills",
 	"tavern": "The Tavern",

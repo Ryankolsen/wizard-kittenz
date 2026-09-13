@@ -45,20 +45,20 @@ offset_bottom = 50.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_bubble")
 
 [node name="BubbleVBox" type="VBoxContainer" parent="Bubble"]
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 
-[node name="TopRow" type="HBoxContainer" parent="Bubble/BubbleVBox"]
+[node name="ContentRow" type="HBoxContainer" parent="Bubble/BubbleVBox"]
+theme_override_constants/separation = 8
 
-[node name="TopRowSpacer" type="Control" parent="Bubble/BubbleVBox/TopRow"]
+[node name="StepLabel" type="Label" parent="Bubble/BubbleVBox/ContentRow"]
 size_flags_horizontal = 3
-
-[node name="CloseButton" type="Button" parent="Bubble/BubbleVBox/TopRow"]
-text = "×"
-
-[node name="StepLabel" type="Label" parent="Bubble/BubbleVBox"]
 text = ""
 autowrap_mode = 0
 horizontal_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Bubble/BubbleVBox/ContentRow"]
+size_flags_vertical = 0
+text = "×"
 
 [node name="ButtonRow" type="HBoxContainer" parent="Bubble/BubbleVBox"]
 alignment = 1

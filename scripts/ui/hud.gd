@@ -15,6 +15,15 @@ const HP_BAR_WIDTH: float = 96.0
 const MP_BAR_WIDTH: float = 96.0
 const XP_BAR_WIDTH: float = 96.0
 
+# Fallback delay for the pause_menu tutorial (issue #605 follow-up, PRD #596).
+# The primary trigger chains off the achievements tutorial (see
+# _maybe_show_achievements_tutorial) so the pause button is explained before
+# the player clicks it, right when they're told to go claim a reward there.
+# Not every run earns an achievement this early, so this timer guarantees
+# every player still sees the tip eventually rather than only learning the
+# button exists by clicking it themselves.
+const _PAUSE_MENU_FALLBACK_DELAY_SECONDS: float = 20.0
+
 var _player: Player = null
 var _hp_fill: ColorRect
 var _mp_fill: ColorRect
@@ -27,6 +36,8 @@ var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
 var _achievement_badge: Label
 var _help_btn: Button
+var _pause_menu_tutorial_fired: bool = false
+var _pause_menu_fallback_timer: Timer = null
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
@@ -88,6 +99,15 @@ func _ready() -> void:
 	# is_touch_platform() is always false, so this is a no-op there and no
 	# separate desktop fallback is added (see PRD Out of Scope).
 	_maybe_show_tutorial()
+	# pause_menu tutorial fallback timer (issue #605 follow-up, PRD #596). See
+	# _PAUSE_MENU_FALLBACK_DELAY_SECONDS above for why this exists alongside
+	# the achievements-chained trigger below.
+	_pause_menu_fallback_timer = Timer.new()
+	_pause_menu_fallback_timer.wait_time = _PAUSE_MENU_FALLBACK_DELAY_SECONDS
+	_pause_menu_fallback_timer.one_shot = true
+	_pause_menu_fallback_timer.timeout.connect(_maybe_show_pause_menu_tutorial)
+	add_child(_pause_menu_fallback_timer)
+	_pause_menu_fallback_timer.start()
 
 func _maybe_show_tutorial() -> void:
 	if not TutorialTrigger.should_trigger(
@@ -98,9 +118,11 @@ func _maybe_show_tutorial() -> void:
 	overlay.finished.connect(_on_tutorial_finished)
 	overlay.open("movement_attack")
 
-func _on_tutorial_finished(topic_id: String) -> void:
+func _on_tutorial_finished(topic_id: String, on_finished: Callable = Callable()) -> void:
 	GameState.tutorial_seen_topics = TutorialProgress.mark_seen(GameState.tutorial_seen_topics, topic_id)
 	SaveManager.save_from_state()
+	if on_finished.is_valid():
+		on_finished.call()
 
 func _spawn_host_pause_overlay() -> void:
 	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
@@ -158,12 +180,41 @@ func _maybe_show_achievements_tutorial() -> void:
 		return
 	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child(overlay)
-	overlay.finished.connect(_on_tutorial_finished)
+	# Chains into the pause_menu tip (issue #605 follow-up, PRD #596) once
+	# this overlay closes: the achievements message tells the player to go
+	# claim their reward in the pause menu, so this is the moment they most
+	# need to be told how to actually open it -- before they've clicked
+	# anything, not after.
+	overlay.finished.connect(_on_tutorial_finished.bind(_maybe_show_pause_menu_tutorial))
 	# should_pause=false: unlike movement_attack (only fires at session
 	# start), an achievement can unlock mid-combat. Freezing the tree here
 	# would halt unrelated systems still running under _process (dungeon
 	# entrance detection, etc.) instead of just pausing input.
 	overlay.open("achievements", false)
+
+# pause_menu tutorial auto-trigger (issue #605 follow-up, PRD #596). Fires
+# either chained after the achievements tip above, or from the fallback
+# timer in _ready(), whichever comes first -- _pause_menu_tutorial_fired
+# guards against both firing (the topic isn't marked "seen" until the
+# player actually dismisses the overlay, so should_trigger alone can't
+# prevent a second overlay stacking on top of the first while it's still
+# open). Always should_pause=false: this now fires during live gameplay,
+# before the pause menu itself is ever opened, so there's no tree-pause to
+# coordinate with (contrast the old trigger inside PauseMenu.open(), which
+# fired only after the menu -- and its own tree-pause -- was already up).
+func _maybe_show_pause_menu_tutorial() -> void:
+	if _pause_menu_tutorial_fired:
+		return
+	if not TutorialTrigger.should_trigger(
+		"pause_menu", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	_pause_menu_tutorial_fired = true
+	if _pause_menu_fallback_timer != null:
+		_pause_menu_fallback_timer.stop()
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	overlay.open("pause_menu", false)
 
 func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:

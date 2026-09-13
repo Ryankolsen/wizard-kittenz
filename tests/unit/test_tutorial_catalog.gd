@@ -4,21 +4,29 @@ extends GutTest
 # no scene tree, no nodes. Mirrors test_achievement_catalog's shape of
 # asserting exact text/target_group/touch_only per entry.
 
-func test_topic_ids_returns_all_seven_in_order():
-	assert_eq(TutorialCatalog.topic_ids(), ["main_menu", "movement_attack", "pause_menu", "equip_gear", "assign_skills", "tavern", "achievements"])
+func test_topic_ids_returns_all_fourteen_in_order():
+	assert_eq(TutorialCatalog.topic_ids(), ["main_menu", "multiplayer_button", "shop_button", "movement_attack", "pause_menu", "stats_tab", "skills_tab", "inventory_tab", "items_tab", "achievements_tab", "equip_gear", "assign_skills", "tavern", "achievements"])
 
 func test_main_menu_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("main_menu")
-	assert_eq(steps.size(), 3)
+	assert_eq(steps.size(), 1)
 	assert_eq(steps[0].text, "Four kittens, infinite ways to die valiantly. Pick one.")
 	assert_eq(steps[0].target_group, "tutorial_target_character_grid")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Drag your friends into this mess with you — misery loves company, and so does loot-splitting.")
-	assert_eq(steps[1].target_group, "tutorial_target_multiplayer_button")
-	assert_false(steps[1].touch_only)
-	assert_eq(steps[2].text, "Spend your gold here. Retail therapy, but for wizards.")
-	assert_eq(steps[2].target_group, "tutorial_target_shop_button")
-	assert_false(steps[2].touch_only)
+
+func test_multiplayer_button_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("multiplayer_button")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Drag your friends into this mess with you.")
+	assert_eq(steps[0].target_group, "tutorial_target_multiplayer_button")
+	assert_false(steps[0].touch_only)
+
+func test_shop_button_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("shop_button")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Spend your gold here. Retail therapy, but for wizards.")
+	assert_eq(steps[0].target_group, "tutorial_target_shop_button")
+	assert_false(steps[0].touch_only)
 
 func test_movement_attack_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("movement_attack")
@@ -32,40 +40,60 @@ func test_movement_attack_steps_have_correct_text_and_targets():
 
 func test_pause_menu_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("pause_menu")
-	assert_eq(steps.size(), 6)
+	assert_eq(steps.size(), 1)
 	assert_eq(steps[0].text, "Tap here to pause and manage your kitten — stats, skills, gear, items, achievements.")
 	assert_eq(steps[0].target_group, "tutorial_target_pause_button")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Stats tab — dump those points before you forget you have opposable thumbs.")
-	assert_eq(steps[1].target_group, "tutorial_target_stats_tab")
-	assert_false(steps[1].touch_only)
-	assert_eq(steps[2].text, "Skills tab — where the actual fun spells live, assuming you remember to equip them.")
-	assert_eq(steps[2].target_group, "tutorial_target_skills_tab")
-	assert_false(steps[2].touch_only)
-	assert_eq(steps[3].text, "Inventory tab — see everything you've picked up, ready to equip.")
-	assert_eq(steps[3].target_group, "tutorial_target_inventory_tab")
-	assert_false(steps[3].touch_only)
-	assert_eq(steps[4].text, "Items tab — potions, for when 'dodge better' stops being viable advice.")
-	assert_eq(steps[4].target_group, "tutorial_target_items_tab")
-	assert_false(steps[4].touch_only)
-	assert_eq(steps[5].text, "Achievements tab — see your progress and claim rewards you've earned.")
-	assert_eq(steps[5].target_group, "tutorial_target_achievements_tab")
-	assert_false(steps[5].touch_only)
+
+func test_stats_tab_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("stats_tab")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Stats tab — dump those points before you forget you have opposable thumbs.")
+	assert_eq(steps[0].target_group, "tutorial_target_stats_tab")
+	assert_false(steps[0].touch_only)
+
+func test_skills_tab_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("skills_tab")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Skills tab — where the actual fun spells live, assuming you remember to equip them.")
+	assert_eq(steps[0].target_group, "tutorial_target_skills_tab")
+	assert_false(steps[0].touch_only)
+
+func test_inventory_tab_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("inventory_tab")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Inventory tab — see everything you've picked up, ready to equip.")
+	assert_eq(steps[0].target_group, "tutorial_target_inventory_tab")
+	assert_false(steps[0].touch_only)
+
+func test_items_tab_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("items_tab")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Items tab — use potions here to heal, restore mana, or shield yourself.")
+	assert_eq(steps[0].target_group, "tutorial_target_items_tab")
+	assert_false(steps[0].touch_only)
+
+func test_achievements_tab_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("achievements_tab")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Achievements tab — see your progress and claim rewards you've earned.")
+	assert_eq(steps[0].target_group, "tutorial_target_achievements_tab")
+	assert_false(steps[0].touch_only)
 
 func test_equip_gear_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("equip_gear")
 	assert_eq(steps.size(), 2)
-	assert_eq(steps[0].text, "Click a slot, then click an item. Groundbreaking UX, we know.")
+	assert_eq(steps[0].text, "Your equipped gear lives here. Tap a slot to inspect or unequip it.")
 	assert_eq(steps[0].target_group, "tutorial_target_equip_slot")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Tap loot here to shove it onto your kitten. Fashion optional, stats mandatory.")
+	assert_eq(steps[1].text, "Hit Equip on an item down here to gear up. Fashion optional, stats mandatory.")
 	assert_eq(steps[1].target_group, "tutorial_target_bag_item")
 	assert_false(steps[1].touch_only)
 
 func test_assign_skills_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("assign_skills")
 	assert_eq(steps.size(), 2)
-	assert_eq(steps[0].text, "An unlocked spell, just sitting there. Great personality, no stage time.")
+	assert_eq(steps[0].text, "An unlocked skill — assign it to a hotbar slot to actually use it.")
 	assert_eq(steps[0].target_group, "tutorial_target_skill_node")
 	assert_false(steps[0].touch_only)
 	assert_eq(steps[1].text, "Tap a number to bind it to that hotbar slot. Tap again to unbind.")
@@ -74,23 +102,17 @@ func test_assign_skills_steps_have_correct_text_and_targets():
 
 func test_tavern_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("tavern")
-	assert_eq(steps.size(), 2)
-	assert_eq(steps[0].text, "Walk up and hit attack to chat. He won't fight back — he's just thirsty. For gold, mostly.")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Walk up and hit attack to talk. Use up/down to navigate the menu, attack to confirm: Shop, buffs, or hire a Hooman.")
 	assert_eq(steps[0].target_group, "tutorial_target_bartender")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Talk to him again for the menu: Shop, a beer (buffs your damage), or renting a Hooman to eat hits for you.")
-	assert_eq(steps[1].target_group, "")
-	assert_false(steps[1].touch_only)
 
 func test_achievements_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("achievements")
-	assert_eq(steps.size(), 2)
-	assert_eq(steps[0].text, "That glow means you did something right, for once. Go claim your reward before you forget it exists.")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.")
 	assert_eq(steps[0].target_group, "tutorial_target_achievement_badge")
 	assert_false(steps[0].touch_only)
-	assert_eq(steps[1].text, "Click here to actually collect it. We don't do surprise deliveries.")
-	assert_eq(steps[1].target_group, "")
-	assert_false(steps[1].touch_only)
 
 func test_unknown_topic_returns_empty_array():
 	assert_eq(TutorialCatalog.steps_for("nonsense"), [])
