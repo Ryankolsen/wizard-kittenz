@@ -23,7 +23,17 @@ application/version="N"   # bump this — the build number
 ```
 
 Leave `application/short_version` (marketing version, e.g. `"1.0"`) alone
-unless the user asked for a version bump too.
+unless the user asked for a version bump too — **but check App Store
+Connect first**: open
+`https://appstoreconnect.apple.com/apps/6788580194/distribution/ios/version/deliverable`
+and look at the current iOS App Version. If it already shows
+**"Ready for Distribution"** (i.e. the previous marketing version was
+already submitted/approved), Apple will not accept another build under
+that same marketing version — bump `application/short_version` too
+(e.g. `1.1.3` → `1.1.4`), even if the user only asked for a build bump.
+If it shows "Prepare for Submission" or similar (no build attached yet),
+the existing marketing version is still open and only the build number
+needs to change.
 
 ### 2. Re-export from Godot
 
