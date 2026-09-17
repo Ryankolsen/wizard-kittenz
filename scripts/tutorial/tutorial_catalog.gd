@@ -63,11 +63,12 @@ static func steps_for(topic_id: String) -> Array[Dictionary]:
 		_:
 			return []
 
-static func _step(p_text: String, p_target_group: String, p_touch_only: bool) -> Dictionary:
+static func _step(p_text: String, p_target_group: String, p_touch_only: bool, p_forced: bool = false) -> Dictionary:
 	return {
 		"text": p_text,
 		"target_group": p_target_group,
 		"touch_only": p_touch_only,
+		"forced": p_forced,
 	}
 
 static func _main_menu_steps() -> Array[Dictionary]:

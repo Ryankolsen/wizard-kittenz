@@ -33,6 +33,11 @@ var _paused_on_open: bool = false
 # The current step's unwrapped text, re-wrapped in _position_for_target once
 # the bubble's actual width for this frame is known (see _wrap_text).
 var _current_step_text: String = ""
+# The forced step's resolved target, if its `pressed` signal is currently
+# connected to advance(). Tracked so the connection can be torn down when a
+# new step is shown or the overlay closes, without ever double-connecting or
+# firing after the topic has moved on.
+var _forced_target: Node = null
 
 const _HIGHLIGHT_PADDING := 6.0
 # Node2D targets (e.g. Bartender, issue #609) have no natural bounding rect
@@ -103,6 +108,7 @@ func skip() -> void:
 # need the "topic ended" signal go through _finish() (advance-past-end /
 # skip), not close() directly.
 func close() -> void:
+	_disconnect_forced_target()
 	if _paused_on_open:
 		get_tree().paused = false
 	_paused_on_open = false
@@ -114,16 +120,45 @@ func _finish() -> void:
 	finished.emit(topic_id)
 
 func _show_step(index: int) -> void:
+	_disconnect_forced_target()
 	if index < 0 or index >= _steps.size():
 		_finish()
 		return
 	var step: Dictionary = _steps[index]
 	_current_step_text = String(step.get("text", ""))
-	_position_for_target(String(step.get("target_group", "")))
+	var target_group := String(step.get("target_group", ""))
+	_position_for_target(target_group)
+	var forced := bool(step.get("forced", false))
 	var skip_btn := find_child("SkipButton", true, false) as Button
 	if skip_btn != null:
 		skip_btn.text = "Got it!" if index == _steps.size() - 1 else "Next"
+		skip_btn.visible = not forced
+	var close_btn := find_child("CloseButton", true, false) as Button
+	if close_btn != null:
+		close_btn.visible = not forced
+	if forced:
+		_connect_forced_target(target_group)
 	step_shown.emit(_topic_id, index)
+
+# Wires a forced step's real UI target so a genuine press advances the topic
+# (see class doc / issue #615). Silently no-ops when the group is empty,
+# unresolvable, or the resolved node has no `pressed` signal -- an
+# accepted limitation of a step configured incorrectly, not a crash.
+func _connect_forced_target(target_group: String) -> void:
+	if target_group == "":
+		return
+	var target := get_tree().get_first_node_in_group(target_group)
+	if target == null or not target.has_signal("pressed"):
+		return
+	_forced_target = target
+	_forced_target.pressed.connect(advance)
+
+func _disconnect_forced_target() -> void:
+	if _forced_target != null and is_instance_valid(_forced_target) \
+			and _forced_target.has_signal("pressed") \
+			and _forced_target.pressed.is_connected(advance):
+		_forced_target.pressed.disconnect(advance)
+	_forced_target = null
 
 # Resolves target_group to a node via get_first_node_in_group and either
 # positions the highlight box around it (with small padding) or, when the

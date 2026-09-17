@@ -202,3 +202,101 @@ func test_close_after_should_pause_false_does_not_unpause_preexisting_pause():
 	assert_true(get_tree().paused,
 		"close() must not clear a pause it didn't set itself")
 	get_tree().paused = false
+
+# Forced-step capability (issue #615): a step that cannot be dismissed via
+# the overlay's own Skip/Next or Close (x) buttons, and only advances when
+# the player presses the real UI control the step is highlighting.
+
+func test_forced_step_pressing_target_emits_finished():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Button.new()
+	add_child_autofree(target)
+	target.add_to_group("tutorial_target_test_forced")
+	watch_signals(scene)
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "tutorial_target_test_forced", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	target.emit_signal("pressed")
+	assert_signal_emitted(scene, "finished", "pressing a forced step's target must advance and finish")
+	get_tree().paused = false
+
+func test_forced_step_hides_skip_and_close_buttons():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Button.new()
+	add_child_autofree(target)
+	target.add_to_group("tutorial_target_test_forced")
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "tutorial_target_test_forced", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	var skip_btn := scene.find_child("SkipButton", true, false) as Button
+	var close_btn := scene.find_child("CloseButton", true, false) as Button
+	assert_false(skip_btn.visible, "forced step must hide the Skip/Next button")
+	assert_false(close_btn.visible, "forced step must hide the Close button")
+	get_tree().paused = false
+
+func test_non_forced_step_keeps_skip_and_close_buttons_visible():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "", "touch_only": false, "forced": false}]
+	scene._steps = steps
+	scene._show_step(0)
+	var skip_btn := scene.find_child("SkipButton", true, false) as Button
+	var close_btn := scene.find_child("CloseButton", true, false) as Button
+	assert_true(skip_btn.visible, "non-forced step must keep the Skip/Next button visible")
+	assert_true(close_btn.visible, "non-forced step must keep the Close button visible")
+	get_tree().paused = false
+
+func test_step_dict_omitting_forced_key_keeps_skip_and_close_buttons_visible():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "", "touch_only": false}]
+	scene._steps = steps
+	scene._show_step(0)
+	var skip_btn := scene.find_child("SkipButton", true, false) as Button
+	var close_btn := scene.find_child("CloseButton", true, false) as Button
+	assert_true(skip_btn.visible, "a step dict without a forced key must default to non-forced")
+	assert_true(close_btn.visible, "a step dict without a forced key must default to non-forced")
+	get_tree().paused = false
+
+func test_forced_step_with_empty_target_group_does_not_crash():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	var skip_btn := scene.find_child("SkipButton", true, false) as Button
+	var close_btn := scene.find_child("CloseButton", true, false) as Button
+	assert_false(skip_btn.visible, "forced step must still hide Skip even with no resolvable target")
+	assert_false(close_btn.visible, "forced step must still hide Close even with no resolvable target")
+	get_tree().paused = false
+
+func test_forced_step_with_target_lacking_pressed_signal_does_not_crash():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Control.new()
+	add_child_autofree(target)
+	target.add_to_group("tutorial_target_test_forced_no_signal")
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "tutorial_target_test_forced_no_signal", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	var skip_btn := scene.find_child("SkipButton", true, false) as Button
+	assert_false(skip_btn.visible, "showing a forced step with a signal-less target must not crash, and must still hide Skip")
+	get_tree().paused = false
+
+func test_forced_step_target_press_after_finish_does_not_reemit_finished():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Button.new()
+	add_child_autofree(target)
+	target.add_to_group("tutorial_target_test_forced_once")
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "tutorial_target_test_forced_once", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	watch_signals(scene)
+	target.emit_signal("pressed")
+	assert_signal_emitted(scene, "finished", "first press must finish the topic")
+	target.emit_signal("pressed")
+	assert_signal_emit_count(scene, "finished", 1, "second press after finish must not re-emit finished")
+	get_tree().paused = false
