@@ -28,6 +28,13 @@ var _stat_points_badge: Label
 var _achievement_badge: Label
 var _help_btn: Button
 
+# One-shot flag set by _on_player_leveled_up (issue #618, PRD #614) when the
+# level_up tutorial overlay is auto-shown. The very next _on_pause_pressed
+# consumes it to route the resulting Pause click into the Stats tab instead
+# of the default main menu, then clears it so later pause presses behave
+# normally again.
+var _pending_level_up_pause_open: bool = false
+
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
 const TUTORIAL_TOPIC_MENU_SCENE := preload("res://scenes/tutorial_topic_menu.tscn")
@@ -54,6 +61,7 @@ func _ready() -> void:
 	_help_btn.pressed.connect(_on_help_pressed)
 	_player = _find_player()
 	_bind_player_item_drop()
+	_bind_player_level_up()
 	# Slice 3 of PRD #210: HUD hosts the QuickbarHUD on desktop; on touch
 	# platforms TouchControls owns its own copy, so we hide ours to avoid
 	# a double-grid render on the same canvas region. The TouchControls
@@ -171,6 +179,7 @@ func _update_hp_bar() -> void:
 	if _player == null or _player.data == null:
 		_player = _find_player()
 		_bind_player_item_drop()
+		_bind_player_level_up()
 		if _player == null or _player.data == null:
 			return
 	var d := _player.data
@@ -385,6 +394,10 @@ func _on_give_up_pressed() -> void:
 # The PauseMenu sets its own process_mode = ALWAYS so it stays responsive
 # while solo play freezes the rest of the tree.
 func _on_pause_pressed() -> void:
+	if _pending_level_up_pause_open:
+		_pending_level_up_pause_open = false
+		_ensure_pause_menu().open("stats")
+		return
 	_ensure_pause_menu().open()
 
 func _ensure_pause_menu() -> CanvasLayer:
@@ -450,6 +463,53 @@ func _bind_player_item_drop() -> void:
 		_player.item_dropped.connect(_on_player_item_dropped)
 	if not _player.gold_dropped.is_connected(_on_player_gold_dropped):
 		_player.gold_dropped.connect(_on_player_gold_dropped)
+
+# level_up tutorial auto-trigger wiring (issue #618, PRD #614). Mirrors
+# _bind_player_item_drop's shape -- resolve the node, guard with
+# is_connected, connect if present. LevelUpEffect is an optional child
+# (not every Player scene fixture has one), hence the null check.
+func _bind_player_level_up() -> void:
+	if _player == null:
+		return
+	var effect := _player.get_node_or_null("LevelUpEffect")
+	if effect == null:
+		return
+	if not effect.triggered.is_connected(_on_player_leveled_up):
+		effect.triggered.connect(_on_player_leveled_up)
+
+# True when there is an active CoopSession on GameState. Mirrors
+# PauseMenu.is_multiplayer() (scripts/ui/pause_menu.gd:390) -- returns false
+# on every fall-through path (no autoload / no session / inactive session)
+# so solo behavior is the default on any edge case.
+func _is_multiplayer() -> bool:
+	var gs := get_node_or_null("/root/GameState")
+	if gs == null:
+		return false
+	var session: CoopSession = gs.coop_session
+	if session == null:
+		return false
+	return session.is_active()
+
+# First-real-level-up auto-trigger (issue #618, PRD #614). Forces the
+# pause_button tutorial open so the player notices the Pause button; the
+# resulting Pause click (see _on_pause_pressed) then routes into the Stats
+# tab instead of the default main pause screen, replacing the old auto-fire
+# removed in #617 as the Pause button's sole introduction.
+func _on_player_leveled_up(_new_level: int) -> void:
+	if _is_multiplayer():
+		return
+	if _pause_menu != null and _pause_menu.visible:
+		return
+	if not TutorialTrigger.should_trigger(
+		"level_up", GameState.tutorial_seen_topics, TouchControls.is_touch_platform()):
+		return
+	_pending_level_up_pause_open = true
+	var overlay: Node = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.finished.connect(_on_tutorial_finished)
+	# should_pause=false: a level-up can happen mid-combat, same rationale
+	# already documented for the achievements trigger above.
+	overlay.open("level_up", false)
 
 func _on_player_item_dropped(item: ItemData) -> void:
 	if item == null:

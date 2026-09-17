@@ -10,12 +10,12 @@ extends GutTest
 # should_trigger's is_touch parameter) so tests can drive both platform
 # branches without depending on the real OS.has_feature() result.
 
-func test_touch_shows_all_fourteen_topics():
+func test_touch_shows_all_fifteen_topics():
 	var menu = load("res://scenes/tutorial_topic_menu.tscn").instantiate()
 	add_child_autofree(menu)
 	menu.populate(true)
 	var rows: Array = menu.get_topic_rows()
-	assert_eq(rows.size(), 14, "touch platform must show all 14 topics")
+	assert_eq(rows.size(), 15, "touch platform must show all 15 topics")
 	var expected := {
 		"main_menu": "Main Menu",
 		"multiplayer_button": "Multiplayer",
@@ -31,6 +31,7 @@ func test_touch_shows_all_fourteen_topics():
 		"assign_skills": "Assigning Skills",
 		"tavern": "The Tavern",
 		"achievements": "Achievements",
+		"level_up": "Level Up!",
 	}
 	for row in rows:
 		var btn := row as Button
@@ -51,7 +52,7 @@ func test_desktop_excludes_movement_attack():
 	add_child_autofree(menu)
 	menu.populate(false)
 	var rows: Array = menu.get_topic_rows()
-	assert_eq(rows.size(), 13, "desktop must exclude movement_attack, leaving 13 rows")
+	assert_eq(rows.size(), 14, "desktop must exclude movement_attack, leaving 14 rows")
 	assert_null(menu.get_topic_row("movement_attack"),
 		"desktop must not render a movement_attack row")
 

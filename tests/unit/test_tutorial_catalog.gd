@@ -4,8 +4,8 @@ extends GutTest
 # no scene tree, no nodes. Mirrors test_achievement_catalog's shape of
 # asserting exact text/target_group/touch_only per entry.
 
-func test_topic_ids_returns_all_fourteen_in_order():
-	assert_eq(TutorialCatalog.topic_ids(), ["main_menu", "multiplayer_button", "shop_button", "movement_attack", "pause_menu", "stats_tab", "skills_tab", "inventory_tab", "items_tab", "achievements_tab", "equip_gear", "assign_skills", "tavern", "achievements"])
+func test_topic_ids_returns_all_fifteen_in_order():
+	assert_eq(TutorialCatalog.topic_ids(), ["main_menu", "multiplayer_button", "shop_button", "movement_attack", "pause_menu", "stats_tab", "skills_tab", "inventory_tab", "items_tab", "achievements_tab", "equip_gear", "assign_skills", "tavern", "achievements", "level_up"])
 
 func test_main_menu_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("main_menu")
@@ -113,6 +113,14 @@ func test_achievements_steps_have_correct_text_and_targets():
 	assert_eq(steps[0].text, "That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.")
 	assert_eq(steps[0].target_group, "tutorial_target_achievement_badge")
 	assert_false(steps[0].touch_only)
+
+func test_level_up_steps_have_correct_text_and_targets():
+	var steps := TutorialCatalog.steps_for("level_up")
+	assert_eq(steps.size(), 1)
+	assert_eq(steps[0].text, "Level up! Check the pause menu — that's where those new stat points go.")
+	assert_eq(steps[0].target_group, "tutorial_target_pause_button")
+	assert_false(steps[0].touch_only)
+	assert_true(steps[0].forced)
 
 func test_unknown_topic_returns_empty_array():
 	assert_eq(TutorialCatalog.steps_for("nonsense"), [])

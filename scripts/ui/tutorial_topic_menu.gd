@@ -32,6 +32,7 @@ const TOPIC_LABELS := {
 	"assign_skills": "Assigning Skills",
 	"tavern": "The Tavern",
 	"achievements": "Achievements",
+	"level_up": "Level Up!",
 }
 
 const _DESKTOP_EXCLUDED_TOPICS := ["movement_attack"]

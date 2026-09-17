@@ -25,6 +25,7 @@ const TOPIC_IDS: Array[String] = [
 	"assign_skills",
 	"tavern",
 	"achievements",
+	"level_up",
 ]
 
 static func topic_ids() -> Array[String]:
@@ -60,6 +61,8 @@ static func steps_for(topic_id: String) -> Array[Dictionary]:
 			return _tavern_steps()
 		"achievements":
 			return _achievements_steps()
+		"level_up":
+			return _level_up_steps()
 		_:
 			return []
 
@@ -159,4 +162,10 @@ static func _achievements_steps() -> Array[Dictionary]:
 	return [
 		_step("That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.",
 			"tutorial_target_achievement_badge", false),
+	]
+
+static func _level_up_steps() -> Array[Dictionary]:
+	return [
+		_step("Level up! Check the pause menu — that's where those new stat points go.",
+			"tutorial_target_pause_button", false, true),
 	]
