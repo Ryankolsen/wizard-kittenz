@@ -219,10 +219,20 @@ func _update_stats_tab_badge() -> void:
 		return
 	badge.visible = StatBadge.should_show(c.skill_points)
 
-func open() -> void:
+# initial_tab lets a caller (e.g. a future HUD entry point, issue #616) land
+# the menu directly on a specific submenu tab instead of the default main
+# pause screen. "" (the default) preserves today's exact behavior. "stats"
+# opens straight into the Character submenu's Stats tab via
+# _open_character_submenu_on_stats_tab() below — deliberately not
+# open_character_submenu(), which always lands on Inventory first and would
+# risk flashing the inventory_tab tutorial before Stats ever shows.
+func open(initial_tab: String = "") -> void:
 	visible = true
 	_set_touch_controls_hidden(true)
-	_show_main_menu()
+	if initial_tab == "stats":
+		_open_character_submenu_on_stats_tab()
+	else:
+		_show_main_menu()
 	_pause_music()
 	if not is_multiplayer():
 		get_tree().paused = true
@@ -413,6 +423,24 @@ func open_character_submenu() -> void:
 	if submenu != null:
 		submenu.visible = true
 	_show_inventory_tab()
+	_refresh_character_stats()
+
+# Opens the Character submenu landed directly on the Stats tab (issue #616).
+# Mirrors open_character_submenu()'s visibility toggling exactly, but calls
+# _show_stats_tab() instead of _show_inventory_tab() — deliberately not
+# implemented by chaining open_character_submenu() then _show_stats_tab()
+# (the way open_for_dungeon_transition() does) because that would show the
+# Inventory tab first and fire its inventory_tab tutorial before Stats ever
+# appears, which is exactly the wrong UX for this entry path.
+func _open_character_submenu_on_stats_tab() -> void:
+	visible = true
+	var main := find_child("MainMenu", true, false) as Control
+	if main != null:
+		main.visible = false
+	var submenu := find_child("CharacterSubmenu", true, false) as Control
+	if submenu != null:
+		submenu.visible = true
+	_show_stats_tab()
 	_refresh_character_stats()
 
 # Opens the pause menu in dungeon-transition mode (PRD #52 / #61). Lands

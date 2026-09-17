@@ -484,3 +484,77 @@ func test_already_seen_achievements_tab_does_not_retrigger():
 	assert_null(_find_tutorial_overlay(scene),
 		"once seen, opening the Achievements tab must not re-trigger the achievements_tab tutorial")
 	get_tree().paused = false
+
+# --- open("stats") direct-to-Stats-tab entry point (issue #616) -----------
+# HUD wiring for when this parameter actually gets used is a separate,
+# later slice — these tests exercise open() itself only.
+
+func test_open_stats_shows_stats_panel_and_character_submenu():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open("stats")
+	assert_true((scene.find_child("StatsPanel", true, false) as Control).visible,
+		"open(\"stats\") must show the Stats tab panel")
+	assert_true((scene.find_child("CharacterSubmenu", true, false) as Control).visible,
+		"open(\"stats\") must show the Character submenu")
+	get_tree().paused = false
+
+func test_open_stats_hides_main_menu_and_other_tabs():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open("stats")
+	assert_false((scene.find_child("MainMenu", true, false) as Control).visible,
+		"open(\"stats\") must not leave the main pause menu screen visible")
+	for tab_name in ["SkillsPanel", "InventoryTab", "ItemsPanel", "AchievementsPanel"]:
+		assert_false((scene.find_child(tab_name, true, false) as Control).visible,
+			"open(\"stats\") must not leave the %s tab visible" % tab_name)
+	get_tree().paused = false
+
+func test_open_with_no_args_still_lands_on_main_menu():
+	# Explicit regression pin for the default initial_tab == "" branch —
+	# adding the parameter must not change today's no-arg behavior.
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open()
+	assert_true((scene.find_child("MainMenu", true, false) as Control).visible,
+		"open() with no args must still land on the main pause menu")
+	assert_false((scene.find_child("CharacterSubmenu", true, false) as Control).visible,
+		"open() with no args must not show the Character submenu")
+	get_tree().paused = false
+
+func test_open_stats_does_not_leak_inventory_tab_or_its_tutorial():
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = []
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open("stats")
+	assert_false((scene.find_child("InventoryTab", true, false) as Control).visible,
+		"open(\"stats\") must never show the Inventory tab, even transiently")
+	for overlay in scene.find_children("TutorialOverlay", "", true, false):
+		assert_ne(overlay._topic_id, "inventory_tab",
+			"open(\"stats\") must not trigger the inventory_tab tutorial")
+	get_tree().paused = false
+
+func test_open_stats_shows_only_stats_tab_tutorial_when_unseen():
+	# Isolate the inventory-tab-leak check from stats_tab's own tutorial:
+	# mark stats_tab already seen so at most zero overlays should exist.
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = ["stats_tab"]
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open("stats")
+	assert_eq(scene.find_children("TutorialOverlay", "", true, false).size(), 0,
+		"once stats_tab is seen, open(\"stats\") must not show any tutorial overlay")
+	get_tree().paused = false
