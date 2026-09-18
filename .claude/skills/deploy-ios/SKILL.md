@@ -86,7 +86,27 @@ check. There are two `CODE_SIGN_IDENTITY = "Apple Distribution"` lines in
 the file; only change the one inside the target-level Release config block
 (near `PRODUCT_BUNDLE_IDENTIFIER`), not the earlier project-level one.
 
-### 4. Archive in Xcode (hand off to the user — this is HITL)
+### 4. Reapply the minimum iOS version bump (every time)
+
+Godot's iOS export template also hardcodes
+`IPHONEOS_DEPLOYMENT_TARGET = 14.0;` into every regenerated
+`project.pbxproj` (four occurrences — project-level and target-level,
+Debug and Release), and this isn't exposed as an `export_presets.cfg`
+option. Apple requires `MinimumOSVersion` 15.0+ starting Spring 2027
+(App Store Connect already warns about this on upload), so bump all four
+to 15.0 every export:
+
+```bash
+sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' wizard-kittenz.xcodeproj/project.pbxproj
+```
+
+Confirm all four landed:
+
+```bash
+grep -n "IPHONEOS_DEPLOYMENT_TARGET" wizard-kittenz.xcodeproj/project.pbxproj
+```
+
+### 5. Archive in Xcode (hand off to the user — this is HITL)
 
 Tell the user to:
 
@@ -99,7 +119,7 @@ Tell the user to:
    appears, re-check steps 2–3 above were actually applied to the
    regenerated project file.
 
-### 5. Distribute
+### 6. Distribute
 
 In the Organizer window that opens after a successful archive:
 
@@ -112,7 +132,7 @@ In the Organizer window that opens after a successful archive:
 3. Use the recommended/automatic signing options through the wizard.
 4. Click **Upload**.
 
-### 6. Verify
+### 7. Verify
 
 - Build appears under **App Store Connect > Apps > (app) > TestFlight >
   Builds** within the usual processing window (minutes, sometimes longer).
@@ -127,3 +147,4 @@ In the Organizer window that opens after a successful archive:
 | `Undefined symbol: ClassDB::bind_methodfi(...)` | Exported with `--export-debug`, linking a debug engine lib against a release-built plugin | Re-export with `--export-release` |
 | "conflicting provisioning settings... Apple Distribution... Automatic" | Godot's export template hardcodes `CODE_SIGN_IDENTITY` on the Release config every export | Reset it to `"Apple Development"` (step 3) |
 | "Redundant Binary Upload... build number 'N'" | Build number unchanged since last upload | Bump `application/version` in `export_presets.cfg` and re-export |
+| "MinimumOSVersion too low... must be 15.0+ by Spring 2027" | Godot's export template hardcodes `IPHONEOS_DEPLOYMENT_TARGET = 14.0` on every export | Bump all four occurrences to 15.0 (step 4) |
