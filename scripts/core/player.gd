@@ -1121,7 +1121,7 @@ func _on_coop_level_up(old_level: int, new_level: int) -> void:
 func _trigger_level_up_effect(new_level: int) -> void:
 	if _level_up_effect == null:
 		return
-	_level_up_effect.play(new_level)
+	_level_up_effect.play_level_up(new_level)
 
 const ACHIEVEMENT_UNLOCK_TEXT: String = "NEW ACHIEVEMENT!"
 

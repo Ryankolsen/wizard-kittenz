@@ -94,6 +94,10 @@ func _spawn_label(new_level: int, text_override: String = "") -> void:
 	tw.tween_property(lbl, "modulate:a", 0.0, LABEL_DURATION).from(1.0)
 	tw.chain().tween_callback(lbl.queue_free)
 
+# Plays the confetti/ring/label/audio burst only -- no `triggered` emission.
+# Non-level-up callers (e.g. Player's achievement-unlock reuse, issue #450)
+# want this same celebratory VFX without it reading as a real level-up to
+# `triggered` listeners (e.g. HUD's forced pause-button tutorial, #618).
 func play(new_level: int = 0, text_override: String = "") -> void:
 	for p: CPUParticles2D in _confetti:
 		if p != null:
@@ -104,4 +108,11 @@ func play(new_level: int = 0, text_override: String = "") -> void:
 	_spawn_label(new_level, text_override)
 	if _audio != null and _audio.stream != null:
 		_audio.play()
+
+# Real level-up entry point. Plays the same burst as play() and additionally
+# emits `triggered` so listeners can react to an actual level gain -- kept
+# separate from play() so the achievement-unlock VFX reuse above can never
+# masquerade as a level-up.
+func play_level_up(new_level: int) -> void:
+	play(new_level)
 	triggered.emit(new_level)

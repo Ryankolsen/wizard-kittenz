@@ -101,17 +101,30 @@ class _LevelCapture extends RefCounted:
 	func on_triggered(lvl: int) -> void:
 		captured = lvl
 
-func test_play_emits_triggered_signal_with_new_level():
-	# play(new_level) is the scene-layer entry point. The triggered signal
-	# lets a future analytics / achievement listener react to level-ups
-	# without reaching into the particle/audio internals.
+func test_play_level_up_emits_triggered_signal_with_new_level():
+	# play_level_up(new_level) is the real-level-up entry point. The
+	# triggered signal lets a listener (e.g. HUD's #618 pause-button
+	# tutorial) react to an actual level gain.
 	var effect := LevelUpEffect.new()
 	add_child_autofree(effect)
 	await get_tree().process_frame
 	var capture := _LevelCapture.new()
 	effect.triggered.connect(capture.on_triggered)
-	effect.play(7)
+	effect.play_level_up(7)
 	assert_eq(capture.captured, 7)
+
+func test_play_does_not_emit_triggered_signal():
+	# Regression: play() is reused by non-level-up callers (Player's
+	# achievement-unlock VFX, issue #450). It must never emit `triggered`,
+	# or a listener like HUD's level_up tutorial (#618) would mistake an
+	# achievement unlock for a real level-up.
+	var effect := LevelUpEffect.new()
+	add_child_autofree(effect)
+	await get_tree().process_frame
+	var capture := _LevelCapture.new()
+	effect.triggered.connect(capture.on_triggered)
+	effect.play(0, "NEW ACHIEVEMENT!")
+	assert_eq(capture.captured, -1, "play() must not emit triggered")
 
 func test_play_default_label_text_is_level_up():
 	# Content detail: with no text_override, the spawned label still reads
@@ -142,13 +155,14 @@ func _find_label(effect: LevelUpEffect) -> Label:
 			return child
 	return null
 
-func test_play_is_safe_before_ready():
-	# Defensive: a caller that constructs a LevelUpEffect and calls play()
-	# before _ready (no scene attach) shouldn't crash. The particle/audio
-	# children are built in _ready, but play() must null-guard them.
+func test_play_level_up_is_safe_before_ready():
+	# Defensive: a caller that constructs a LevelUpEffect and calls
+	# play_level_up() before _ready (no scene attach) shouldn't crash. The
+	# particle/audio children are built in _ready, but play() must
+	# null-guard them.
 	var effect := LevelUpEffect.new()
 	var capture := _LevelCapture.new()
 	effect.triggered.connect(capture.on_triggered)
-	effect.play(3)
+	effect.play_level_up(3)
 	assert_eq(capture.captured, 3, "triggered fires even before _ready")
 	effect.free()
