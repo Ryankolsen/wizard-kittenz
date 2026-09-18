@@ -221,6 +221,35 @@ func test_forced_step_pressing_target_emits_finished():
 	assert_signal_emitted(scene, "finished", "pressing a forced step's target must advance and finish")
 	get_tree().paused = false
 
+func test_forced_step_lets_backdrop_pass_clicks_through():
+	# Regression: the full-screen Backdrop's default MOUSE_FILTER_STOP
+	# absorbs every click, including one landing on the highlighted real
+	# target underneath -- a forced step could never actually be dismissed
+	# by pressing that target. Forced steps must let clicks pass through.
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var target := Button.new()
+	add_child_autofree(target)
+	target.add_to_group("tutorial_target_test_forced")
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "tutorial_target_test_forced", "touch_only": false, "forced": true}]
+	scene._steps = steps
+	scene._show_step(0)
+	var backdrop := scene.find_child("Backdrop", true, false) as Control
+	assert_eq(backdrop.mouse_filter, Control.MOUSE_FILTER_IGNORE,
+		"a forced step's Backdrop must not swallow clicks meant for the real target")
+	get_tree().paused = false
+
+func test_non_forced_step_keeps_backdrop_blocking_clicks():
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var steps: Array[Dictionary] = [{"text": "x", "target_group": "", "touch_only": false, "forced": false}]
+	scene._steps = steps
+	scene._show_step(0)
+	var backdrop := scene.find_child("Backdrop", true, false) as Control
+	assert_eq(backdrop.mouse_filter, Control.MOUSE_FILTER_STOP,
+		"a non-forced step must keep blocking stray clicks into the game")
+	get_tree().paused = false
+
 func test_forced_step_hides_skip_and_close_buttons():
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)

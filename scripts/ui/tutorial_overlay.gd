@@ -136,6 +136,15 @@ func _show_step(index: int) -> void:
 	var close_btn := find_child("CloseButton", true, false) as Button
 	if close_btn != null:
 		close_btn.visible = not forced
+	# The full-screen Backdrop's default MOUSE_FILTER_STOP exists to block
+	# stray misclicks into the game while a dismissible step is up. A forced
+	# step instead needs the player's click to actually reach the real
+	# highlighted control underneath (e.g. the HUD's Pause button) -- with
+	# Backdrop still stopping the click, the press can never land on
+	# anything below this CanvasLayer and the topic could never advance.
+	var backdrop := find_child("Backdrop", true, false) as Control
+	if backdrop != null:
+		backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE if forced else Control.MOUSE_FILTER_STOP
 	if forced:
 		_connect_forced_target(target_group)
 	step_shown.emit(_topic_id, index)
