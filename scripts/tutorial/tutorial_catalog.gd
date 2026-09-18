@@ -76,7 +76,7 @@ static func _step(p_text: String, p_target_group: String, p_touch_only: bool, p_
 
 static func _main_menu_steps() -> Array[Dictionary]:
 	return [
-		_step("Four kittens, infinite ways to die valiantly. Pick one.",
+		_step("Congratulations crawler! You have successfully been turned into one of four cats and you get to survive the dungeon. Good luck!",
 			"tutorial_target_character_grid", false),
 	]
 

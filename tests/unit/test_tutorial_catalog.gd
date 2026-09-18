@@ -10,7 +10,7 @@ func test_topic_ids_returns_all_fifteen_in_order():
 func test_main_menu_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("main_menu")
 	assert_eq(steps.size(), 1)
-	assert_eq(steps[0].text, "Four kittens, infinite ways to die valiantly. Pick one.")
+	assert_eq(steps[0].text, "Congratulations crawler! You have successfully been turned into one of four cats and you get to survive the dungeon. Good luck!")
 	assert_eq(steps[0].target_group, "tutorial_target_character_grid")
 	assert_false(steps[0].touch_only)
 
