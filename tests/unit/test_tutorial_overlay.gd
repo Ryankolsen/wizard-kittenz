@@ -110,6 +110,34 @@ func test_node2d_target_shows_highlight_box_at_projected_position():
 		"highlight box must be centered on the projected screen position (y)")
 
 
+func test_highlight_box_clamps_to_viewport_for_edge_pinned_target():
+	# Regression: AchievementBadge is deliberately pinned overlapping
+	# PauseButton's top-right corner (hud.tscn: offset_top=-6, and its right
+	# edge sits past the 480px design canvas), so its own rect already pokes
+	# past the screen edge before the highlight box's padding is even added.
+	# Left unclamped, the box drew as a bracket clipped by the edge rather
+	# than a complete, readable rectangle. Reproduced here with a synthetic
+	# target rather than the real AchievementBadge scene wiring.
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var viewport_size: Vector2 = scene.get_viewport().get_visible_rect().size
+	var target := Control.new()
+	add_child_autofree(target)
+	target.size = Vector2(14, 16)
+	target.global_position = Vector2(viewport_size.x - 4, -4)
+	target.add_to_group("tutorial_target_test_edge_pinned")
+
+	scene._position_for_target("tutorial_target_test_edge_pinned")
+
+	var box := scene.find_child("HighlightBox", true, false) as Control
+	assert_true(box.visible, "highlight box must still show for a target pinned at the screen edge")
+	assert_true(box.global_position.x >= 0.0 and box.global_position.y >= 0.0,
+		"highlight box must not be positioned off the top/left of the viewport")
+	assert_true(box.global_position.x + box.size.x <= viewport_size.x + 0.01,
+		"highlight box must not extend past the right edge of the viewport")
+	assert_true(box.global_position.y + box.size.y <= viewport_size.y + 0.01,
+		"highlight box must not extend past the bottom edge of the viewport")
+
 func test_bubble_stays_within_viewport_for_oversized_target_rect():
 	# Regression for the main_menu tutorial rendering as an unreachable,
 	# fully-grayed-out screen: CharacterGrid lives in a ScrollContainer, so

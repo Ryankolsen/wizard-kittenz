@@ -192,20 +192,25 @@ func _position_for_target(target_group: String) -> void:
 		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * (target as Node2D).global_position
 		rect = Rect2(screen_pos - _NODE2D_HIGHLIGHT_SIZE / 2.0, _NODE2D_HIGHLIGHT_SIZE)
 		has_rect = true
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var highlight_rect := Rect2()
 	if has_rect:
 		highlight_rect = Rect2(rect.position - Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING),
 			rect.size + Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING) * 2)
+		# Clamp to the viewport -- a target pinned at (or slightly past) the
+		# screen edge by design, e.g. AchievementBadge deliberately peeking
+		# over PauseButton's corner, would otherwise draw as a bracket
+		# clipped by the edge rather than a complete, readable box.
+		highlight_rect = highlight_rect.intersection(Rect2(Vector2.ZERO, viewport_size))
 	if box != null:
-		box.visible = has_rect
-		if has_rect:
+		box.visible = has_rect and highlight_rect.size.x > 0.0 and highlight_rect.size.y > 0.0
+		if box.visible:
 			box.global_position = highlight_rect.position
 			box.size = highlight_rect.size
 
 	if bubble == null:
 		return
 	bubble.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	# A wide banner rather than a near-square card -- most of the viewport
 	# width, kept short by wrapping to few lines instead of many.
 	var bubble_width: float = maxf(0.0, viewport_size.x - _BUBBLE_MARGIN * 2.0)
