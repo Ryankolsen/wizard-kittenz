@@ -134,29 +134,47 @@ func test_bubble_stays_within_viewport_for_oversized_target_rect():
 	assert_true(bubble.global_position.y >= 0.0,
 		"bubble must not be clamped to a negative position")
 
-func test_bubble_always_docks_at_top_regardless_of_target_position():
-	# The bubble is a fixed top banner -- a predictable location that only
-	# ever covers a thin strip at the top of the screen, rather than
-	# following the target and potentially landing over the player
-	# mid-gameplay (the achievement badge, pinned near the top of the
-	# screen, previously pushed the bubble down into the middle of the
-	# gameplay view).
+func test_bubble_stays_at_top_when_default_dock_does_not_cover_target():
+	# The bubble defaults to a top banner -- a predictable location that
+	# only ever covers a thin strip at the top of the screen -- and stays
+	# there when the target sits far enough away that the banner doesn't
+	# actually cover it.
 	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
 	add_child_autofree(scene)
 	var viewport_size: Vector2 = scene.get_viewport().get_visible_rect().size
-	for target_pos in [Vector2(20, 4), Vector2(20, viewport_size.y - 40)]:
-		var target := Control.new()
-		add_child_autofree(target)
-		target.size = Vector2(20, 20)
-		target.global_position = target_pos
-		target.add_to_group("tutorial_target_test_dock")
+	var target := Control.new()
+	add_child_autofree(target)
+	target.size = Vector2(20, 20)
+	target.global_position = Vector2(20, viewport_size.y - 40)
+	target.add_to_group("tutorial_target_test_dock_far")
 
-		scene._position_for_target("tutorial_target_test_dock")
+	scene._position_for_target("tutorial_target_test_dock_far")
 
-		var bubble := scene.find_child("Bubble", true, false) as Control
-		assert_true(bubble.global_position.y < viewport_size.y / 2.0,
-			"bubble must dock near the top of the screen regardless of target position")
-		target.remove_from_group("tutorial_target_test_dock")
+	var bubble := scene.find_child("Bubble", true, false) as Control
+	assert_true(bubble.global_position.y < viewport_size.y / 2.0,
+		"bubble must stay docked at the top when its footprint doesn't cover the target")
+
+func test_bubble_flips_to_bottom_when_top_dock_would_cover_target():
+	# Regression: a target that sits outside the old narrow top-band special
+	# case (e.g. an inventory tab or equipment slot) but is still covered by
+	# the default full-width top banner (short text, or the banner's own
+	# height) must not be left hidden underneath it. The bubble should flip
+	# to the bottom of the screen instead, keeping the target and its
+	# HighlightBox visible.
+	var scene = load("res://scenes/tutorial_overlay.tscn").instantiate()
+	add_child_autofree(scene)
+	var viewport_size: Vector2 = scene.get_viewport().get_visible_rect().size
+	var target := Control.new()
+	add_child_autofree(target)
+	target.size = Vector2(20, 20)
+	target.global_position = Vector2(20, 4)
+	target.add_to_group("tutorial_target_test_dock_near")
+
+	scene._position_for_target("tutorial_target_test_dock_near")
+
+	var bubble := scene.find_child("Bubble", true, false) as Control
+	assert_true(bubble.global_position.y > viewport_size.y / 2.0,
+		"bubble must flip to the bottom of the screen when the default top dock would cover the target")
 
 func test_bubble_is_a_wide_short_banner_not_a_square():
 	# The design canvas is only 480x270 (project.godot). A wide banner

@@ -47,18 +47,14 @@ const _NODE2D_HIGHLIGHT_SIZE := Vector2(64.0, 64.0)
 
 # The project's design canvas is only 480x270 (project.godot stretch/mode
 # "canvas_items"). A near-square bubble (previously 240x60-and-growing)
-# still ate a large chunk of that height. A wide, short banner docked at
-# the top uses the same text budget in far less vertical space, so it
-# never covers more than a thin strip of the screen regardless of target
-# position. Width is computed per-call as most of the viewport (see
+# still ate a large chunk of that height. A wide, short banner defaults to
+# the top of the screen and uses the same text budget in far less vertical
+# space, so it never covers more than a thin strip of the screen for most
+# targets. Width is computed per-call as most of the viewport (see
 # _position_for_target); this is only the height floor/minimum.
 const _BUBBLE_MIN_HEIGHT := 40.0
 const _BUBBLE_MARGIN := 10.0
 const _BUBBLE_CONTENT_MARGIN := 12.0
-# How far down from the top margin counts as "the banner's row" for the
-# narrow-to-avoid-covering-the-target check above -- generous enough to
-# cover the banner's minimum height plus a couple of wrapped lines.
-const _TOP_BAND_HEIGHT := 80.0
 # Below this width a narrowed banner reads as a squeezed, barely-wrappable
 # sliver rather than a readable line -- skip narrowing (and just cover the
 # target) if there isn't at least this much room for it.
@@ -196,11 +192,15 @@ func _position_for_target(target_group: String) -> void:
 		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * (target as Node2D).global_position
 		rect = Rect2(screen_pos - _NODE2D_HIGHLIGHT_SIZE / 2.0, _NODE2D_HIGHLIGHT_SIZE)
 		has_rect = true
+	var highlight_rect := Rect2()
+	if has_rect:
+		highlight_rect = Rect2(rect.position - Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING),
+			rect.size + Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING) * 2)
 	if box != null:
 		box.visible = has_rect
 		if has_rect:
-			box.global_position = rect.position - Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING)
-			box.size = rect.size + Vector2(_HIGHLIGHT_PADDING, _HIGHLIGHT_PADDING) * 2
+			box.global_position = highlight_rect.position
+			box.size = highlight_rect.size
 
 	if bubble == null:
 		return
@@ -209,42 +209,60 @@ func _position_for_target(target_group: String) -> void:
 	# A wide banner rather than a near-square card -- most of the viewport
 	# width, kept short by wrapping to few lines instead of many.
 	var bubble_width: float = maxf(0.0, viewport_size.x - _BUBBLE_MARGIN * 2.0)
-	# The banner always docks at the top of the screen (see below), so a
-	# target that also sits near the top -- e.g. the HUD's PauseButton and
-	# its AchievementBadge child, both used by tutorial steps -- would
-	# otherwise be fully hidden underneath a full-width banner. When the
-	# target's rect falls in that same top band, stop the banner short of
-	# the target's left edge instead, so the target and its HighlightBox
-	# stay visible to the right of the text.
-	if has_rect and rect.position.y < _BUBBLE_MARGIN + _TOP_BAND_HEIGHT \
-			and rect.position.x > _BUBBLE_MARGIN + _MIN_NARROWED_BUBBLE_WIDTH:
-		bubble_width = maxf(0.0, rect.position.x - _HIGHLIGHT_PADDING - _BUBBLE_MARGIN)
 	var content_width: float = maxf(0.0, bubble_width - _BUBBLE_CONTENT_MARGIN * 2.0)
 	var max_bubble_height: float = maxf(_BUBBLE_MIN_HEIGHT, viewport_size.y - _BUBBLE_MARGIN * 2.0)
 
-	var bubble_height := _BUBBLE_MIN_HEIGHT
 	var label := find_child("StepLabel", true, false) as Label
-	if label != null:
-		# Label's own *autowrap* minimum-size computation is unreliable
-		# before the control has gone through a real layout pass (it can
-		# report a wildly inflated height, dragging the whole bubble along
-		# via Godot's automatic clamp-to-minimum-size). Word-wrap the text
-		# ourselves with direct font metrics instead and turn autowrap off,
-		# which makes the label's (and therefore the bubble's) own reported
-		# minimum size a simple, reliable per-line calculation again.
-		label.autowrap_mode = TextServer.AUTOWRAP_OFF
-		var font: Font = label.get_theme_font("font")
-		var font_size: int = label.get_theme_font_size("font_size")
-		label.text = _wrap_text(_current_step_text, font, font_size, content_width)
-		bubble_height = clampf(bubble.get_combined_minimum_size().y, _BUBBLE_MIN_HEIGHT, max_bubble_height)
+	var bubble_height := _wrap_and_measure(label, content_width, max_bubble_height, bubble)
 
 	var bubble_size := Vector2(bubble_width, bubble_height)
 	bubble.size = bubble_size
-	# Always dock at the top of the screen as a banner, clear of the
-	# highlight box below it -- a fixed, predictable location that only
-	# ever covers a thin strip at the top rather than following the
+	# Default: dock at the top of the screen as a banner -- a predictable
+	# location that only ever covers a thin strip rather than following the
 	# target and potentially landing over the player mid-gameplay.
-	bubble.global_position = Vector2(_BUBBLE_MARGIN, _BUBBLE_MARGIN)
+	var top_rect := Rect2(Vector2(_BUBBLE_MARGIN, _BUBBLE_MARGIN), bubble_size)
+	var dock_position := top_rect.position
+
+	if has_rect and top_rect.intersects(highlight_rect):
+		var bottom_rect := Rect2(Vector2(_BUBBLE_MARGIN, viewport_size.y - _BUBBLE_MARGIN - bubble_height), bubble_size)
+		if not bottom_rect.intersects(highlight_rect):
+			# The default top dock would cover the target -- e.g. tabs,
+			# equipment slots, or anything else not confined to a thin strip
+			# at the very top of the screen. Flip to the bottom instead, so
+			# the target and its HighlightBox stay visible.
+			dock_position = bottom_rect.position
+		elif rect.position.x > _BUBBLE_MARGIN + _MIN_NARROWED_BUBBLE_WIDTH:
+			# Neither top nor bottom is clear (a tall/full-height target) --
+			# fall back to narrowing the banner's width so it stops short of
+			# the target's left edge instead of covering it.
+			bubble_width = maxf(0.0, rect.position.x - _HIGHLIGHT_PADDING - _BUBBLE_MARGIN)
+			content_width = maxf(0.0, bubble_width - _BUBBLE_CONTENT_MARGIN * 2.0)
+			bubble_height = _wrap_and_measure(label, content_width, max_bubble_height, bubble)
+			bubble_size = Vector2(bubble_width, bubble_height)
+			bubble.size = bubble_size
+			dock_position = Vector2(_BUBBLE_MARGIN, _BUBBLE_MARGIN)
+
+	bubble.global_position = dock_position
+
+# Word-wraps _current_step_text to content_width and returns the resulting
+# bubble height (clamped between _BUBBLE_MIN_HEIGHT and max_height). Shared
+# by the default sizing pass and the narrow-width fallback in
+# _position_for_target, both of which need to re-measure after changing width.
+func _wrap_and_measure(label: Label, content_width: float, max_height: float, bubble: Control) -> float:
+	if label == null:
+		return _BUBBLE_MIN_HEIGHT
+	# Label's own *autowrap* minimum-size computation is unreliable before
+	# the control has gone through a real layout pass (it can report a
+	# wildly inflated height, dragging the whole bubble along via Godot's
+	# automatic clamp-to-minimum-size). Word-wrap the text ourselves with
+	# direct font metrics instead and turn autowrap off, which makes the
+	# label's (and therefore the bubble's) own reported minimum size a
+	# simple, reliable per-line calculation again.
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var font: Font = label.get_theme_font("font")
+	var font_size: int = label.get_theme_font_size("font_size")
+	label.text = _wrap_text(_current_step_text, font, font_size, content_width)
+	return clampf(bubble.get_combined_minimum_size().y, _BUBBLE_MIN_HEIGHT, max_height)
 
 # Greedy word-wrap using the label's actual font metrics, breaking at
 # max_width. Bypasses Label's built-in autowrap so its minimum-size stays a
