@@ -96,7 +96,7 @@ static func _movement_attack_steps() -> Array[Dictionary]:
 	return [
 		_step("This stick makes you go places. Groundbreaking cat technology.",
 			"tutorial_target_joystick", true),
-		_step("Mash this to hit things. It's 90% of your combat strategy, and also all of it.",
+		_step("Tap to attack. Revolutionary, we know.",
 			"tutorial_target_attack_button", true),
 	]
 

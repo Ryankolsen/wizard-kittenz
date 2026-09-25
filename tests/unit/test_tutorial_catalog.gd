@@ -34,7 +34,7 @@ func test_movement_attack_steps_have_correct_text_and_targets():
 	assert_eq(steps[0].text, "This stick makes you go places. Groundbreaking cat technology.")
 	assert_eq(steps[0].target_group, "tutorial_target_joystick")
 	assert_true(steps[0].touch_only)
-	assert_eq(steps[1].text, "Mash this to hit things. It's 90% of your combat strategy, and also all of it.")
+	assert_eq(steps[1].text, "Tap to attack. Revolutionary, we know.")
 	assert_eq(steps[1].target_group, "tutorial_target_attack_button")
 	assert_true(steps[1].touch_only)
 
