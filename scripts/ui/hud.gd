@@ -27,6 +27,8 @@ var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
 var _achievement_badge: Label
 var _help_btn: Button
+var _mute_btn: Button
+var _music_icon: MusicIcon
 
 # One-shot flag set by _on_player_leveled_up (issue #618, PRD #614) when the
 # level_up tutorial overlay is auto-shown. The very next _on_pause_pressed
@@ -38,6 +40,7 @@ var _pending_level_up_pause_open: bool = false
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
 const TUTORIAL_TOPIC_MENU_SCENE := preload("res://scenes/tutorial_topic_menu.tscn")
+const AudioSettings := preload("res://scripts/core/audio_settings_manager.gd")
 
 func _ready() -> void:
 	_hp_fill = $StatsPanel/VBox/HPBar/Fill
@@ -59,6 +62,10 @@ func _ready() -> void:
 	_achievement_badge.add_to_group("tutorial_target_achievement_badge")
 	_help_btn = $HelpButton
 	_help_btn.pressed.connect(_on_help_pressed)
+	_mute_btn = $MuteButton
+	_music_icon = $MuteButton/MusicIcon
+	_music_icon.muted = AudioSettings.is_muted()
+	_mute_btn.pressed.connect(_on_mute_pressed)
 	_player = _find_player()
 	_bind_player_item_drop()
 	_bind_player_level_up()
@@ -427,6 +434,16 @@ func _on_help_pressed() -> void:
 	add_child(menu)
 	menu.topic_selected.connect(_on_help_topic_selected.bind(menu))
 	menu.closed.connect(_on_help_menu_closed.bind(menu))
+
+func _on_mute_pressed() -> void:
+	var muted := not AudioSettings.is_muted()
+	AudioSettings.set_muted(muted)
+	_music_icon.muted = muted
+	# Persist alongside bgm/sfx so the mute survives an app restart, same
+	# as pause_menu.gd's slider saves preserve this flag in the other
+	# direction (see _persist_audio_sliders).
+	var loaded := AudioSettings.load_settings()
+	AudioSettings.save_settings({"bgm": loaded["bgm"], "sfx": loaded["sfx"], "muted": muted})
 
 func _on_help_topic_selected(topic_id: String, menu: Node) -> void:
 	TutorialSequencer.replay_topic(topic_id)

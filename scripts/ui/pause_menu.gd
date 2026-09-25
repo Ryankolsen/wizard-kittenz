@@ -673,7 +673,10 @@ func _persist_audio_sliders() -> void:
 	var sfx_slider := find_child("SFXSlider", true, false) as HSlider
 	var bgm := bgm_slider.value if bgm_slider != null else AudioSettings.DEFAULT_BGM
 	var sfx := sfx_slider.value if sfx_slider != null else AudioSettings.DEFAULT_SFX
-	AudioSettings.save_settings({"bgm": bgm, "sfx": sfx})
+	# Preserve the mute flag — it lives in the same JSON file but isn't
+	# edited by these sliders (see hud.gd's MuteButton), so re-saving the
+	# sliders must not silently clear it.
+	AudioSettings.save_settings({"bgm": bgm, "sfx": sfx, "muted": AudioSettings.is_muted()})
 
 # Delegates the per-stat render to the StatsTabPanel script attached to
 # the StatsPanel node (#60). The panel builds its own rows + "+" buttons
