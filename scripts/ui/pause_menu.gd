@@ -422,7 +422,7 @@ func open_character_submenu() -> void:
 	var submenu := find_child("CharacterSubmenu", true, false) as Control
 	if submenu != null:
 		submenu.visible = true
-	_show_inventory_tab()
+	_show_inventory_tab(true)
 	_refresh_character_stats()
 
 # Opens the Character submenu landed directly on the Stats tab (issue #616).
@@ -440,7 +440,7 @@ func _open_character_submenu_on_stats_tab() -> void:
 	var submenu := find_child("CharacterSubmenu", true, false) as Control
 	if submenu != null:
 		submenu.visible = true
-	_show_stats_tab()
+	_show_stats_tab(true)
 	_refresh_character_stats()
 
 # Opens the pause menu in dungeon-transition mode (PRD #52 / #61). Lands
@@ -714,13 +714,27 @@ func _current_skill_tree() -> SkillTree:
 # rather than one with a parameter because the call sites read more
 # clearly ("open Stats" vs "open Skills") and the extra dispatch is
 # free against three Control nodes.
-func _show_stats_tab() -> void:
+# defer_tutorial (issue: highlight box landing on the HUD instead of the tab
+# button): when reached from _open_character_submenu_on_stats_tab(),
+# CharacterSubmenu itself just became visible this same frame, so its
+# containers (VBox/TabBar) haven't had a layout/sort pass yet --
+# StatsTabButton.get_global_rect() would report a stale pre-layout rect.
+# Deferring the tutorial check one frame runs it after that pass, mirroring
+# character_creation.gd's _maybe_show_tutorial.call_deferred(). Tab presses
+# that reach this directly (the submenu already visible by then, e.g. via
+# _on_stats_tab_pressed) pass false and stay synchronous, since tests and
+# real gameplay both expect the tutorial overlay to exist immediately after
+# a tab press.
+func _show_stats_tab(defer_tutorial: bool = false) -> void:
 	_set_tab_visible("StatsPanel", true)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", false)
 	_set_tab_visible("ItemsPanel", false)
 	_set_tab_visible("AchievementsPanel", false)
-	_maybe_show_stats_tab_tutorial()
+	if defer_tutorial:
+		_maybe_show_stats_tab_tutorial.call_deferred()
+	else:
+		_maybe_show_stats_tab_tutorial()
 
 func _show_skills_tab() -> void:
 	_set_tab_visible("StatsPanel", false)
@@ -735,7 +749,9 @@ func _show_skills_tab() -> void:
 	_refresh_skills_panel()
 	_maybe_show_skills_tab_tutorial()
 
-func _show_inventory_tab() -> void:
+# See _show_stats_tab's defer_tutorial doc — same layout race, reached from
+# open_character_submenu() (the default landing tab).
+func _show_inventory_tab(defer_tutorial: bool = false) -> void:
 	_set_tab_visible("StatsPanel", false)
 	_set_tab_visible("SkillsPanel", false)
 	_set_tab_visible("InventoryTab", true)
@@ -746,7 +762,10 @@ func _show_inventory_tab() -> void:
 	# its highlight targets — TutorialOverlay.open() looks them up
 	# synchronously on the first step.
 	_refresh_equipment_panel()
-	_maybe_show_inventory_tab_tutorial()
+	if defer_tutorial:
+		_maybe_show_inventory_tab_tutorial.call_deferred()
+	else:
+		_maybe_show_inventory_tab_tutorial()
 
 func _show_items_tab() -> void:
 	_set_tab_visible("StatsPanel", false)

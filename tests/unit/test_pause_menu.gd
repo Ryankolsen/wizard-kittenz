@@ -307,6 +307,36 @@ func test_close_after_tutorial_finished_still_unpauses():
 # these tests so only the inventory_tab / equip_gear triggers are under
 # test.
 
+func test_open_character_submenu_highlight_box_matches_real_inventory_tab_button():
+	# Regression: InventoryTabButton lives inside a container (VBox/TabBar)
+	# that only gets its first layout/sort pass once CharacterSubmenu becomes
+	# visible. Reading its global_rect synchronously in the same frame
+	# CharacterSubmenu.visible flips to true returned a stale, near-zero
+	# rect, landing the highlight box over the HUD's HP/MP bars instead of
+	# the tab button. _show_inventory_tab's defer_tutorial (only used by
+	# open_character_submenu(), not by direct tab presses) defers the
+	# tutorial check by one frame so the layout pass has already run.
+	var gs := get_node("/root/GameState")
+	gs.clear()
+	gs.tutorial_seen_topics = []
+	gs.current_character = CharacterData.make_new(CharacterData.CharacterClass.BATTLE_KITTEN, "Test")
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	scene.open_character_submenu()
+	await get_tree().process_frame
+	var overlay := _find_tutorial_overlay(scene)
+	assert_not_null(overlay, "opening the character submenu must fire the inventory_tab tutorial")
+	var box := overlay.find_child("HighlightBox", true, false) as Control
+	assert_true(box.visible, "highlight box must be visible for the inventory_tab step")
+	var button := scene.find_child("InventoryTabButton", true, false) as Control
+	var button_center: Vector2 = button.get_global_rect().get_center()
+	var box_center: Vector2 = box.global_position + box.size / 2.0
+	assert_almost_eq(box_center.x, button_center.x, 5.0,
+		"highlight box must be centered on the real InventoryTabButton rect, not a stale pre-layout rect (x)")
+	assert_almost_eq(box_center.y, button_center.y, 5.0,
+		"highlight box must be centered on the real InventoryTabButton rect, not a stale pre-layout rect (y)")
+	get_tree().paused = false
+
 func test_first_inventory_tab_open_triggers_inventory_tab_tutorial():
 	var gs := get_node("/root/GameState")
 	gs.clear()
