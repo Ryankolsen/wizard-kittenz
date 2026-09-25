@@ -111,7 +111,7 @@ func test_achievements_steps_have_correct_text_and_targets():
 	var steps := TutorialCatalog.steps_for("achievements")
 	assert_eq(steps.size(), 1)
 	assert_eq(steps[0].text, "That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.")
-	assert_eq(steps[0].target_group, "tutorial_target_achievement_badge")
+	assert_eq(steps[0].target_group, "tutorial_target_pause_button")
 	assert_false(steps[0].touch_only)
 
 func test_level_up_steps_have_correct_text_and_targets():

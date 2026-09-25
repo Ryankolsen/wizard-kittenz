@@ -161,7 +161,7 @@ static func _tavern_steps() -> Array[Dictionary]:
 static func _achievements_steps() -> Array[Dictionary]:
 	return [
 		_step("That glow means you've earned an achievement. Go to the pause menu's Achievements tab to claim it.",
-			"tutorial_target_achievement_badge", false),
+			"tutorial_target_pause_button", false),
 	]
 
 static func _level_up_steps() -> Array[Dictionary]:
