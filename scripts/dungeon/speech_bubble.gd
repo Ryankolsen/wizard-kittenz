@@ -51,6 +51,8 @@ const _HIGHLIGHT_COLOR := Color(1.0, 0.9, 0.2)
 func _ready() -> void:
 	_panel = get_node_or_null("Panel") as PanelContainer
 	_rows_container = get_node_or_null("Panel/Rows") as VBoxContainer
+	if _rows_container != null:
+		_rows_container.gui_input.connect(_on_rows_gui_input)
 
 
 # Populates the bubble with one row per option and arms input handling. The
@@ -116,6 +118,34 @@ func _physics_process(_delta: float) -> void:
 	elif Input.is_action_just_pressed("attack"):
 		# confirm() may dispatch an effect that dismisses this bubble (frees it),
 		# so do nothing with self afterward — we return immediately.
+		confirm()
+
+
+# Issue #631: desktop mouse-click path, distinct from the touch/keyboard
+# polling loop above. Rows is a VBoxContainer with (default) MOUSE_FILTER_STOP,
+# and its row Labels default to MOUSE_FILTER_IGNORE, so a click anywhere over
+# a row passes through the Label to Rows and arrives here already localized
+# to Rows' own coordinate space — the same space _row_labels' own Rect2s live
+# in, so no extra conversion is needed.
+func _on_rows_gui_input(event: InputEvent) -> void:
+	if selection == null:
+		return
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var rects: Array[Rect2] = []
+	for lbl in _row_labels:
+		rects.append(Rect2(lbl.position, lbl.size))
+	var idx := BubbleRowHitTest.row_at(rects, mb.position)
+	if idx == -1:
+		return
+	selection.select(idx)
+	_refresh_highlight()
+	if selection.current_index() == idx:
+		# confirm() may dispatch an effect that dismisses this bubble (frees
+		# it), so do nothing with self afterward — return immediately.
 		confirm()
 
 

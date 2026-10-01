@@ -65,6 +65,95 @@ func test_move_up_polling_retreats_cursor():
 		"polling move_up retreats the cursor (touch joystick path)")
 
 
+# Issue #631: mouse-click select+confirm. Builds an InputEventMouseButton at
+# a position inside a row's own Label rect and feeds it directly to the
+# Rows VBoxContainer's gui_input handler (mirrors how _physics_process is
+# called directly in the polling tests above, bypassing the real engine
+# input pump).
+func _click_at(bubble: SpeechBubble, local_point: Vector2) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	event.position = local_point
+	bubble._on_rows_gui_input(event)
+
+
+func _row_center(bubble: SpeechBubble, index: int) -> Vector2:
+	var lbl := bubble._row_labels[index]
+	return lbl.position + lbl.size * 0.5
+
+
+func test_click_on_enabled_row_selects_and_confirms_it():
+	var bubble := _make_open_bubble()
+	# Row Labels' positions inside the VBoxContainer only land after a
+	# deferred container sort, same as real usage (the rows must be visibly
+	# laid out before a player could click one).
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	_click_at(bubble, _row_center(bubble, 1))
+	assert_eq(rec.calls, 1, "click on an enabled row confirms exactly once")
+	assert_eq(rec.last_effect_id, "do_second",
+		"confirm emits the clicked row's effect_id")
+	assert_eq(bubble.selection.current_index(), 1,
+		"clicking a row moves the highlighted cursor to it")
+
+
+func test_click_on_disabled_row_is_a_no_op():
+	var list := NPCOptionList.make([
+		NPCOption.make("Shop", "open_shop"),
+		NPCOption.make("Get a beer", "buy_beer", func(): return false, NPCOption.CurrencyType.GOLD, 25),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	var starting_index := bubble.selection.current_index()
+	_click_at(bubble, _row_center(bubble, 1))
+	assert_eq(rec.calls, 0, "click on a disabled row never confirms")
+	assert_eq(bubble.selection.current_index(), starting_index,
+		"click on a disabled row leaves the highlighted cursor unchanged")
+
+
+func test_click_outside_all_rows_is_a_no_op():
+	var bubble := _make_open_bubble()
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	var starting_index := bubble.selection.current_index()
+	_click_at(bubble, Vector2(-500, -500))
+	assert_eq(rec.calls, 0, "click outside every row never confirms")
+	assert_eq(bubble.selection.current_index(), starting_index,
+		"click outside every row leaves the highlighted cursor unchanged")
+
+
+func test_click_on_different_enabled_row_moves_highlight_before_confirming():
+	var list := NPCOptionList.make([
+		NPCOption.make("First", "do_first"),
+		NPCOption.make("Second", "do_second"),
+		NPCOption.make("Third", "do_third"),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	await get_tree().process_frame
+	assert_eq(bubble.selection.current_index(), 0, "precondition: cursor starts on row 0")
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	_click_at(bubble, _row_center(bubble, 2))
+	assert_eq(bubble.selection.current_index(), 2,
+		"clicking a different enabled row moves the highlight there")
+	assert_eq(rec.last_effect_id, "do_third",
+		"confirm fires for the clicked row after the highlight moves")
+
+
 func test_attack_polling_confirms_highlighted_option():
 	var bubble := _make_open_bubble()
 	var rec := _ConfirmRecorder.new()
