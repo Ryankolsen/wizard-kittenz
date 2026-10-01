@@ -38,6 +38,11 @@ func confirm() -> int:
 	return _cursor
 
 
+func select(index: int) -> void:
+	if _is_enabled(index):
+		_cursor = index
+
+
 func move_next() -> void:
 	_step(1)
 

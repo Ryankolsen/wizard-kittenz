@@ -88,3 +88,45 @@ func test_enabled_predicate_reevaluated_per_step():
 	assert_eq(c.current_index(), 0)
 	c.move_next()
 	assert_eq(c.current_index(), 2, "middle now disabled: navigation skips it")
+
+
+func test_select_moves_cursor_to_enabled_index():
+	var c := BubbleSelectionController.make(3, [true, true, true])
+	c.select(2)
+	assert_eq(c.current_index(), 2, "select moves cursor to the given enabled index")
+
+
+func test_select_disabled_index_is_noop():
+	var c := BubbleSelectionController.make(3, [true, false, true])
+	c.select(1)
+	assert_eq(c.current_index(), 0, "select does not move onto a disabled row")
+
+
+func test_select_onto_nonadjacent_enabled_row():
+	var c := BubbleSelectionController.make(4, [true, true, true, true])
+	c.select(3)
+	assert_eq(c.current_index(), 3, "select is not restricted to single-step movement")
+
+
+func test_select_with_callable_mask_reevaluated():
+	var state := {"middle_on": true}
+	var predicate := func(i: int) -> bool:
+		if i == 1:
+			return state["middle_on"]
+		return true
+	var c := BubbleSelectionController.make(3, predicate)
+
+	c.select(1)
+	assert_eq(c.current_index(), 1, "callable mask: select lands on enabled index")
+
+	state["middle_on"] = false
+	c.select(0)
+	assert_eq(c.current_index(), 0, "cursor moved to 0")
+	c.select(1)
+	assert_eq(c.current_index(), 0, "callable mask: select does not move onto now-disabled index")
+
+
+func test_select_has_no_return_value_and_does_not_confirm():
+	var c := BubbleSelectionController.make(2, [true, true])
+	c.select(1)
+	assert_eq(c.current_index(), 1, "cursor already reflects the move without calling confirm")
