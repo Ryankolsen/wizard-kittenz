@@ -135,10 +135,7 @@ func _on_rows_gui_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	var rects: Array[Rect2] = []
-	for lbl in _row_labels:
-		rects.append(Rect2(lbl.position, lbl.size))
-	var idx := BubbleRowHitTest.row_at(rects, mb.position)
+	var idx := BubbleRowHitTest.row_at(_row_rects(), mb.position)
 	if idx == -1:
 		return
 	selection.select(idx)
@@ -147,6 +144,21 @@ func _on_rows_gui_input(event: InputEvent) -> void:
 		# confirm() may dispatch an effect that dismisses this bubble (frees
 		# it), so do nothing with self afterward — return immediately.
 		confirm()
+
+
+# Issue #632: each row's hit-test rect spans the rows container's full
+# content width (x=0, width=_rows_container.size.x) rather than the row's
+# own Label rect, so a click past a short label's glyphs (e.g. "Exit") still
+# lands on that row. The vertical extent still comes from the Label, which
+# is what the VBoxContainer actually laid out.
+func _row_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	var width := 0.0
+	if _rows_container != null:
+		width = _rows_container.size.x
+	for lbl in _row_labels:
+		rects.append(Rect2(0.0, lbl.position.y, width, lbl.size.y))
+	return rects
 
 
 func _rebuild_rows() -> void:

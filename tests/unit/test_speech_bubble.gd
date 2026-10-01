@@ -154,6 +154,55 @@ func test_click_on_different_enabled_row_moves_highlight_before_confirming():
 		"confirm fires for the clicked row after the highlight moves")
 
 
+# Issue #632: row hit-test rectangles span the full rows-container width
+# (not just each row's own label width) so a click in the "dead space" to
+# the right of a short label (e.g. "Exit") still resolves to that row.
+func _widened_list() -> NPCOptionList:
+	return NPCOptionList.make([
+		NPCOption.make("Exit", "close"),
+		NPCOption.make("Get a beer", "buy_beer"),
+	] as Array[NPCOption])
+
+
+func test_short_row_rect_spans_full_container_width():
+	var list := _widened_list()
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	await get_tree().process_frame
+	var rects := bubble._row_rects()
+	assert_eq(rects[0].size.x, bubble._rows_container.size.x,
+		"short row's rect width equals the rows container's content width")
+	assert_lt(bubble._row_labels[0].get_minimum_size().x, bubble._rows_container.size.x,
+		"precondition: the short label's own text is narrower than the container")
+
+
+func test_click_in_short_rows_dead_space_resolves_to_that_row():
+	var list := _widened_list()
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	var lbl := bubble._row_labels[0]
+	var text_width := lbl.get_minimum_size().x
+	var container_width := bubble._rows_container.size.x
+	# Horizontally past the short label's own glyphs, but still within the
+	# row's vertical band and (strictly) within the container's full width.
+	var dead_space_x := (text_width + container_width) * 0.5
+	assert_lt(dead_space_x, container_width,
+		"precondition: the dead-space point stays inside the container's width")
+	var point := Vector2(dead_space_x, lbl.position.y + lbl.size.y * 0.5)
+	_click_at(bubble, point)
+	assert_eq(rec.calls, 1, "click in the short row's dead space confirms exactly once")
+	assert_eq(rec.last_effect_id, "close",
+		"click in the short row's dead space resolves to that row, not a miss")
+
+
 func test_attack_polling_confirms_highlighted_option():
 	var bubble := _make_open_bubble()
 	var rec := _ConfirmRecorder.new()
