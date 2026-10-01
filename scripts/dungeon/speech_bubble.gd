@@ -135,7 +135,41 @@ func _on_rows_gui_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	var idx := BubbleRowHitTest.row_at(_row_rects(), mb.position)
+	_handle_tap_at(mb.position)
+
+
+# Issue #633: mobile touch path. SpeechBubble is a Node2D, not a Control, so
+# it never receives gui_input — but Node2D still gets _input for every
+# InputEvent, InputEventScreenTouch included. Only the press edge matters
+# here (no release/drag handling, no multi-touch tracking — see #633's scope
+# notes), mirroring how QuickbarSlotView's _handle_touch_pressed reacts only
+# to event.pressed. event.position arrives in the same global/screen space
+# Godot uses to route gui_input, so it's converted into Rows' local space
+# (the space _row_rects() and the mouse path both already work in) before
+# the two paths join in _handle_tap_at.
+func _input(event: InputEvent) -> void:
+	if selection == null:
+		return
+	if not (event is InputEventScreenTouch):
+		return
+	var touch := event as InputEventScreenTouch
+	if not touch.pressed:
+		return
+	_handle_tap_at(_to_rows_local(touch.position))
+
+
+func _to_rows_local(global_point: Vector2) -> Vector2:
+	if _rows_container == null:
+		return global_point
+	return _rows_container.get_global_transform().affine_inverse() * global_point
+
+
+# Shared by the mouse-click (#631/#632) and touch-tap (#633) input paths:
+# resolve a point already in Rows' local coordinate space to a row and
+# select+confirm it. Each entry point above is a thin adapter whose only job
+# is extracting and converting its event's position before delegating here.
+func _handle_tap_at(local_point: Vector2) -> void:
+	var idx := BubbleRowHitTest.row_at(_row_rects(), local_point)
 	if idx == -1:
 		return
 	selection.select(idx)

@@ -203,6 +203,67 @@ func test_click_in_short_rows_dead_space_resolves_to_that_row():
 		"click in the short row's dead space resolves to that row, not a miss")
 
 
+# Issue #633: touch (mobile) tap support. InputEventScreenTouch.position is
+# in the same global/screen space Godot's own gui_input routing would see, so
+# this helper converts a Rows-local point to that space via the rows
+# container's global transform (the inverse of what _input does internally)
+# before handing the event to _input directly — mirroring how _click_at feeds
+# _on_rows_gui_input an already-local mouse event.
+func _touch_at(bubble: SpeechBubble, local_point: Vector2) -> void:
+	var global_point: Vector2 = bubble._rows_container.get_global_transform() * local_point
+	var event := InputEventScreenTouch.new()
+	event.pressed = true
+	event.position = global_point
+	bubble._input(event)
+
+
+func test_touch_on_enabled_row_selects_and_confirms_it():
+	var bubble := _make_open_bubble()
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	_touch_at(bubble, _row_center(bubble, 1))
+	assert_eq(rec.calls, 1, "touch on an enabled row confirms exactly once")
+	assert_eq(rec.last_effect_id, "do_second",
+		"confirm emits the touched row's effect_id")
+	assert_eq(bubble.selection.current_index(), 1,
+		"touching a row moves the highlighted cursor to it")
+
+
+func test_touch_on_disabled_row_is_a_no_op():
+	var list := NPCOptionList.make([
+		NPCOption.make("Shop", "open_shop"),
+		NPCOption.make("Get a beer", "buy_beer", func(): return false, NPCOption.CurrencyType.GOLD, 25),
+	] as Array[NPCOption])
+	var mask := func(i: int) -> bool: return list.get_at(i).is_enabled()
+	var bubble: SpeechBubble = load(BUBBLE_SCENE_PATH).instantiate()
+	add_child_autofree(bubble)
+	bubble.open(list, BubbleSelectionController.make(list.size(), mask))
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	var starting_index := bubble.selection.current_index()
+	_touch_at(bubble, _row_center(bubble, 1))
+	assert_eq(rec.calls, 0, "touch on a disabled row never confirms")
+	assert_eq(bubble.selection.current_index(), starting_index,
+		"touch on a disabled row leaves the highlighted cursor unchanged")
+
+
+func test_touch_outside_all_rows_is_a_no_op():
+	var bubble := _make_open_bubble()
+	await get_tree().process_frame
+	var rec := _ConfirmRecorder.new()
+	add_child_autofree(rec)
+	bubble.option_confirmed.connect(rec.on_confirmed)
+	var starting_index := bubble.selection.current_index()
+	_touch_at(bubble, Vector2(-500, -500))
+	assert_eq(rec.calls, 0, "touch outside every row never confirms")
+	assert_eq(bubble.selection.current_index(), starting_index,
+		"touch outside every row leaves the highlighted cursor unchanged")
+
+
 func test_attack_polling_confirms_highlighted_option():
 	var bubble := _make_open_bubble()
 	var rec := _ConfirmRecorder.new()
