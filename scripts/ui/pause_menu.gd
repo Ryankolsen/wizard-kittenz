@@ -90,6 +90,20 @@ func _ready() -> void:
 	var character_btn := find_child("Character", true, false) as Button
 	if character_btn != null:
 		character_btn.pressed.connect(_on_character_pressed)
+	# Issue #624 (PRD #620). The root-menu Character button's badge signals
+	# "something inside the Character submenu needs attention" — unspent stat
+	# points OR an unclaimed achievement. Combined inline rather than
+	# extracted into a shared predicate class per the parent PRD's explicit
+	# decision.
+	var character_badge := find_child("CharacterButtonBadge", true, false) as NotificationDot
+	if character_badge != null:
+		character_badge.bind_predicate(func() -> bool:
+			var c := _current_character()
+			var points_pending := c != null and StatBadge.should_show(c.skill_points)
+			var service := _resolve_achievement_service()
+			var achievement_pending := service != null and AchievementBadge.should_show(service.account.achievement_state)
+			return points_pending or achievement_pending
+		)
 	var back_btn := find_child("Back", true, false) as Button
 	if back_btn != null:
 		back_btn.pressed.connect(_on_back_pressed)

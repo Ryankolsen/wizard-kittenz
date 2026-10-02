@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://bpm9aux1k7q8f"]
+[gd_scene load_steps=6 format=3 uid="uid://bpm9aux1k7q8f"]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause_menu"]
 [ext_resource type="Script" path="res://scripts/ui/stats_tab_panel.gd" id="2_stats_tab_panel"]
 [ext_resource type="Script" path="res://scripts/ui/equipment_tab_panel.gd" id="3_equipment_tab_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/notification_dot.tscn" id="4_notification_dot"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pause"]
 bg_color = Color(0.05, 0.07, 0.12, 0.85)
@@ -46,6 +47,12 @@ text = "Resume"
 
 [node name="Character" type="Button" parent="Center/MainMenu/VBox"]
 text = "Character"
+
+[node name="CharacterButtonBadge" parent="Center/MainMenu/VBox/Character" instance=ExtResource("4_notification_dot")]
+offset_left = 80.0
+offset_top = -6.0
+offset_right = 94.0
+offset_bottom = 10.0
 
 [node name="Settings" type="Button" parent="Center/MainMenu/VBox"]
 text = "Settings"
