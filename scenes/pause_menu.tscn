@@ -48,6 +48,12 @@ text = "Resume"
 [node name="Character" type="Button" parent="Center/MainMenu/VBox"]
 text = "Character"
 
+[node name="CharacterButtonBadge" parent="Center/MainMenu/VBox/Character" instance=ExtResource("4_notification_dot")]
+offset_left = 80.0
+offset_top = -6.0
+offset_right = 94.0
+offset_bottom = 10.0
+
 [node name="Settings" type="Button" parent="Center/MainMenu/VBox"]
 text = "Settings"
 
