@@ -19,11 +19,19 @@ func test_hud_has_stat_points_badge_hidden_by_default():
 	assert_false(badge.visible, "StatPointsBadge starts hidden — visibility is driven by skill_points")
 	scene.free()
 
+func test_pause_menu_stats_tab_badge_is_notification_dot_child_of_stats_tab_button():
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	var badge = scene.find_child("StatsTabBadge", true, false)
+	assert_not_null(badge, "pause_menu.tscn must contain a node named StatsTabBadge")
+	assert_true(badge is NotificationDot, "StatsTabBadge must be a NotificationDot instance")
+	assert_not_null(badge.get_parent(), "StatsTabBadge must have a parent")
+	assert_eq(badge.get_parent().name, "StatsTabButton", "StatsTabBadge must be a child of StatsTabButton")
+	scene.free()
+
 func test_pause_menu_has_stats_tab_badge_hidden_by_default():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	var badge = scene.find_child("StatsTabBadge", true, false)
 	assert_not_null(badge, "pause_menu.tscn must contain a node named StatsTabBadge")
-	assert_true(badge is Label, "StatsTabBadge must be a Label")
 	assert_false(badge.visible, "StatsTabBadge starts hidden — visibility is driven by skill_points")
 	scene.free()
 
@@ -36,7 +44,7 @@ func test_pause_menu_stats_tab_badge_visible_when_points_available():
 	add_child_autofree(scene)
 	# _process drives the badge; tick a frame.
 	await get_tree().process_frame
-	var badge = scene.find_child("StatsTabBadge", true, false) as Label
+	var badge = scene.find_child("StatsTabBadge", true, false) as NotificationDot
 	assert_not_null(badge)
 	assert_true(badge.visible, "badge must be visible when skill_points > 0")
 
@@ -48,7 +56,7 @@ func test_pause_menu_stats_tab_badge_hidden_when_no_points():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
 	await get_tree().process_frame
-	var badge = scene.find_child("StatsTabBadge", true, false) as Label
+	var badge = scene.find_child("StatsTabBadge", true, false) as NotificationDot
 	assert_not_null(badge)
 	assert_false(badge.visible, "badge must hide when skill_points == 0")
 
@@ -60,8 +68,16 @@ func test_pause_menu_stats_tab_badge_updates_on_change():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)
 	await get_tree().process_frame
-	var badge = scene.find_child("StatsTabBadge", true, false) as Label
+	var badge = scene.find_child("StatsTabBadge", true, false) as NotificationDot
 	assert_false(badge.visible)
 	c.skill_points = 5
 	await get_tree().process_frame
 	assert_true(badge.visible, "badge polls per frame — must turn on when points appear")
+
+func test_pause_menu_stats_tab_badge_hidden_when_no_character_bound():
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	await get_tree().process_frame
+	var badge = scene.find_child("StatsTabBadge", true, false) as NotificationDot
+	assert_not_null(badge)
+	assert_false(badge.visible, "badge must hide when no character is bound")
