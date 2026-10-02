@@ -105,8 +105,8 @@ func test_badge_staying_visible_does_not_retrigger():
 	}
 	var hud = load("res://scenes/hud.tscn").instantiate()
 	add_child_autofree(hud)
-	hud._update_achievement_badge()
-	hud._update_achievement_badge()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var overlays: Array = hud.find_children("TutorialOverlay", "", true, false)
 	assert_eq(overlays.size(), 1,
 		"the badge staying visible across polls must not re-instantiate the overlay")
