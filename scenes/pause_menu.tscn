@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://bpm9aux1k7q8f"]
+[gd_scene load_steps=6 format=3 uid="uid://bpm9aux1k7q8f"]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause_menu"]
 [ext_resource type="Script" path="res://scripts/ui/stats_tab_panel.gd" id="2_stats_tab_panel"]
 [ext_resource type="Script" path="res://scripts/ui/equipment_tab_panel.gd" id="3_equipment_tab_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/notification_dot.tscn" id="4_notification_dot"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pause"]
 bg_color = Color(0.05, 0.07, 0.12, 0.85)
@@ -77,11 +78,11 @@ theme_override_constants/separation = 4
 [node name="StatsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Stats"
 
-[node name="StatsTabBadge" type="Label" parent="Center/CharacterSubmenu/VBox/TabBar"]
-visible = false
-text = "•"
-theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
-theme_override_font_sizes/font_size = 20
+[node name="StatsTabBadge" parent="Center/CharacterSubmenu/VBox/TabBar/StatsTabButton" instance=ExtResource("4_notification_dot")]
+offset_left = 50.0
+offset_top = -6.0
+offset_right = 64.0
+offset_bottom = 8.0
 
 [node name="SkillsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Skills"

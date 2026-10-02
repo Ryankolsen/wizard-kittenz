@@ -142,6 +142,9 @@ func _ready() -> void:
 	if host_pause_toggle != null:
 		host_pause_toggle.pressed.connect(_on_host_pause_toggle_pressed)
 	_install_skills_legend()
+	var stats_tab_badge := find_child("StatsTabBadge", true, false) as NotificationDot
+	if stats_tab_badge != null:
+		stats_tab_badge.bind_predicate(_stats_tab_badge_should_show)
 
 # Inserts the Skills tab color key (toggle + collapsed legend body) into
 # SkillsPanel between SkillPointsLabel and SkillsList. Mirrors the stats
@@ -202,22 +205,16 @@ func _update_skills_legend_toggle_text() -> void:
 	var caret := "▴" if _skills_legend_toggle.button_pressed else "▾"
 	_skills_legend_toggle.text = "%s Color key %s" % [String.chr(0x24D8), caret]
 
-func _process(_dt: float) -> void:
-	_update_stats_tab_badge()
-
-# Polls current_character.skill_points each frame and toggles the Stats
-# tab badge (#58). Same polling shape as HUD._update_stat_points_badge —
-# the badge updates within one frame of a level-up or a StatAllocator
-# spend. Cheap: one find_child + one read off CharacterData.
-func _update_stats_tab_badge() -> void:
-	var badge := find_child("StatsTabBadge", true, false) as Label
-	if badge == null:
-		return
+# Predicate bound to the Stats tab's NotificationDot (#622, consolidating
+# onto the shared component from #621). The dot polls this itself every
+# frame via NotificationDot._process — no manual per-frame update needed
+# here. Preserves the exact null-safety behavior of the old
+# _update_stats_tab_badge: no current_character means hidden.
+func _stats_tab_badge_should_show() -> bool:
 	var c := _current_character()
 	if c == null:
-		badge.visible = false
-		return
-	badge.visible = StatBadge.should_show(c.skill_points)
+		return false
+	return StatBadge.should_show(c.skill_points)
 
 # initial_tab lets a caller (e.g. a future HUD entry point, issue #616) land
 # the menu directly on a specific submenu tab instead of the default main
