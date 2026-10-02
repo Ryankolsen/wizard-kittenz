@@ -126,6 +126,16 @@ func _ready() -> void:
 	if achievements_tab != null:
 		achievements_tab.pressed.connect(_on_achievements_tab_pressed)
 		achievements_tab.add_to_group("tutorial_target_achievements_tab")
+	# Issue #623 (PRD #620). Mirrors the pause-button AchievementBadge's own
+	# predicate — visible whenever any unlocked achievement is unclaimed.
+	var achievements_tab_badge := find_child("AchievementsTabBadge", true, false)
+	if achievements_tab_badge != null:
+		achievements_tab_badge.bind_predicate(func():
+			var service := _resolve_achievement_service()
+			if service == null or service.account == null:
+				return false
+			return AchievementBadge.should_show(service.account.achievement_state)
+		)
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)

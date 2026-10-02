@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://bpm9aux1k7q8f"]
+[gd_scene load_steps=6 format=3 uid="uid://bpm9aux1k7q8f"]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause_menu"]
 [ext_resource type="Script" path="res://scripts/ui/stats_tab_panel.gd" id="2_stats_tab_panel"]
 [ext_resource type="Script" path="res://scripts/ui/equipment_tab_panel.gd" id="3_equipment_tab_panel"]
+[ext_resource type="PackedScene" uid="uid://c1n0t1f1cd0t" path="res://scenes/ui/notification_dot.tscn" id="4_notification_dot"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pause"]
 bg_color = Color(0.05, 0.07, 0.12, 0.85)
@@ -94,6 +95,17 @@ text = "Items"
 
 [node name="AchievementsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
 text = "Achievements"
+
+[node name="AchievementsTabBadge" parent="Center/CharacterSubmenu/VBox/TabBar/AchievementsTabButton" instance=ExtResource("4_notification_dot")]
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -14.0
+offset_top = -6.0
+offset_right = 0.0
+offset_bottom = 10.0
+grow_horizontal = 0
 
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
 custom_minimum_size = Vector2(0, 130)
