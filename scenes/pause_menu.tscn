@@ -49,9 +49,13 @@ text = "Resume"
 text = "Character"
 
 [node name="CharacterButtonBadge" parent="Center/MainMenu/VBox/Character" instance=ExtResource("4_notification_dot")]
-offset_left = 80.0
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 0.0
+offset_left = 0.0
 offset_top = -6.0
-offset_right = 94.0
+offset_right = 12.0
 offset_bottom = 10.0
 
 [node name="Settings" type="Button" parent="Center/MainMenu/VBox"]
@@ -85,9 +89,13 @@ theme_override_constants/separation = 4
 text = "Stats"
 
 [node name="StatsTabBadge" parent="Center/CharacterSubmenu/VBox/TabBar/StatsTabButton" instance=ExtResource("4_notification_dot")]
-offset_left = 50.0
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 0.0
+offset_left = 0.0
 offset_top = -6.0
-offset_right = 64.0
+offset_right = 12.0
 offset_bottom = 8.0
 
 [node name="SkillsTabButton" type="Button" parent="Center/CharacterSubmenu/VBox/TabBar"]
@@ -103,15 +111,14 @@ text = "Items"
 text = "Achievements"
 
 [node name="AchievementsTabBadge" parent="Center/CharacterSubmenu/VBox/TabBar/AchievementsTabButton" instance=ExtResource("4_notification_dot")]
-anchor_left = 1.0
+anchor_left = 0.5
 anchor_top = 0.0
-anchor_right = 1.0
+anchor_right = 0.5
 anchor_bottom = 0.0
-offset_left = -14.0
+offset_left = 0.0
 offset_top = -6.0
-offset_right = 0.0
+offset_right = 12.0
 offset_bottom = 10.0
-grow_horizontal = 0
 
 [node name="TabScroll" type="ScrollContainer" parent="Center/CharacterSubmenu/VBox"]
 custom_minimum_size = Vector2(0, 130)

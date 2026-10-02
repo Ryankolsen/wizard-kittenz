@@ -74,6 +74,40 @@ func test_pause_menu_stats_tab_badge_updates_on_change():
 	await get_tree().process_frame
 	assert_true(badge.visible, "badge polls per frame — must turn on when points appear")
 
+func test_pause_menu_stats_tab_badge_positioned_past_button_text():
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	await get_tree().process_frame
+	var badge = scene.find_child("StatsTabBadge", true, false)
+	var button: Button = scene.find_child("StatsTabButton", true, false)
+	# Issue #635: the dot is anchored to the button's horizontal center
+	# (which always equals the text's own center, since Button text is
+	# always centered) and positioned at runtime from the rendered text's
+	# half-width, instead of a hardcoded pixel offset that assumed a fixed
+	# button width.
+	assert_eq(badge.anchor_left, 0.5, "StatsTabBadge must anchor to the button's horizontal center")
+	assert_eq(badge.anchor_right, 0.5, "StatsTabBadge must anchor to the button's horizontal center")
+	var font := button.get_theme_font("font")
+	var font_size := button.get_theme_font_size("font_size")
+	var half_width := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x / 2.0
+	assert_almost_eq(badge.offset_left, half_width + 4.0, 0.5,
+		"the dot's left edge must sit just past the button text's half-width + gap")
+
+func test_pause_menu_stats_tab_badge_offset_tracks_button_text_width():
+	var scene = load("res://scenes/pause_menu.tscn").instantiate()
+	add_child_autofree(scene)
+	await get_tree().process_frame
+	var badge = scene.find_child("StatsTabBadge", true, false)
+	var button: Button = scene.find_child("StatsTabButton", true, false)
+	button.text = "S"
+	scene.call("_position_dot_after_text", badge, button)
+	var short_text_offset: float = badge.offset_left
+	button.text = "Stats Tab Extra Wide Label"
+	scene.call("_position_dot_after_text", badge, button)
+	var long_text_offset: float = badge.offset_left
+	assert_gt(long_text_offset, short_text_offset,
+		"offset_left must grow with the button's own rendered text width, not stay fixed")
+
 func test_pause_menu_stats_tab_badge_hidden_when_no_character_bound():
 	var scene = load("res://scenes/pause_menu.tscn").instantiate()
 	add_child_autofree(scene)

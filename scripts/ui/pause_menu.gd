@@ -104,6 +104,10 @@ func _ready() -> void:
 			var achievement_pending := service != null and AchievementBadge.should_show(service.account.achievement_state)
 			return points_pending or achievement_pending
 		)
+		# Issue #635: position past the Character button's own rendered
+		# text rather than a magic pixel offset that assumed a fixed
+		# button width.
+		_position_dot_after_text(character_badge, character_btn)
 	var back_btn := find_child("Back", true, false) as Button
 	if back_btn != null:
 		back_btn.pressed.connect(_on_back_pressed)
@@ -150,6 +154,9 @@ func _ready() -> void:
 				return false
 			return AchievementBadge.should_show(service.account.achievement_state)
 		)
+		# Issue #635: position past the Achievements tab button's own
+		# rendered text rather than a magic pixel offset.
+		_position_dot_after_text(achievements_tab_badge, achievements_tab)
 	var layout_opt := find_child("LayoutOption", true, false) as OptionButton
 	if layout_opt != null:
 		layout_opt.item_selected.connect(_on_layout_option_selected)
@@ -169,6 +176,9 @@ func _ready() -> void:
 	var stats_tab_badge := find_child("StatsTabBadge", true, false) as NotificationDot
 	if stats_tab_badge != null:
 		stats_tab_badge.bind_predicate(_stats_tab_badge_should_show)
+		# Issue #635: position past the Stats tab button's own rendered text
+		# rather than a magic pixel offset that assumed a fixed button width.
+		_position_dot_after_text(stats_tab_badge, stats_tab)
 
 # Inserts the Skills tab color key (toggle + collapsed legend body) into
 # SkillsPanel between SkillPointsLabel and SkillsList. Mirrors the stats
@@ -234,6 +244,31 @@ func _update_skills_legend_toggle_text() -> void:
 # frame via NotificationDot._process — no manual per-frame update needed
 # here. Preserves the exact null-safety behavior of the old
 # _update_stats_tab_badge: no current_character means hidden.
+# Issue #635. Button text is always horizontally centered, so the text's
+# own center always equals the button's center regardless of how wide a
+# container stretches the button — unlike a hardcoded top-left-relative
+# offset, which only lined up with the text for whatever one button width
+# happened to be measured at the time. dot's anchor_left/anchor_right are
+# both 0.5 (the .tscn's job), so offset_left here is measured from that
+# center: the dot's own left edge lands half_width + gap past center, and
+# offset_right is offset_left plus the dot's own width so it grows away
+# from the text rather than straddling it. custom_minimum_size.x is used
+# for the dot's width (not size.x) because this runs from _ready, before
+# any layout/sort pass has had a chance to populate size.
+func _position_dot_after_text(dot: Control, button: Button, gap: float = 4.0) -> void:
+	if dot == null or button == null:
+		return
+	var font := button.get_theme_font("font")
+	var font_size := button.get_theme_font_size("font_size")
+	var half_width := 0.0
+	if font != null:
+		half_width = font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x / 2.0
+	var dot_width: float = dot.custom_minimum_size.x
+	if dot_width <= 0.0:
+		dot_width = dot.size.x
+	dot.offset_left = half_width + gap
+	dot.offset_right = dot.offset_left + dot_width
+
 func _stats_tab_badge_should_show() -> bool:
 	var c := _current_character()
 	if c == null:

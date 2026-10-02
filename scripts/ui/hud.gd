@@ -66,6 +66,9 @@ func _ready() -> void:
 	_achievement_dot = $PauseButton/AchievementBadge
 	_achievement_dot.add_to_group("tutorial_target_achievement_badge")
 	_achievement_dot.bind_predicate(_achievement_dot_predicate)
+	# Issue #635: position past the Pause button's own rendered text rather
+	# than a magic pixel offset that assumed a fixed button width.
+	_position_dot_after_text(_achievement_dot, _pause_btn)
 	_help_btn = $HelpButton
 	_help_btn.pressed.connect(_on_help_pressed)
 	_mute_btn = $MuteButton
@@ -109,6 +112,29 @@ func _ready() -> void:
 	# is_touch_platform() is always false, so this is a no-op there and no
 	# separate desktop fallback is added (see PRD Out of Scope).
 	_maybe_show_tutorial()
+
+# Issue #635. Duplicated from pause_menu.gd's _position_dot_after_text
+# rather than factored into a shared location — these are the only two call
+# sites and neither script is an obviously sensible home for the other's
+# logic, so a dedicated shared class/autoload would be more ceremony than
+# the ~10 duplicated lines. See pause_menu.gd for the full rationale: button
+# text is always horizontally centered, so the dot's anchor_left/
+# anchor_right are both 0.5 (the .tscn's job) and this just measures the
+# rendered text's half-width off the button's own theme font to place the
+# dot's left edge just past the text, growing right from there.
+func _position_dot_after_text(dot: Control, button: Button, gap: float = 4.0) -> void:
+	if dot == null or button == null:
+		return
+	var font := button.get_theme_font("font")
+	var font_size := button.get_theme_font_size("font_size")
+	var half_width := 0.0
+	if font != null:
+		half_width = font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x / 2.0
+	var dot_width: float = dot.custom_minimum_size.x
+	if dot_width <= 0.0:
+		dot_width = dot.size.x
+	dot.offset_left = half_width + gap
+	dot.offset_right = dot.offset_left + dot_width
 
 func _maybe_show_tutorial() -> void:
 	if not TutorialTrigger.should_trigger(
