@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://b9hud2k7r3xqz"]
+[gd_scene load_steps=8 format=3 uid="uid://b9hud2k7r3xqz"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" path="res://scenes/quickbar_hud.tscn" id="2_quickbar"]
 [ext_resource type="PackedScene" path="res://scenes/minimap_hud.tscn" id="3_minimap"]
 [ext_resource type="PackedScene" path="res://scenes/potion_belt_hud.tscn" id="4_potion_belt"]
 [ext_resource type="Script" path="res://scripts/ui/music_icon.gd" id="5_music_icon"]
+[ext_resource type="PackedScene" path="res://scenes/ui/notification_dot.tscn" id="6_notification_dot"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stats"]
 bg_color = Color(0.05, 0.07, 0.12, 0.8)
@@ -54,15 +55,11 @@ offset_top = -7.0
 offset_right = 7.0
 offset_bottom = 7.0
 
-[node name="AchievementBadge" type="Label" parent="PauseButton"]
-visible = false
+[node name="AchievementBadge" parent="PauseButton" instance=ExtResource("6_notification_dot")]
 offset_left = 52.0
 offset_top = -6.0
 offset_right = 66.0
 offset_bottom = 10.0
-theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
-theme_override_font_sizes/font_size = 14
-text = "●"
 
 [node name="StatsPanel" type="PanelContainer" parent="."]
 offset_left = 4.0

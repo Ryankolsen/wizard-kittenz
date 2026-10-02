@@ -25,7 +25,12 @@ var _revive_btn: Button
 var _pause_btn: Button
 var _pause_menu: CanvasLayer = null
 var _stat_points_badge: Label
-var _achievement_badge: Label
+var _achievement_dot: NotificationDot
+# Tracks the dot's own visible flag frame-to-frame so the achievements
+# tutorial auto-trigger (below) can still fire on the not-visible->visible
+# edge now that AchievementDot self-polls instead of hud.gd computing its
+# visibility directly.
+var _achievement_dot_was_visible: bool = false
 var _help_btn: Button
 var _mute_btn: Button
 var _music_icon: MusicIcon
@@ -58,8 +63,9 @@ func _ready() -> void:
 	# Tutorial target for the pause_menu topic (issue #605, PRD #596).
 	_pause_btn.add_to_group("tutorial_target_pause_button")
 	_stat_points_badge = $StatPointsBadge
-	_achievement_badge = $PauseButton/AchievementBadge
-	_achievement_badge.add_to_group("tutorial_target_achievement_badge")
+	_achievement_dot = $PauseButton/AchievementBadge
+	_achievement_dot.add_to_group("tutorial_target_achievement_badge")
+	_achievement_dot.bind_predicate(_achievement_dot_predicate)
 	_help_btn = $HelpButton
 	_help_btn.pressed.connect(_on_help_pressed)
 	_mute_btn = $MuteButton
@@ -128,7 +134,7 @@ func _process(_dt: float) -> void:
 	_update_mp_bar()
 	_update_xp_bar()
 	_update_stat_points_badge()
-	_update_achievement_badge()
+	_check_achievement_tutorial_trigger()
 	_check_player_dead()
 
 # Polls player.data.skill_points each frame and toggles the badge. Same
@@ -146,28 +152,31 @@ func _update_stat_points_badge() -> void:
 	if _stat_points_badge.visible:
 		_stat_points_badge.text = "+%d stat pts" % pts
 
-# Polls GameState.achievement_service.account.achievement_state each frame
-# and toggles the pause-button badge (#450). Same polling shape as
-# _update_stat_points_badge — the badge updates within one frame of an
-# unlock (achievement_service.gd's record_event) or a claim (pause_menu.gd's
-# claim handler).
-func _update_achievement_badge() -> void:
-	if _achievement_badge == null:
-		return
+# Predicate bound to the AchievementBadge NotificationDot (#625, PRD #620).
+# Reads GameState.achievement_service.account.achievement_state and mirrors
+# the same null-safety the old _update_achievement_badge() polling had:
+# hidden whenever GameState or its achievement_service is unavailable.
+func _achievement_dot_predicate() -> bool:
 	var gs := get_node_or_null("/root/GameState")
 	if gs == null or gs.achievement_service == null:
-		_achievement_badge.visible = false
+		return false
+	return AchievementBadge.should_show(gs.achievement_service.account.achievement_state)
+
+# Edge-detects the AchievementBadge dot's own (self-polled) visibility to
+# keep firing the achievements tutorial auto-trigger (issue #608, PRD #596)
+# now that hud.gd no longer computes that visibility itself — the dot polls
+# its bound predicate every frame via NotificationDot._process, and this
+# just observes the resulting `visible` flag. Edge-trigger: only fire on the
+# not-visible->visible transition (mirrors _check_player_dead's alive->dead
+# edge-trigger comment in this file), so the dot staying visible across
+# subsequent frames doesn't re-open the overlay.
+func _check_achievement_tutorial_trigger() -> void:
+	if _achievement_dot == null:
 		return
-	var was_visible := _achievement_badge.visible
-	_achievement_badge.visible = AchievementBadge.should_show(
-		gs.achievement_service.account.achievement_state)
-	# achievements tutorial auto-trigger (issue #608, PRD #596). Edge-trigger:
-	# only fire on the not-visible->visible transition (mirrors
-	# _check_player_dead's alive->dead edge-trigger comment in this file), so
-	# the badge staying visible across subsequent polling frames doesn't
-	# re-open the overlay.
-	if _achievement_badge.visible and not was_visible:
+	var is_visible := _achievement_dot.visible
+	if is_visible and not _achievement_dot_was_visible:
 		_maybe_show_achievements_tutorial()
+	_achievement_dot_was_visible = is_visible
 
 func _maybe_show_achievements_tutorial() -> void:
 	if not TutorialTrigger.should_trigger(
