@@ -87,6 +87,15 @@ func _ready() -> void:
 		circle.radius = 16.0
 		shape.shape = circle
 		add_child(shape)
+	# The hooman shares the default physics layer (bit 0) with the player and
+	# enemies, so without clearing collision_layer here the player's own
+	# move_and_slide gets physically blocked by this shape (e.g. stuck in a
+	# corner behind the hooman) even though the hooman never calls
+	# move_and_slide itself. Mob targeting/contact damage against the hooman
+	# (enemy.gd's "taunt_targets" handling) is distance-based, not
+	# collision-based, so this has no effect on combat.
+	collision_layer = 0
+	collision_mask = 0
 	HoomanHealthBar.attach(self)
 	if _weapon_pivot == null:
 		_weapon_pivot = _WeaponPivotScene.instantiate()
