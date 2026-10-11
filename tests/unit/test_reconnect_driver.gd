@@ -53,6 +53,22 @@ class FakeStrategy:
 			return false
 		return results.pop_front()
 
+# Attempt strategy that genuinely suspends, the way the production strategy's
+# awaited create_socket_async/join_match_async calls do, until the test calls
+# release(). FakeStrategy returns synchronously, which is why it never caught
+# _tick calling the real (async) strategy without await.
+class SuspendingStrategy:
+	extends RefCounted
+	signal _released(result: bool)
+	var call_count: int = 0
+
+	func attempt() -> bool:
+		call_count += 1
+		return await _released
+
+	func release(result: bool) -> void:
+		_released.emit(result)
+
 func _make_active_lobby(socket: FakeSocket, local_id: String = "local-1") -> NakamaLobby:
 	var lobby := NakamaLobby.new(socket, null)
 	lobby.lobby_state = LobbyState.new("ABCDE")
@@ -223,6 +239,68 @@ func test_second_connection_lost_mid_retry_does_not_drift_window_baseline():
 	driver._tick(46.0) # 46 - 0 >= 45 (original window expired); 46 - 3 < 45
 	# (drifted window would NOT have expired yet) -- only the original
 	# baseline should decide this.
+
+	assert_signal_emitted(driver, "reconnect_exhausted")
+
+# Regression: _tick called the async production strategy without await, so a
+# real attempt's result never reached the coordinator (and in a debug build
+# the "async function without await" error paused the whole game).
+func test_suspending_attempt_reports_its_result_once_it_resolves():
+	var socket := FakeSocket.new()
+	var lobby := _make_active_lobby(socket)
+	var strategy := SuspendingStrategy.new()
+	var driver := ReconnectDriver.new(5.0, 45.0)
+	add_child_autofree(driver)
+	driver.set_attempt_strategy(Callable(strategy, "attempt"))
+	driver.set_lobby(lobby)
+	watch_signals(driver)
+
+	socket.closed.emit()
+	strategy.release.call_deferred(true)
+	await driver._tick(0.0)
+
+	assert_signal_emitted(driver, "reconnect_succeeded")
+
+# Regression: the 1s Timer keeps firing while a multi-second network attempt
+# is still awaiting, so a tick landing past the retry interval must not start
+# a second overlapping attempt.
+func test_tick_while_attempt_in_flight_does_not_start_another():
+	var socket := FakeSocket.new()
+	var lobby := _make_active_lobby(socket)
+	var strategy := SuspendingStrategy.new()
+	var driver := ReconnectDriver.new(5.0, 45.0)
+	add_child_autofree(driver)
+	driver.set_attempt_strategy(Callable(strategy, "attempt"))
+	driver.set_lobby(lobby)
+	watch_signals(driver)
+
+	socket.closed.emit()
+	driver._tick.call_deferred(0.0)
+	await wait_frames(2)
+	driver._tick(6.0)
+
+	assert_eq(strategy.call_count, 1)
+	assert_signal_not_emitted(driver, "reconnect_succeeded")
+
+	strategy.release(true)
+	assert_signal_emitted(driver, "reconnect_succeeded")
+
+# An attempt that never resolves (e.g. a connect that hangs) must not hold the
+# player on "Reconnecting…" past the retry window.
+func test_window_expires_while_attempt_hangs():
+	var socket := FakeSocket.new()
+	var lobby := _make_active_lobby(socket)
+	var strategy := SuspendingStrategy.new()
+	var driver := ReconnectDriver.new(5.0, 45.0)
+	add_child_autofree(driver)
+	driver.set_attempt_strategy(Callable(strategy, "attempt"))
+	driver.set_lobby(lobby)
+	watch_signals(driver)
+
+	socket.closed.emit()
+	driver._tick.call_deferred(0.0)
+	await wait_frames(2)
+	driver._tick(46.0)
 
 	assert_signal_emitted(driver, "reconnect_exhausted")
 

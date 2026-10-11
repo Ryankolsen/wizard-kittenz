@@ -49,6 +49,10 @@ var _timer: Timer = null
 # window-expiry behavior depend on how long the test process had already
 # been running before this test executed).
 var _last_now: float = 0.0
+# True while an attempt is awaiting its network calls. The production
+# attempt can take several seconds, far longer than the 1s Timer, so later
+# ticks must not start a second, overlapping attempt.
+var _attempt_in_flight: bool = false
 
 func _init(
 	retry_interval_seconds: float = ReconnectCoordinator.DEFAULT_RETRY_INTERVAL_SECONDS,
@@ -69,7 +73,7 @@ func _ready() -> void:
 	_timer.start()
 
 func _on_timer_timeout() -> void:
-	_tick(Time.get_ticks_msec() / 1000.0)
+	await _tick(Time.get_ticks_msec() / 1000.0)
 
 # Testability seam (#640): the real-time Timer only ever calls this with a
 # live clock reading. Tests call it directly with hand-picked `now` values
@@ -88,14 +92,20 @@ func _on_timer_timeout() -> void:
 # with the coordinator's own baseline (e.g. a duplicate connection_lost
 # firing mid-cycle, which start() correctly no-ops but a shadow copy here
 # would not).
+#
+# The attempt strategy is awaited: the production one suspends on network
+# I/O. While it is in flight, ticks only check for window expiry, so a hung
+# connect still ends the cycle instead of leaving it RETRYING forever.
 func _tick(now: float) -> bool:
 	_last_now = now
-	if not _coordinator.ready_for_next_attempt(now):
+	if _attempt_in_flight or not _coordinator.ready_for_next_attempt(now):
 		if _coordinator.state() == ReconnectCoordinator.State.RETRYING \
 				and _coordinator.window_expired(now):
 			_coordinator.cancel()
 		return false
-	var success: bool = bool(_attempt_strategy.call())
+	_attempt_in_flight = true
+	var success: bool = bool(await _attempt_strategy.call())
+	_attempt_in_flight = false
 	_coordinator.note_attempt_result(now, success)
 	return true
 
