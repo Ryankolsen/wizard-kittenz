@@ -195,6 +195,37 @@ func test_set_lobby_swap_disconnects_previous_lobby_signal():
 
 	assert_signal_not_emitted(driver, "reconnect_started")
 
+func test_second_connection_lost_mid_retry_does_not_drift_window_baseline():
+	# Regression (#640 follow-up): a second connection_lost firing while the
+	# coordinator is already RETRYING (e.g. the socket's `closed` and
+	# `connection_error` signals both fire off the same underlying drop) must
+	# NOT push the driver's own notion of "when did this cycle start" later.
+	# ReconnectCoordinator.start() correctly no-ops and keeps its original
+	# baseline in this case. Before the fix, the driver tracked its own
+	# shadow _cycle_start_time and overwrote it unconditionally on every
+	# connection_lost, so the driver's window-expiry escalation measured
+	# against a drifted baseline instead of the coordinator's true one —
+	# keeping the cycle RETRYING well past when its real 45s window (from
+	# the FIRST connection_lost, at now=0) had already elapsed.
+	var socket := FakeSocket.new()
+	var lobby := _make_active_lobby(socket)
+	var strategy := FakeStrategy.new([false, false, false])
+	var driver := _make_driver(lobby, strategy, 5.0, 45.0)
+
+	socket.closed.emit() # cycle starts at now=0 (both coordinator + driver)
+	driver._tick(3.0) # a real tick elapses before the duplicate event
+
+	socket.closed.emit() # duplicate drop signal fires at now=3; coordinator
+	# no-ops and keeps baseline 0, but the (buggy) driver used to overwrite
+	# its own _cycle_start_time to 3 here.
+
+	watch_signals(driver)
+	driver._tick(46.0) # 46 - 0 >= 45 (original window expired); 46 - 3 < 45
+	# (drifted window would NOT have expired yet) -- only the original
+	# baseline should decide this.
+
+	assert_signal_emitted(driver, "reconnect_exhausted")
+
 func test_production_strategy_failed_create_socket_never_calls_rebind():
 	var socket := FakeSocket.new()
 	var lobby := _make_active_lobby(socket)

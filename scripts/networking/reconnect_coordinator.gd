@@ -80,7 +80,7 @@ func start(now: float) -> void:
 func ready_for_next_attempt(now: float) -> bool:
 	if _state != State.RETRYING:
 		return false
-	if now - _cycle_start_time >= retry_window_seconds:
+	if window_expired(now):
 		return false
 	if not _has_attempted:
 		_has_attempted = true
@@ -104,7 +104,7 @@ func note_attempt_result(now: float, success: bool) -> void:
 		_state = State.SUCCEEDED
 		reconnect_succeeded.emit()
 		return
-	if now - _cycle_start_time >= retry_window_seconds:
+	if window_expired(now):
 		_state = State.EXHAUSTED
 		reconnect_exhausted.emit()
 
@@ -113,6 +113,21 @@ func note_attempt_result(now: float, success: bool) -> void:
 # cancel() from IDLE/SUCCEEDED/already-EXHAUSTED is a no-op — only a live
 # RETRYING cycle can be cancelled, matching HostPauseState.set_paused's
 # "only fire on a real transition" contract.
+# Answers "has this RETRYING cycle's total retry window elapsed as of
+# `now`?" against the coordinator's own authoritative _cycle_start_time —
+# the single source of truth for when the current cycle actually started.
+# Exposed so a real-time-aware caller (e.g. ReconnectDriver) can notice a
+# cycle that has gone silently stale (ready_for_next_attempt deliberately
+# never self-terminates on window expiry; see its doc comment) without that
+# caller having to re-derive or separately track the cycle's start time
+# itself, which is what let a duplicate start() call drift a caller-owned
+# copy away from this baseline. Returns false outside RETRYING — there is
+# no meaningful "window" to have expired when no cycle is running.
+func window_expired(now: float) -> bool:
+	if _state != State.RETRYING:
+		return false
+	return now - _cycle_start_time >= retry_window_seconds
+
 func cancel() -> void:
 	if _state != State.RETRYING:
 		return

@@ -35,8 +35,6 @@ var _coordinator: ReconnectCoordinator
 var _lobby: NakamaLobby = null
 var _attempt_strategy: Callable
 var _timer: Timer = null
-var _retry_window_seconds: float
-var _cycle_start_time: float = 0.0
 # Most recent `now` this driver has observed, from either a real Timer tick
 # or a test's direct _tick(now) call. connection_lost carries no `now` of
 # its own (it's a plain signal, fired by the socket layer, not by the
@@ -56,7 +54,6 @@ func _init(
 	retry_interval_seconds: float = ReconnectCoordinator.DEFAULT_RETRY_INTERVAL_SECONDS,
 	retry_window_seconds: float = ReconnectCoordinator.DEFAULT_RETRY_WINDOW_SECONDS,
 ) -> void:
-	_retry_window_seconds = retry_window_seconds
 	_coordinator = ReconnectCoordinator.new(retry_interval_seconds, retry_window_seconds)
 	_coordinator.reconnect_started.connect(func(): reconnect_started.emit())
 	_coordinator.reconnect_succeeded.connect(func(): reconnect_succeeded.emit())
@@ -85,14 +82,17 @@ func _on_timer_timeout() -> void:
 # qualifying attempt landing in time would otherwise sit RETRYING forever,
 # silently never attempting again and never telling anyone it gave up. The
 # driver is the one real-time-aware party here, so it's the one that notices
-# that case (state still RETRYING, but the window the driver itself was
-# constructed with has elapsed since the cycle started) and forces the
-# terminal transition via cancel().
+# that case and forces the terminal transition via cancel() — but it asks
+# the coordinator itself (window_expired) rather than tracking its own copy
+# of the cycle's start time, since a caller-owned copy can drift out of sync
+# with the coordinator's own baseline (e.g. a duplicate connection_lost
+# firing mid-cycle, which start() correctly no-ops but a shadow copy here
+# would not).
 func _tick(now: float) -> bool:
 	_last_now = now
 	if not _coordinator.ready_for_next_attempt(now):
 		if _coordinator.state() == ReconnectCoordinator.State.RETRYING \
-				and now - _cycle_start_time >= _retry_window_seconds:
+				and _coordinator.window_expired(now):
 			_coordinator.cancel()
 		return false
 	var success: bool = bool(_attempt_strategy.call())
@@ -117,7 +117,6 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 		_lobby.connection_lost.connect(_on_connection_lost)
 
 func _on_connection_lost() -> void:
-	_cycle_start_time = _last_now
 	_coordinator.start(_last_now)
 
 # Passthrough for a future UI "give up" button (#641).
