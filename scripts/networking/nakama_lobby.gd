@@ -216,6 +216,14 @@ signal player_hit_received(target_id: String, damage: int, source_position: Vect
 # broadcasts). CoopPlayerLayer subscribes and fans through to the matching
 # RemoteKitten's apply_death. Empty payload — no extra wire fields.
 signal player_died_received(target_id: String)
+# Fires when the CURRENT socket emits `closed` or `connection_error` while
+# the lobby still considers itself in a match (_match_id != ""). This is the
+# unexpected-disconnect signal consumed by the future reconnect orchestrator
+# (slice #640, issue #639 parent #636) — it must NOT fire as a side effect
+# of our own deliberate leave_async(), which clears _match_id before tearing
+# the socket down, so a stale socket's later `closed` emission (e.g. the
+# very leave_match_async call itself closing the socket) is a no-op here.
+signal connection_lost()
 
 var lobby_state: LobbyState = null
 var local_player_id: String = ""
@@ -240,9 +248,62 @@ var _match_id: String = ""
 func _init(socket = null, session = null) -> void:
 	_socket = socket
 	_session = session
-	if socket != null:
-		socket.received_match_presence.connect(_on_match_presence)
-		socket.received_match_state.connect(_on_match_state)
+	_wire_socket_signals(socket)
+
+# Connects the four signals NakamaLobby cares about on a given socket:
+# the two lobby-logic signals (received_match_presence / received_match_state)
+# plus the two unexpected-disconnect signals (closed / connection_error) added
+# for #639. Shared by _init and rebind_socket so a socket is always wired up
+# identically regardless of when it arrives.
+func _wire_socket_signals(socket) -> void:
+	if socket == null:
+		return
+	socket.received_match_presence.connect(_on_match_presence)
+	socket.received_match_state.connect(_on_match_state)
+	socket.closed.connect(_on_socket_closed)
+	socket.connection_error.connect(_on_socket_connection_error)
+
+# Defensively disconnects the four signals wired by _wire_socket_signals from
+# a socket that's about to be discarded (replaced via rebind_socket). Mirrors
+# GameState._disconnect_lobby_signals' is_connected-guarded teardown shape.
+func _disconnect_socket_signals(socket) -> void:
+	if socket == null:
+		return
+	if socket.received_match_presence.is_connected(_on_match_presence):
+		socket.received_match_presence.disconnect(_on_match_presence)
+	if socket.received_match_state.is_connected(_on_match_state):
+		socket.received_match_state.disconnect(_on_match_state)
+	if socket.closed.is_connected(_on_socket_closed):
+		socket.closed.disconnect(_on_socket_closed)
+	if socket.connection_error.is_connected(_on_socket_connection_error):
+		socket.connection_error.disconnect(_on_socket_connection_error)
+
+# Unexpected-disconnect detection (#639). Only fires while the lobby still
+# considers itself in a match — after leave_async() clears _match_id, a
+# stale socket's closed/connection_error (including as a side effect of the
+# leave_match_async call itself) is a deliberate teardown, not a drop.
+func _on_socket_closed() -> void:
+	if _match_id != "":
+		connection_lost.emit()
+
+func _on_socket_connection_error(_err) -> void:
+	if _match_id != "":
+		connection_lost.emit()
+
+# Resume-in-place after a reconnect (#639). Swaps the socket/session the
+# lobby talks through while leaving every match-domain state (lobby_state,
+# local_player_id, _match_id, dungeon_seed_sync, host_pause_state) exactly
+# as-is — a reconnecting player's roster, host flag, and agreed dungeon seed
+# must survive the swap untouched. This is the synchronous "swap the
+# plumbing and keep the state" seam only: it does not itself call
+# join_match_async or any other async Nakama call to rejoin _match_id on the
+# new socket — that belongs to the orchestrator in slice #640, which owns
+# the async flow and retry timing.
+func rebind_socket(new_socket, new_session) -> void:
+	_disconnect_socket_signals(_socket)
+	_socket = new_socket
+	_session = new_session
+	_wire_socket_signals(_socket)
 
 # --- Async wire methods -------------------------------------------------------
 
