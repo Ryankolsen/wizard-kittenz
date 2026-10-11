@@ -299,6 +299,12 @@ func _on_socket_connection_error(_err) -> void:
 # join_match_async or any other async Nakama call to rejoin _match_id on the
 # new socket — that belongs to the orchestrator in slice #640, which owns
 # the async flow and retry timing.
+# Public accessor for the cached match id (#640). _match_id itself stays
+# private; the reconnect driver needs the id to rejoin on a fresh socket
+# but has no other reason to reach into lobby internals.
+func match_id() -> String:
+	return _match_id
+
 func rebind_socket(new_socket, new_session) -> void:
 	_disconnect_socket_signals(_socket)
 	_socket = new_socket

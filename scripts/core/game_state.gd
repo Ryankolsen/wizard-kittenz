@@ -118,6 +118,14 @@ var tutorial_seen_topics: Array = []
 # active_slot is kept in sync by _hydrate_active_character / set_character /
 # switch_to_slot so a newly-unlocked achievement records which slot earned it.
 var achievement_service: AchievementService = AchievementService.new(AccountSaveData.new())
+# Reconnect orchestrator (#640, parent PRD #636). Owns one ReconnectCoordinator
+# and holds the active lobby reference; set_lobby/_disconnect_lobby_signals
+# below keep it pointed at whichever NakamaLobby is currently active, same
+# shape as the host_paused/host_unpaused wiring. Added to the tree in _ready
+# so its real-time Timer actually runs. A future UI slice (#641) will bind to
+# its forwarded reconnect_started/reconnect_succeeded/reconnect_exhausted
+# signals and its cancel_reconnect() passthrough.
+var reconnect_driver: ReconnectDriver = ReconnectDriver.new()
 
 func _ready() -> void:
 	# Applied here (first autoload) so saved BGM/SFX volume takes effect
@@ -125,6 +133,7 @@ func _ready() -> void:
 	AudioSettingsManagerRef.apply_loaded()
 	_try_load_save()
 	NakamaService.authenticated.connect(_on_nakama_authenticated)
+	add_child(reconnect_driver)
 	# BillingManager is declared after GameState in project.godot, so its
 	# autoload node isn't on the tree yet when our _ready runs. Defer the
 	# connect to the next idle tick when all autoloads exist.
@@ -452,6 +461,7 @@ func set_lobby(new_lobby: NakamaLobby) -> void:
 		lobby.damage_received.connect(_on_damage_received)
 		lobby.host_paused.connect(_on_host_paused)
 		lobby.host_unpaused.connect(_on_host_unpaused)
+	reconnect_driver.set_lobby(lobby)
 
 func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 	if old.position_received.is_connected(_on_position_received):
@@ -468,6 +478,7 @@ func _disconnect_lobby_signals(old: NakamaLobby) -> void:
 		old.host_paused.disconnect(_on_host_paused)
 	if old.host_unpaused.is_connected(_on_host_unpaused):
 		old.host_unpaused.disconnect(_on_host_unpaused)
+	reconnect_driver.set_lobby(null)
 
 # Host-pause scene-tree bridge (#43). NakamaLobby's wire layer flips
 # host_pause_state and emits host_paused / host_unpaused on a real edge;
