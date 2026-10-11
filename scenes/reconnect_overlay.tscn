@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/reconnect_overlay.gd" id="1_reconnect_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner"]
+bg_color = Color(0.05, 0.07, 0.12, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.55, 0.75, 1)
+content_margin_left = 24.0
+content_margin_top = 16.0
+content_margin_right = 24.0
+content_margin_bottom = 16.0
+
+[node name="ReconnectOverlay" type="CanvasLayer"]
+script = ExtResource("1_reconnect_overlay")
+layer = 11
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Banner" type="PanelContainer" parent="Center"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_banner")
+
+[node name="VBox" type="VBoxContainer" parent="Center/Banner"]
+theme_override_constants/separation = 12
+
+[node name="Message" type="Label" parent="Center/Banner/VBox"]
+horizontal_alignment = 1
+text = "Reconnecting…"
+theme_override_font_sizes/font_size = 22
+
+[node name="CancelButton" type="Button" parent="Center/Banner/VBox"]
+text = "Cancel"
+
+[node name="BackToMenuButton" type="Button" parent="Center/Banner/VBox"]
+visible = false
+text = "Back to menu"
