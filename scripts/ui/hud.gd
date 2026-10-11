@@ -44,6 +44,7 @@ var _pending_level_up_pause_open: bool = false
 
 const PAUSE_MENU_SCENE := preload("res://scenes/pause_menu.tscn")
 const HOST_PAUSE_OVERLAY_SCENE := preload("res://scenes/host_pause_overlay.tscn")
+const RECONNECT_OVERLAY_SCENE := preload("res://scenes/reconnect_overlay.tscn")
 const TUTORIAL_TOPIC_MENU_SCENE := preload("res://scenes/tutorial_topic_menu.tscn")
 const AudioSettings := preload("res://scripts/core/audio_settings_manager.gd")
 
@@ -102,6 +103,7 @@ func _ready() -> void:
 	# overlay self-suppresses on the host's client, so this is a no-op for
 	# the host's HUD.
 	_spawn_host_pause_overlay()
+	_spawn_reconnect_overlay()
 	# Dedicated boss HP bar pinned to top-center (issue #248). The bar polls
 	# the "enemies" group each frame, shows itself while a boss is alive, and
 	# hides otherwise. EnemyHealthBar.attach skips bosses, so this bar owns
@@ -154,6 +156,9 @@ func _on_tutorial_finished(topic_id: String, on_finished: Callable = Callable())
 func _spawn_host_pause_overlay() -> void:
 	var overlay := HOST_PAUSE_OVERLAY_SCENE.instantiate()
 	add_child(overlay)
+
+func _spawn_reconnect_overlay() -> void:
+	add_child(RECONNECT_OVERLAY_SCENE.instantiate())
 
 func _process(_dt: float) -> void:
 	_update_hp_bar()
